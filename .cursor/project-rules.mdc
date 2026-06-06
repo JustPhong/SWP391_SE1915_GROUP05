@@ -1,0 +1,11 @@
+---
+description: Project rules
+alwaysApply: true
+---
+
+# Project Rules
+
+- Always respond in Vietnamese.
+- For React use functional components.
+- For Express use async/await.
+- Explain code changes before editing files.

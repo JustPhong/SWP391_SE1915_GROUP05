@@ -1,0 +1,118 @@
+import api from '../services/api';
+
+export interface LookupResult {
+  found: boolean;
+  alreadyParked?: boolean;
+  slotCode?: string;
+  customerType: 'monthly' | 'casual';
+  vehicleType?: 'CAR' | 'MOTORBIKE';
+  fixedSlot?: string | null;
+  packageExpiry?: string;
+  isExpired?: boolean;
+}
+
+export interface AvailableSlot {
+  code: string;
+  suggested: boolean;
+}
+
+export interface CheckinStats {
+  capacityUsed: number;
+  capacityTotal: number;
+  monthlyToday: number;
+}
+
+export interface CheckinSubmitPayload {
+  plateNumber: string;
+  slotCode: string;
+  vehicleType: 'CAR' | 'MOTORBIKE';
+  isMonthly: boolean;
+}
+
+export interface CheckinSubmitResult {
+  ok: boolean;
+  slotCode: string;
+  plate: string;
+  checkInTime: string;
+}
+
+function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {
+  if (!response.data.success) {
+    throw new Error(response.data.message ?? 'Yêu cầu thất bại');
+  }
+  return response.data.data;
+}
+
+function unwrapList<T>(response: { data: { success: boolean; data: T[]; message?: string } }): T[] {
+  if (!response.data.success) {
+    throw new Error(response.data.message ?? 'Yêu cầu thất bại');
+  }
+  return response.data.data;
+}
+
+export async function lookupPlate(plate: string): Promise<LookupResult> {
+  try {
+    const response = await api.get<{ success: boolean; data: LookupResult }>(
+      `/checkin/lookup/${encodeURIComponent(plate)}`
+    );
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể tra cứu biển số. Vui lòng thử lại.';
+    throw new Error(msg);
+  }
+}
+
+export async function getAvailableSlots(
+  vehicleType: 'CAR' | 'MOTORBIKE'
+): Promise<AvailableSlot[]> {
+  try {
+    const response = await api.get<{ success: boolean; data: AvailableSlot[] }>(
+      '/slots/available',
+      { params: { vehicleType, customerType: 'CASUAL' } }
+    );
+    return unwrapList(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể tải danh sách slot trống.';
+    throw new Error(msg);
+  }
+}
+
+export async function getCheckinStats(): Promise<CheckinStats> {
+  try {
+    const response = await api.get<{ success: boolean; data: CheckinStats }>('/checkin/stats');
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể tải thống kê.';
+    throw new Error(msg);
+  }
+}
+
+export async function submitCheckIn(
+  payload: CheckinSubmitPayload
+): Promise<CheckinSubmitResult> {
+  try {
+    const body = {
+      plate: payload.plateNumber,
+      vehicleType: payload.vehicleType,
+      customerType: payload.isMonthly ? 'monthly' : 'casual',
+      slotCode: payload.slotCode,
+      isMonthly: payload.isMonthly,
+    };
+    const response = await api.post<{ success: boolean; data: CheckinSubmitResult }>(
+      '/checkin',
+      body
+    );
+    return unwrap(response);
+  } catch (err: unknown) {
+    const rawMsg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    const msg = rawMsg ?? 'Không thể check-in. Vui lòng thử lại.';
+    throw new Error(msg);
+  }
+}

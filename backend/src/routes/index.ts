@@ -1,0 +1,32 @@
+import { Router } from 'express';
+import authRoutes from './auth.routes';
+import vehicleRoutes from './vehicle.routes';
+import checkinCheckoutRoutes from './checkin-checkout.routes';
+import bookingRoutes from './booking.routes';
+import monthlyPackageRoutes from './monthlyPackage.routes';
+import paymentRoutes from './payment.routes';
+import reportRoutes from './report.routes';
+import driverDashboardRoutes from './driver-dashboard.routes';
+import slotRoutes from './slot.routes';
+import floorRoutes from './floor.routes';
+import checkinRoutes from './checkin.routes';
+import checkoutRoutes from './checkout.routes';
+import dashboardRoutes from './dashboard.routes';
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/vehicles', vehicleRoutes);
+router.use('/checkin-out', checkinCheckoutRoutes);
+router.use('/bookings', bookingRoutes);
+router.use('/monthly-packages', monthlyPackageRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/reports', reportRoutes);
+router.use('/driver-dashboard', driverDashboardRoutes);
+router.use('/slots', slotRoutes);
+router.use('/floors', floorRoutes);
+router.use('/checkin', checkinRoutes);
+router.use('/checkout', checkoutRoutes);
+router.use('/dashboard', dashboardRoutes);
+
+export default router;

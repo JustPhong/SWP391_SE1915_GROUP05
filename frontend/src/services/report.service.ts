@@ -1,0 +1,24 @@
+import api from './api';
+import type { OccupancyReport, RevenueReport } from '../types';
+
+export const reportService = {
+  getOccupancy: async (floor?: number) => {
+    const response = await api.get<{ success: boolean; data: OccupancyReport }>('/reports/occupancy', {
+      params: { floor },
+    });
+    return response.data.data;
+  },
+
+  getRevenue: async (params?: { startDate?: string; endDate?: string }) => {
+    const response = await api.get<{ success: boolean; data: RevenueReport }>('/reports/revenue', { params });
+    return response.data.data;
+  },
+
+  getSummary: async () => {
+    const response = await api.get<{
+      success: boolean;
+      data: { activeCheckIns: number; activeBookings: number; activePackages: number };
+    }>('/reports/summary');
+    return response.data.data;
+  },
+};

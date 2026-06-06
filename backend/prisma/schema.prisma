@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// LƯU Ý: SQL Server KHÔNG hỗ trợ enum của Prisma.
+// Nên các trường dưới đây dùng String, và giá trị hợp lệ
+// được kiểm soát ở tầng code (thư mục dtos/ hoặc validators/).
+// Giá trị cho phép:
+//   User.role        : ADMIN | MANAGER | STAFF | DRIVER
+//   Vehicle.type     : MOTORBIKE | CAR
+//   ParkingSlot.type : MOTORBIKE | CAR
+//   ParkingSlot.status   : AVAILABLE | OCCUPIED | RESERVED
+//   Floor.vehicleType   : CAR | MOTORBIKE
+//   Floor.customerType   : MONTHLY | CASUAL
+//   MonthlyPackage.status: ACTIVE | EXPIRED
+//   Booking.status   : ACTIVE | FULFILLED | NO_SHOW | CANCELLED
+//   Payment.method   : CASH | CARD | EWALLET
+//   Payment.type     : SESSION | MONTHLY
+// ============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  phoneNumber  String?
+  passwordHash String
+  role         String   @default("DRIVER")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  vehicles        Vehicle[]
+  monthlyPackages MonthlyPackage[]
+  bookings        Booking[]
+}
+
+model Vehicle {
+  id          String   @id @default(uuid())
+  plateNumber String   @unique
+  type        String
+  isMonthly   Boolean  @default(false)
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fixedSlots     ParkingSlot[]
+  monthlyPackage MonthlyPackage?
+  bookings       Booking[]
+  checkInRecords CheckInRecord[]
+}
+
+model Floor {
+  id           Int           @id @default(autoincrement())
+  floorCode    String        @unique
+  name         String
+  vehicleType  String
+  customerType String
+  capacity     Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  slots ParkingSlot[]
+}
+
+model ParkingSlot {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  type              String
+  status            String   @default("AVAILABLE")
+  isFixed           Boolean  @default(false)
+  assignedVehicleId String?
+  assignedVehicle   Vehicle? @relation(fields: [assignedVehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  floorId           Int
+  floor             Floor    @relation(fields: [floorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  monthlyPackage MonthlyPackage[]
+  bookings       Booking[]
+  checkInRecords CheckInRecord[]
+}
+
+model MonthlyPackage {
+  id         String       @id @default(uuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vehicleId  String       @unique
+  vehicle    Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  slotId     String?
+  slot       ParkingSlot? @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  planName   String?
+  startDate  DateTime
+  expiryDate DateTime
+  price      Decimal      @db.Decimal(10, 2)
+  status     String       @default("ACTIVE")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  payments Payment[]
+}
+
+model Booking {
+  id             String   @id @default(uuid())
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  slotId         String
+  slot           ParkingSlot @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bookingTime    DateTime @default(now())
+  expectedArrival DateTime
+  status         String   @default("ACTIVE")
+  createdById    String
+  createdBy      User     @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model CheckInRecord {
+  id           String      @id @default(uuid())
+  vehicleId    String
+  vehicle      Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  slotId       String
+  slot         ParkingSlot @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  checkInTime  DateTime    @default(now())
+  checkOutTime DateTime?
+  isMonthly    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  payments Payment[]
+}
+
+model Payment {
+  id               String          @id @default(uuid())
+  checkInRecordId  String?
+  checkInRecord    CheckInRecord?  @relation(fields: [checkInRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  monthlyPackageId String?
+  monthlyPackage   MonthlyPackage? @relation(fields: [monthlyPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amount           Decimal         @db.Decimal(10, 2)
+  method           String
+  paidAt           DateTime        @default(now())
+  type             String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
