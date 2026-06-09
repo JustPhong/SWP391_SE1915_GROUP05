@@ -83,6 +83,10 @@ export const authService = {
       throw new AppError(401, 'Invalid email or password');
     }
 
+    if (!user.isActive) {
+      throw new AppError(403, 'Tài khoản đã bị khóa');
+    }
+
     const valid = await bcrypt.compare(input.password, user.passwordHash);
     if (!valid) {
       throw new AppError(401, 'Invalid email or password');

@@ -3,6 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import * as XLSX from 'xlsx';
 import api from '../services/api';
 
 // ═══════════════════════════════════════════════════════════
@@ -88,14 +89,98 @@ function fmtShortDate(iso: string): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function getLast30Days(): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - 29);
-  return {
-    from: from.toISOString().split('T')[0],
-    to:   to.toISOString().split('T')[0],
+// ═══════════════════════════════════════════════════════════
+//  EXPORT — Tổng quan overview to .xlsx
+// ═══════════════════════════════════════════════════════════
+function exportToOverviewExcel(
+  kpi: KpiSummary | null,
+  revenue: RevenueRow[],
+  occupancy: OccupancyReport | null,
+  dateRange: DateRange,
+  customFrom: string,
+  customTo: string,
+): void {
+  const { from, to } = dateRangeToIso(
+    dateRange,
+    customFrom && customTo ? { from: customFrom, to: customTo } : undefined,
+  );
+
+  const rangeLabel = DATE_RANGE_LABELS[dateRange];
+  const k = kpi ?? { vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0 };
+
+  // ── Sheet 1: Tổng quan ────────────────────────────────
+  //
+  // KPI section
+  const overviewData: (string | number)[][] = [
+    ['BÁO CÁO TỔNG QUAN BÃI ĐỖ XE'],
+    [`Kỳ báo cáo: ${rangeLabel}  (${from} → ${to})`],
+    [],
+    ['CHỈ SỐ CHÍNH'],
+    ['Doanh thu',        k.todayRevenue],
+    ['Lượt xe vào',      k.vehiclesParked],
+    ['Tỉ lệ lấp đầy',   `${k.occupancyRate.toFixed(1)}%`],
+    ['Khách tháng active', k.monthlySubscribers],
+    [],
+  ];
+
+  // Floor occupancy table — header row
+  overviewData.push(
+    ['TẦNG', 'LOẠI XE', 'LOẠI KHÁCH', 'ĐANG DÙNG / SỨC CHỨA', 'TỈ LỆ %'] as (string | number)[],
+  );
+
+  // Floor display labels (matches hardcoded FLOORS and the byFloor API data)
+  const floorLabels: Record<number, { label: string; vehicleType: string; customerType: string }> = {
+    0: { label: 'Tầng G', vehicleType: 'Ô tô',   customerType: 'Gói tháng' },
+    1: { label: 'Tầng 1', vehicleType: 'Xe máy', customerType: 'Gói tháng' },
+    2: { label: 'Tầng 2', vehicleType: 'Xe máy', customerType: 'Khách lẻ' },
+    3: { label: 'Tầng 3', vehicleType: 'Ô tô',   customerType: 'Khách lẻ' },
   };
+
+  const floorMap: Record<number, FloorOccupancy> = {};
+  for (const f of occupancy?.byFloor ?? []) {
+    floorMap[f.floor] = f;
+  }
+
+  for (const floor of [0, 1, 2, 3]) {
+    const def   = floorLabels[floor];
+    const fData = floorMap[floor];
+    const total    = fData?.total ?? (def.label === 'Tầng G' || def.label === 'Tầng 3' ? 20 : 40);
+    const occupied = fData?.occupied ?? 0;
+    const rate     = total > 0 ? ((occupied / total) * 100).toFixed(1) : '0.0';
+    overviewData.push([
+      def.label,
+      def.vehicleType,
+      def.customerType,
+      `${occupied} / ${total}`,
+      `${rate}%`,
+    ]);
+  }
+
+  const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
+  wsOverview['!cols'] = [
+    { wch: 10 },  // Tầng
+    { wch: 12 },  // Loại xe
+    { wch: 14 },  // Loại khách
+    { wch: 24 },  // Đang dùng / Sức chứa
+    { wch: 10 },  // Tỉ lệ %
+  ];
+
+  // ── Sheet 2: Doanh thu theo ngày (supplementary) ───────
+  const revenueRows: (string | number)[][] = [['Ngày', 'Doanh thu (VND)']];
+  for (const r of revenue) {
+    revenueRows.push([r.date, r.amount]);
+  }
+  const totalRevenue = revenue.reduce((s, r) => s + (r.amount || 0), 0);
+  revenueRows.push(['TỔNG', totalRevenue]);
+
+  const wsRevenue = XLSX.utils.aoa_to_sheet(revenueRows);
+  wsRevenue['!cols'] = [{ wch: 22 }, { wch: 20 }];
+
+  // ── Write file ─────────────────────────────────────────
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsOverview, 'Tổng quan');
+  XLSX.utils.book_append_sheet(wb, wsRevenue,  'Doanh thu theo ngày');
+  XLSX.writeFile(wb, `TongQuan_${from}_${to}.xlsx`);
 }
 
 type DateRange = 'today' | 'week' | 'month' | 'custom';
@@ -107,25 +192,33 @@ const DATE_RANGE_LABELS: Record<DateRange, string> = {
   custom: 'Tùy chọn',
 };
 
-function dateRangeToIso(range: DateRange): { from: string; to: string } {
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  const from = new Date(today);
+function dateRangeToIso(range: DateRange, custom?: { from: string; to: string }): { from: string; to: string } {
+  const now = new Date();
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  if (range === 'custom' && custom) {
+    return { from: custom.from, to: custom.to };
+  }
+
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   switch (range) {
     case 'today':
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
-    case 'week':
-      from.setDate(from.getDate() - 6);
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
-    case 'month':
-      from.setDate(1);
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+      return { from: todayMidnight.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+    case 'week': {
+      const start = new Date(now);
+      const day = start.getDay(); // 0=Sun, 1=Mon, ...
+      const diff = day === 0 ? -6 : 1 - day;
+      start.setDate(start.getDate() + diff);
+      start.setHours(0, 0, 0, 0);
+      return { from: start.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+    }
+    case 'month': {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from: start.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+    }
     default:
-      return getLast30Days();
+      return { from: todayMidnight.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
   }
 }
 
@@ -322,6 +415,8 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ n
 // ═══════════════════════════════════════════════════════════
 export function ManagerDashboardPage() {
   const [dateRange, setDateRange] = useState<DateRange>('today');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [kpiData, setKpiData] = useState<KpiSummary | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueRow[]>([]);
   const [vehiclesData, setVehiclesData] = useState<VehiclesByType>({ car: 0, motorbike: 0 });
@@ -334,11 +429,11 @@ export function ManagerDashboardPage() {
   const [errorRevenue, setErrorRevenue] = useState('');
   const [errorVehicles, setErrorVehicles] = useState('');
 
-  const fetchKpi = useCallback(async () => {
+  const fetchKpi = useCallback(async (from: string, to: string) => {
     setLoadingKpi(true);
     setErrorKpi('');
     try {
-      const res = await api.get<KpiSummary>('/reports/kpi-summary');
+      const res = await api.get<KpiSummary>('/reports/kpi-summary', { params: { from, to } });
       setKpiData(res.data ?? { vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0 });
     } catch {
       setKpiData({ vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0 });
@@ -348,11 +443,10 @@ export function ManagerDashboardPage() {
     }
   }, []);
 
-  const fetchRevenue = useCallback(async (range: DateRange) => {
+  const fetchRevenue = useCallback(async (from: string, to: string) => {
     setLoadingRevenue(true);
     setErrorRevenue('');
     try {
-      const { from, to } = dateRangeToIso(range);
       const res = await api.get<RevenueRow[]>('/reports/revenue-by-day', { params: { from, to } });
       setRevenueData(res.data ?? []);
     } catch {
@@ -363,11 +457,14 @@ export function ManagerDashboardPage() {
     }
   }, []);
 
-  const fetchVehicles = useCallback(async () => {
+  const fetchVehicles = useCallback(async (from: string, to: string) => {
     setLoadingVehicles(true);
     setErrorVehicles('');
     try {
-      const res = await api.get<{ success: boolean; data: VehiclesByType }>('/reports/vehicles-by-type');
+      const res = await api.get<{ success: boolean; data: VehiclesByType }>(
+        '/reports/vehicles-by-type',
+        { params: { from, to } }
+      );
       setVehiclesData(res.data.data ?? { car: 0, motorbike: 0 });
     } catch {
       setVehiclesData({ car: 0, motorbike: 0 });
@@ -389,15 +486,19 @@ export function ManagerDashboardPage() {
     }
   }, []);
 
+  // Occupancy loads once on mount (current snapshot)
   useEffect(() => {
-    fetchKpi();
-    fetchVehicles();
     fetchOccupancy();
-  }, [fetchKpi, fetchVehicles, fetchOccupancy]);
+  }, [fetchOccupancy]);
 
+  // KPI + revenue + vehicles re-fetch when range changes
   useEffect(() => {
-    fetchRevenue(dateRange);
-  }, [dateRange, fetchRevenue]);
+    const { from, to } = dateRangeToIso(dateRange, customFrom && customTo ? { from: customFrom, to: customTo } : undefined);
+    fetchKpi(from, to);
+    fetchRevenue(from, to);
+    fetchVehicles(from, to);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, customFrom, customTo]);
 
   // Derive floor occupied counts from API data
   const floorOccupiedMap: Record<number, number> = {};
@@ -462,6 +563,39 @@ export function ManagerDashboardPage() {
           ))}
         </div>
 
+        {/* Custom date inputs (shown when "Tùy chọn" is active) */}
+        {dateRange === 'custom' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: C.white, padding: '6px 14px',
+            borderRadius: 12, border: `1.5px solid ${C.navy}`,
+          }}>
+            <input
+              type="date" value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              style={{ border: 'none', outline: 'none', fontSize: 13, color: C.gray800, fontFamily: 'inherit' }}
+            />
+            <span style={{ fontSize: 12, color: C.gray400, fontWeight: 600 }}>→</span>
+            <input
+              type="date" value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              style={{ border: 'none', outline: 'none', fontSize: 13, color: C.gray800, fontFamily: 'inherit' }}
+            />
+            {customFrom && customTo && (
+              <button
+                onClick={() => {/* triggers re-fetch via useEffect on customFrom/customTo */}}
+                style={{
+                  padding: '4px 12px', borderRadius: 7,
+                  background: C.navy, color: C.white,
+                  border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Áp dụng
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
@@ -480,7 +614,9 @@ export function ManagerDashboardPage() {
             alignItems: 'center',
             gap: '0.4rem',
           }}
-          onClick={() => alert('Tính năng xuất báo cáo đang được phát triển.')}
+          onClick={() =>
+            exportToOverviewExcel(kpiData, revenueData, occupancyData, dateRange, customFrom, customTo)
+          }
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -499,7 +635,7 @@ export function ManagerDashboardPage() {
         marginBottom: '1.5rem',
       }}>
         <KpiCard
-          label="Doanh thu hôm nay"
+          label={dateRange === 'today' ? 'Doanh thu hôm nay' : dateRange === 'week' ? 'Doanh thu tuần này' : dateRange === 'month' ? 'Doanh thu tháng này' : 'Doanh thu'}
           value={loadingKpi ? '…' : fmtVnd(kpiData?.todayRevenue ?? 0)}
           accent="green"
           Icon={IconMoney}
@@ -518,7 +654,7 @@ export function ManagerDashboardPage() {
           </div>
         )}
         <KpiCard
-          label="Lượt xe hôm nay"
+          label={dateRange === 'today' ? 'Lượt xe hôm nay' : dateRange === 'week' ? 'Lượt xe tuần này' : dateRange === 'month' ? 'Lượt xe tháng này' : 'Lượt xe'}
           value={loadingKpi ? '…' : String(kpiData?.vehiclesParked ?? 0)}
           sub="lượt"
           accent="blue"

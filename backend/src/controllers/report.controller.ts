@@ -47,8 +47,23 @@ export const reportController = {
 
   // ─── NEW: Manager KPI summary (MANAGER + ADMIN only) ──────────────────────
 
-  getManagerSummary: asyncHandler(async (_req: AuthRequest, res: Response) => {
-    const summary = await reportService.getManagerSummary();
+  getManagerSummary: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const now = new Date();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    let from: Date | undefined;
+    let to: Date | undefined;
+
+    if (req.query.from) {
+      const d = new Date(req.query.from as string);
+      if (!isNaN(d.getTime())) { from = d; from.setHours(0, 0, 0, 0); }
+    }
+    if (req.query.to) {
+      const d = new Date(req.query.to as string);
+      if (!isNaN(d.getTime())) { to = d; to.setHours(23, 59, 59, 999); }
+    }
+
+    const summary = await reportService.getManagerSummary(from, to);
     return res.status(200).json(summary);
   }),
 
@@ -88,10 +103,55 @@ export const reportController = {
 
   // ─── NEW: Currently parked vehicles grouped by type (MANAGER + ADMIN only) ─
 
-  getVehiclesByType: asyncHandler(async (_req: AuthRequest, res: Response) => {
-    const result = await reportService.getVehiclesByType();
+  getVehiclesByType: asyncHandler(async (req: AuthRequest, res: Response) => {
+    let from: Date | undefined;
+    let to: Date | undefined;
+
+    if (req.query.from) {
+      const d = new Date(req.query.from as string);
+      if (!isNaN(d.getTime())) { from = d; from.setHours(0, 0, 0, 0); }
+    }
+    if (req.query.to) {
+      const d = new Date(req.query.to as string);
+      if (!isNaN(d.getTime())) { to = d; to.setHours(23, 59, 59, 999); }
+    }
+
+    const result = await reportService.getVehiclesByType(from, to);
     return res.status(200).json(result);
   }),
+
+  // ─── NEW: Occupancy detail — per-floor slot breakdown (MANAGER + ADMIN only) ──
+
+  getOccupancyDetail: asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const data = await reportService.getOccupancyDetail();
+    return res.status(200).json({ success: true, data });
+  }),
+
+  // ─── NEW: Traffic — entries/exits per day and hour (MANAGER + ADMIN only) ─────
+
+  getTraffic: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const now = new Date();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    let from = new Date(todayEnd);
+    from.setDate(from.getDate() - 6); // last 7 days
+    from.setHours(0, 0, 0, 0);
+
+    let to = todayEnd;
+
+    if (req.query.from) {
+      const d = new Date(req.query.from as string);
+      if (!isNaN(d.getTime())) { from = d; from.setHours(0, 0, 0, 0); }
+    }
+    if (req.query.to) {
+      const d = new Date(req.query.to as string);
+      if (!isNaN(d.getTime())) { to = d; to.setHours(23, 59, 59, 999); }
+    }
+
+    const data = await reportService.getTraffic(from, to);
+    return res.status(200).json({ success: true, data });
+  }),
+
   // ─── NEW: Revenue detail — casual vs monthly breakdown (MANAGER + ADMIN only) ──
 
   getRevenueDetail: asyncHandler(async (req: AuthRequest, res: Response) => {

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { DriverLayout } from './components/DriverLayout';
 import { StaffLayout } from './components/StaffLayout';
 import { ManagerLayout } from './components/ManagerLayout';
+import { AdminLayout } from './components/AdminLayout';
 import { DriverDashboardPage } from './pages/DriverDashboard';
 import { LoginPage } from './pages/Login';
 import { RegisterPage } from './pages/Register';
@@ -18,6 +19,11 @@ import { HistoryPage } from './pages/History';
 import { StaffDashboardPage } from './pages/StaffDashboard';
 import { ManagerDashboardPage } from './pages/ManagerDashboard';
 import { RevenueDetailPage } from './pages/RevenueDetail';
+import { OccupancyDetailPage } from './pages/OccupancyDetail';
+import { TrafficPage } from './pages/TrafficPage';
+import { UserManagementPage } from './pages/UserManagement';
+import { PermissionsPage } from './pages/Permissions';
+import { ParkingConfigPage } from './pages/ParkingConfig';
 
 function LoadingScreen() {
   return (
@@ -30,8 +36,9 @@ function LoadingScreen() {
 function RedirectToRoleHome() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'MANAGER' || user.role === 'ADMIN') return <Navigate to="/manager/dashboard" replace />;
-  if (user.role === 'STAFF') return <Navigate to="/staff/dashboard" replace />;
+  if (user.role === 'ADMIN')   return <Navigate to="/admin/users" replace />;
+  if (user.role === 'MANAGER') return <Navigate to="/manager/dashboard" replace />;
+  if (user.role === 'STAFF')   return <Navigate to="/staff/dashboard" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
@@ -59,7 +66,16 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   if (user.role !== 'MANAGER' && user.role !== 'ADMIN') {
     return <Navigate to="/" replace />;
   }
+  if (user.role === 'ADMIN') return <Navigate to="/admin/users" replace />;
   return <ManagerLayout>{children}</ManagerLayout>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'ADMIN') return <Navigate to="/" replace />;
+  return <AdminLayout>{children}</AdminLayout>;
 }
 
 function AppRoutes() {
@@ -177,6 +193,48 @@ function AppRoutes() {
           <ManagerRoute>
             <RevenueDetailPage />
           </ManagerRoute>
+        }
+      />
+      <Route
+        path="/manager/occupancy"
+        element={
+          <ManagerRoute>
+            <OccupancyDetailPage />
+          </ManagerRoute>
+        }
+      />
+      <Route
+        path="/manager/traffic"
+        element={
+          <ManagerRoute>
+            <TrafficPage />
+          </ManagerRoute>
+        }
+      />
+
+      {/* Admin routes — AdminLayout */}
+      <Route
+        path="/admin/users"
+        element={
+          <AdminRoute>
+            <UserManagementPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/permissions"
+        element={
+          <AdminRoute>
+            <PermissionsPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/parking"
+        element={
+          <AdminRoute>
+            <ParkingConfigPage />
+          </AdminRoute>
         }
       />
 

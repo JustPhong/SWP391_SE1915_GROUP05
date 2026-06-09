@@ -4,25 +4,31 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import {
   HomeIcon,
-  CarIcon,
   BarChartIcon,
   TrendUpIcon,
   LogoutIcon,
   BellIcon,
   HelpIcon,
   SearchIcon,
+  SettingsIcon,
+  LayoutIcon,
+  ShieldCheckIcon,
 } from './ui/Icons';
-import styles from '../styles/manager.module.css';
+import styles from '../styles/admin.module.css';
 
-interface ManagerLayoutProps {
+interface AdminLayoutProps {
   children: ReactNode;
 }
 
-const managerNavItems = [
-  { label: 'Tổng quan', path: '/manager/dashboard', icon: HomeIcon },
-  { label: 'Doanh thu', path: '/manager/revenue', icon: BarChartIcon },
-  { label: 'Tỉ lệ lấp đầy', path: '/manager/occupancy', icon: TrendUpIcon },
-  { label: 'Lưu lượng xe', path: '/manager/traffic', icon: CarIcon },
+const navItems = [
+  { label: 'Quản lý tài khoản', path: '/admin/users', icon: HomeIcon },
+  { label: 'Phân quyền',        path: '/admin/permissions', icon: ShieldCheckIcon },
+  { label: 'Cấu hình bãi & slot', path: '/admin/parking', icon: LayoutIcon },
+];
+
+const PLACEHOLDER_NAV = [
+  { label: 'Quy tắc tính phí', icon: BarChartIcon },
+  { label: 'Nhật ký hệ thống', icon: TrendUpIcon },
 ];
 
 function getInitials(name: string) {
@@ -33,7 +39,7 @@ function getInitials(name: string) {
     .join('');
 }
 
-export function ManagerLayout({ children }: ManagerLayoutProps) {
+export function AdminLayout({ children }: AdminLayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -51,7 +57,7 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
   };
 
   const closeSidebar = () => setSidebarOpen(false);
-  const displayName = user?.fullName ?? 'Quản lý';
+  const displayName = user?.fullName ?? 'Quản trị viên';
 
   return (
     <div className={styles.layout}>
@@ -64,14 +70,14 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
           <div className={styles.sidebarLogoIcon}>P</div>
           <div className={styles.sidebarLogoText}>
             <span className={styles.sidebarLogoName}>ParkSmart Vietnam</span>
-            <span className={styles.sidebarLogoSub}>Quản lý (Manager)</span>
+            <span className={styles.sidebarLogoSub}>Quản trị hệ thống</span>
           </div>
         </div>
 
         <nav className={styles.sidebarNav}>
-          <p className={styles.navSectionLabel}>Báo cáo &amp; Thống kê</p>
+          <p className={styles.navSectionLabel}>Quản trị</p>
           <div className={styles.navSection}>
-            {managerNavItems.map((item) => {
+            {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
               return (
@@ -88,16 +94,25 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
                 </Link>
               );
             })}
+
+            <p className={styles.navSectionLabel} style={{ marginTop: '0.5rem' }}>
+              Sắp ra mắt
+            </p>
+            {PLACEHOLDER_NAV.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className={styles.navPlaceholder}>
+                  <span className={styles.navItemIcon}>
+                    <Icon size={16} />
+                  </span>
+                  {item.label}
+                </div>
+              );
+            })}
           </div>
         </nav>
 
         <div className={styles.sidebarFooter}>
-          <button className={styles.sidebarBottomItem}>
-            <span className={styles.navItemIcon}>
-              <HelpIcon size={16} />
-            </span>
-            Hỗ trợ
-          </button>
           <button className={styles.sidebarBottomItem} onClick={handleLogout}>
             <span className={styles.navItemIcon}>
               <LogoutIcon size={16} />
@@ -119,8 +134,8 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
             <span className={styles.hamburgerLine} />
           </button>
           <div>
-            <div className={styles.topBarBuilding}>Tòa nhà A</div>
-            <div className={styles.topBarSubtitle}>Báo cáo &amp; Thống kê 2026</div>
+            <div className={styles.topBarBuilding}>Trang Quản trị</div>
+            <div className={styles.topBarSubtitle}>ParkSmart Vietnam</div>
           </div>
         </div>
 
@@ -139,7 +154,7 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
-              <span className={styles.roleBadge}>Quản lý</span>
+              <span className={styles.roleBadge}>Quản trị viên</span>
             </div>
           </div>
         </div>

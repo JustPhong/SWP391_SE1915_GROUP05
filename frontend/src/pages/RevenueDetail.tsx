@@ -67,23 +67,12 @@ function fmtVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
 }
 
-function fmtVndRaw(amount: number): string {
-  return new Intl.NumberFormat('vi-VN').format(amount);
-}
-
 function exportToExcel(
   data: RevenueDetail,
   from: string,
   to: string,
 ): void {
-  if (data.transactions.length === 0) {
-    alert('Không có dữ liệu để xuất');
-    return;
-  }
-
-  const COLS = ['Thời gian', 'Nguồn', 'Biển số', 'Khách hàng', 'Số tiền (VND)'] as const;
-
-  const headerRow = COLS;
+  const headerRow: (string | number)[] = ['Thời gian', 'Nguồn', 'Biển số', 'Khách hàng', 'Số tiền (VND)'];
   const dataRows = data.transactions.map((tx) => [
     tx.date,
     tx.source === 'CASUAL' ? 'Khách lẻ' : 'Gói tháng',
@@ -91,20 +80,19 @@ function exportToExcel(
     tx.customerName ?? '',
     tx.amount,
   ]);
-  const summaryRow = ['TỔNG', '', '', '', ''];
-  const casualRow  = ['Khách lẻ', '', '', '', data.casualTotal];
-  const monthlyRow = ['Gói tháng', '', '', '', data.monthlyTotal];
+  const summaryRow: (string | number)[] = ['TỔNG', '', '', '', ''];
+  const casualRow:  (string | number)[] = ['Khách lẻ',  '', '', '', data.casualTotal];
+  const monthlyRow: (string | number)[] = ['Gói tháng', '', '', '', data.monthlyTotal];
 
   const wsData = [headerRow, ...dataRows, [], summaryRow, casualRow, monthlyRow];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  // Column widths
   ws['!cols'] = [
-    { wch: 20 }, // Thời gian
-    { wch: 14 }, // Nguồn
-    { wch: 14 }, // Biển số
-    { wch: 20 }, // Khách hàng
-    { wch: 18 }, // Số tiền
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 20 },
+    { wch: 18 },
   ];
 
   const wb = XLSX.utils.book_new();
@@ -123,9 +111,13 @@ function pctOf(total: number, part: number): string {
   return `${Math.round((part / total) * 100)}%`;
 }
 
-function dateRangeToIso(range: DateRange): { from: string; to: string } {
+function dateRangeToIso(range: DateRange, custom?: { from: string; to: string }): { from: string; to: string } {
   const now = new Date();
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  if (range === 'custom' && custom) {
+    return { from: custom.from, to: custom.to };
+  }
 
   switch (range) {
     case 'today': {
@@ -134,7 +126,6 @@ function dateRangeToIso(range: DateRange): { from: string; to: string } {
     }
     case 'week': {
       const start = new Date(now);
-      // Vietnamese week starts Monday (day 1), not Sunday (day 0)
       const day = start.getDay(); // 0=Sun, 1=Mon, ...
       const diff = day === 0 ? -6 : 1 - day;
       start.setDate(start.getDate() + diff);
@@ -146,7 +137,7 @@ function dateRangeToIso(range: DateRange): { from: string; to: string } {
       return { from: start.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
     }
     default:
-      return { from: '2025-01-01', to: todayEnd.toISOString().split('T')[0] };
+      return { from: todayEnd.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
   }
 }
 
@@ -280,13 +271,21 @@ export function RevenueDetailPage() {
     setLoading(true);
     setCurrentFrom(from);
     setCurrentTo(to);
+    console.log('[Revenue] fetchData → GET /reports/revenue-detail', { from, to });
     try {
       const resp = await api.get<{ success: boolean; data: RevenueDetail }>(
         '/reports/revenue-detail',
         { params: { from, to } }
       );
+      console.log('[Revenue] fetchData ←', {
+        total: resp.data.data.total,
+        casual: resp.data.data.casualTotal,
+        monthly: resp.data.data.monthlyTotal,
+        txCount: resp.data.data.transactions.length,
+      });
       setData(resp.data.data);
-    } catch {
+    } catch (err) {
+      console.error('[Revenue] fetchData ERROR', err);
       setData({ total: 0, casualTotal: 0, monthlyTotal: 0, series: [], transactions: [] });
     } finally {
       setLoading(false);
@@ -294,10 +293,16 @@ export function RevenueDetailPage() {
   }, []);
 
   useEffect(() => {
-    const { from, to } = dateRangeToIso(range);
+    const { from, to } = dateRangeToIso(
+      range,
+      range === 'custom' && customFrom && customTo
+        ? { from: customFrom, to: customTo }
+        : undefined,
+    );
+    console.log('[Revenue] useEffect triggered → range:', range, '| from:', from, '| to:', to);
     fetchData(from, to);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, customFrom, customTo]);
 
   // Trigger fetch when custom range is submitted
   const handleCustomApply = () => {

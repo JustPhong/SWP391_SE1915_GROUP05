@@ -20,6 +20,9 @@ datasource db {
 //   Floor.customerType   : MONTHLY | CASUAL
 //   MonthlyPackage.status: ACTIVE | EXPIRED
 //   Booking.status   : ACTIVE | FULFILLED | NO_SHOW | CANCELLED
+//   Booking.depositStatus: PENDING | PAID | REFUNDED | FORFEITED
+//   CheckInRecord.status: PARKING | COMPLETED
+//   Payment.status   : PENDING | SUCCESS | FAILED | REFUNDED
 //   Payment.method   : CASH | CARD | EWALLET
 //   Payment.type     : SESSION | MONTHLY
 // ============================================================
@@ -30,19 +33,23 @@ model User {
   email        String   @unique
   phoneNumber  String?
   passwordHash String
-  role         String   @default("DRIVER")
+  role         String   @default("DRIVER") @db.NVarChar(30)
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   vehicles        Vehicle[]
   monthlyPackages MonthlyPackage[]
   bookings        Booking[]
+  checkInsHandled  CheckInRecord[] @relation("CheckedInBy")
+  checkOutsHandled CheckInRecord[] @relation("CheckedOutBy")
+  paymentsCollected Payment[]
 }
 
 model Vehicle {
   id          String   @id @default(uuid())
   plateNumber String   @unique
-  type        String
+  type        String   @db.NVarChar(30)
   isMonthly   Boolean  @default(false)
   ownerId     String
   owner       User     @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -59,8 +66,8 @@ model Floor {
   id           Int           @id @default(autoincrement())
   floorCode    String        @unique
   name         String
-  vehicleType  String
-  customerType String
+  vehicleType  String        @db.NVarChar(30)
+  customerType String        @db.NVarChar(30)
   capacity     Int
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -71,8 +78,8 @@ model Floor {
 model ParkingSlot {
   id                String   @id @default(uuid())
   code              String   @unique
-  type              String
-  status            String   @default("AVAILABLE")
+  type              String   @db.NVarChar(30)
+  status            String   @default("AVAILABLE") @db.NVarChar(30)
   isFixed           Boolean  @default(false)
   assignedVehicleId String?
   assignedVehicle   Vehicle? @relation(fields: [assignedVehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -98,7 +105,7 @@ model MonthlyPackage {
   startDate  DateTime
   expiryDate DateTime
   price      Decimal      @db.Decimal(10, 2)
-  status     String       @default("ACTIVE")
+  status     String       @default("ACTIVE") @db.NVarChar(30)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -113,7 +120,9 @@ model Booking {
   slot           ParkingSlot @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   bookingTime    DateTime @default(now())
   expectedArrival DateTime
-  status         String   @default("ACTIVE")
+  status         String   @default("ACTIVE") @db.NVarChar(30)
+  depositAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  depositStatus  String   @default("PENDING") @db.NVarChar(30)
   createdById    String
   createdBy      User     @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt      DateTime @default(now())
@@ -129,6 +138,11 @@ model CheckInRecord {
   checkInTime  DateTime    @default(now())
   checkOutTime DateTime?
   isMonthly    Boolean     @default(false)
+  status       String      @default("PARKING") @db.NVarChar(30)
+  checkedInById String?
+  checkedInBy  User?       @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  checkedOutById String?
+  checkedOutBy User?       @relation("CheckedOutBy", fields: [checkedOutById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -142,9 +156,35 @@ model Payment {
   monthlyPackageId String?
   monthlyPackage   MonthlyPackage? @relation(fields: [monthlyPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   amount           Decimal         @db.Decimal(10, 2)
-  method           String
+  method           String          @db.NVarChar(30)
   paidAt           DateTime        @default(now())
-  type             String
+  type             String          @db.NVarChar(30)
+  status           String          @default("SUCCESS") @db.NVarChar(30)
+  collectedById    String?
+  collectedBy      User?           @relation(fields: [collectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transactionCode  String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+}
+
+model Permission {
+  id        String   @id @default(uuid())
+  key       String   @unique @db.NVarChar(30)
+  label     String
+  category  String
+  createdAt DateTime @default(now())
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id            String   @id @default(uuid())
+  role          String   @db.NVarChar(30)
+  permissionKey String   @db.NVarChar(30)
+  allowed       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@unique([role, permissionKey])
 }

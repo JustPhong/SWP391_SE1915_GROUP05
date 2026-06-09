@@ -145,46 +145,62 @@ export const reportService = {
   },
 
   // ─── NEW: Manager KPI summary ──────────────────────────────────────────────
+  // When from/to are provided, vehiclesParked and revenue reflect that period.
+  // monthlySubscribers is always a live snapshot (range-independent).
 
-  async getManagerSummary() {
+  async getManagerSummary(from?: Date, to?: Date) {
     const now = new Date();
 
-    const [vehiclesParked, totalSlots, occupiedSlots, activePackages, todayStart, todayEnd] =
-      await Promise.all([
-        prisma.checkInRecord.count({ where: { checkOutTime: null } }),
-        prisma.parkingSlot.count(),
-        prisma.parkingSlot.count({ where: { status: SLOT_OCCUPIED } }),
-        prisma.monthlyPackage.count({
-          where: { status: PKG_ACTIVE, expiryDate: { gt: now } },
-        }),
-        // start of today (local)
-        Promise.resolve(new Date(now.getFullYear(), now.getMonth(), now.getDate())),
-        // end of today (local) — inclusive, so 23:59:59.999
-        Promise.resolve(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)),
-      ]);
+    const isRange = from && to;
+
+    const [totalSlots, occupiedSlots, activePackages] = await Promise.all([
+      prisma.parkingSlot.count(),
+      prisma.parkingSlot.count({ where: { status: SLOT_OCCUPIED } }),
+      prisma.monthlyPackage.count({
+        where: { status: PKG_ACTIVE, expiryDate: { gt: now } },
+      }),
+    ]);
 
     const occupancyRate = totalSlots > 0 ? (occupiedSlots / totalSlots) * 100 : 0;
 
-    // Revenue rule: walk-in checkout (SESSION) + monthly package purchase (MONTHLY).
-    // Monthly subscribers never pay at checkout — never count SESSION payments
-    // for vehicles that checked in as monthly guests.
-    const todayPayments = await prisma.payment.findMany({
-      where: {
-        paidAt: { gte: todayStart, lte: todayEnd },
-        type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY] },
-      },
-    });
+    let periodRevenue = 0;
+    let periodVehiclesParked = 0;
 
-    const todayRevenue = todayPayments.reduce(
-      (sum, p) => sum + Number(p.amount),
-      0,
-    );
+    if (isRange) {
+      // Revenue in period
+      const payments = await prisma.payment.findMany({
+        where: {
+          paidAt: { gte: from, lte: to },
+          type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY] },
+        },
+      });
+      periodRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      // Entries in period (not currently parked)
+      periodVehiclesParked = await prisma.checkInRecord.count({
+        where: { checkInTime: { gte: from, lte: to } },
+      });
+    } else {
+      // Legacy: today-only snapshot
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      periodVehiclesParked = await prisma.checkInRecord.count({ where: { checkOutTime: null } });
+
+      const todayPayments = await prisma.payment.findMany({
+        where: {
+          paidAt: { gte: todayStart, lte: todayEnd },
+          type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY] },
+        },
+      });
+      periodRevenue = todayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    }
 
     return {
-      vehiclesParked,
+      vehiclesParked: periodVehiclesParked,
       occupancyRate: Math.round(occupancyRate * 100) / 100,
       monthlySubscribers: activePackages,
-      todayRevenue,
+      todayRevenue: periodRevenue,
     };
   },
 
@@ -292,25 +308,183 @@ export const reportService = {
   },
 
   // ─── Vehicles parked grouped by type ──────────────────────────────────────
+  // When from/to are provided, returns entries in that period.
+  // When omitted, returns currently-parked counts (legacy snapshot).
 
-  async getVehiclesByType() {
-    const activeRecords = await prisma.checkInRecord.findMany({
-      where: { checkOutTime: null },
-      select: {
-        vehicle: {
-          select: { type: true },
+  async getVehiclesByType(from?: Date, to?: Date) {
+    let car = 0;
+    let motorbike = 0;
+
+    if (from && to) {
+      // Entries in period
+      const records = await prisma.checkInRecord.findMany({
+        where: { checkInTime: { gte: from, lte: to } },
+        select: { vehicle: { select: { type: true } } },
+      });
+      for (const record of records) {
+        const t = record.vehicle.type.toUpperCase();
+        if (t === 'CAR') car++;
+        else if (t === 'MOTORBIKE') motorbike++;
+      }
+    } else {
+      // Current snapshot (legacy)
+      const activeRecords = await prisma.checkInRecord.findMany({
+        where: { checkOutTime: null },
+        select: { vehicle: { select: { type: true } } },
+      });
+      for (const record of activeRecords) {
+        const t = record.vehicle.type.toUpperCase();
+        if (t === 'CAR') car++;
+        else if (t === 'MOTORBIKE') motorbike++;
+      }
+    }
+
+    return { car, motorbike };
+  },
+
+  // ─── Occupancy detail — per-floor slot breakdown (MANAGER + ADMIN) ─────────────
+
+  async getOccupancyDetail() {
+    const floors = await prisma.floor.findMany({
+      orderBy: { floorCode: 'asc' },
+      include: {
+        slots: {
+          orderBy: { code: 'asc' },
+          select: { code: true, status: true },
         },
       },
     });
 
-    let car = 0;
-    let motorbike = 0;
-    for (const record of activeRecords) {
-      const t = record.vehicle.type.toUpperCase();
-      if (t === 'CAR') car++;
-      else if (t === 'MOTORBIKE') motorbike++;
+    const totalCapacity = floors.reduce((sum, f) => sum + f.capacity, 0);
+    let totalOccupied = 0;
+    let totalReserved = 0;
+    let totalAvailable = 0;
+
+    const floorResults = floors.map((floor) => {
+      const capacity = floor.capacity;
+      const slots = floor.slots ?? [];
+      const occupied = slots.filter((s) => s.status === SLOT_OCCUPIED).length;
+      const reserved = slots.filter((s) => s.status === SLOT_RESERVED).length;
+      const available = capacity - occupied - reserved;
+
+      totalOccupied += occupied;
+      totalReserved += reserved;
+      totalAvailable += available;
+
+      // Build slotCode → display label (e.g. "G-01", "1-01", "2-01", "3-01")
+      const displaySlots = slots.map((s) => ({
+        code: s.code,
+        status: s.status as 'AVAILABLE' | 'OCCUPIED' | 'RESERVED',
+      }));
+
+      return {
+        floorCode: floor.floorCode as string,
+        vehicleType: floor.vehicleType as 'CAR' | 'MOTORBIKE',
+        customerType: floor.customerType as 'MONTHLY' | 'CASUAL',
+        capacity,
+        occupied,
+        available,
+        reserved,
+        rate: capacity > 0 ? Math.round((occupied / capacity) * 100 * 10) / 10 : 0,
+        slots: displaySlots,
+      };
+    });
+
+    const overallRate =
+      totalCapacity > 0
+        ? Math.round((totalOccupied / totalCapacity) * 100 * 10) / 10
+        : 0;
+
+    return {
+      totalCapacity,
+      totalOccupied,
+      overallRate,
+      floors: floorResults,
+    };
+  },
+
+  // ─── Traffic — entries/exits per day and hour (MANAGER + ADMIN) ──────────────
+
+  async getTraffic(from: Date, to: Date) {
+    const records = await prisma.checkInRecord.findMany({
+      where: {
+        OR: [
+          { checkInTime: { gte: from, lte: to } },
+          { checkOutTime: { gte: from, lte: to } },
+        ],
+      },
+      include: { vehicle: { select: { type: true } } },
+    });
+
+    const totalIn = records.filter((r) => r.checkInTime >= from && r.checkInTime <= to).length;
+    const totalOut = records.filter(
+      (r) => r.checkOutTime != null && r.checkOutTime >= from && r.checkOutTime <= to
+    ).length;
+    const currentlyParked = records.filter((r) => r.checkOutTime == null).length;
+
+    const byVehicleType: Record<string, number> = { car: 0, motorbike: 0 };
+    for (const r of records) {
+      if (r.checkInTime >= from && r.checkInTime <= to) {
+        const t = r.vehicle.type.toUpperCase();
+        if (t === 'CAR') byVehicleType.car++;
+        else if (t === 'MOTORBIKE') byVehicleType.motorbike++;
+      }
     }
 
-    return { car, motorbike };
+    // Daily: fill every day in range
+    const dailyIn: Record<string, number> = {};
+    const dailyOut: Record<string, number> = {};
+    const cursor = new Date(from);
+    cursor.setHours(0, 0, 0, 0);
+    const end = new Date(to);
+    end.setHours(23, 59, 59, 999);
+    while (cursor <= end) {
+      const day = cursor.toISOString().split('T')[0];
+      dailyIn[day] = 0;
+      dailyOut[day] = 0;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    for (const r of records) {
+      const inDay = new Date(r.checkInTime).toISOString().split('T')[0];
+      if (inDay in dailyIn) dailyIn[inDay]++;
+      if (r.checkOutTime) {
+        const outDay = new Date(r.checkOutTime).toISOString().split('T')[0];
+        if (outDay in dailyOut) dailyOut[outDay]++;
+      }
+    }
+    const daily = Object.keys(dailyIn)
+      .sort()
+      .map((date) => ({ date, in: dailyIn[date], out: dailyOut[date] }));
+
+    // Hourly: aggregate all check-ins by hour-of-day (0–23)
+    const hourlyIn: number[] = Array.from({ length: 24 }, () => 0);
+    for (const r of records) {
+      if (r.checkInTime >= from && r.checkInTime <= to) {
+        hourlyIn[new Date(r.checkInTime).getHours()]++;
+      }
+    }
+    const hourly = hourlyIn.map((inCount, hour) => ({ hour, in: inCount, out: 0 }));
+
+    // Peak hour
+    let peakHour: { hour: number; count: number } | null = null;
+    for (let h = 0; h < 24; h++) {
+      if (!peakHour || hourlyIn[h] > peakHour.count) {
+        peakHour = { hour: h, count: hourlyIn[h] };
+      }
+    }
+    if (peakHour && peakHour.count === 0) peakHour = null;
+
+    return {
+      totalIn,
+      totalOut,
+      currentlyParked,
+      byVehicleType: {
+        car: byVehicleType.car,
+        motorbike: byVehicleType.motorbike,
+      },
+      daily,
+      hourly,
+      peakHour,
+    };
   },
 };

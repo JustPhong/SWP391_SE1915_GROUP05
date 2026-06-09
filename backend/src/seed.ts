@@ -50,35 +50,124 @@ const FLOOR_DEFINITIONS: { floorCode: string; name: string; vehicleType: string;
   },
 ];
 
+// ── Permission definitions ──────────────────────────────────────────
+const PERMISSIONS = [
+  // Check-in / Check-out
+  { key: 'checkin.create',   label: 'Tạo check-in',       category: 'Check-in / Check-out' },
+  { key: 'checkout.process', label: 'Xử lý check-out',     category: 'Check-in / Check-out' },
+  { key: 'slotmap.view',     label: 'Xem sơ đồ slot',      category: 'Check-in / Check-out' },
+  // Gói tháng & Đặt chỗ
+  { key: 'package.buy',      label: 'Mua gói tháng',       category: 'Gói tháng & Đặt chỗ' },
+  { key: 'booking.create',   label: 'Tạo đặt chỗ',         category: 'Gói tháng & Đặt chỗ' },
+  { key: 'driver.dashboard', label: 'Xem dashboard tài xế', category: 'Gói tháng & Đặt chỗ' },
+  // Báo cáo & Thống kê
+  { key: 'report.overview',  label: 'Xem tổng quan',      category: 'Báo cáo & Thống kê' },
+  { key: 'report.revenue',  label: 'Xem doanh thu',       category: 'Báo cáo & Thống kê' },
+  { key: 'report.occupancy',label: 'Xem tỷ lệ lấp đầy',  category: 'Báo cáo & Thống kê' },
+  { key: 'report.traffic',  label: 'Xem lưu lượng',       category: 'Báo cáo & Thống kê' },
+  { key: 'report.export',   label: 'Xuất báo cáo',        category: 'Báo cáo & Thống kê' },
+  // Quản trị hệ thống
+  { key: 'account.manage',  label: 'Quản lý tài khoản',  category: 'Quản trị hệ thống' },
+  { key: 'permission.manage',label: 'Phân quyền',         category: 'Quản trị hệ thống' },
+  { key: 'slotconfig.manage',label: 'Cấu hình slot',      category: 'Quản trị hệ thống' },
+];
+
+// Owner map: which role is the "primary" for each permission
+const PERMISSION_OWNERS: Record<string, string[]> = {
+  'checkin.create':     ['STAFF'],
+  'checkout.process':   ['STAFF'],
+  'slotmap.view':       ['STAFF'],
+  'package.buy':         ['DRIVER'],
+  'booking.create':      ['DRIVER'],
+  'driver.dashboard':    ['DRIVER'],
+  'report.overview':    ['MANAGER'],
+  'report.revenue':     ['MANAGER'],
+  'report.occupancy':   ['MANAGER'],
+  'report.traffic':     ['MANAGER'],
+  'report.export':      ['MANAGER'],
+  'account.manage':     ['ADMIN'],
+  'permission.manage':  ['ADMIN'],
+  'slotconfig.manage':  ['ADMIN'],
+};
+
+const ALL_ROLES = ['DRIVER', 'STAFF', 'MANAGER', 'ADMIN'];
+
+async function seedPermissions() {
+  // Upsert all permissions
+  for (const p of PERMISSIONS) {
+    await prisma.permission.upsert({
+      where: { key: p.key },
+      update: { label: p.label, category: p.category },
+      create: p,
+    });
+  }
+  console.log(`Permissions seeded: ${PERMISSIONS.length}`);
+
+  // Build role × permission matrix
+  const allPermKeys = PERMISSIONS.map((p) => p.key);
+  for (const role of ALL_ROLES) {
+    for (const permKey of allPermKeys) {
+      const owners = PERMISSION_OWNERS[permKey] ?? [];
+      const allowed = role === 'ADMIN' || owners.includes(role);
+      await prisma.rolePermission.upsert({
+        where: { role_permissionKey: { role, permissionKey: permKey } },
+        update: { allowed },
+        create: { role, permissionKey: permKey, allowed },
+      });
+    }
+  }
+  console.log(`RolePermission matrix seeded for ${ALL_ROLES.length} roles × ${allPermKeys.length} permissions`);
+}
+
 async function main() {
   console.log('Starting seed...');
+
+  await seedPermissions();
 
   // ── Staff account (idempotent) ────────────────────────────────────────────
   const staffEmail = 'staff@test.com';
   const hash = await bcrypt.hash('staff123', 12);
   await prisma.user.upsert({
     where: { email: staffEmail },
-    update: {},
+    update: { passwordHash: hash, isActive: true, role: 'STAFF' },
     create: {
       fullName: 'Nhân viên A',
       email: staffEmail,
       passwordHash: hash,
       role: 'STAFF',
+      isActive: true,
     },
   });
   console.log('Staff account ready: staff@test.com / staff123');
+
+  // ── Admin account (idempotent) ──────────────────────────────────────────
+  const adminEmail = 'admin@test.com';
+  const adminHash = await bcrypt.hash('admin123', 12);
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: { passwordHash: adminHash, isActive: true, role: 'ADMIN' },
+    create: {
+      fullName: 'Quản trị viên',
+      email: adminEmail,
+      passwordHash: adminHash,
+      role: 'ADMIN',
+      isActive: true,
+    },
+  });
+  console.log('Admin account ready: admin@test.com / admin123');
 
   // ── Manager account (idempotent) ──────────────────────────────────────────
   const managerEmail = 'manager@test.com';
   const managerHash = await bcrypt.hash('manager123', 12);
   await prisma.user.upsert({
     where: { email: managerEmail },
-    update: {},
+    update: { passwordHash: managerHash, isActive: true, role: 'MANAGER' },
     create: {
       fullName: 'Quản lý A',
       email: managerEmail,
       passwordHash: managerHash,
       role: 'MANAGER',
+      isActive: true,
     },
   });
   console.log('Manager account ready: manager@test.com / manager123');
@@ -88,12 +177,13 @@ async function main() {
   const driverHash = await bcrypt.hash('driver123', 12);
   const driver = await prisma.user.upsert({
     where: { email: driverEmail },
-    update: {},
+    update: { passwordHash: driverHash, isActive: true, role: 'DRIVER' },
     create: {
       fullName: 'Người lái xe',
       email: driverEmail,
       passwordHash: driverHash,
       role: 'DRIVER',
+      isActive: true,
     },
   });
   console.log('Driver account ready: driver@test.com / driver123');
@@ -138,6 +228,7 @@ async function main() {
       email: walkinEmail,
       passwordHash: '', // no login needed
       role: 'DRIVER',
+      isActive: true,
     },
   });
   console.log('Walk-in system user ready:', walkinEmail);
@@ -153,6 +244,7 @@ async function main() {
       email: driverAEmail,
       passwordHash: hashA,
       role: 'DRIVER',
+      isActive: true,
     },
   });
 
@@ -203,6 +295,7 @@ async function main() {
       email: driverBEmail,
       passwordHash: hashB,
       role: 'DRIVER',
+      isActive: true,
     },
   });
 

@@ -12,6 +12,9 @@ import floorRoutes from './floor.routes';
 import checkinRoutes from './checkin.routes';
 import checkoutRoutes from './checkout.routes';
 import dashboardRoutes from './dashboard.routes';
+import adminUserRoutes from './admin-user.routes';
+import permissionRoutes from './permission.routes';
+import parkingOverviewRoutes from './parking-overview.routes';
 
 const router = Router();
 
@@ -28,5 +31,8 @@ router.use('/floors', floorRoutes);
 router.use('/checkin', checkinRoutes);
 router.use('/checkout', checkoutRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/admin/users', adminUserRoutes);
+router.use('/admin/permissions', permissionRoutes);
+router.use('/admin/parking', parkingOverviewRoutes);
 
 export default router;
