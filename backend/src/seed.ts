@@ -92,6 +92,17 @@ const PERMISSION_OWNERS: Record<string, string[]> = {
 
 const ALL_ROLES = ['DRIVER', 'STAFF', 'MANAGER', 'ADMIN'];
 
+async function seedRoles() {
+  for (const name of ALL_ROLES) {
+    await prisma.role.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+  console.log(`Roles seeded: ${ALL_ROLES.join(', ')}`);
+}
+
 async function seedPermissions() {
   // Upsert all permissions
   for (const p of PERMISSIONS) {
@@ -122,19 +133,29 @@ async function seedPermissions() {
 async function main() {
   console.log('Starting seed...');
 
+  await seedRoles();
   await seedPermissions();
+
+  // Resolve roleIds once so they can be reused across upserts
+  const [roleAdmin, roleManager, roleStaff, roleDriver] = await Promise.all([
+    prisma.role.findUnique({ where: { name: 'ADMIN' } }),
+    prisma.role.findUnique({ where: { name: 'MANAGER' } }),
+    prisma.role.findUnique({ where: { name: 'STAFF' } }),
+    prisma.role.findUnique({ where: { name: 'DRIVER' } }),
+  ]);
 
   // ── Staff account (idempotent) ────────────────────────────────────────────
   const staffEmail = 'staff@test.com';
   const hash = await bcrypt.hash('staff123', 12);
   await prisma.user.upsert({
     where: { email: staffEmail },
-    update: { passwordHash: hash, isActive: true, role: 'STAFF' },
+    update: { passwordHash: hash, isActive: true, role: 'STAFF', roleId: roleStaff!.id },
     create: {
       fullName: 'Nhân viên A',
       email: staffEmail,
       passwordHash: hash,
       role: 'STAFF',
+      roleId: roleStaff!.id,
       isActive: true,
     },
   });
@@ -145,12 +166,13 @@ async function main() {
   const adminHash = await bcrypt.hash('admin123', 12);
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: { passwordHash: adminHash, isActive: true, role: 'ADMIN' },
+    update: { passwordHash: adminHash, isActive: true, role: 'ADMIN', roleId: roleAdmin!.id },
     create: {
       fullName: 'Quản trị viên',
       email: adminEmail,
       passwordHash: adminHash,
       role: 'ADMIN',
+      roleId: roleAdmin!.id,
       isActive: true,
     },
   });
@@ -161,12 +183,13 @@ async function main() {
   const managerHash = await bcrypt.hash('manager123', 12);
   await prisma.user.upsert({
     where: { email: managerEmail },
-    update: { passwordHash: managerHash, isActive: true, role: 'MANAGER' },
+    update: { passwordHash: managerHash, isActive: true, role: 'MANAGER', roleId: roleManager!.id },
     create: {
       fullName: 'Quản lý A',
       email: managerEmail,
       passwordHash: managerHash,
       role: 'MANAGER',
+      roleId: roleManager!.id,
       isActive: true,
     },
   });
@@ -175,14 +198,15 @@ async function main() {
   // ── Driver account (idempotent) ──────────────────────────────────────────
   const driverEmail = 'driver@test.com';
   const driverHash = await bcrypt.hash('driver123', 12);
-  const driver = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: driverEmail },
-    update: { passwordHash: driverHash, isActive: true, role: 'DRIVER' },
+    update: { passwordHash: driverHash, isActive: true, role: 'DRIVER', roleId: roleDriver!.id },
     create: {
       fullName: 'Người lái xe',
       email: driverEmail,
       passwordHash: driverHash,
       role: 'DRIVER',
+      roleId: roleDriver!.id,
       isActive: true,
     },
   });
@@ -228,6 +252,7 @@ async function main() {
       email: walkinEmail,
       passwordHash: '', // no login needed
       role: 'DRIVER',
+      roleId: roleDriver!.id,
       isActive: true,
     },
   });
@@ -244,6 +269,7 @@ async function main() {
       email: driverAEmail,
       passwordHash: hashA,
       role: 'DRIVER',
+      roleId: roleDriver!.id,
       isActive: true,
     },
   });
@@ -295,6 +321,7 @@ async function main() {
       email: driverBEmail,
       passwordHash: hashB,
       role: 'DRIVER',
+      roleId: roleDriver!.id,
       isActive: true,
     },
   });

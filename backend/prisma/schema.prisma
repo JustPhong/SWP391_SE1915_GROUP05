@@ -38,6 +38,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  roleId        Int?
+  roleRef       Role?         @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   vehicles        Vehicle[]
   monthlyPackages MonthlyPackage[]
   bookings        Booking[]
@@ -187,4 +189,10 @@ model RolePermission {
   permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
 
   @@unique([role, permissionKey])
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.NVarChar(30)
+  users User[]
 }
