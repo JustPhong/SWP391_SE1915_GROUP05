@@ -200,12 +200,14 @@ async function findOrCreateWalkinUser() {
   const email = 'walkin@system.local';
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
+    const driverRole = await prisma.role.findUnique({ where: { name: 'DRIVER' } });
     user = await prisma.user.create({
       data: {
         fullName: 'Walk-in Customer',
         email,
-        passwordHash: '', // no login needed
+        passwordHash: '',
         role: 'DRIVER',
+        roleId: driverRole!.id,
       },
     });
     console.log('[Seed] Walk-in system user created:', email);

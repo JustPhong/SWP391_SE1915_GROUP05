@@ -24,7 +24,7 @@ export const adminUserController = {
     };
 
     if (role && isSystemRole(role)) {
-      where.role = role;
+      where.roleRef = { name: role };
     }
 
     if (search && search.trim()) {
@@ -42,29 +42,41 @@ export const adminUserController = {
         id:        true,
         fullName:  true,
         email:     true,
-        role:      true,
+        roleRef:   { select: { name: true } },
         isActive:  true,
         createdAt: true,
       },
     });
 
-    return res.status(200).json({ success: true, data: users });
+    const data = users.map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+      role: u.roleRef?.name ?? 'DRIVER',
+      isActive: u.isActive,
+      createdAt: u.createdAt,
+    }));
+
+    return res.status(200).json({ success: true, data });
   }),
 
   // POST /api/admin/users
   create: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { fullName, email, role, password } = req.body as {
+    const { fullName, email, role: roleName, password } = req.body as {
       fullName: string; email: string; role: string; password: string;
     };
 
     if (!fullName?.trim()) throw new AppError(400, 'Họ tên không được để trống');
     if (!email?.trim())    throw new AppError(400, 'Email không được để trống');
     if (!password?.trim()) throw new AppError(400, 'Mật khẩu không được để trống');
-    if (!isSystemRole(role)) throw new AppError(400, 'Vai trò không hợp lệ');
+    if (!isSystemRole(roleName)) throw new AppError(400, 'Vai trò không hợp lệ');
     if (email === WALKIN_EMAIL) throw new AppError(400, 'Không thể tạo tài khoản hệ thống');
 
     const existing = await prisma.user.findUnique({ where: { email: email.trim() } });
     if (existing) throw new AppError(409, 'Email đã được sử dụng');
+
+    const role = await prisma.role.findUnique({ where: { name: roleName } });
+    if (!role) throw new AppError(400, 'Vai trò không hợp lệ');
 
     const passwordHash = await bcrypt.hash(password.trim(), 12);
 
@@ -73,23 +85,35 @@ export const adminUserController = {
         fullName:     fullName.trim(),
         email:        email.trim().toLowerCase(),
         passwordHash,
-        role,
+        role:         roleName,
+        roleId:       role.id,
         isActive:    true,
       },
       select: {
-        id: true, fullName: true, email: true, role: true, isActive: true, createdAt: true,
+        id: true, fullName: true, email: true,
+        roleRef: { select: { name: true } },
+        isActive: true, createdAt: true,
       },
     });
 
-    return res.status(201).json({ success: true, data: user });
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: user.id, fullName: user.fullName, email: user.email,
+        role: user.roleRef?.name ?? 'DRIVER', isActive: user.isActive, createdAt: user.createdAt,
+      },
+    });
   }),
 
   // PATCH /api/admin/users/:id
   update: asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { fullName, role } = req.body as { fullName?: string; role?: string };
+    const { fullName, role: roleName } = req.body as { fullName?: string; role?: string };
 
-    const target = await prisma.user.findUnique({ where: { id } });
+    const target = await prisma.user.findUnique({
+      where: { id },
+      include: { roleRef: true },
+    });
     if (!target) throw new AppError(404, 'Không tìm thấy tài khoản');
     if (target.email === WALKIN_EMAIL) throw new AppError(400, 'Không thể chỉnh sửa tài khoản hệ thống');
 
@@ -98,18 +122,29 @@ export const adminUserController = {
       if (!fullName.trim()) throw new AppError(400, 'Họ tên không được để trống');
       data.fullName = fullName.trim();
     }
-    if (role !== undefined) {
-      if (!isSystemRole(role)) throw new AppError(400, 'Vai trò không hợp lệ');
-      data.role = role;
+    if (roleName !== undefined) {
+      if (!isSystemRole(roleName)) throw new AppError(400, 'Vai trò không hợp lệ');
+      const role = await prisma.role.findUnique({ where: { name: roleName } });
+      if (!role) throw new AppError(400, 'Vai trò không hợp lệ');
+      data.role = roleName;
+      data.roleId = role.id;
     }
 
     const updated = await prisma.user.update({
       where: { id },
       data,
-      select: { id: true, fullName: true, email: true, role: true, isActive: true, createdAt: true },
+      select: { id: true, fullName: true, email: true,
+                roleRef: { select: { name: true } },
+                isActive: true, createdAt: true },
     });
 
-    return res.status(200).json({ success: true, data: updated });
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: updated.id, fullName: updated.fullName, email: updated.email,
+        role: updated.roleRef?.name ?? 'DRIVER', isActive: updated.isActive, createdAt: updated.createdAt,
+      },
+    });
   }),
 
   // PATCH /api/admin/users/:id/status
@@ -117,7 +152,10 @@ export const adminUserController = {
     const { id } = req.params;
     const { isActive } = req.body as { isActive: boolean };
 
-    const target = await prisma.user.findUnique({ where: { id } });
+    const target = await prisma.user.findUnique({
+      where: { id },
+      include: { roleRef: true },
+    });
     if (!target) throw new AppError(404, 'Không tìm thấy tài khoản');
     if (target.email === WALKIN_EMAIL) throw new AppError(400, 'Không thể thay đổi trạng thái tài khoản hệ thống');
     if (target.id === req.user!.id) throw new AppError(400, 'Không thể tự khóa tài khoản của chính mình');
@@ -126,7 +164,7 @@ export const adminUserController = {
       const activeAdminCount = await prisma.user.count({
         where: { role: 'ADMIN', isActive: true },
       });
-      if (activeAdminCount <= 1 && target.role === 'ADMIN') {
+      if (activeAdminCount <= 1 && target.roleRef!.name === 'ADMIN') {
         throw new AppError(400, 'Không thể khóa Admin hoạt động cuối cùng của hệ thống');
       }
     }
@@ -134,10 +172,18 @@ export const adminUserController = {
     const updated = await prisma.user.update({
       where: { id },
       data: { isActive },
-      select: { id: true, fullName: true, email: true, role: true, isActive: true, createdAt: true },
+      select: { id: true, fullName: true, email: true,
+                roleRef: { select: { name: true } },
+                isActive: true, createdAt: true },
     });
 
-    return res.status(200).json({ success: true, data: updated });
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: updated.id, fullName: updated.fullName, email: updated.email,
+        role: updated.roleRef?.name ?? 'DRIVER', isActive: updated.isActive, createdAt: updated.createdAt,
+      },
+    });
   }),
 
   // POST /api/admin/users/:id/reset-password

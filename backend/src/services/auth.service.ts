@@ -42,12 +42,17 @@ export const authService = {
 
     const passwordHash = await bcrypt.hash(input.password, 12);
 
+    const roleName = input.role ?? 'DRIVER';
+    const role = await prisma.role.findUnique({ where: { name: roleName } });
+    if (!role) throw new AppError(400, 'Invalid role');
+
     const user = await prisma.user.create({
       data: {
         fullName: input.fullName,
         email: input.email,
         passwordHash,
-        role: input.role ?? 'DRIVER',
+        role: roleName,
+        roleId: role.id,
       },
     });
 
@@ -61,7 +66,7 @@ export const authService = {
     });
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: roleName },
       config.jwtSecret,
       { expiresIn: '7d' }
     );
@@ -72,13 +77,16 @@ export const authService = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role,
+        role: roleName,
       },
     };
   },
 
   async login(input: LoginInput): Promise<AuthResult> {
-    const user = await prisma.user.findUnique({ where: { email: input.email } });
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
+      include: { roleRef: true },
+    });
     if (!user) {
       throw new AppError(401, 'Invalid email or password');
     }
@@ -92,8 +100,10 @@ export const authService = {
       throw new AppError(401, 'Invalid email or password');
     }
 
+    const roleName = user.roleRef!.name;
+
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: roleName },
       config.jwtSecret,
       { expiresIn: '7d' }
     );
@@ -104,13 +114,16 @@ export const authService = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role,
+        role: roleName,
       },
     };
   },
 
   async getUserById(id: string) {
-    const user = await prisma.user.findUnique({ where: { id } });
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: { roleRef: true },
+    });
     if (!user) throw new AppError(404, 'User not found');
     return user;
   },

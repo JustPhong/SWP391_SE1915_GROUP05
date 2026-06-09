@@ -7,6 +7,7 @@ async function main() {
 
   const user = await prisma.user.findUnique({
     where: { email: TARGET_EMAIL },
+    include: { roleRef: true },
   });
 
   if (!user) {
@@ -14,7 +15,7 @@ async function main() {
     return;
   }
 
-  console.log(`Found user: ${user.fullName} (${user.role}) — ID: ${user.id}`);
+  console.log(`Found user: ${user.fullName} (${user.roleRef!.name}) — ID: ${user.id}`);
 
   // Gather all vehicles owned by this user
   const vehicles = await prisma.vehicle.findMany({

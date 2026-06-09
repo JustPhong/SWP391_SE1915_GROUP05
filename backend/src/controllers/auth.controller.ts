@@ -22,7 +22,7 @@ export const authController = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role,
+        role: user.roleRef!.name,
       },
     });
   }),
