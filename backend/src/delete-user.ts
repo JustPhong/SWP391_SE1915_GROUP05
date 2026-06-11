@@ -84,7 +84,7 @@ async function main() {
 
   // 6. Delete the user
   const deletedUser = await prisma.user.delete({ where: { id: user.id } });
-  console.log(`\nDeleted user: ${deletedUser.email} (${deletedUser.role})`);
+  console.log(`\nDeleted user: ${deletedUser.email} (${user.roleRef!.name})`);
   console.log('\nDone.');
 }
 

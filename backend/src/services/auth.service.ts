@@ -51,7 +51,6 @@ export const authService = {
         fullName: input.fullName,
         email: input.email,
         passwordHash,
-        role: roleName,
         roleId: role.id,
       },
     });

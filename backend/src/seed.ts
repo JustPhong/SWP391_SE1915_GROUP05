@@ -116,14 +116,22 @@ async function seedPermissions() {
 
   // Build role × permission matrix
   const allPermKeys = PERMISSIONS.map((p) => p.key);
+
+  // Resolve roleId for each role name once
+  const roleMap: Record<string, number> = {};
+  for (const roleName of ALL_ROLES) {
+    const r = await prisma.role.findUnique({ where: { name: roleName } });
+    roleMap[roleName] = r!.id;
+  }
+
   for (const role of ALL_ROLES) {
     for (const permKey of allPermKeys) {
       const owners = PERMISSION_OWNERS[permKey] ?? [];
       const allowed = role === 'ADMIN' || owners.includes(role);
       await prisma.rolePermission.upsert({
         where: { role_permissionKey: { role, permissionKey: permKey } },
-        update: { allowed },
-        create: { role, permissionKey: permKey, allowed },
+        update: { allowed, roleId: roleMap[role] },
+        create: { role, permissionKey: permKey, allowed, roleId: roleMap[role] },
       });
     }
   }
@@ -149,15 +157,13 @@ async function main() {
   const hash = await bcrypt.hash('staff123', 12);
   await prisma.user.upsert({
     where: { email: staffEmail },
-    update: { passwordHash: hash, isActive: true, role: 'STAFF', roleId: roleStaff!.id },
+    update: { passwordHash: hash, isActive: true, roleId: roleStaff!.id },
     create: {
       fullName: 'Nhân viên A',
       email: staffEmail,
       passwordHash: hash,
-      role: 'STAFF',
-      roleId: roleStaff!.id,
       isActive: true,
-    },
+      roleId: roleStaff!.id },
   });
   console.log('Staff account ready: staff@test.com / staff123');
 
@@ -166,15 +172,13 @@ async function main() {
   const adminHash = await bcrypt.hash('admin123', 12);
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: { passwordHash: adminHash, isActive: true, role: 'ADMIN', roleId: roleAdmin!.id },
+    update: { passwordHash: adminHash, isActive: true, roleId: roleAdmin!.id },
     create: {
       fullName: 'Quản trị viên',
       email: adminEmail,
       passwordHash: adminHash,
-      role: 'ADMIN',
-      roleId: roleAdmin!.id,
       isActive: true,
-    },
+      roleId: roleAdmin!.id },
   });
   console.log('Admin account ready: admin@test.com / admin123');
 
@@ -183,15 +187,13 @@ async function main() {
   const managerHash = await bcrypt.hash('manager123', 12);
   await prisma.user.upsert({
     where: { email: managerEmail },
-    update: { passwordHash: managerHash, isActive: true, role: 'MANAGER', roleId: roleManager!.id },
+    update: { passwordHash: managerHash, isActive: true, roleId: roleManager!.id },
     create: {
       fullName: 'Quản lý A',
       email: managerEmail,
       passwordHash: managerHash,
-      role: 'MANAGER',
-      roleId: roleManager!.id,
       isActive: true,
-    },
+      roleId: roleManager!.id },
   });
   console.log('Manager account ready: manager@test.com / manager123');
 
@@ -200,15 +202,13 @@ async function main() {
   const driverHash = await bcrypt.hash('driver123', 12);
   await prisma.user.upsert({
     where: { email: driverEmail },
-    update: { passwordHash: driverHash, isActive: true, role: 'DRIVER', roleId: roleDriver!.id },
+    update: { passwordHash: driverHash, isActive: true, roleId: roleDriver!.id },
     create: {
       fullName: 'Người lái xe',
       email: driverEmail,
       passwordHash: driverHash,
-      role: 'DRIVER',
-      roleId: roleDriver!.id,
       isActive: true,
-    },
+      roleId: roleDriver!.id },
   });
   console.log('Driver account ready: driver@test.com / driver123');
 
@@ -251,10 +251,8 @@ async function main() {
       fullName: 'Walk-in Customer',
       email: walkinEmail,
       passwordHash: '', // no login needed
-      role: 'DRIVER',
-      roleId: roleDriver!.id,
       isActive: true,
-    },
+      roleId: roleDriver!.id },
   });
   console.log('Walk-in system user ready:', walkinEmail);
 
@@ -268,10 +266,8 @@ async function main() {
       fullName: 'Nguyen Van A',
       email: driverAEmail,
       passwordHash: hashA,
-      role: 'DRIVER',
-      roleId: roleDriver!.id,
       isActive: true,
-    },
+      roleId: roleDriver!.id },
   });
 
   const vehicleA = await prisma.vehicle.upsert({
@@ -320,10 +316,8 @@ async function main() {
       fullName: 'Tran Thi B',
       email: driverBEmail,
       passwordHash: hashB,
-      role: 'DRIVER',
-      roleId: roleDriver!.id,
       isActive: true,
-    },
+      roleId: roleDriver!.id },
   });
 
   const vehicleB = await prisma.vehicle.upsert({

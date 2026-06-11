@@ -12,7 +12,6 @@ datasource db {
 // Nên các trường dưới đây dùng String, và giá trị hợp lệ
 // được kiểm soát ở tầng code (thư mục dtos/ hoặc validators/).
 // Giá trị cho phép:
-//   User.role        : ADMIN | MANAGER | STAFF | DRIVER
 //   Vehicle.type     : MOTORBIKE | CAR
 //   ParkingSlot.type : MOTORBIKE | CAR
 //   ParkingSlot.status   : AVAILABLE | OCCUPIED | RESERVED
@@ -33,13 +32,12 @@ model User {
   email        String   @unique
   phoneNumber  String?
   passwordHash String
-  role         String   @default("DRIVER") @db.NVarChar(30)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  roleId        Int?
-  roleRef       Role?         @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roleId        Int
+  roleRef       Role     @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   vehicles        Vehicle[]
   monthlyPackages MonthlyPackage[]
   bookings        Booking[]
@@ -188,6 +186,9 @@ model RolePermission {
 
   permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
 
+  roleId  Int?
+  roleRef Role?   @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@unique([role, permissionKey])
 }
 
@@ -195,4 +196,5 @@ model Role {
   id    Int    @id @default(autoincrement())
   name  String @unique @db.NVarChar(30)
   users User[]
+  rolePermissions RolePermission[]
 }

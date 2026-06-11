@@ -85,7 +85,6 @@ export const adminUserController = {
         fullName:     fullName.trim(),
         email:        email.trim().toLowerCase(),
         passwordHash,
-        role:         roleName,
         roleId:       role.id,
         isActive:    true,
       },
@@ -126,7 +125,6 @@ export const adminUserController = {
       if (!isSystemRole(roleName)) throw new AppError(400, 'Vai trò không hợp lệ');
       const role = await prisma.role.findUnique({ where: { name: roleName } });
       if (!role) throw new AppError(400, 'Vai trò không hợp lệ');
-      data.role = roleName;
       data.roleId = role.id;
     }
 
@@ -161,8 +159,9 @@ export const adminUserController = {
     if (target.id === req.user!.id) throw new AppError(400, 'Không thể tự khóa tài khoản của chính mình');
 
     if (isActive === false) {
+      const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
       const activeAdminCount = await prisma.user.count({
-        where: { role: 'ADMIN', isActive: true },
+        where: { roleId: adminRole!.id, isActive: true },
       });
       if (activeAdminCount <= 1 && target.roleRef!.name === 'ADMIN') {
         throw new AppError(400, 'Không thể khóa Admin hoạt động cuối cùng của hệ thống');
