@@ -13,13 +13,16 @@ export const requirePermission = (permissionKey: string) => {
       return next();
     }
 
-    const row = await prisma.rolePermission.findUnique({
-      where: {
-        role_permissionKey: {
-          role: req.user.role,
-          permissionKey,
-        },
-      },
+    const roleRow = await prisma.role.findUnique({
+      where: { name: req.user.role },
+    });
+
+    if (!roleRow) {
+      return next();
+    }
+
+    const row = await prisma.rolePermission.findFirst({
+      where: { roleId: roleRow.id, permissionKey },
     });
 
     if (!row) {

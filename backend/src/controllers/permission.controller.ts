@@ -9,15 +9,18 @@ const SYSTEM_ROLES = ['DRIVER', 'STAFF', 'MANAGER', 'ADMIN'] as const;
 export const permissionController = {
   // GET /api/admin/permissions
   getAll: asyncHandler(async (_req: AuthRequest, res: Response) => {
-    const [permissions, rolePermissions] = await Promise.all([
+    const [permissions, roles] = await Promise.all([
       prisma.permission.findMany({ orderBy: { category: 'asc' } }),
-      prisma.rolePermission.findMany(),
+      prisma.role.findMany({ include: { rolePermissions: true } }),
     ]);
 
+    // Build matrix keyed by role NAME (frontend expects string keys)
     const roleMatrix: Record<string, Record<string, boolean>> = {};
-    for (const rp of rolePermissions) {
-      if (!roleMatrix[rp.role]) roleMatrix[rp.role] = {};
-      roleMatrix[rp.role][rp.permissionKey] = rp.allowed;
+    for (const r of roles) {
+      roleMatrix[r.name] = {};
+      for (const rp of r.rolePermissions) {
+        roleMatrix[r.name][rp.permissionKey] = rp.allowed;
+      }
     }
 
     const grouped: Record<string, typeof permissions> = {};
@@ -59,10 +62,13 @@ export const permissionController = {
       throw new AppError(400, 'Không thể tắt quyền quản trị cốt lõi của Admin — tránh tự khóa hệ thống');
     }
 
+    const roleRow = await prisma.role.findUnique({ where: { name: role } });
+    if (!roleRow) throw new AppError(400, 'Vai trò không tồn tại');
+
     const updated = await prisma.rolePermission.upsert({
       where: { role_permissionKey: { role, permissionKey } },
       update: { allowed },
-      create: { role, permissionKey, allowed },
+      create: { role, permissionKey, allowed, roleId: roleRow.id },
     });
 
     return res.status(200).json({ success: true, data: updated });
