@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
 import { slotSuggestionService } from './slotSuggestion.service';
+import { calcFee } from '../utils/fee';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_OCCUPIED = 'OCCUPIED';
@@ -133,9 +134,13 @@ export const checkOutService = {
       };
     }
 
-    const durationMs = new Date().getTime() - new Date(record.checkInTime).getTime();
-    const hours = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60)));
-    const amount = hours * 5000;
+    const checkIn = new Date(record.checkInTime);
+    const checkOut = new Date();
+    const { total: amount, breakdown } = calcFee(
+      checkIn,
+      checkOut,
+      record.vehicle.type as 'CAR' | 'MOTORBIKE',
+    );
 
     await prisma.$transaction([
       prisma.parkingSlot.update({
@@ -160,7 +165,9 @@ export const checkOutService = {
       recordId: record.id,
       paymentRequired: true,
       amountDue: amount,
-      durationHours: hours,
+      fee: amount,
+      breakdown,
+      durationHours: Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60) * 10) / 10,
     };
   },
 };

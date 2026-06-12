@@ -129,9 +129,9 @@ async function seedPermissions() {
       const owners = PERMISSION_OWNERS[permKey] ?? [];
       const allowed = role === 'ADMIN' || owners.includes(role);
       await prisma.rolePermission.upsert({
-        where: { role_permissionKey: { role, permissionKey: permKey } },
-        update: { allowed, roleId: roleMap[role] },
-        create: { role, permissionKey: permKey, allowed, roleId: roleMap[role] },
+        where: { roleId_permissionKey: { roleId: roleMap[role], permissionKey: permKey } },
+        update: { allowed },
+        create: { permissionKey: permKey, allowed, roleId: roleMap[role] },
       });
     }
   }

@@ -66,9 +66,9 @@ export const permissionController = {
     if (!roleRow) throw new AppError(400, 'Vai trò không tồn tại');
 
     const updated = await prisma.rolePermission.upsert({
-      where: { role_permissionKey: { role, permissionKey } },
+      where: { roleId_permissionKey: { roleId: roleRow.id, permissionKey } },
       update: { allowed },
-      create: { role, permissionKey, allowed, roleId: roleRow.id },
+      create: { permissionKey, allowed, roleId: roleRow.id },
     });
 
     return res.status(200).json({ success: true, data: updated });

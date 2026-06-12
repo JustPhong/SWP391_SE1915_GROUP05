@@ -1,18 +1,8 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
-
-// ── Pricing constants ────────────────────────────────────
-const RATE_CAR = 15_000;       // VND / hour
-const RATE_MOTORBIKE = 5_000;  // VND / hour
-
-// ── Shared billing helper ─────────────────────────────────
-// Reused by both lookup and checkout so fee computation is always consistent.
-function computeFee(vehicleType: string, durationMinutes: number): { billedHours: number; ratePerHour: number; fee: number } {
-  const billedHours = Math.max(1, Math.ceil(durationMinutes / 60));
-  const ratePerHour = vehicleType === 'MOTORBIKE' ? RATE_MOTORBIKE : RATE_CAR;
-  const fee = billedHours * ratePerHour;
-  return { billedHours, ratePerHour, fee };
-}
+import { AuthRequest } from '../middleware/auth.middleware';
+import { asyncHandler } from '../utils/helpers';
+import { calcFee } from '../utils/fee';
 
 // ── Lookup result shapes ──────────────────────────────────
 export interface CheckoutLookupResult {
@@ -26,9 +16,15 @@ export interface CheckoutLookupResult {
   checkInTime?: string;
   now?: string;
   durationMinutes?: number;
-  billedHours?: number;
-  ratePerHour?: number;
   fee?: number;
+  breakdown?: {
+    label: string;
+    minutesInBlock: number;
+    lots: number;
+    rate: number;
+    amount: number;
+    note?: string;
+  }[];
 }
 
 export interface ParkedVehicle {
@@ -75,7 +71,12 @@ export const checkoutService = {
     const now = new Date();
     const checkIn = new Date(record.checkInTime);
     const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
-    const { billedHours, ratePerHour, fee } = computeFee(vehicle.type, durationMinutes);
+    const { total, breakdown } = calcFee(
+      checkIn,
+      now,
+      vehicle.type as 'CAR' | 'MOTORBIKE',
+      record.isMonthly,
+    );
 
     return {
       found: true,
@@ -87,9 +88,8 @@ export const checkoutService = {
       checkInTime: record.checkInTime.toISOString(),
       now: now.toISOString(),
       durationMinutes,
-      billedHours,
-      ratePerHour,
-      fee,
+      fee: total,
+      breakdown,
     };
   },
 
@@ -141,8 +141,12 @@ export const checkoutService = {
     // ── 2. Recompute fee (never trust client) ────────────
     const now = new Date();
     const checkIn = new Date(record.checkInTime);
-    const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
-    const { fee } = computeFee(vehicle.type, durationMinutes);
+    const { total } = calcFee(
+      checkIn,
+      now,
+      vehicle.type as 'CAR' | 'MOTORBIKE',
+      record.isMonthly,
+    );
 
     // ── 3. Prisma transaction ─────────────────────────────
     await prisma.$transaction(async (tx) => {
@@ -153,11 +157,11 @@ export const checkoutService = {
       });
 
       // 3b. Create payment for casual (monthly = 0, skip)
-      if (!record.isMonthly && fee > 0) {
+      if (!record.isMonthly && total > 0) {
         await tx.payment.create({
           data: {
             checkInRecordId: record.id,
-            amount: fee,
+            amount: total,
             method,
             type: 'SESSION',
             paidAt: now,
@@ -185,7 +189,7 @@ export const checkoutService = {
       ok: true,
       plate: vehicle.plateNumber,
       slotCode: record.slot.code,
-      fee,
+      fee: total,
       isMonthly: record.isMonthly,
       checkOutTime: now.toISOString(),
     };

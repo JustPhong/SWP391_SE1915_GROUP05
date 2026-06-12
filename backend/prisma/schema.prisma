@@ -179,17 +179,16 @@ model Permission {
 
 model RolePermission {
   id            String   @id @default(uuid())
-  role          String   @db.NVarChar(30)
   permissionKey String   @db.NVarChar(30)
   allowed       Boolean  @default(true)
   createdAt     DateTime @default(now())
 
   permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
 
-  roleId  Int?
-  roleRef Role?   @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roleId  Int
+  roleRef Role     @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([role, permissionKey])
+  @@unique([roleId, permissionKey])
 }
 
 model Role {
