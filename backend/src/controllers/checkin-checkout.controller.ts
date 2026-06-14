@@ -21,6 +21,12 @@ export const checkInController = {
 };
 
 export const checkOutController = {
+  preview: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { recordId } = req.params;
+    const result = await checkOutService.previewFee(recordId);
+    return res.status(200).json({ success: true, data: result });
+  }),
+
   checkOut: asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await checkOutService.checkOut({
       checkInRecordId: req.body.checkInRecordId,

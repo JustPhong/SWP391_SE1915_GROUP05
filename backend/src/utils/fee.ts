@@ -28,6 +28,32 @@ export interface FeeResult {
   breakdown: FeeBlock[];
 }
 
+export type BlockDef = {
+  label: string;
+  startHour: number;   // inclusive
+  endHour: number;     // exclusive; 24 means end-of-day; wrap-around e.g. 18→6
+  rate: number;
+  lotMinutes: number;
+};
+
+export type FeeConfig = {
+  motorbikeBlocks: BlockDef[];
+  carDayBlocks: BlockDef[];
+  carNightFlat: number;
+};
+
+export const DEFAULT_FEE_CONFIG: FeeConfig = {
+  motorbikeBlocks: [
+    { label: 'Ban ngày (06:00–17:59)',  startHour:  6, endHour: 18, rate: 3000,  lotMinutes: 240 },
+    { label: 'Ban đêm (18:00–05:59)',   startHour: 18, endHour:  6, rate: 4000,  lotMinutes: 240 },
+  ],
+  carDayBlocks: [
+    { label: 'Ban ngày (06:00–17:59)',  startHour:  6, endHour: 18, rate: 15000, lotMinutes: 120 },
+    { label: 'Buổi tối (18:00–23:59)', startHour: 18, endHour: 24, rate: 20000, lotMinutes: 120 },
+  ],
+  carNightFlat: 100000,
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function ceilLots(minutes: number, lotMinutes: number): number {
@@ -35,14 +61,6 @@ function ceilLots(minutes: number, lotMinutes: number): number {
 }
 
 /** Which block index is active at a given local-clock minute-of-day [0,1440)? */
-type BlockDef = {
-  label: string;
-  startHour: number;   // inclusive
-  endHour: number;     // exclusive; 24 means end-of-day
-  rate: number;
-  lotMinutes: number;
-};
-
 function getBlockIndex(minuteOfDay: number, blocks: BlockDef[]): number {
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
@@ -130,13 +148,8 @@ function sliceByBlocks(
 
 // ─── Motorbike ──────────────────────────────────────────────────────────────
 
-const MOTORBIKE_BLOCKS: BlockDef[] = [
-  { label: 'Ban ngày (06:00–17:59)',  startHour:  6, endHour: 18, rate: 3000,  lotMinutes: 240 },
-  { label: 'Ban đêm (18:00–05:59)',   startHour: 18, endHour:  6, rate: 4000,  lotMinutes: 240 },
-];
-
-export function calcMotorbikeFee(checkIn: Date, checkOut: Date): FeeResult {
-  const slices = sliceByBlocks(checkIn, checkOut, MOTORBIKE_BLOCKS);
+export function calcMotorbikeFee(checkIn: Date, checkOut: Date, blocks: BlockDef[]): FeeResult {
+  const slices = sliceByBlocks(checkIn, checkOut, blocks);
   const breakdown: FeeBlock[] = slices.map((s) => ({
     startTime:    s.start,
     endTime:      s.end,
@@ -152,36 +165,33 @@ export function calcMotorbikeFee(checkIn: Date, checkOut: Date): FeeResult {
 
 // ─── Car ───────────────────────────────────────────────────────────────────
 
-const CAR_DAY_BLOCKS: BlockDef[] = [
-  { label: 'Ban ngày (06:00–17:59)',  startHour:  6, endHour: 18, rate: 15000, lotMinutes: 120 },
-  { label: 'Buổi tối (18:00–23:59)', startHour: 18, endHour: 24, rate: 20000, lotMinutes: 120 },
-];
-
-export function calcCarFee(checkIn: Date, checkOut: Date): FeeResult {
+export function calcCarFee(
+  checkIn: Date,
+  checkOut: Date,
+  dayBlocks: BlockDef[],
+  nightFlatAmount: number,
+): FeeResult {
   const sessionStart = new Date(checkIn);
   const sessionEnd   = new Date(checkOut);
 
-  // Night-flat: charge 100k flat if ANY part of the session falls in 00:00–05:59
+  // Night-flat: charge flat if ANY part of the session falls in 00:00–05:59
   let nightMinutes = 0;
   let nightStart: Date | null = null;
   let nightEnd:   Date | null = null;
 
-  // Walk through the night window only (00:00–06:00 each night)
   let nightCursor = new Date(sessionStart);
   nightCursor.setHours(0, 0, 0, 0);
 
   while (nightCursor < sessionEnd) {
-    // Advance to next 00:00
     if (nightCursor.getHours() !== 0 || nightCursor.getMinutes() !== 0) {
       nightCursor.setHours(0, 0, 0, 0);
       nightCursor.setDate(nightCursor.getDate() + 1);
     }
-
     if (nightCursor >= sessionEnd) break;
 
-    const nightBlockStart = new Date(nightCursor); // 00:00 today
+    const nightBlockStart = new Date(nightCursor);
     const nightBlockEnd   = new Date(nightCursor);
-    nightBlockEnd.setHours(6, 0, 0, 0); // 06:00
+    nightBlockEnd.setHours(6, 0, 0, 0);
 
     const overlapStart = nightBlockStart > sessionStart ? nightBlockStart : sessionStart;
     const overlapEnd   = nightBlockEnd   < sessionEnd   ? nightBlockEnd   : sessionEnd;
@@ -193,13 +203,12 @@ export function calcCarFee(checkIn: Date, checkOut: Date): FeeResult {
       nightEnd   = overlapEnd;
     }
 
-    nightCursor.setDate(nightCursor.getDate() + 1); // next night
+    nightCursor.setDate(nightCursor.getDate() + 1);
   }
 
   const hasNightFlat = nightMinutes > 0;
 
-  // Regular per-block slices for day + evening blocks
-  const slices = sliceByBlocks(sessionStart, sessionEnd, CAR_DAY_BLOCKS);
+  const slices = sliceByBlocks(sessionStart, sessionEnd, dayBlocks);
   const breakdown: FeeBlock[] = slices.map((s) => ({
     startTime:      s.start,
     endTime:        s.end,
@@ -211,17 +220,16 @@ export function calcCarFee(checkIn: Date, checkOut: Date): FeeResult {
     amount:         ceilLots(s.minutes, s.lotMinutes) * s.rate,
   }));
 
-  // Insert night-flat block
   if (hasNightFlat && nightStart && nightEnd) {
     breakdown.push({
       startTime:    nightStart,
       endTime:      nightEnd,
       label:        'Đêm muộn (00:00–05:59)',
       minutesInBlock: nightMinutes,
-      rate:         100000,
+      rate:         nightFlatAmount,
       lotHours:     0,
       lots:         1,
-      amount:       100000,
+      amount:       nightFlatAmount,
       note:         'Phí cố định — tính trọn đêm',
     });
     breakdown.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
@@ -236,10 +244,10 @@ export function calcFee(
   checkIn: Date,
   checkOut: Date,
   vehicleType: 'CAR' | 'MOTORBIKE',
-  isMonthly?: boolean,
+  config: FeeConfig,
 ): FeeResult {
-  if (isMonthly) return { total: 0, breakdown: [] };
-  return vehicleType === 'MOTORBIKE'
-    ? calcMotorbikeFee(checkIn, checkOut)
-    : calcCarFee(checkIn, checkOut);
+  if (vehicleType === 'MOTORBIKE') {
+    return calcMotorbikeFee(checkIn, checkOut, config.motorbikeBlocks);
+  }
+  return calcCarFee(checkIn, checkOut, config.carDayBlocks, config.carNightFlat);
 }

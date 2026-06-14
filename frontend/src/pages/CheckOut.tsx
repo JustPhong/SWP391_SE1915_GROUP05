@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
-import { calcFee } from '../utils/fee';
 import type { CheckInRecord } from '../types';
 
 // ── Types ────────────────────────────────────────────────
@@ -16,28 +15,47 @@ interface ActiveRecord {
   slot?: { code: string; floor: number };
 }
 
+interface FeePreview {
+  recordId: string;
+  plate: string;
+  slotCode: string;
+  vehicleType: 'CAR' | 'MOTORBIKE';
+  isMonthly: boolean;
+  checkInTime: string;
+  now: string;
+  durationMinutes: number;
+  fee: number;
+  breakdown: {
+    label: string;
+    minutesInBlock: number;
+    lots: number;
+    rate: number;
+    amount: number;
+    note?: string;
+  }[];
+}
+
 interface CheckOutResponse {
   recordId: string;
   paymentRequired: boolean;
   amountDue?: number;
   durationHours?: number;
   note?: string;
+  fee?: number;
+  breakdown?: {
+    label: string;
+    minutesInBlock: number;
+    lots: number;
+    rate: number;
+    amount: number;
+    note?: string;
+  }[];
 }
 
 interface ConfirmState {
   record: ActiveRecord;
+  feePreview: FeePreview;
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
-  fee?: {
-    total: number;
-    breakdown: {
-      label: string;
-      lots: number;
-      lotHours: number;
-      rate: number;
-      amount: number;
-      note?: string;
-    }[];
-  };
 }
 
 // ── Design tokens ────────────────────────────────────────
@@ -89,12 +107,44 @@ function now(): string {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+function FeeBreakdownCard({ fee, navy }: { fee: FeePreview; navy?: boolean }) {
+  if (!fee.breakdown.length) return null;
+  return (
+    <>
+      <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Chi tiết phí
+      </p>
+      {fee.breakdown.map((block, i) => (
+        <div key={i} style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          padding: '0.35rem 0',
+          borderBottom: i < fee.breakdown.length - 1 ? `1px solid ${C.gray100}` : 'none',
+        }}>
+          <div>
+            <span style={{ fontSize: '0.82rem', color: C.gray800 }}>{block.label}</span>
+            <span style={{ display: 'block', fontSize: '0.7rem', color: C.gray400 }}>
+              {block.note ?? `${block.lots} × ${block.lotHours}h × ${formatCurrency(block.rate)}`}
+            </span>
+          </div>
+          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{formatCurrency(block.amount)}</span>
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.25rem' }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: navy ?? C.navy }}>Tổng cộng</span>
+        <span style={{ fontSize: '1rem', fontWeight: 800, color: C.red }}>{formatCurrency(fee.fee)}</span>
+      </div>
+    </>
+  );
+}
+
 // ── Main component ───────────────────────────────────────
 export function CheckOutPage() {
   const [plateInput, setPlateInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [foundRecord, setFoundRecord] = useState<ActiveRecord | null>(null);
+  const [feePreview, setFeePreview] = useState<FeePreview | null>(null);
   const [allRecords, setAllRecords] = useState<ActiveRecord[]>([]);
   const [loadingAll, setLoadingAll] = useState(true);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
@@ -130,6 +180,16 @@ export function CheckOutPage() {
 
   useEffect(() => { loadAllRecords(); }, []);
 
+  // ── Fetch fee preview from backend ───────────────────
+  const fetchFeePreview = async (recordId: string): Promise<FeePreview | null> => {
+    try {
+      const res = await api.get<{ success: boolean; data: FeePreview }>(`/checkin-out/preview/${recordId}`);
+      return res.data.data ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   // ── Auto-search if plate was passed via ?plate= ──────
   useEffect(() => {
     if (autoSearchRan.current) return;
@@ -138,7 +198,6 @@ export function CheckOutPage() {
     autoSearchRan.current = true;
     const raw = incoming.trim().toUpperCase();
     setPlateInput(raw);
-    // Small delay so input value settles
     setTimeout(() => performSearch(raw), 50);
   }, []);
 
@@ -148,9 +207,9 @@ export function CheckOutPage() {
     setSearching(true);
     setSearchError('');
     setFoundRecord(null);
+    setFeePreview(null);
 
     try {
-      // Fetch all active records and filter by plate
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
       const raw: CheckInRecord[] = res.data.data ?? [];
       const matched = raw.find(
@@ -172,6 +231,10 @@ export function CheckOutPage() {
         slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : undefined,
       };
       setFoundRecord(mapped);
+
+      // Fetch fee preview from backend
+      const preview = await fetchFeePreview(mapped.id);
+      setFeePreview(preview);
     } catch {
       setSearchError('Không thể tra cứu. Vui lòng thử lại.');
     } finally {
@@ -186,13 +249,9 @@ export function CheckOutPage() {
   };
 
   // ── Open confirm modal ─────────────────────────────────
-  const openConfirm = (record: ActiveRecord) => {
-    const vehicleType = record.vehicle?.type ?? 'CAR';
-    const isMonthly = record.isMonthly;
-    const checkIn = new Date(record.checkInTime);
-    const checkOut = new Date();
-    const fee = calcFee(checkIn, checkOut, vehicleType, isMonthly);
-    setConfirmState({ record, paymentMethod: 'CASH', fee });
+  const openConfirm = (record: ActiveRecord, preview: FeePreview | null) => {
+    if (!preview) return;
+    setConfirmState({ record, feePreview: preview, paymentMethod: 'CASH' });
   };
 
   // ── Submit check-out ───────────────────────────────────
@@ -205,9 +264,11 @@ export function CheckOutPage() {
         checkInRecordId: confirmState.record.id,
         paymentMethod: confirmState.paymentMethod,
       });
-      setCheckoutResult(res.data.data ?? res.data);
+      const resultData = res.data.data ?? res.data;
+      setCheckoutResult(resultData);
       setConfirmState(null);
       setFoundRecord(null);
+      setFeePreview(null);
       setPlateInput('');
       loadAllRecords();
     } catch (err: unknown) {
@@ -220,7 +281,7 @@ export function CheckOutPage() {
     }
   };
 
-  // ── Reset after success ────────────────────────────────
+  // ── Reset after success ───────────────────────────────
   const handleDismissResult = () => {
     setCheckoutResult(null);
   };
@@ -234,6 +295,7 @@ export function CheckOutPage() {
   // ── Dismiss found record ───────────────────────────────
   const handleDismissFound = () => {
     setFoundRecord(null);
+    setFeePreview(null);
     setPlateInput('');
   };
 
@@ -256,7 +318,7 @@ export function CheckOutPage() {
         </p>
       </div>
 
-      {/* ── TOP: plate search (replaces camera panel) ── */}
+      {/* ── TOP: plate search ── */}
       <div style={{
         background: C.white,
         borderRadius: C.radius,
@@ -268,12 +330,11 @@ export function CheckOutPage() {
           Tìm xe
         </p>
 
-        {/* Search row */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
           <input
             type="text"
             value={plateInput}
-            onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setSearchError(''); setFoundRecord(null); }}
+            onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setSearchError(''); setFoundRecord(null); setFeePreview(null); }}
             onKeyDown={handleKeyDown}
             placeholder="VD: 51A-11111"
             style={{
@@ -326,7 +387,6 @@ export function CheckOutPage() {
           </div>
         )}
 
-        {/* Plate display box — matches Check-in page */}
         <div style={{
           border: `2px dashed ${C.gray200}`,
           borderRadius: 12,
@@ -372,7 +432,6 @@ export function CheckOutPage() {
           ) : null}
         </div>
 
-        {/* Dismiss button when record found */}
         {foundRecord && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
             <button
@@ -455,18 +514,19 @@ export function CheckOutPage() {
           </div>
 
           <button
-            onClick={() => openConfirm(foundRecord)}
+            onClick={() => openConfirm(foundRecord, feePreview)}
+            disabled={!feePreview}
             style={{
               width: '100%',
               padding: '0.75rem',
-              background: C.green,
-              color: C.white,
+              background: feePreview ? C.green : C.gray200,
+              color: feePreview ? C.white : C.gray400,
               border: 'none',
               borderRadius: 12,
               fontSize: '0.9rem',
               fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(22,163,74,0.25)',
+              cursor: feePreview ? 'pointer' : 'not-allowed',
+              boxShadow: feePreview ? '0 4px 14px rgba(22,163,74,0.25)' : 'none',
             }}
           >
             Xác nhận cho xe ra
@@ -517,71 +577,52 @@ export function CheckOutPage() {
             ))}
           </div>
 
-          {/* Fee breakdown */}
-          {(() => {
-            const vt = foundRecord.vehicle!.type ?? 'CAR';
-            const fee = calcFee(new Date(foundRecord.checkInTime), new Date(), vt, false);
-            if (!fee.breakdown.length) return null;
-            return (
-              <>
-                <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Chi tiết phí
-                </p>
-                {fee.breakdown.map((block, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '0.35rem 0',
-                    borderBottom: i < fee.breakdown.length - 1 ? `1px solid ${C.gray100}` : 'none',
-                  }}>
-                    <div>
-                      <span style={{ fontSize: '0.82rem', color: C.gray800 }}>{block.label}</span>
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: C.gray400 }}>
-                        {block.note ?? `${block.lots} × ${block.lotHours}h × ${formatCurrency(block.rate)}`}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{formatCurrency(block.amount)}</span>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.25rem' }}>
-                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.navy }}>Tổng cộng</span>
-                  <span style={{ fontSize: '1rem', fontWeight: 800, color: C.red }}>{formatCurrency(fee.total)}</span>
-                </div>
+          {/* Fee breakdown from API */}
+          {feePreview && (
+            <div style={{ marginBottom: '1rem' }}>
+              <FeeBreakdownCard fee={feePreview} />
+            </div>
+          )}
 
-                {/* Payment method */}
-                <div style={{ marginTop: '1rem' }}>
-                  <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Phương thức thanh toán
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {(['CASH', 'CARD', 'EWALLET'] as const).map((method) => {
-                      const labels: Record<string, string> = { CASH: 'Tiền mặt', CARD: 'Thẻ', EWALLET: 'Ví điện tử' };
-                      return (
-                        <button
-                          key={method}
-                          onClick={() => openConfirm(foundRecord)}
-                          style={{
-                            flex: 1,
-                            padding: '0.6rem',
-                            background: C.navy,
-                            color: C.white,
-                            border: 'none',
-                            borderRadius: 10,
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(30,58,95,0.2)',
-                          }}
-                        >
-                          {labels[method]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            );
-          })()}
+          {!feePreview && !searching && (
+            <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: C.gray400 }}>
+              Đang tính phí...
+            </p>
+          )}
+
+          {/* Payment method */}
+          {feePreview && (
+            <div style={{ marginTop: '1rem' }}>
+              <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Phương thức thanh toán
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {(['CASH', 'CARD', 'EWALLET'] as const).map((method) => {
+                  const labels: Record<string, string> = { CASH: 'Tiền mặt', CARD: 'Thẻ', EWALLET: 'Ví điện tử' };
+                  return (
+                    <button
+                      key={method}
+                      onClick={() => openConfirm(foundRecord, feePreview)}
+                      style={{
+                        flex: 1,
+                        padding: '0.6rem',
+                        background: C.navy,
+                        color: C.white,
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(30,58,95,0.2)',
+                      }}
+                    >
+                      {labels[method]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -604,7 +645,7 @@ export function CheckOutPage() {
             </p>
             {checkoutResult.paymentRequired ? (
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Biển số đã cho ra · {checkoutResult.durationHours}h đỗ · {formatCurrency(checkoutResult.amountDue ?? 0)}
+                Xe đã ra bãi · {formatCurrency(checkoutResult.amountDue ?? checkoutResult.fee ?? 0)}
               </p>
             ) : (
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
@@ -728,7 +769,7 @@ export function CheckOutPage() {
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>
                       <button
-                        onClick={() => { setFoundRecord(r); setPlateInput(r.vehicle!.plateNumber); }}
+                        onClick={() => { setFoundRecord(r); setPlateInput(r.vehicle!.plateNumber); fetchFeePreview(r.id).then(setFeePreview); }}
                         style={{
                           background: C.navy,
                           color: C.white,
@@ -841,28 +882,11 @@ export function CheckOutPage() {
             )}
 
             {/* Casual: fee + payment method in modal */}
-            {!confirmState.record.isMonthly && confirmState.fee && (
+            {!confirmState.record.isMonthly && confirmState.feePreview && (
               <>
-                {confirmState.fee.breakdown.length > 0 && (
+                {confirmState.feePreview.breakdown.length > 0 && (
                   <div style={{ marginBottom: '1rem' }}>
-                    <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Chi tiết phí
-                    </p>
-                    {confirmState.fee.breakdown.map((block, i) => (
-                      <div key={i} style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        padding: '0.3rem 0',
-                        borderBottom: i < confirmState.fee!.breakdown.length - 1 ? `1px solid ${C.gray100}` : 'none',
-                      }}>
-                        <span style={{ fontSize: '0.82rem', color: C.gray800 }}>{block.label}</span>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{formatCurrency(block.amount)}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.2rem' }}>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.navy }}>Tổng cộng</span>
-                      <span style={{ fontSize: '1rem', fontWeight: 800, color: C.red }}>{formatCurrency(confirmState.fee.total)}</span>
-                    </div>
+                    <FeeBreakdownCard fee={confirmState.feePreview} />
                   </div>
                 )}
 

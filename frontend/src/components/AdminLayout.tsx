@@ -5,7 +5,6 @@ import api from '../services/api';
 import {
   HomeIcon,
   BarChartIcon,
-  TrendUpIcon,
   LogoutIcon,
   BellIcon,
   HelpIcon,
@@ -24,11 +23,7 @@ const navItems = [
   { label: 'Quản lý tài khoản', path: '/admin/users', icon: HomeIcon },
   { label: 'Phân quyền',        path: '/admin/permissions', icon: ShieldCheckIcon },
   { label: 'Cấu hình bãi & slot', path: '/admin/parking', icon: LayoutIcon },
-];
-
-const PLACEHOLDER_NAV = [
-  { label: 'Quy tắc tính phí', icon: BarChartIcon },
-  { label: 'Nhật ký hệ thống', icon: TrendUpIcon },
+  { label: 'Quy tắc tính phí', path: '/admin/fee-rules', icon: BarChartIcon },
 ];
 
 function getInitials(name: string) {
@@ -95,20 +90,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               );
             })}
 
-            <p className={styles.navSectionLabel} style={{ marginTop: '0.5rem' }}>
-              Sắp ra mắt
-            </p>
-            {PLACEHOLDER_NAV.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className={styles.navPlaceholder}>
-                  <span className={styles.navItemIcon}>
-                    <Icon size={16} />
-                  </span>
-                  {item.label}
-                </div>
-              );
-            })}
           </div>
         </nav>
 

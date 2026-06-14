@@ -1,7 +1,8 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
 import { slotSuggestionService } from './slotSuggestion.service';
-import { calcFee } from '../utils/fee';
+import { calcFee, FeeConfig } from '../utils/fee';
+import { feeRuleService } from './feeRule.service';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_OCCUPIED = 'OCCUPIED';
@@ -16,6 +17,11 @@ export interface CheckInInput {
 export interface CheckOutInput {
   checkInRecordId: string;
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
+}
+
+function buildFeeResult(checkIn: Date, checkOut: Date, vehicleType: 'CAR' | 'MOTORBIKE', config: FeeConfig) {
+  const { total, breakdown } = calcFee(checkIn, checkOut, vehicleType, config);
+  return { total, breakdown };
 }
 
 export const checkInService = {
@@ -107,6 +113,33 @@ export const checkInService = {
 };
 
 export const checkOutService = {
+  async previewFee(recordId: string) {
+    const record = await prisma.checkInRecord.findUnique({
+      where: { id: recordId },
+      include: { slot: true, vehicle: true },
+    });
+    if (!record) throw new AppError(404, 'Check-in record not found');
+    if (record.checkOutTime) throw new AppError(400, 'Vehicle already checked out');
+
+    const checkIn = new Date(record.checkInTime);
+    const checkOut = new Date();
+    const config = await feeRuleService.getFeeConfig();
+    const { total, breakdown } = buildFeeResult(checkIn, checkOut, record.vehicle.type as 'CAR' | 'MOTORBIKE', config);
+
+    return {
+      recordId: record.id,
+      plate: record.vehicle.plateNumber,
+      slotCode: record.slot.code,
+      vehicleType: record.vehicle.type as 'CAR' | 'MOTORBIKE',
+      isMonthly: record.isMonthly,
+      checkInTime: record.checkInTime.toISOString(),
+      now: checkOut.toISOString(),
+      durationMinutes: Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000),
+      fee: total,
+      breakdown,
+    };
+  },
+
   async checkOut(input: CheckOutInput) {
     const record = await prisma.checkInRecord.findUnique({
       where: { id: input.checkInRecordId },
@@ -136,10 +169,12 @@ export const checkOutService = {
 
     const checkIn = new Date(record.checkInTime);
     const checkOut = new Date();
+    const config = await feeRuleService.getFeeConfig();
     const { total: amount, breakdown } = calcFee(
       checkIn,
       checkOut,
       record.vehicle.type as 'CAR' | 'MOTORBIKE',
+      config,
     );
 
     await prisma.$transaction([

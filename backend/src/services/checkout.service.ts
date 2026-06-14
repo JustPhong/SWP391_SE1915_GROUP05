@@ -3,6 +3,7 @@ import { AppError } from '../utils/helpers';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { calcFee } from '../utils/fee';
+import { feeRuleService } from './feeRule.service';
 
 // ── Lookup result shapes ──────────────────────────────────
 export interface CheckoutLookupResult {
@@ -42,6 +43,14 @@ export interface CheckoutSubmitResult {
   fee: number;
   isMonthly: boolean;
   checkOutTime: string;
+  breakdown?: {
+    label: string;
+    minutesInBlock: number;
+    lots: number;
+    rate: number;
+    amount: number;
+    note?: string;
+  }[];
 }
 
 // ── Service ──────────────────────────────────────────────
@@ -59,7 +68,7 @@ export const checkoutService = {
     const record = await prisma.checkInRecord.findFirst({
       where: {
         vehicleId: vehicle.id,
-        checkOutTime: null,   // open record only
+        checkOutTime: null,
       },
       include: { slot: true },
     });
@@ -71,11 +80,12 @@ export const checkoutService = {
     const now = new Date();
     const checkIn = new Date(record.checkInTime);
     const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
+    const config = await feeRuleService.getFeeConfig();
     const { total, breakdown } = calcFee(
       checkIn,
       now,
       vehicle.type as 'CAR' | 'MOTORBIKE',
-      record.isMonthly,
+      config,
     );
 
     return {
@@ -120,7 +130,6 @@ export const checkoutService = {
   }): Promise<CheckoutSubmitResult> {
     const { plate, method = 'CASH' } = params;
 
-    // ── 1. Find the open record ──────────────────────────
     const vehicle = await prisma.vehicle.findUnique({
       where: { plateNumber: plate },
     });
@@ -138,25 +147,22 @@ export const checkoutService = {
       throw new AppError(404, 'Xe không có trong bãi đỗ.');
     }
 
-    // ── 2. Recompute fee (never trust client) ────────────
     const now = new Date();
     const checkIn = new Date(record.checkInTime);
-    const { total } = calcFee(
+    const config = await feeRuleService.getFeeConfig();
+    const { total, breakdown } = calcFee(
       checkIn,
       now,
       vehicle.type as 'CAR' | 'MOTORBIKE',
-      record.isMonthly,
+      config,
     );
 
-    // ── 3. Prisma transaction ─────────────────────────────
     await prisma.$transaction(async (tx) => {
-      // 3a. Close the record
       await tx.checkInRecord.update({
         where: { id: record.id },
         data: { checkOutTime: now },
       });
 
-      // 3b. Create payment for casual (monthly = 0, skip)
       if (!record.isMonthly && total > 0) {
         await tx.payment.create({
           data: {
@@ -169,10 +175,6 @@ export const checkoutService = {
         });
       }
 
-      // 3c. Free the slot
-      // Monthly fixed slot: keep it reserved for the owner (status stays AVAILABLE
-      // but assignedVehicleId and isFixed remain; do NOT clear the slot link).
-      // Casual slot: clear assignedVehicleId so it can be reassigned.
       const updateData: { status: string; assignedVehicleId?: string | null } = {
         status: 'AVAILABLE',
       };
@@ -192,6 +194,7 @@ export const checkoutService = {
       fee: total,
       isMonthly: record.isMonthly,
       checkOutTime: now.toISOString(),
+      breakdown,
     };
   },
 };
