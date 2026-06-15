@@ -12,6 +12,7 @@ import {
   SettingsIcon,
   LayoutIcon,
   ShieldCheckIcon,
+  HistoryIcon,
 } from './ui/Icons';
 import styles from '../styles/admin.module.css';
 
@@ -24,6 +25,7 @@ const navItems = [
   { label: 'Phân quyền',        path: '/admin/permissions', icon: ShieldCheckIcon },
   { label: 'Cấu hình bãi & slot', path: '/admin/parking', icon: LayoutIcon },
   { label: 'Quy tắc tính phí', path: '/admin/fee-rules', icon: BarChartIcon },
+  { label: 'Nhật ký hệ thống', path: '/admin/audit-logs', icon: HistoryIcon },
 ];
 
 function getInitials(name: string) {

@@ -25,6 +25,7 @@ import { UserManagementPage } from './pages/UserManagement';
 import { PermissionsPage } from './pages/Permissions';
 import { ParkingConfigPage } from './pages/ParkingConfig';
 import { FeeRulesPage } from './pages/FeeRules';
+import { AuditLogsPage } from './pages/AuditLogs';
 
 function LoadingScreen() {
   return (
@@ -243,6 +244,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <FeeRulesPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/audit-logs"
+        element={
+          <AdminRoute>
+            <AuditLogsPage />
           </AdminRoute>
         }
       />

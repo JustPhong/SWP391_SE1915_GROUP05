@@ -29,11 +29,25 @@ const driverNavItems = [
 ];
 
 function getInitials(name: string) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0]?.toUpperCase() ?? '')
-    .join('');
+  // First letter of the FIRST and LAST word of fullName, uppercased.
+  // Examples: "Nguyễn Văn A" -> "NA", "Trần Thị B" -> "TB", "Admin" -> "A".
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return (parts[0]![0] ?? '').toUpperCase();
+  const first = parts[0]![0] ?? '';
+  const last  = parts[parts.length - 1]![0] ?? '';
+  return (first + last).toUpperCase();
+}
+
+// Human-readable role label for the small secondary line under the name.
+function getRoleLabel(role: string | undefined): string {
+  switch (role) {
+    case 'ADMIN':   return 'Quản trị viên';
+    case 'MANAGER': return 'Quản lý';
+    case 'STAFF':   return 'Nhân viên';
+    case 'DRIVER':  return 'Người lái xe';
+    default:        return 'Người dùng';
+  }
 }
 
 export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProps) {
@@ -49,7 +63,9 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
 
   const closeSidebar = () => setSidebarOpen(false);
 
-  const displayName = user?.fullName ?? 'Driver';
+  // Greeting + initials MUST derive from fullName, never from the role label.
+  // Fall back to email only if fullName is missing/empty.
+  const displayName = (user?.fullName?.trim() || user?.email) || 'Driver';
 
   return (
     <div className={styles.layout}>
@@ -144,7 +160,10 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
           </button>
           <div className={styles.userAvatar}>
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
-            <span className={styles.userName}>{displayName}</span>
+            <div className={styles.userMeta}>
+              <span className={styles.userName}>{displayName}</span>
+              <span className={styles.roleBadge}>{getRoleLabel(user?.role)}</span>
+            </div>
           </div>
         </div>
       </header>

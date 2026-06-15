@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
 import { DEFAULT_FEE_CONFIG, FeeConfig, BlockDef } from '../utils/fee';
+import type { Prisma } from '@prisma/client';
 
 const CACHE_TTL_MS = 60_000;
 
@@ -19,7 +20,7 @@ function buildConfigFromRows(
     startHour: number;
     endHour: number;
     blockMinutes: number | null;
-    amount: number;
+    amount: Prisma.Decimal | number;
   }>,
 ): FeeConfig {
   const motorbikeBlocks: BlockDef[] = [];
@@ -31,7 +32,7 @@ function buildConfigFromRows(
       label:        r.label,
       startHour:    r.startHour,
       endHour:      r.endHour,
-      rate:         r.amount,
+      rate:         Number(r.amount),
       lotMinutes:   r.blockMinutes ?? 0,
     };
 
@@ -40,7 +41,7 @@ function buildConfigFromRows(
     } else if (r.vehicleType === 'CAR' && r.ruleType === 'TIME_BLOCK') {
       carDayBlocks.push(blockDef);
     } else if (r.vehicleType === 'CAR' && r.ruleType === 'FLAT_OVERNIGHT') {
-      carNightFlat = r.amount;
+      carNightFlat = Number(r.amount);
     }
   }
 
