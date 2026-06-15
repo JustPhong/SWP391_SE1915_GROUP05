@@ -271,7 +271,7 @@ export function TrafficPage() {
   return (
     <div style={{
       padding: '32px 36px',
-      minHeight: '100vh',
+      minHeight: '100%',
       background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
     }}>
       {/* ── Page Header ─────────────────────────────────────── */}

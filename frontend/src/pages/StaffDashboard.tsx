@@ -289,7 +289,7 @@ export function StaffDashboardPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100%',
       background: C.bg,
       fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
       padding: '1.5rem',
