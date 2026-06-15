@@ -204,7 +204,7 @@ async function main() {
     where: { email: driverEmail },
     update: { passwordHash: driverHash, isActive: true, roleId: roleDriver!.id },
     create: {
-      fullName: 'Người lái xe',
+      fullName: 'Nguyễn Tài Xế',
       email: driverEmail,
       passwordHash: driverHash,
       isActive: true,

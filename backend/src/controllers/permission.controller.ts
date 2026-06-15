@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { AppError } from '../utils/helpers';
+import { writeAuditLog, extractActor } from '../services/auditLog.service';
 
 const SYSTEM_ROLES = ['DRIVER', 'STAFF', 'MANAGER', 'ADMIN'] as const;
 
@@ -69,6 +70,16 @@ export const permissionController = {
       where: { roleId_permissionKey: { roleId: roleRow.id, permissionKey } },
       update: { allowed },
       create: { permissionKey, allowed, roleId: roleRow.id },
+    });
+
+    const actor = await extractActor(req);
+    await writeAuditLog({
+      ...actor,
+      action: 'permission.toggle',
+      targetType: 'RolePermission',
+      targetId: `${roleRow.id}:${permissionKey}`,
+      description: `${allowed ? 'Bật' : 'Tắt'} quyền ${permissionKey} cho vai trò ${role}`,
+      metadata: { role, permissionKey, allowed },
     });
 
     return res.status(200).json({ success: true, data: updated });

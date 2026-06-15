@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { AppError } from '../utils/helpers';
+import { writeAuditLog, extractActor } from '../services/auditLog.service';
 
 const WALKIN_EMAIL = 'walkin@system.local';
 
@@ -95,6 +96,16 @@ export const adminUserController = {
       },
     });
 
+    const actor = await extractActor(req);
+    await writeAuditLog({
+      ...actor,
+      action: 'account.create',
+      targetType: 'User',
+      targetId: user.id,
+      description: `Tạo tài khoản ${user.email}`,
+      metadata: { email: user.email, role: user.roleRef?.name ?? roleName, fullName: user.fullName },
+    });
+
     return res.status(201).json({
       success: true,
       data: {
@@ -136,6 +147,18 @@ export const adminUserController = {
                 isActive: true, createdAt: true },
     });
 
+    if (roleName !== undefined && target.roleRef?.name !== roleName) {
+      const actor = await extractActor(req);
+      await writeAuditLog({
+        ...actor,
+        action: 'account.role_change',
+        targetType: 'User',
+        targetId: updated.id,
+        description: `Đổi vai trò ${updated.email} thành ${roleName}`,
+        metadata: { email: updated.email, from: target.roleRef?.name ?? null, to: roleName },
+      });
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -176,6 +199,18 @@ export const adminUserController = {
                 isActive: true, createdAt: true },
     });
 
+    const actor = await extractActor(req);
+    await writeAuditLog({
+      ...actor,
+      action: isActive ? 'account.unlock' : 'account.lock',
+      targetType: 'User',
+      targetId: updated.id,
+      description: isActive
+        ? `Mở khoá tài khoản ${updated.email}`
+        : `Khoá tài khoản ${updated.email}`,
+      metadata: { email: updated.email, isActive },
+    });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -199,6 +234,16 @@ export const adminUserController = {
     await prisma.user.update({
       where: { id },
       data: { passwordHash },
+    });
+
+    const actor = await extractActor(req);
+    await writeAuditLog({
+      ...actor,
+      action: 'account.password_reset',
+      targetType: 'User',
+      targetId: target.id,
+      description: `Đặt lại mật khẩu ${target.email}`,
+      metadata: { email: target.email },
     });
 
     return res.status(200).json({
