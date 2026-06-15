@@ -241,3 +241,21 @@ model FeeRule {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?  @db.NVarChar(36)             // user who performed the action (null for system/anonymous)
+  actorName   String?  @db.NVarChar(150)            // denormalized snapshot of the actor's name/email at action time
+  actorRole   String?  @db.NVarChar(30)             // role at action time (ADMIN/MANAGER/STAFF/DRIVER)
+  action      String   @db.NVarChar(60)             // machine code, e.g. "account.lock", "permission.toggle", "fee_rule.update"
+  targetType  String?  @db.NVarChar(50)             // entity type, e.g. "User", "RolePermission", "FeeRule"
+  targetId    String?  @db.NVarChar(36)             // id of the affected entity
+  description String   @db.NVarChar(500)            // human-readable Vietnamese summary, e.g. "Khoá tài khoản nhân viên A"
+  metadata    String?  @db.NVarChar(Max)            // optional JSON string with extra detail (old/new values)
+  ipAddress   String?  @db.NVarChar(45)
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
