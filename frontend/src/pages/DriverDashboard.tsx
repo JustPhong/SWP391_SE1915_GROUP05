@@ -52,6 +52,10 @@ export function DriverDashboardPage() {
   const { user } = useAuth();
   const greeting = getGreeting();
 
+  // Greeting name MUST come from fullName (the user's real name from auth).
+  // Fall back to email only if fullName is missing/empty; never from the role label.
+  const greetingName = (user?.fullName?.trim() || user?.email) || 'bạn';
+
   const [session, setSession] = useState<ParkingSession | null | undefined>(undefined);
   const [monthlyPkg, setMonthlyPkg] = useState<MonthlyPkg | null | undefined>(undefined);
   const [history, setHistory] = useState<HistoryEntry[] | undefined>(undefined);
@@ -103,7 +107,7 @@ export function DriverDashboardPage() {
         <div className={styles.welcomeBannerBg} />
         <div>
           <p className={styles.welcomeText}>{greeting}</p>
-          <p className={styles.welcomeName}>Xin chào, {user?.fullName ?? 'bạn'}!</p>
+          <p className={styles.welcomeName}>Xin chào, {greetingName}!</p>
           <p className={styles.welcomeSub}>Chúc bạn một ngày đỗ xe thuận lợi</p>
         </div>
         <Link to="/booking" className={styles.bookBtn}>

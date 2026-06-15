@@ -542,8 +542,10 @@ export function BookingPage() {
                   <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.gray400 }}>
                     Phí đặt cọc
                   </p>
-                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color: selectedSlot ? C.green : C.gray400 }}>
-                    {selectedSlot ? `${BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ` : '—'}
+                  {/* Deposit is a fixed amount (BR-BK-01), independent of slot choice,
+                      so it is always rendered from BOOKING_DEPOSIT — never gated on selectedSlot. */}
+                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color: C.green }}>
+                    {BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ
                   </p>
                   {selectedSlot && (
                     <p style={{ margin: '0.15rem 0 0', fontSize: '0.7rem', color: C.gray400 }}>
