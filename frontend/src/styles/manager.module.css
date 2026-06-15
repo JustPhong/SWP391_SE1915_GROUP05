@@ -282,7 +282,7 @@
   margin-left: 248px;
   width: calc(100% - 248px);
   background: linear-gradient(160deg, #EFF6FF 0%, #DBEAFE 50%, #EFF6FF 100%);
-  min-height: 100vh;
+  min-height: calc(100vh - 64px); /* fill viewport minus 64px sticky topBar */
   padding: 1.5rem;
   box-sizing: border-box;
 }
