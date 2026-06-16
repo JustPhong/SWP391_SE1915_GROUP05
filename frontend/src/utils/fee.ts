@@ -161,10 +161,13 @@ export function calcCarFee(checkIn: Date, checkOut: Date): FeeResult {
   const sessionStart = new Date(checkIn);
   const sessionEnd   = new Date(checkOut);
 
-  // Night-flat: charge 100k flat if ANY part of the session falls in 00:00–05:59
+  const NIGHT_FLAT = 100000;
+
+  // Night-flat: charge flat per DISTINCT calendar night the session touches.
   let nightMinutes = 0;
   let nightStart: Date | null = null;
   let nightEnd:   Date | null = null;
+  const nightDates = new Set<string>();
 
   // Walk through the night window only (00:00–06:00 each night)
   let nightCursor = new Date(sessionStart);
@@ -191,6 +194,7 @@ export function calcCarFee(checkIn: Date, checkOut: Date): FeeResult {
       nightMinutes += mins;
       nightStart = nightStart ?? overlapStart;
       nightEnd   = overlapEnd;
+      nightDates.add(`${overlapStart.getFullYear()}-${overlapStart.getMonth()}-${overlapStart.getDate()}`);
     }
 
     nightCursor.setDate(nightCursor.getDate() + 1); // next night
@@ -213,16 +217,17 @@ export function calcCarFee(checkIn: Date, checkOut: Date): FeeResult {
 
   // Insert night-flat block
   if (hasNightFlat && nightStart && nightEnd) {
+    const nights = nightDates.size;
     breakdown.push({
       startTime:    nightStart,
       endTime:      nightEnd,
       label:        'Đêm muộn (00:00–05:59)',
       minutesInBlock: nightMinutes,
-      rate:         100000,
+      rate:         NIGHT_FLAT,
       lotHours:     0,
-      lots:         1,
-      amount:       100000,
-      note:         'Phí cố định — tính trọn đêm',
+      lots:         nights,
+      amount:       NIGHT_FLAT * nights,
+      note:         `Phí cố định — tính trọn đêm (${nights} đêm)`,
     });
     breakdown.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   }
