@@ -23,7 +23,12 @@ export const vehicleController = {
   }),
 
   update: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const vehicle = await vehicleService.update(req.params.id, req.body);
+    const vehicle = await vehicleService.update(req.params.id, req.user!.id, req.body);
     return res.status(200).json({ success: true, data: vehicle });
+  }),
+
+  remove: asyncHandler(async (req: AuthRequest, res: Response) => {
+    await vehicleService.remove(req.params.id, req.user!.id);
+    return res.status(204).send();
   }),
 };
