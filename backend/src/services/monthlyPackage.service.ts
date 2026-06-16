@@ -5,6 +5,10 @@ const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_RESERVED = 'RESERVED';
 const PKG_ACTIVE = 'ACTIVE';
 const PKG_EXPIRED = 'EXPIRED';
+const FLOOR_MONTHLY = 'MONTHLY';
+const VEHICLE_CAR = 'CAR';
+const VEHICLE_MOTORBIKE = 'MOTORBIKE';
+const SLOT_TYPE_CAR = 'CAR';
 
 export interface CreatePackageInput {
   userId: string;
@@ -36,23 +40,54 @@ export const monthlyPackageService = {
     }
 
     return prisma.$transaction(async (tx) => {
-      if (input.slotId) {
-        const slot = await tx.parkingSlot.findUnique({ where: { id: input.slotId } });
-        if (!slot) throw new AppError(404, 'Slot not found');
-        if (slot.status !== SLOT_AVAILABLE) {
-          throw new AppError(409, 'Slot is not available');
+      // Resolve vehicle type (used to branch CAR / MOTORBIKE slot policy)
+      const vehicleType = vehicle.type;
+
+      let resolvedSlotId: string | null = null;
+
+      if (vehicleType === VEHICLE_CAR) {
+        // CAR monthly packages require a user-picked fixed slot.
+        if (!input.slotId) {
+          throw new AppError(400, 'Vui lòng chọn chỗ đỗ cố định');
         }
+
+        // Load slot with its floor so we can validate type + zone in one query.
+        const slot = await tx.parkingSlot.findUnique({
+          where: { id: input.slotId },
+          include: { floor: true },
+        });
+        if (!slot) {
+          throw new AppError(400, 'Chỗ đỗ không hợp lệ');
+        }
+        if (slot.type !== SLOT_TYPE_CAR || slot.floor.customerType !== FLOOR_MONTHLY) {
+          throw new AppError(400, 'Chỗ đỗ không hợp lệ');
+        }
+        // BR-2 capacity is enforced by this check: floor G has exactly 20
+        // physical CAR slots, so once all 20 are RESERVED none remain
+        // AVAILABLE and the request fails here. No count() needed.
+        if (slot.status !== SLOT_AVAILABLE) {
+          throw new AppError(409, 'Chỗ đỗ đã được người khác chọn');
+        }
+
         await tx.parkingSlot.update({
           where: { id: input.slotId },
-          data: { status: SLOT_RESERVED, assignedVehicleId: input.vehicleId, isFixed: true },
+          data: {
+            status: SLOT_RESERVED,
+            assignedVehicleId: input.vehicleId,
+            isFixed: true,
+          },
         });
+        resolvedSlotId = input.slotId;
       }
+      // MOTORBIKE branch: no fixed slot. resolvedSlotId stays null and
+      // input.slotId is intentionally ignored (it must not be honored even
+      // if the caller passes one).
 
       const pkg = await tx.monthlyPackage.create({
         data: {
           userId: input.userId,
           vehicleId: input.vehicleId,
-          slotId: input.slotId,
+          slotId: resolvedSlotId,
           startDate: input.startDate,
           expiryDate: input.expiryDate,
           price: input.price,
@@ -69,14 +104,16 @@ export const monthlyPackageService = {
         },
       });
 
-      if (!input.slotId) {
-        await tx.vehicle.update({
-          where: { id: input.vehicleId },
-          data: { isMonthly: true },
-        });
-      }
+      // FIX: vehicle.isMonthly must flip to true on EVERY package creation,
+      // regardless of whether a slot was reserved. Previously this was
+      // gated on `!input.slotId`, which silently failed to mark slotted
+      // (CAR) vehicles as monthly.
+      await tx.vehicle.update({
+        where: { id: input.vehicleId },
+        data: { isMonthly: true },
+      });
 
-      return prisma.monthlyPackage.findUnique({
+      return tx.monthlyPackage.findUnique({
         where: { id: pkg.id },
         include: { vehicle: true, slot: true, payments: true },
       });
