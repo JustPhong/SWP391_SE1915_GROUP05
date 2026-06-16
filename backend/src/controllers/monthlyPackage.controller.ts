@@ -7,6 +7,7 @@ export const monthlyPackageController = {
   create: asyncHandler(async (req: AuthRequest, res: Response) => {
     const pkg = await monthlyPackageService.create({
       ...req.body,
+      userId: req.user!.id,   // server-pinned; ignore any client-sent userId
       startDate: new Date(req.body.startDate),
       expiryDate: new Date(req.body.expiryDate),
     });
