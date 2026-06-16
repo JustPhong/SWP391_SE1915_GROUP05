@@ -110,7 +110,7 @@ function SlotCard({ slot, isSelected, isSuggested, onSelect }: SlotCardProps) {
     <button
       onClick={() => isClickable && onSelect(slot)}
       disabled={!isClickable}
-      title={isAvailable ? `Chọn vị trí ${slot.code}` : `Slot ${slot.code}: ${status}`}
+              title={isAvailable ? `Chọn vị trí ${slot.code}` : `Vị trí ${slot.code}: ${status}`}
       style={{
         width: 64,
         height: 56,
