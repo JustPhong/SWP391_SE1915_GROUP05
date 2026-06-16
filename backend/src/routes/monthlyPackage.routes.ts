@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { monthlyPackageController } from '../controllers/monthlyPackage.controller';
 import { createMonthlyPackageSchema } from '../dtos/monthly-package.dto';
 import { validate } from '../middleware/error.middleware';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
+import { requirePermission } from '../middleware/permission.middleware';
 
 const router = Router();
 
@@ -13,7 +14,7 @@ router.get('/mine', monthlyPackageController.getMyPackages);
 router.get('/vehicle/:vehicleId', monthlyPackageController.getByVehicle);
 router.post(
   '/',
-  authorize('MANAGER', 'STAFF'),
+  requirePermission('package.buy'),
   createMonthlyPackageSchema,
   validate,
   monthlyPackageController.create
