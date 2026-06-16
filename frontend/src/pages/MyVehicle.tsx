@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { calcFee } from '../utils/fee';
+import { vehicleService } from '../services/vehicle.service';
+import type { Vehicle } from '../types';
 import styles from '../styles/driver.module.css';
 
 // ═══════════════════════════════════════════════════════
-//  PALETTE  (matches DriverDashboard / driver.module.css)
+//  PALETTE  (matches driver.module.css / DriverLayout)
 // ═══════════════════════════════════════════════════════
 const C = {
   navy:     '#1E3A5F',
@@ -13,61 +14,24 @@ const C = {
   white:    '#FFFFFF',
   green:    '#16A34A',
   greenBg:  '#DCFCE7',
-  gray100:  '#F9FAFB',
+  gray50:   '#F9FAFB',
+  gray100:  '#F3F4F6',
   gray200:  '#E5E7EB',
   gray300:  '#D1D5DB',
   gray400:  '#9CA3AF',
   gray600:  '#6B7280',
-  gray800:  '#374151',
   gray900:  '#111827',
-  blueBg:   '#EFF6FF',
-  blue:     '#1E3A5F',
   red:      '#EF4444',
-  yellowBg: '#FEF9C3',
-  yellow:   '#A16207',
+  redBg:    '#FEF2F2',
+  redBorder:'#FECACA',
+  blue:     '#3B82F6',
+  blueBg:   '#EFF6FF',
 };
 
 // ═══════════════════════════════════════════════════════
-//  MOCK DATA
+//  ICONS
 // ═══════════════════════════════════════════════════════
-type CustomerType = 'monthly' | 'casual';
-
-interface ActiveSession {
-  plateNumber: string;
-  vehicleType: 'CAR' | 'MOTORBIKE';
-  slotCode: string;
-  floor: string;
-  checkInTime: string;
-  estimatedAmount: number;
-  customerType: CustomerType;
-}
-
-interface MonthlyPackage {
-  planName: string;
-  expiryDate: string;
-  status: 'ACTIVE' | 'EXPIRED';
-}
-
-const MOCK_SESSION: ActiveSession = {
-  plateNumber: '51K-123.45',
-  vehicleType: 'CAR',
-  slotCode: 'B1 · A03',
-  floor: 'Tầng B1',
-  checkInTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  estimatedAmount: 30000,
-  customerType: 'casual',
-};
-
-const MOCK_MONTHLY_PACKAGE: MonthlyPackage = {
-  planName: 'Gói Premium 3 tháng',
-  expiryDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-  status: 'ACTIVE',
-};
-
-// ═══════════════════════════════════════════════════════
-//  ICONS  (all local — Icons.tsx components don't accept color props)
-// ═══════════════════════════════════════════════════════
-function IconCar({ size = 20, color = C.navy }: { size?: number; color?: string }) {
+function IconCar({ size = 16, color = C.navy }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" />
@@ -75,262 +39,331 @@ function IconCar({ size = 20, color = C.navy }: { size?: number; color?: string 
     </svg>
   );
 }
-function IconCheck({ size = 16, color = C.green }: { size?: number; color?: string }) {
+function IconBike({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5" cy="17" r="3" />
+      <circle cx="19" cy="17" r="3" />
+      <path d="M12 17V9l4-4M12 5h3l2 4" />
+    </svg>
+  );
+}
+function IconPlus({ size = 14, color = C.white }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="8 12 11 15 16 9" />
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }
-
-function IconClock({ size = 16, color = C.gray600 }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="12 7 12 12 15 14" />
-    </svg>
-  );
-}
-
-function IconMap({ size = 16, color = C.gray600 }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="3" />
-      <path d="M3 9h18M9 21V9" />
-    </svg>
-  );
-}
-
-function IconTicket({ size = 16, color = C.gray600 }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 9a3 3 0 010-3h20a3 3 0 010 6M2 15a3 3 0 000 3h20a3 3 0 000-6" />
-      <rect x="2" y="6" width="20" height="12" rx="2" />
-    </svg>
-  );
-}
-
-function IconRefresh({ size = 14, color = C.navy }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 2v6h-6" />
-      <path d="M3 12a9 9 0 0115-6.7L21 8" />
-      <path d="M3 22v-6h6" />
-      <path d="M21 12a9 9 0 01-15 6.7L3 16" />
-    </svg>
-  );
-}
-
-function IconChevronRight({ size = 14, color = C.navy }: { size?: number; color?: string }) {
+function IconClose({ size = 14, color = C.navy }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
 
 // ═══════════════════════════════════════════════════════
-//  FORMATTERS
+//  CONSTANTS
 // ═══════════════════════════════════════════════════════
-function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
-}
+type VehicleType = 'CAR' | 'MOTORBIKE';
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
+const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
+  { value: 'CAR',       label: 'Ô tô' },
+  { value: 'MOTORBIKE', label: 'Xe máy' },
+];
 
-function getDuration(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const hours = Math.floor(ms / 3600000);
-  const minutes = Math.floor((ms % 3600000) / 60000);
-  if (hours > 0) return `${hours}h ${minutes}p`;
-  return `${minutes}p`;
-}
+const TYPE_LABEL: Record<VehicleType, string> = {
+  CAR:       'Ô tô',
+  MOTORBIKE: 'Xe máy',
+};
 
 // ═══════════════════════════════════════════════════════
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════
 
-// ── Vehicle banner ────────────────────────────────────
-function VehicleBanner({ session }: { session: ActiveSession }) {
+function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+  const isCar = vehicle.type === 'CAR';
   return (
-    <div style={{
-      background: C.navy,
-      borderRadius: 12,
-      padding: '1rem 1.25rem',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      overflow: 'hidden',
-      position: 'relative',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', zIndex: 1 }}>
-        <div style={{
+    <div
+      className={styles.card}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.85rem',
+        padding: '0.85rem 1rem',
+      }}
+    >
+      <div
+        style={{
           width: 44,
           height: 44,
-          background: 'rgba(255,255,255,0.15)',
+          background: C.blueBg,
           borderRadius: 10,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-        }}>
-          <IconCar size={22} color={C.white} />
-        </div>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-            <span style={{
+        }}
+      >
+        {isCar ? <IconCar size={22} color={C.navy} /> : <IconBike size={22} color={C.navy} />}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span
+            style={{
               fontFamily: "'Consolas', monospace",
               fontSize: '1rem',
               fontWeight: 800,
-              color: C.white,
+              color: C.gray900,
               letterSpacing: '0.03em',
-            }}>
-              {session.plateNumber}
-            </span>
-            <span style={{
-              background: C.greenBg,
-              color: C.green,
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              padding: '0.15rem 0.5rem',
-              borderRadius: 20,
-              letterSpacing: '0.03em',
-            }}>
-              Đang gửi
-            </span>
-          </div>
-          <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)' }}>
-            {session.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'}
+            }}
+          >
+            {vehicle.plateNumber}
           </span>
+          {vehicle.isMonthly && (
+            <span
+              style={{
+                background: C.greenBg,
+                color: C.green,
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                padding: '0.15rem 0.55rem',
+                borderRadius: 20,
+                letterSpacing: '0.04em',
+              }}
+            >
+              GÓI THÁNG
+            </span>
+          )}
         </div>
+        <span style={{ fontSize: '0.78rem', color: C.gray600 }}>
+          {TYPE_LABEL[vehicle.type]}
+        </span>
       </div>
-      {/* Decorative circle */}
-      <div style={{
-        position: 'absolute',
-        right: -20,
-        top: -20,
-        width: 120,
-        height: 120,
-        background: 'rgba(255,255,255,0.04)',
-        borderRadius: '50%',
-      }} />
     </div>
   );
 }
 
-// ── Monthly package banner ─────────────────────────────
-function MonthlyBanner({ pkg }: { pkg: MonthlyPackage }) {
+function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div style={{
-      background: `linear-gradient(135deg, ${C.navy} 0%, #2C4F78 100%)`,
-      borderRadius: 12,
-      padding: '1rem 1.25rem',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      overflow: 'hidden',
-      position: 'relative',
-    }}>
-      <div style={{ zIndex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-          <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.white }}>
-            Gói tháng Premium đang hoạt động
-          </span>
-          <span style={{
-            background: C.greenBg,
-            color: C.green,
-            fontSize: '0.68rem',
-            fontWeight: 700,
-            padding: '0.15rem 0.5rem',
-            borderRadius: 20,
-          }}>
-            ACTIVE
-          </span>
-        </div>
-        <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)' }}>
-          {pkg.planName} — Hết hạn: {new Date(pkg.expiryDate).toLocaleDateString('vi-VN')}
-        </p>
-      </div>
-      <div style={{
-        position: 'absolute',
-        right: 20,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        gap: '0.4rem',
-        zIndex: 1,
-      }}>
-        <button style={{
+    <div
+      className={styles.card}
+      style={{
+        background: C.gray50,
+        border: `1.5px dashed ${C.gray300}`,
+        padding: '2rem 1.25rem',
+        textAlign: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          background: C.white,
+          border: `1.5px solid ${C.gray200}`,
+          borderRadius: 14,
           display: 'flex',
           alignItems: 'center',
-          gap: 4,
-          padding: '0.35rem 0.75rem',
-          background: 'rgba(255,255,255,0.15)',
-          border: '1px solid rgba(255,255,255,0.25)',
-          borderRadius: 8,
-          color: C.white,
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-        }}>
-          <IconRefresh size={13} color={C.white} />
-          Gia hạn gói tháng
-        </button>
+          justifyContent: 'center',
+          margin: '0 auto 0.75rem',
+        }}
+      >
+        <IconCar size={24} color={C.gray400} />
       </div>
-      <div style={{
-        position: 'absolute',
-        right: -30,
-        top: -30,
-        width: 140,
-        height: 140,
-        background: 'rgba(255,255,255,0.04)',
-        borderRadius: '50%',
-      }} />
+      <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: C.gray900 }}>
+        Bạn chưa có xe nào
+      </p>
+      <p style={{ margin: '0.25rem 0 1rem', fontSize: '0.82rem', color: C.gray600 }}>
+        Nhấn "Thêm xe" bên dưới để đăng ký phương tiện
+      </p>
+      <button
+        onClick={onAdd}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '0.55rem 1.1rem',
+          background: C.navy,
+          color: C.white,
+          border: 'none',
+          borderRadius: 10,
+          fontSize: '0.85rem',
+          fontWeight: 700,
+          cursor: 'pointer',
+        }}
+      >
+        <IconPlus size={13} color={C.white} />
+        Thêm xe ngay
+      </button>
     </div>
   );
 }
 
-// ── Session detail row ─────────────────────────────────
-function DetailRow({
-  icon,
-  label,
-  value,
-  valueColor,
+function AddVehicleForm({
+  submitting,
+  error,
+  onCancel,
+  onSubmit,
 }: {
-  icon: JSX.Element;
-  label: string;
-  value: string;
-  valueColor?: string;
+  submitting: boolean;
+  error: string;
+  onCancel: () => void;
+  onSubmit: (plateNumber: string, type: VehicleType) => Promise<void>;
 }) {
+  const [plateNumber, setPlateNumber] = useState('');
+  const [type, setType] = useState<VehicleType>('CAR');
+  const [localError, setLocalError] = useState('');
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = plateNumber.trim();
+    if (!trimmed) {
+      setLocalError('Vui lòng nhập biển số xe');
+      return;
+    }
+    setLocalError('');
+    await onSubmit(trimmed, type);
+  };
+
+  const displayError = localError || error;
+
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0.65rem 0',
-      borderBottom: `1px solid ${C.gray200}`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-        <span style={{ color: C.gray600, display: 'flex', alignItems: 'center' }}>{icon}</span>
-        <span style={{ fontSize: '0.875rem', color: C.gray600 }}>{label}</span>
+    <form onSubmit={handleSubmit} className={styles.card}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '0.85rem',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>
+          Thêm xe mới
+        </p>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            padding: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: submitting ? 0.5 : 1,
+          }}
+          aria-label="Đóng"
+        >
+          <IconClose size={16} color={C.gray600} />
+        </button>
       </div>
-      <span style={{
-        fontSize: '0.875rem',
-        fontWeight: valueColor ? 700 : 600,
-        color: valueColor ?? C.gray900,
-      }}>
-        {value}
-      </span>
-    </div>
+
+      {displayError && (
+        <div
+          style={{
+            background: C.redBg,
+            border: `1.5px solid ${C.redBorder}`,
+            borderRadius: 10,
+            padding: '0.6rem 0.85rem',
+            marginBottom: '0.85rem',
+            fontSize: '0.8rem',
+            color: '#B91C1C',
+            fontWeight: 500,
+          }}
+        >
+          {displayError}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.9rem' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
+          <input
+            type="text"
+            value={plateNumber}
+            onChange={(e) => setPlateNumber(e.target.value)}
+            placeholder="VD: 51A-12345"
+            disabled={submitting}
+            autoFocus
+            style={{
+              padding: '0.65rem 0.85rem',
+              border: `1.5px solid ${C.gray200}`,
+              borderRadius: 10,
+              fontSize: '0.95rem',
+              fontFamily: "'Consolas', monospace",
+              fontWeight: 600,
+              color: C.gray900,
+              background: C.white,
+              outline: 'none',
+            }}
+          />
+        </label>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Loại xe</span>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {VEHICLE_TYPES.map((opt) => {
+              const selected = type === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setType(opt.value)}
+                  disabled={submitting}
+                  style={{
+                    flex: 1,
+                    padding: '0.6rem 0.85rem',
+                    borderRadius: 10,
+                    border: `1.5px solid ${selected ? C.navy : C.gray200}`,
+                    background: selected ? C.navy : C.white,
+                    color: selected ? C.white : C.navy,
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.value === 'CAR' ? (
+                    <IconCar size={14} color={selected ? C.white : C.navy} />
+                  ) : (
+                    <IconBike size={14} color={selected ? C.white : C.navy} />
+                  )}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={submitting || !plateNumber.trim()}
+        style={{
+          width: '100%',
+          padding: '0.75rem',
+          background: submitting || !plateNumber.trim() ? C.gray300 : C.navy,
+          color: submitting || !plateNumber.trim() ? C.gray400 : C.white,
+          border: 'none',
+          borderRadius: 10,
+          fontSize: '0.9rem',
+          fontWeight: 700,
+          cursor: submitting || !plateNumber.trim() ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {submitting ? 'Đang thêm...' : 'Thêm xe'}
+      </button>
+    </form>
   );
 }
 
@@ -338,253 +371,168 @@ function DetailRow({
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
 export function MyVehiclePage() {
-  useAuth(); // AuthContext available for future user-driven data
+  const { user, isLoading: authLoading } = useAuth();
 
-  // Toggle between 'casual' and 'monthly' for demo — in production this comes from API/AuthContext
-  const [customerType, setCustomerType] = useState<CustomerType>('casual');
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
-  const session = { ...MOCK_SESSION, customerType };
-  const isMonthly = customerType === 'monthly';
+  const [formOpen, setFormOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Dynamic fee using block-based calculator
-  const checkInDate = new Date(session.checkInTime);
-  const checkOutDate = new Date(); // now
-  const fee = calcFee(checkInDate, checkOutDate, session.vehicleType, isMonthly);
+  const loadVehicles = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const data = await vehicleService.getMyVehicles();
+      setVehicles(data ?? []);
+    } catch (e: any) {
+      setLoadError(
+        e?.response?.data?.message ?? 'Không thể tải danh sách xe. Vui lòng thử lại.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) return;
+    loadVehicles();
+  }, [authLoading, user, loadVehicles]);
+
+  const handleAddVehicle = async (plateNumber: string, type: VehicleType) => {
+    setSubmitting(true);
+    setFormError('');
+    try {
+      await vehicleService.create({ plateNumber, type });
+      setFormOpen(false);
+      setFormError('');
+      await loadVehicles();
+    } catch (e: any) {
+      setFormError(e?.response?.data?.message ?? 'Có lỗi xảy ra');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          padding: '3rem',
+          textAlign: 'center',
+          color: C.gray400,
+          fontSize: '0.9rem',
+          fontWeight: 600,
+        }}
+      >
+        Đang tải...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div
+        style={{
+          padding: '3rem',
+          textAlign: 'center',
+          color: C.gray600,
+          fontSize: '0.9rem',
+        }}
+      >
+        Vui lòng đăng nhập để xem danh sách xe của bạn.
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-      {/* Demo toggle (development helper — remove in production) */}
-      <div style={{
-        background: C.blueBg,
-        border: `1px solid #BFDBFE`,
-        borderRadius: 8,
-        padding: '0.5rem 0.85rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        fontSize: '0.8rem',
-        color: '#1D4ED8',
-      }}>
-        <span style={{ fontWeight: 600 }}>Demo:</span>
-        <button
-          onClick={() => setCustomerType('casual')}
-          style={{
-            padding: '0.2rem 0.6rem',
-            borderRadius: 6,
-            border: 'none',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            background: !isMonthly ? C.navy : 'transparent',
-            color: !isMonthly ? C.white : C.navy,
-          }}
-        >
-          Khách lẻ
-        </button>
-        <button
-          onClick={() => setCustomerType('monthly')}
-          style={{
-            padding: '0.2rem 0.6rem',
-            borderRadius: 6,
-            border: 'none',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            background: isMonthly ? C.navy : 'transparent',
-            color: isMonthly ? C.white : C.navy,
-          }}
-        >
-          Khách tháng
-        </button>
-        <span style={{ marginLeft: 'auto', opacity: 0.7 }}>
-          Đang hiển thị: <strong>{isMonthly ? 'Khách tháng (monthly)' : 'Khách lẻ (casual)'}</strong>
-        </span>
-      </div>
-
-      {/* ── ALWAYS: Vehicle banner ──────────────────────── */}
-      <VehicleBanner session={session} />
-
-      {/* ── ALWAYS: Chi tiết phiên gửi card ───────────── */}
-      <div className={styles.card}>
-        <p className={styles.sectionTitle} style={{ margin: '0 0 0.75rem', fontSize: '0.95rem' }}>
-          Chi tiết phiên gửi
+      <div>
+        <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: C.navy }}>
+          Xe của tôi
+        </h1>
+        <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: C.gray600 }}>
+          Quản lý các phương tiện đã đăng ký với tài khoản {user.email}
         </p>
-        <div>
-          <DetailRow
-            icon={<IconMap size={15} />}
-            label="Vị trí"
-            value={session.slotCode}
-          />
-          <DetailRow
-            icon={<IconClock size={15} />}
-            label="Giờ vào"
-            value={formatDateTime(session.checkInTime)}
-          />
-          <DetailRow
-            icon={<IconClock size={15} />}
-            label="Thời gian gửi"
-            value={getDuration(session.checkInTime)}
-          />
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.65rem 0',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ color: C.gray600, display: 'flex', alignItems: 'center' }}>
-                <IconTicket size={15} />
-              </span>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Mã phiên</span>
-            </div>
-            <span style={{ fontSize: '0.8rem', fontFamily: "'Consolas', monospace", fontWeight: 700, color: C.navy }}>
-              PS-{Date.now().toString().slice(-8)}
-            </span>
-          </div>
-        </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════
-          MONTHLY BANNER  — only when isMonthly
-      ══════════════════════════════════════════════════ */}
-      {isMonthly && (
-        <MonthlyBanner pkg={MOCK_MONTHLY_PACKAGE} />
+      {loadError && (
+        <div
+          style={{
+            background: C.redBg,
+            border: `1.5px solid ${C.redBorder}`,
+            borderRadius: 10,
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            color: '#B91C1C',
+            fontWeight: 500,
+          }}
+        >
+          {loadError}
+        </div>
       )}
 
-      {/* ══════════════════════════════════════════════════
-          PHÍ TẠM TÍNH  — different content per type
-      ══════════════════════════════════════════════════ */}
-      <div className={styles.card}>
-        <p className={styles.sectionTitle} style={{ margin: '0 0 0.75rem', fontSize: '0.95rem' }}>
-          Phí tạm tính
-        </p>
+      {loading ? (
+        <div
+          className={styles.card}
+          style={{
+            padding: '2.5rem',
+            textAlign: 'center',
+            color: C.gray400,
+            fontSize: '0.9rem',
+            fontWeight: 600,
+          }}
+        >
+          Đang tải danh sách xe...
+        </div>
+      ) : vehicles.length === 0 ? (
+        <EmptyState onAdd={() => setFormOpen(true)} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          {vehicles.map((v) => (
+            <VehicleCard key={v.id} vehicle={v} />
+          ))}
+        </div>
+      )}
 
-        {isMonthly ? (
-          /* CASE A — Monthly: free at gate */
-          <div style={{
+      {vehicles.length > 0 && !formOpen && (
+        <button
+          onClick={() => setFormOpen(true)}
+          style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.75rem',
-            background: C.greenBg,
-            border: `1.5px solid #86EFAC`,
-            borderRadius: 10,
-            padding: '0.85rem 1rem',
-          }}>
-            <IconCheck size={22} color={C.green} />
-            <div>
-              <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: C.green }}>
-                Miễn phí khi ra cổng
-              </p>
-              <p style={{ margin: '0.1rem 0 0', fontSize: '0.78rem', color: '#166534' }}>
-                Đã bao gồm trong gói tháng
-              </p>
-            </div>
-          </div>
-        ) : (
-          /* CASE B — Casual: block-based fee breakdown */
-          <div>
-            {fee.breakdown.map((block, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  padding: '0.55rem 0',
-                  borderBottom: i < fee.breakdown.length - 1 ? `1px solid ${C.gray100}` : undefined,
-                  gap: '0.5rem',
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: '0.875rem', color: C.gray600 }}>{block.label}</span>
-                  {block.note ? (
-                    <span style={{ display: 'block', fontSize: '0.7rem', color: C.gray400 }}>{block.note}</span>
-                  ) : (
-                    <span style={{ display: 'block', fontSize: '0.7rem', color: C.gray400 }}>
-                      {block.lots} × {block.lotHours}h × {formatVND(block.rate)}
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900, whiteSpace: 'nowrap' }}>
-                  {formatVND(block.amount)}
-                </span>
-              </div>
-            ))}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '0.65rem 0',
-            }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>Tổng cộng</span>
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: C.navy }}>
-                {formatVND(fee.total)}
-              </span>
-            </div>
+            justifyContent: 'center',
+            gap: 6,
+            padding: '0.85rem',
+            background: C.navy,
+            color: C.white,
+            border: 'none',
+            borderRadius: 12,
+            fontSize: '0.95rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(30, 58, 95, 0.25)',
+          }}
+        >
+          <IconPlus size={15} color={C.white} />
+          Thêm xe
+        </button>
+      )}
 
-            {/* CTA — casual only */}
-            <div style={{
-              marginTop: '0.75rem',
-              padding: '0.75rem 1rem',
-              background: C.yellowBg,
-              border: `1px solid #FCD34D`,
-              borderRadius: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-            }}>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: C.yellow }}>
-                Mua gói tháng để được miễn phí khi ra cổng
-              </p>
-              <Link
-                to="/monthly-package"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '0.3rem 0.75rem',
-                  background: C.navy,
-                  borderRadius: 8,
-                  color: C.white,
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                }}
-              >
-                Mua ngay
-                <IconChevronRight size={12} color={C.white} />
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── ALWAYS: QR button ──────────────────────────── */}
-      <button
-        style={{
-          width: '100%',
-          padding: '0.85rem',
-          background: C.navy,
-          color: C.white,
-          border: 'none',
-          borderRadius: 12,
-          fontSize: '0.95rem',
-          fontWeight: 700,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.5rem',
-          boxShadow: '0 4px 14px rgba(30, 58, 95, 0.25)',
-        }}
-      >
-        Mã QR ra cổng
-      </button>
-
+      {formOpen && (
+        <AddVehicleForm
+          submitting={submitting}
+          error={formError}
+          onCancel={() => {
+            setFormOpen(false);
+            setFormError('');
+          }}
+          onSubmit={handleAddVehicle}
+        />
+      )}
     </div>
   );
 }

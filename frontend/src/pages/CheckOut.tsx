@@ -301,7 +301,7 @@ export function CheckOutPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100%',
       background: '#F0F4F8',
       fontFamily: "'Segoe UI', Arial, sans-serif",
       padding: '1.5rem',
