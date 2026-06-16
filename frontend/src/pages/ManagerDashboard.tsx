@@ -668,7 +668,7 @@ export function ManagerDashboardPage() {
           Icon={IconGauge}
         />
         <KpiCard
-          label="Khách tháng active"
+          label="Khách tháng"
           value={loadingKpi ? '…' : String(kpiData?.monthlySubscribers ?? 0)}
           accent="purple"
           Icon={IconUsers}
