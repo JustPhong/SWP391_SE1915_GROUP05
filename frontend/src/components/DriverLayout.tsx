@@ -21,11 +21,11 @@ interface DriverLayoutProps {
 }
 
 const driverNavItems = [
-  { label: 'Dashboard', path: '/', icon: HomeIcon },
-  { label: 'Book Slot', path: '/booking', icon: CalendarIcon },
-  { label: 'Monthly Package', path: '/monthly-package', icon: CarIconFilled },
-  { label: 'My Vehicle', path: '/my-vehicle', icon: CarIconFilled },
-  { label: 'History', path: '/history', icon: HistoryIcon },
+  { label: 'Trang chủ', path: '/', icon: HomeIcon },
+  { label: 'Đặt chỗ', path: '/booking', icon: CalendarIcon },
+  { label: 'Gói tháng', path: '/monthly-package', icon: CarIconFilled },
+  { label: 'Xe của tôi', path: '/my-vehicle', icon: CarIconFilled },
+  { label: 'Lịch sử', path: '/history', icon: HistoryIcon },
 ];
 
 function getInitials(name: string) {
@@ -50,7 +50,7 @@ function getRoleLabel(role: string | undefined): string {
   }
 }
 
-export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProps) {
+export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -65,7 +65,7 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
 
   // Greeting + initials MUST derive from fullName, never from the role label.
   // Fall back to email only if fullName is missing/empty.
-  const displayName = (user?.fullName?.trim() || user?.email) || 'Driver';
+  const displayName = (user?.fullName?.trim() || user?.email) || 'Tài xế';
 
   return (
     <div className={styles.layout}>
@@ -80,12 +80,12 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
           <div className={styles.sidebarLogoIcon}>P</div>
           <div className={styles.sidebarLogoText}>
             <span className={styles.sidebarLogoName}>ParkSmart</span>
-            <span className={styles.sidebarLogoSub}>Driver Management</span>
+            <span className={styles.sidebarLogoSub}>Quản lý tài xế</span>
           </div>
         </div>
 
         <nav className={styles.sidebarNav}>
-          <p className={styles.navSectionLabel}>Menu</p>
+          <p className={styles.navSectionLabel}>Danh mục</p>
           <div className={styles.navSection}>
             {driverNavItems.map((item) => {
               const isActive =
@@ -115,19 +115,19 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
             <span className={styles.navItemIcon}>
               <HelpIcon size={16} />
             </span>
-            Help
+            Trợ giúp
           </button>
           <button className={styles.sidebarBottomItem} onClick={handleLogout}>
             <span className={styles.navItemIcon}>
               <LogoutIcon size={16} />
             </span>
-            Logout
+            Đăng xuất
           </button>
           <button className={styles.supportBtn}>
             <span className={styles.navItemIcon}>
               <SupportIcon size={16} />
             </span>
-            Support Center
+            Trung tâm hỗ trợ
           </button>
         </div>
       </aside>
@@ -138,7 +138,7 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
           <button
             className={styles.hamburgerBtn}
             onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="Toggle sidebar"
+            aria-label="Mở/đóng thanh bên"
           >
             <span className={styles.hamburgerLine} />
             <span className={styles.hamburgerLine} />
@@ -149,7 +149,7 @@ export function DriverLayout({ children, title = 'Dashboard' }: DriverLayoutProp
         <div className={styles.topBarRight}>
           <div className={styles.searchBox}>
             <SearchIcon size={14} />
-            <input type="text" placeholder="Search..." />
+            <input type="text" placeholder="Tìm kiếm..." />
           </div>
           <button className={styles.topBarIconBtn}>
             <BellIcon size={16} />
