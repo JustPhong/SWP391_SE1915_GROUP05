@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
@@ -65,6 +65,17 @@ function IconClose({ size = 14, color = C.navy }: { size?: number; color?: strin
   );
 }
 
+function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2" />
+    </svg>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════
@@ -84,8 +95,21 @@ const TYPE_LABEL: Record<VehicleType, string> = {
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════
 
-function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+function VehicleCard({
+  vehicle,
+  phase,
+  onAskDelete,
+  onConfirmDelete,
+  onCancelDelete,
+}: {
+  vehicle: Vehicle;
+  phase: DeletePhase;
+  onAskDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
+}) {
   const isCar = vehicle.type === 'CAR';
+  const busy = phase === 'deleting';
   return (
     <div
       className={styles.card}
@@ -94,6 +118,7 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
         alignItems: 'center',
         gap: '0.85rem',
         padding: '0.85rem 1rem',
+        opacity: busy ? 0.6 : 1,
       }}
     >
       <div
@@ -144,6 +169,121 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
           {TYPE_LABEL[vehicle.type]}
         </span>
       </div>
+
+      {phase === 'confirming' ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', color: C.gray900, fontWeight: 600 }}>
+            Xác nhận xoá?
+          </span>
+          <button
+            type="button"
+            onClick={onConfirmDelete}
+            disabled={busy}
+            style={{
+              padding: '0.35rem 0.7rem',
+              background: C.red,
+              color: C.white,
+              border: 'none',
+              borderRadius: 8,
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: busy ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Xoá
+          </button>
+          <button
+            type="button"
+            onClick={onCancelDelete}
+            disabled={busy}
+            style={{
+              padding: '0.35rem 0.7rem',
+              background: C.white,
+              color: C.gray600,
+              border: `1px solid ${C.gray200}`,
+              borderRadius: 8,
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: busy ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Huỷ
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onAskDelete}
+          disabled={busy}
+          aria-label={`Xoá xe ${vehicle.plateNumber}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '0.35rem 0.6rem',
+            background: 'transparent',
+            color: C.gray600,
+            border: 'none',
+            borderRadius: 8,
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            cursor: busy ? 'not-allowed' : 'pointer',
+            opacity: busy ? 0.4 : 1,
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = C.gray600)}
+        >
+          <IconTrash size={13} color="currentColor" />
+          {busy ? 'Đang xoá...' : 'Xoá'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+type DeletePhase = 'idle' | 'confirming' | 'deleting';
+
+function DeleteErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div
+      role="alert"
+      style={{
+        background: C.redBg,
+        border: `1.5px solid ${C.redBorder}`,
+        borderRadius: 10,
+        padding: '0.55rem 0.85rem',
+        fontSize: '0.8rem',
+        color: '#B91C1C',
+        fontWeight: 500,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+      }}
+    >
+      <span style={{ flex: 1, lineHeight: 1.4 }}>{message}</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Đóng thông báo"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: '#B91C1C',
+          cursor: 'pointer',
+          padding: 0,
+          display: 'flex',
+        }}
+      >
+        <IconClose size={12} color="#B91C1C" />
+      </button>
     </div>
   );
 }
@@ -376,23 +516,28 @@ export function MyVehiclePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [deleteState, setDeleteState] = useState<Record<string, { phase: DeletePhase; error: string }>>({});
+  const loadEpoch = useRef(0);
 
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
   const loadVehicles = useCallback(async () => {
+    const epoch = ++loadEpoch.current;
     setLoading(true);
     setLoadError('');
     try {
       const data = await vehicleService.getMyVehicles();
+      if (epoch !== loadEpoch.current) return;
       setVehicles(data ?? []);
     } catch (e: any) {
+      if (epoch !== loadEpoch.current) return;
       setLoadError(
         e?.response?.data?.message ?? 'Không thể tải danh sách xe. Vui lòng thử lại.'
       );
     } finally {
-      setLoading(false);
+      if (epoch === loadEpoch.current) setLoading(false);
     }
   }, []);
 
@@ -414,6 +559,50 @@ export function MyVehiclePage() {
       setFormError(e?.response?.data?.message ?? 'Có lỗi xảy ra');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const askDelete = (id: string) => {
+    setDeleteState((prev) => ({
+      ...prev,
+      [id]: { phase: 'confirming', error: '' },
+    }));
+  };
+
+  const cancelDelete = (id: string) => {
+    setDeleteState((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const clearDeleteError = (id: string) => {
+    setDeleteState((prev) => {
+      if (!prev[id]) return prev;
+      return { ...prev, [id]: { phase: 'idle', error: '' } };
+    });
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleteState((prev) => ({
+      ...prev,
+      [id]: { phase: 'deleting', error: '' },
+    }));
+    try {
+      await vehicleService.remove(id);
+      setDeleteState((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      await loadVehicles();
+    } catch (e: any) {
+      const message = e?.response?.data?.message ?? 'Không thể xoá xe';
+      setDeleteState((prev) => ({
+        ...prev,
+        [id]: { phase: 'idle', error: message },
+      }));
     }
   };
 
@@ -492,9 +681,25 @@ export function MyVehiclePage() {
         <EmptyState onAdd={() => setFormOpen(true)} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-          {vehicles.map((v) => (
-            <VehicleCard key={v.id} vehicle={v} />
-          ))}
+          {vehicles.map((v) => {
+            const cardState = deleteState[v.id];
+            const phase: DeletePhase = cardState?.phase ?? 'idle';
+            const error = cardState?.error ?? '';
+            return (
+              <div key={v.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <VehicleCard
+                  vehicle={v}
+                  phase={phase}
+                  onAskDelete={() => askDelete(v.id)}
+                  onConfirmDelete={() => handleDelete(v.id)}
+                  onCancelDelete={() => cancelDelete(v.id)}
+                />
+                {error && phase !== 'deleting' && (
+                  <DeleteErrorBanner message={error} onDismiss={() => clearDeleteError(v.id)} />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

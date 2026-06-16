@@ -21,4 +21,8 @@ export const vehicleService = {
     const response = await api.patch<{ success: boolean; data: Vehicle }>(`/vehicles/${id}`, data);
     return response.data.data;
   },
+
+  remove: async (id: string) => {
+    await api.delete(`/vehicles/${id}`);
+  },
 };
