@@ -119,7 +119,7 @@ function exportToOverviewExcel(
     ['Doanh thu',        k.todayRevenue],
     ['Lượt xe vào',      k.vehiclesParked],
     ['Tỉ lệ lấp đầy',   `${k.occupancyRate.toFixed(1)}%`],
-    ['Khách tháng active', k.monthlySubscribers],
+    ['Khách tháng', k.monthlySubscribers],
     [],
   ];
 
