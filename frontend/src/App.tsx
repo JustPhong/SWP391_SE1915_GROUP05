@@ -113,7 +113,7 @@ function AppRoutes() {
         path="/my-vehicle"
         element={
           <ProtectedRoute>
-            <DriverLayout title="My Vehicle">
+            <DriverLayout title="Xe của tôi">
               <MyVehiclePage />
             </DriverLayout>
           </ProtectedRoute>
@@ -123,7 +123,7 @@ function AppRoutes() {
         path="/history"
         element={
           <ProtectedRoute>
-            <DriverLayout title="History">
+            <DriverLayout title="Lịch sử">
               <HistoryPage />
             </DriverLayout>
           </ProtectedRoute>
@@ -261,7 +261,7 @@ function AppRoutes() {
         path="/booking"
         element={
           <ProtectedRoute>
-            <DriverLayout title="Book Slot">
+            <DriverLayout title="Đặt chỗ">
               <BookingPage />
             </DriverLayout>
           </ProtectedRoute>
@@ -281,7 +281,7 @@ function AppRoutes() {
         path="/monthly-package"
         element={
           <ProtectedRoute>
-            <DriverLayout title="Monthly Package">
+            <DriverLayout title="Gói tháng">
               <MonthlyPackagePage />
             </DriverLayout>
           </ProtectedRoute>
