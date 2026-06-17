@@ -9,7 +9,6 @@ import {
   BellIcon,
   HelpIcon,
   SearchIcon,
-  SettingsIcon,
   LayoutIcon,
   ShieldCheckIcon,
   HistoryIcon,

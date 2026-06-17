@@ -29,6 +29,7 @@ interface FeePreview {
     label: string;
     minutesInBlock: number;
     lots: number;
+    lotHours: number;
     rate: number;
     amount: number;
     note?: string;
@@ -46,6 +47,7 @@ interface CheckOutResponse {
     label: string;
     minutesInBlock: number;
     lots: number;
+    lotHours: number;
     rate: number;
     amount: number;
     note?: string;
@@ -107,7 +109,7 @@ function now(): string {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-function FeeBreakdownCard({ fee, navy }: { fee: FeePreview; navy?: boolean }) {
+function FeeBreakdownCard({ fee, navy }: { fee: FeePreview; navy?: string }) {
   if (!fee.breakdown.length) return null;
   return (
     <>
