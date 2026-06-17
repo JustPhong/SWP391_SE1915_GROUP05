@@ -10,6 +10,7 @@ import {
   LayoutIcon,
   BellIcon,
   HelpIcon,
+  CalendarIcon,
 } from './ui/Icons';
 import styles from '../styles/staff.module.css';
 
@@ -24,6 +25,7 @@ const staffNavItems = [
   { label: 'Check-in', path: '/staff/checkin', icon: CheckCircleIcon },
   { label: 'Check-out', path: '/staff/checkout', icon: LogoutIcon },
   { label: 'Sơ đồ tầng', path: '/staff/slot-map', icon: LayoutIcon },
+  { label: 'Đặt chỗ', path: '/staff/bookings', icon: CalendarIcon },
   { label: 'Tra cứu xe', path: '/staff/search', icon: SearchIcon },
   { label: 'Báo cáo ca', path: '/staff/reports', icon: BellIcon },
 ];

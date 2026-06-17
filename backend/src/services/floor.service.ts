@@ -3,7 +3,7 @@ import { AppError } from '../utils/helpers';
 
 const BOOKING_ACTIVE = 'ACTIVE';
 const SLOT_AVAILABLE = 'AVAILABLE';
-const NO_SHOW_CUTOFF_MINUTES = 30;
+const NO_SHOW_CUTOFF_MINUTES = 15;
 
 export interface FloorWithSlots {
   id: number;
