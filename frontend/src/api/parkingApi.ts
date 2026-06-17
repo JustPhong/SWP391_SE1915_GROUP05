@@ -20,7 +20,7 @@ export interface ParkingOverviewResponse {
   }>;
 }
 
-function unwrap<T>(response: { data: { success: boolean; data: T } }): T {
+function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {
   if (!response.data.success) {
     throw new Error(response.data.message ?? 'Lỗi không xác định');
   }

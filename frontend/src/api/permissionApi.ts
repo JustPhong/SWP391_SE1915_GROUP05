@@ -13,7 +13,7 @@ export interface PermissionMatrix {
   roleMatrix: Record<string, Record<string, boolean>>;
 }
 
-function unwrap<T>(response: { data: { success: boolean; data: T } }): T {
+function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {
   if (!response.data.success) {
     throw new Error(response.data.message ?? 'Lỗi không xác định');
   }
@@ -31,7 +31,7 @@ export async function togglePermission(params: {
   permissionKey: string;
   allowed: boolean;
 }): Promise<void> {
-  const res = await api.patch<{ success: boolean }>('/admin/permissions', params);
+  const res = await api.patch<{ success: boolean; message?: string }>('/admin/permissions', params);
   if (!res.data.success) {
     throw new Error(res.data.message ?? 'Lỗi không xác định');
   }
