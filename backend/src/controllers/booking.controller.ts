@@ -41,7 +41,7 @@ export const bookingController = {
   }),
 
   getAll: asyncHandler(async (_req: AuthRequest, res: Response) => {
-    const bookings = await bookingService.getActiveBookings();
+    const bookings = await bookingService.getAll();
     return res.status(200).json({ success: true, data: bookings });
   }),
 };
