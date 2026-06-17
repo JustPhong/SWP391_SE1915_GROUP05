@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFeeRules, updateFeeRuleAmount, FeeRule } from '../api/feeRuleApi';
+import { getFeeRules, FeeRule } from '../api/feeRuleApi';
 
 const C = {
   navy:       '#1E3A5F',
@@ -21,10 +21,6 @@ const C = {
   radius:     18,
 };
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
-}
-
 function formatTimeWindow(startHour: number, endHour: number, ruleType: string) {
   if (ruleType === 'FLAT_OVERNIGHT') return `${String(startHour).padStart(2,'0')}:00–${String(endHour).padStart(2,'0')}:59`;
   const fmt = (h: number) => `${String(h).padStart(2,'0')}:00`;
@@ -34,19 +30,13 @@ function formatTimeWindow(startHour: number, endHour: number, ruleType: string) 
 export function FeeRulesPage() {
   const [rules, setRules] = useState<FeeRule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
-  const [editValues, setEditValues] = useState<Record<number, string>>({});
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await getFeeRules();
       setRules(data);
-      const edits: Record<number, string> = {};
-      data.forEach(r => { edits[r.id] = String(r.amount); });
-      setEditValues(edits);
     } catch {
       setError('Không thể tải quy tắc phí.');
     } finally {
@@ -55,27 +45,6 @@ export function FeeRulesPage() {
   };
 
   useEffect(() => { load(); }, []);
-
-  const handleSave = async (rule: FeeRule) => {
-    const val = parseInt(editValues[rule.id] ?? '0', 10);
-    if (isNaN(val) || val < 0) {
-      setError('Số tiền phải là số không âm.');
-      return;
-    }
-    setSavingIds(prev => new Set(prev).add(rule.id));
-    setError('');
-    setSuccess('');
-    try {
-      const updated = await updateFeeRuleAmount(rule.id, val);
-      setRules(prev => prev.map(r => r.id === updated.id ? updated : r));
-      setSuccess('Cập nhật thành công!');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch {
-      setError('Cập nhật thất bại. Vui lòng thử lại.');
-    } finally {
-      setSavingIds(prev => { const s = new Set(prev); s.delete(rule.id); return s; });
-    }
-  };
 
   const motorbikeRules = rules.filter(r => r.vehicleType === 'MOTORBIKE');
   const carRules = rules.filter(r => r.vehicleType === 'CAR');
@@ -97,11 +66,6 @@ export function FeeRulesPage() {
       {error && (
         <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 8, padding: '0.6rem 0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ fontSize: '0.82rem', color: C.red }}>{error}</span>
-        </div>
-      )}
-      {success && (
-        <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 8, padding: '0.6rem 0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.82rem', color: '#15803D' }}>{success}</span>
         </div>
       )}
 

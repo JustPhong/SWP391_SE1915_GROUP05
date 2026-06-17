@@ -313,7 +313,7 @@ export function ParkingConfigPage() {
                 </tr>
               </thead>
               <tbody>
-                {floors.map((floor, idx) => (
+                {floors.map((floor) => (
                   <tr
                     key={floor.floorCode}
                     style={{
