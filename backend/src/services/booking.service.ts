@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { floorService } from './floor.service';
 import { AppError } from '../utils/helpers';
 
 const BOOKING_ACTIVE = 'ACTIVE';
@@ -132,8 +133,21 @@ export const bookingService = {
   },
 
   async getActiveBookings() {
+    await floorService.cleanupNoShowBookings();
     return prisma.booking.findMany({
       where: { status: BOOKING_ACTIVE },
+      include: {
+        slot: true,
+        vehicle: { include: { owner: true } },
+        createdBy: { select: { id: true, fullName: true, email: true } },
+      },
+      orderBy: { bookingTime: 'desc' },
+    });
+  },
+
+  async getAll() {
+    await floorService.cleanupNoShowBookings();
+    return prisma.booking.findMany({
       include: {
         slot: true,
         vehicle: { include: { owner: true } },

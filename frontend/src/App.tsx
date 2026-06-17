@@ -14,6 +14,7 @@ import { MonthlyPackagePage } from './pages/MonthlyPackage';
 import { ReportPage } from './pages/Report';
 import { SlotMapPage } from './pages/SlotMap';
 import { FloorMapPage } from './pages/FloorMap';
+import { BookingManagementPage } from './pages/BookingManagement';
 import { MyVehiclePage } from './pages/MyVehicle';
 import { HistoryPage } from './pages/History';
 import { StaffDashboardPage } from './pages/StaffDashboard';
@@ -168,6 +169,14 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <FloorMapPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/staff/bookings"
+        element={
+          <StaffRoute>
+            <BookingManagementPage />
           </StaffRoute>
         }
       />
