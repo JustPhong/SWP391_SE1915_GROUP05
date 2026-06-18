@@ -9,6 +9,7 @@ const BOOKING_NO_SHOW = 'NO_SHOW';
 const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_RESERVED = 'RESERVED';
 const SLOT_OCCUPIED = 'OCCUPIED';
+const BOOKING_DEPOSIT = 15000;
 
 export interface CreateBookingInput {
   plateNumber: string;
@@ -64,6 +65,8 @@ export const bookingService = {
           slotId: input.slotId,
           expectedArrival: input.expectedArrival,
           status: BOOKING_ACTIVE,
+          depositAmount: BOOKING_DEPOSIT,
+          depositStatus: 'PAID',
           createdById: input.createdById,
         },
         include: {
@@ -123,7 +126,7 @@ export const bookingService = {
     return prisma.$transaction([
       prisma.booking.update({
         where: { id: bookingId },
-        data: { status: BOOKING_CANCELLED },
+        data: { status: BOOKING_CANCELLED, depositStatus: 'FORFEITED' },
       }),
       prisma.parkingSlot.update({
         where: { id: booking.slotId },

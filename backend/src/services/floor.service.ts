@@ -67,7 +67,7 @@ export const floorService = {
       await prisma.$transaction([
         prisma.booking.update({
           where: { id: booking.id },
-          data: { status: 'NO_SHOW' },
+          data: { status: 'NO_SHOW', depositStatus: 'FORFEITED' },
         }),
         prisma.parkingSlot.update({
           where: { id: booking.slotId },
