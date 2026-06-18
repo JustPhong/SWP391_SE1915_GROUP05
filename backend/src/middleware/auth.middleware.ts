@@ -37,7 +37,6 @@ export const authorize = (...roles: string[]) => {
     if (!req.user) {
       return next(new AppError(401, 'Not authenticated'));
     }
-    console.log('>>> AUTH CHECK | role trong token:', req.user.role, '| role cho phép:', roles); // ← thêm dòng này
     const userRole = req.user.role.toUpperCase() as UserRole;
     if (!roles.map((r) => r.toUpperCase()).includes(userRole)) {
       return next(new AppError(403, 'Insufficient permissions'));
