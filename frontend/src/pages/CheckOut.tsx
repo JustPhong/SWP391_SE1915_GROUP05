@@ -25,6 +25,8 @@ interface FeePreview {
   now: string;
   durationMinutes: number;
   fee: number;
+  depositCredit?: number;
+  amountDue?: number;
   breakdown: {
     label: string;
     minutesInBlock: number;
@@ -43,6 +45,7 @@ interface CheckOutResponse {
   durationHours?: number;
   note?: string;
   fee?: number;
+  depositCredit?: number;
   breakdown?: {
     label: string;
     minutesInBlock: number;
@@ -109,19 +112,32 @@ function now(): string {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-function FeeBreakdownCard({ fee, navy }: { fee: FeePreview; navy?: string }) {
-  if (!fee.breakdown.length) return null;
+function FeeBreakdownCard({
+  fee,
+  breakdown,
+  depositCredit,
+  total,
+  navy,
+}: {
+  fee: number;
+  breakdown?: FeePreview['breakdown'];
+  depositCredit?: number;
+  total?: number;
+  navy?: string;
+}) {
+  if (!breakdown || breakdown.length === 0) return null;
+  const displayTotal = total ?? fee;
   return (
     <>
       <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         Chi tiết phí
       </p>
-      {fee.breakdown.map((block, i) => (
+      {breakdown.map((block, i) => (
         <div key={i} style={{
           display: 'flex',
           justifyContent: 'space-between',
           padding: '0.35rem 0',
-          borderBottom: i < fee.breakdown.length - 1 ? `1px solid ${C.gray100}` : 'none',
+          borderBottom: i < breakdown.length - 1 ? `1px solid ${C.gray100}` : 'none',
         }}>
           <div>
             <span style={{ fontSize: '0.82rem', color: C.gray800 }}>{block.label}</span>
@@ -132,9 +148,15 @@ function FeeBreakdownCard({ fee, navy }: { fee: FeePreview; navy?: string }) {
           <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{formatCurrency(block.amount)}</span>
         </div>
       ))}
+      {depositCredit !== undefined && depositCredit > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.45rem 0' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: C.green }}>Trừ tiền cọc đặt chỗ</span>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: C.green }}>− {formatCurrency(depositCredit)}</span>
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.25rem' }}>
         <span style={{ fontSize: '0.9rem', fontWeight: 700, color: navy ?? C.navy }}>Tổng cộng</span>
-        <span style={{ fontSize: '1rem', fontWeight: 800, color: C.red }}>{formatCurrency(fee.fee)}</span>
+        <span style={{ fontSize: '1rem', fontWeight: 800, color: C.red }}>{formatCurrency(displayTotal)}</span>
       </div>
     </>
   );
@@ -582,7 +604,12 @@ export function CheckOutPage() {
           {/* Fee breakdown from API */}
           {feePreview && (
             <div style={{ marginBottom: '1rem' }}>
-              <FeeBreakdownCard fee={feePreview} />
+              <FeeBreakdownCard
+                fee={feePreview.fee}
+                breakdown={feePreview.breakdown}
+                depositCredit={feePreview.depositCredit}
+                total={feePreview.amountDue ?? feePreview.fee}
+              />
             </div>
           )}
 
@@ -670,6 +697,25 @@ export function CheckOutPage() {
           >
             Check-out xe mới
           </button>
+        </div>
+      )}
+
+      {/* ── POST-CHECKOUT FEE DETAIL ── */}
+      {checkoutResult && checkoutResult.paymentRequired && checkoutResult.breakdown && checkoutResult.breakdown.length > 0 && (
+        <div style={{
+          background: C.white,
+          borderRadius: C.radius,
+          boxShadow: C.shadow,
+          padding: '1.25rem 1.5rem',
+          marginBottom: '1.25rem',
+          borderTop: `4px solid ${C.navy}`,
+        }}>
+          <FeeBreakdownCard
+            fee={checkoutResult.fee ?? 0}
+            breakdown={checkoutResult.breakdown}
+            depositCredit={checkoutResult.depositCredit}
+            total={checkoutResult.amountDue ?? checkoutResult.fee ?? 0}
+          />
         </div>
       )}
 
@@ -888,7 +934,12 @@ export function CheckOutPage() {
               <>
                 {confirmState.feePreview.breakdown.length > 0 && (
                   <div style={{ marginBottom: '1rem' }}>
-                    <FeeBreakdownCard fee={confirmState.feePreview} />
+                    <FeeBreakdownCard
+                      fee={confirmState.feePreview.fee}
+                      breakdown={confirmState.feePreview.breakdown}
+                      depositCredit={confirmState.feePreview.depositCredit}
+                      total={confirmState.feePreview.amountDue ?? confirmState.feePreview.fee}
+                    />
                   </div>
                 )}
 

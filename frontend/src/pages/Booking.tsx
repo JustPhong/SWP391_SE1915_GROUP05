@@ -224,7 +224,7 @@ export function BookingPage() {
     setSubmitting(true);
     setErrorMsg('');
     try {
-      const expectedArrival = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      const expectedArrival = new Date().toISOString();
       const res = await api.post<{ success: boolean; data: { id: number } }>('/bookings', {
         plateNumber: plate,
         slotId: selectedSlot.id,
