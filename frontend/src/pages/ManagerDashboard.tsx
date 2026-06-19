@@ -36,6 +36,8 @@ interface KpiSummary {
   occupancyRate: number;
   monthlySubscribers: number;
   todayRevenue: number;
+  sessionRevenue: number;
+  monthlyRevenue: number;
 }
 
 interface RevenueRow {
@@ -106,7 +108,7 @@ function exportToOverviewExcel(
   );
 
   const rangeLabel = DATE_RANGE_LABELS[dateRange];
-  const k = kpi ?? { vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0 };
+  const k = kpi ?? { vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0, sessionRevenue: 0, monthlyRevenue: 0 };
 
   // ── Sheet 1: Tổng quan ────────────────────────────────
   //
@@ -434,9 +436,9 @@ export function ManagerDashboardPage() {
     setErrorKpi('');
     try {
       const res = await api.get<KpiSummary>('/reports/kpi-summary', { params: { from, to } });
-      setKpiData(res.data ?? { vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0 });
+      setKpiData(res.data ?? { vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0, sessionRevenue: 0, monthlyRevenue: 0 });
     } catch {
-      setKpiData({ vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0 });
+      setKpiData({ vehiclesParked: 0, occupancyRate: 0, monthlySubscribers: 0, todayRevenue: 0, sessionRevenue: 0, monthlyRevenue: 0 });
       setErrorKpi('Không tải được KPI.');
     } finally {
       setLoadingKpi(false);
@@ -640,6 +642,12 @@ export function ManagerDashboardPage() {
           accent="green"
           Icon={IconMoney}
         />
+        {dateRange === 'today' && (
+          <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: '#6b7280', lineHeight: 1.5 }}>
+            Phi gui xe: {fmtVnd(kpiData?.sessionRevenue ?? 0)}<br />
+            Goi thang: {fmtVnd(kpiData?.monthlyRevenue ?? 0)}
+          </div>
+        )}
         {errorKpi && (
           <div style={{
             gridColumn: '1 / -1',
