@@ -1,17 +1,71 @@
-import { Response } from 'express';
-import { floorService } from '../services/floor.service';
-import { asyncHandler } from '../utils/helpers';
-import type { AuthRequest } from '../middleware/auth.middleware';
+import { Request, Response, NextFunction } from "express";
+import prisma from "../config/db";
+import { asyncHandler } from "../utils/helpers";
+import { floorService } from "../services/floor.service";
 
-export const floorController = {
-  getAllFloors: asyncHandler(async (_req: AuthRequest, res: Response) => {
-    const floors = await floorService.getAllFloors();
-    return res.status(200).json({ success: true, data: floors });
-  }),
+/**
+ * GET /floors
+ */
+export const getAllFloors = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const data = await prisma.floor.findMany({
+      orderBy: { id: "asc" },
+    });
+    res.json({ success: true, data });
+  }
+);
 
-  getSlotsByFloor: asyncHandler(async (req: AuthRequest, res: Response) => {
+/**
+ * GET /floors/:floorCode
+ */
+export const getSlotsByFloor = asyncHandler(
+  async (req: Request, res: Response) => {
     const { floorCode } = req.params;
-    const floor = await floorService.getSlotsByFloor(floorCode);
-    return res.status(200).json({ success: true, data: floor });
-  }),
-};
+    const data = await floorService.getSlotsByFloor(floorCode);
+    res.json({ success: true, data });
+  }
+);
+
+/**
+ * GET /floors/:floorCode/slots?status=AVAILABLE
+ */
+export const getSlotsByFloorAndStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { floorCode } = req.params;
+    const status = req.query.status as string | undefined;
+    const data = await floorService.getSlotsByFloorAndStatus(floorCode, status);
+    res.json({ success: true, data });
+  }
+);
+
+/**
+ * POST /floors
+ */
+export const createFloor = asyncHandler(
+  async (req: Request, res: Response) => {
+    const data = await floorService.createFloor(req.body);
+    res.status(201).json({ success: true, data });
+  }
+);
+
+/**
+ * PUT /floors/:id
+ */
+export const updateFloor = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const data = await floorService.updateFloor(id, req.body);
+    res.json({ success: true, data });
+  }
+);
+
+/**
+ * DELETE /floors/:id
+ */
+export const deleteFloor = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    await floorService.removeFloor(id);
+    res.json({ success: true, message: "Xóa tầng thành công" });
+  }
+);
