@@ -18,7 +18,7 @@ export const requirePermission = (permissionKey: string) => {
     });
 
     if (!roleRow) {
-      return next();
+      return next(new AppError(403, 'Bạn không có quyền thực hiện thao tác này'));
     }
 
     const row = await prisma.rolePermission.findFirst({
@@ -26,7 +26,7 @@ export const requirePermission = (permissionKey: string) => {
     });
 
     if (!row) {
-      return next();
+      return next(new AppError(403, 'Bạn không có quyền thực hiện thao tác này'));
     }
 
     if (!row.allowed) {
