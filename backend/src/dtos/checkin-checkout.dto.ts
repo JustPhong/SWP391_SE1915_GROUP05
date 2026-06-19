@@ -16,10 +16,6 @@ export const checkInSchema = [
 ];
 
 export const checkOutSchema = [
-  body('plateNumber')
-    .trim()
-    .notEmpty()
-    .withMessage('Plate number is required'),
   body('paymentMethod')
     .isIn(['CASH', 'CARD', 'EWALLET'])
     .withMessage('Payment method must be CASH, CARD, or EWALLET'),

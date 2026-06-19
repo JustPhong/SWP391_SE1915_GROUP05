@@ -5,8 +5,8 @@ import api from '../services/api';
 import {
   PersonIcon,
   ShieldCheckIcon,
-  LayoutIcon,
-  SettingsIcon,
+  CarIcon,
+  BarChartIcon,
   HistoryIcon,
   LogoutIcon,
   BellIcon,
@@ -20,11 +20,11 @@ interface AdminLayoutProps {
 }
 
 const adminNavItems = [
-  { label: 'Tài khoản', path: '/admin/users', icon: PersonIcon },
+  { label: 'Quản lý người dùng', path: '/admin/users', icon: PersonIcon },
   { label: 'Phân quyền', path: '/admin/permissions', icon: ShieldCheckIcon },
-  { label: 'Cấu hình slot', path: '/admin/parking', icon: LayoutIcon },
-  { label: 'Bảng giá', path: '/admin/fee-rules', icon: SettingsIcon },
-  { label: 'Nhật ký hệ thống', path: '/admin/audit-logs', icon: HistoryIcon },
+  { label: 'Cấu hình bãi đỗ', path: '/admin/parking', icon: CarIcon },
+  { label: 'Quy tắc phí', path: '/admin/fee-rules', icon: BarChartIcon },
+  { label: 'Nhật ký hoạt động', path: '/admin/audit-logs', icon: HistoryIcon },
 ];
 
 function getInitials(name: string) {
@@ -53,7 +53,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   const closeSidebar = () => setSidebarOpen(false);
-  const displayName = user?.fullName ?? 'Quản trị';
+  const displayName = user?.fullName ?? 'Quản trị viên';
 
   return (
     <div className={styles.layout}>
@@ -63,10 +63,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarLogo}>
-          <div className={styles.sidebarLogoIcon}>A</div>
+          <div className={styles.sidebarLogoIcon}>P</div>
           <div className={styles.sidebarLogoText}>
             <span className={styles.sidebarLogoName}>ParkSmart Vietnam</span>
-            <span className={styles.sidebarLogoSub}>Quản trị hệ thống (Admin)</span>
+            <span className={styles.sidebarLogoSub}>Quản trị viên (Admin)</span>
           </div>
         </div>
 
@@ -121,8 +121,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <span className={styles.hamburgerLine} />
           </button>
           <div>
-            <div className={styles.topBarBuilding}>Hệ thống ParkSmart</div>
-            <div className={styles.topBarSubtitle}>Quản trị Hệ thống</div>
+            <div className={styles.topBarBuilding}>Quản trị hệ thống</div>
+            <div className={styles.topBarSubtitle}>ParkSmart Admin Panel 2026</div>
           </div>
         </div>
 

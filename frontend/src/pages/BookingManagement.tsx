@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   listBookings,
   fulfillBooking,
-  cancelBooking,
   type BookingItem,
   type BookingStatus,
 } from '../api/bookingApi';
@@ -36,7 +35,6 @@ type TabKey = BookingStatus;
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'ACTIVE',    label: 'Đang chờ' },
   { key: 'FULFILLED', label: 'Đã vào' },
-  { key: 'CANCELLED', label: 'Đã hủy' },
   { key: 'NO_SHOW',   label: 'Vắng mặt' },
 ];
 
@@ -216,7 +214,6 @@ export function BookingManagementPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<
     | { kind: 'fulfill'; booking: BookingItem }
-    | { kind: 'cancel'; booking: BookingItem }
     | null
   >(null);
   const [tick, setTick] = useState(0);
@@ -264,20 +261,6 @@ export function BookingManagementPage() {
       await load();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể xác nhận khách đến.';
-      showToast(msg, 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleCancel = async (id: string) => {
-    setBusyId(id);
-    try {
-      await cancelBooking(id);
-      showToast('Đã hủy lượt đặt chỗ.', 'success');
-      await load();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể hủy đặt chỗ.';
       showToast(msg, 'error');
     } finally {
       setBusyId(null);
@@ -414,23 +397,9 @@ export function BookingManagementPage() {
                               cursor: busyId === b.id ? 'not-allowed' : 'pointer',
                             }}
                           >
-                            Xác nhận khách đến
-                          </button>
-                          <button
-                            onClick={() => setConfirm({ kind: 'cancel', booking: b })}
-                            disabled={busyId === b.id}
-                            style={{
-                              padding: '0.4rem 0.85rem',
-                              background: busyId === b.id ? C.gray200 : C.red,
-                              color: busyId === b.id ? C.gray400 : C.white,
-                              border: 'none', borderRadius: 8,
-                              fontSize: '0.78rem', fontWeight: 700,
-                              cursor: busyId === b.id ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            Hủy
-                          </button>
-                        </div>
+                          Xác nhận khách đến
+                        </button>
+                      </div>
                       ) : (
                         <span style={{ fontSize: '0.78rem', color: C.gray400 }}>—</span>
                       )}
@@ -454,21 +423,6 @@ export function BookingManagementPage() {
             const id = confirm.booking.id;
             setConfirm(null);
             await handleFulfill(id);
-          }}
-        />
-      )}
-
-      {confirm?.kind === 'cancel' && (
-        <ConfirmDialog
-          title="Hủy lượt đặt chỗ"
-          message="Hủy lượt đặt này? Tiền cọc sẽ bị mất theo quy định."
-          confirmLabel="Hủy đặt chỗ"
-          confirmColor={C.red}
-          onCancel={() => setConfirm(null)}
-          onConfirm={async () => {
-            const id = confirm.booking.id;
-            setConfirm(null);
-            await handleCancel(id);
           }}
         />
       )}
