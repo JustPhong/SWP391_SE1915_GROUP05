@@ -3,15 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import {
-  HomeIcon,
+  PersonIcon,
+  ShieldCheckIcon,
+  CarIcon,
   BarChartIcon,
+  HistoryIcon,
   LogoutIcon,
   BellIcon,
   HelpIcon,
   SearchIcon,
-  LayoutIcon,
-  ShieldCheckIcon,
-  HistoryIcon,
 } from './ui/Icons';
 import styles from '../styles/admin.module.css';
 
@@ -19,12 +19,12 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-const navItems = [
-  { label: 'Quản lý tài khoản', path: '/admin/users', icon: HomeIcon },
-  { label: 'Phân quyền',        path: '/admin/permissions', icon: ShieldCheckIcon },
-  { label: 'Cấu hình bãi & slot', path: '/admin/parking', icon: LayoutIcon },
-  { label: 'Quy tắc tính phí', path: '/admin/fee-rules', icon: BarChartIcon },
-  { label: 'Nhật ký hệ thống', path: '/admin/audit-logs', icon: HistoryIcon },
+const adminNavItems = [
+  { label: 'Quản lý người dùng', path: '/admin/users', icon: PersonIcon },
+  { label: 'Phân quyền', path: '/admin/permissions', icon: ShieldCheckIcon },
+  { label: 'Cấu hình bãi đỗ', path: '/admin/parking', icon: CarIcon },
+  { label: 'Quy tắc phí', path: '/admin/fee-rules', icon: BarChartIcon },
+  { label: 'Nhật ký hoạt động', path: '/admin/audit-logs', icon: HistoryIcon },
 ];
 
 function getInitials(name: string) {
@@ -66,14 +66,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <div className={styles.sidebarLogoIcon}>P</div>
           <div className={styles.sidebarLogoText}>
             <span className={styles.sidebarLogoName}>ParkSmart Vietnam</span>
-            <span className={styles.sidebarLogoSub}>Quản trị hệ thống</span>
+            <span className={styles.sidebarLogoSub}>Quản trị viên (Admin)</span>
           </div>
         </div>
 
         <nav className={styles.sidebarNav}>
-          <p className={styles.navSectionLabel}>Quản trị</p>
+          <p className={styles.navSectionLabel}>Quản trị hệ thống</p>
           <div className={styles.navSection}>
-            {navItems.map((item) => {
+            {adminNavItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
               return (
@@ -90,11 +90,16 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </Link>
               );
             })}
-
           </div>
         </nav>
 
         <div className={styles.sidebarFooter}>
+          <button className={styles.sidebarBottomItem}>
+            <span className={styles.navItemIcon}>
+              <HelpIcon size={16} />
+            </span>
+            Hỗ trợ
+          </button>
           <button className={styles.sidebarBottomItem} onClick={handleLogout}>
             <span className={styles.navItemIcon}>
               <LogoutIcon size={16} />
@@ -116,8 +121,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <span className={styles.hamburgerLine} />
           </button>
           <div>
-            <div className={styles.topBarBuilding}>Trang Quản trị</div>
-            <div className={styles.topBarSubtitle}>ParkSmart Vietnam</div>
+            <div className={styles.topBarBuilding}>Quản trị hệ thống</div>
+            <div className={styles.topBarSubtitle}>ParkSmart Admin Panel 2026</div>
           </div>
         </div>
 
@@ -136,7 +141,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
-              <span className={styles.roleBadge}>Quản trị viên</span>
+              <span className={styles.roleBadge}>Admin</span>
             </div>
           </div>
         </div>
