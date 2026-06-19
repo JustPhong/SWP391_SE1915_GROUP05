@@ -165,6 +165,8 @@ export const reportService = {
 
     let periodRevenue = 0;
     let periodVehiclesParked = 0;
+    let sessionRevenue = 0;
+    let monthlyRevenue = 0;
 
     if (isRange) {
       // Revenue in period
@@ -175,6 +177,12 @@ export const reportService = {
         },
       });
       periodRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      sessionRevenue = payments
+        .filter((p) => p.type === PAYMENT_SESSION)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      monthlyRevenue = payments
+        .filter((p) => p.type === PAYMENT_MONTHLY)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
 
       // Entries in period (not currently parked)
       periodVehiclesParked = await prisma.checkInRecord.count({
@@ -194,6 +202,12 @@ export const reportService = {
         },
       });
       periodRevenue = todayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      sessionRevenue = todayPayments
+        .filter((p) => p.type === PAYMENT_SESSION)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      monthlyRevenue = todayPayments
+        .filter((p) => p.type === PAYMENT_MONTHLY)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
     }
 
     return {
@@ -201,6 +215,8 @@ export const reportService = {
       occupancyRate: Math.round(occupancyRate * 100) / 100,
       monthlySubscribers: activePackages,
       todayRevenue: periodRevenue,
+      sessionRevenue,
+      monthlyRevenue,
     };
   },
 
