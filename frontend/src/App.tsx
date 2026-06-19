@@ -27,6 +27,7 @@ import { PermissionsPage } from './pages/Permissions';
 import { ParkingConfigPage } from './pages/ParkingConfig';
 import { FeeRulesPage } from './pages/FeeRules';
 import { AuditLogsPage } from './pages/AuditLogs';
+import { ProfilePage } from './pages/Profile';
 
 function LoadingScreen() {
   return (
@@ -79,6 +80,39 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'ADMIN') return <Navigate to="/" replace />;
   return <AdminLayout>{children}</AdminLayout>;
+}
+
+function ProfileRoute() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+
+  if (user.role === 'ADMIN') {
+    return (
+      <AdminLayout>
+        <ProfilePage />
+      </AdminLayout>
+    );
+  }
+  if (user.role === 'MANAGER') {
+    return (
+      <ManagerLayout>
+        <ProfilePage />
+      </ManagerLayout>
+    );
+  }
+  if (user.role === 'STAFF') {
+    return (
+      <StaffLayout title="Thông tin cá nhân" showGreeting={false}>
+        <ProfilePage />
+      </StaffLayout>
+    );
+  }
+  return (
+    <DriverLayout title="Thông tin cá nhân">
+      <ProfilePage />
+    </DriverLayout>
+  );
 }
 
 function AppRoutes() {
@@ -296,6 +330,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/profile" element={<ProfileRoute />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

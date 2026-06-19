@@ -158,13 +158,13 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
           <button className={styles.topBarIconBtn}>
             <SettingsIcon size={16} />
           </button>
-          <div className={styles.userAvatar}>
+          <Link to="/profile" className={styles.userAvatar}>
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
               <span className={styles.roleBadge}>{getRoleLabel(user?.role)}</span>
             </div>
-          </div>
+          </Link>
         </div>
       </header>
 

@@ -62,3 +62,7 @@ export async function resetUserPassword(id: string): Promise<{ tempPassword: str
     )
   );
 }
+
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`/admin/users/${id}`);
+}

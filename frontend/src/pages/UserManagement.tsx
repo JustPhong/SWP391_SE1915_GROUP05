@@ -5,6 +5,7 @@ import {
   updateUser,
   toggleUserStatus,
   resetUserPassword,
+  deleteUser,
   type UserItem,
 } from '../api/adminApi';
 import { useAuth } from '../context/AuthContext';
@@ -238,6 +239,104 @@ function KeyIcon() {
   );
 }
 
+function EyeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+      <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      <line x1="10" y1="11" x2="10" y2="17"></line>
+      <line x1="14" y1="11" x2="14" y2="17"></line>
+    </svg>
+  );
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return (parts[0]![0] ?? '').toUpperCase();
+  const first = parts[0]![0] ?? '';
+  const last  = parts[parts.length - 1]![0] ?? '';
+  return (first + last).toUpperCase();
+}
+
+function ViewUserModal({ user, onClose }: { user: UserItem; onClose: () => void }) {
+  return (
+    <Modal title="Thông tin tài khoản chi tiết" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            background: C.navy, color: C.white, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', fontWeight: 700
+          }}>
+            {getInitials(user.fullName)}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8 }}>
+            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>ID tài khoản</span>
+            <div style={{ fontSize: '0.88rem', color: C.gray800, fontFamily: 'monospace', wordBreak: 'break-all', marginTop: 2 }}>{user.id}</div>
+          </div>
+          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8 }}>
+            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Họ tên</span>
+            <div style={{ fontSize: '0.9rem', color: C.gray800, fontWeight: 600, marginTop: 2 }}>{user.fullName}</div>
+          </div>
+          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8 }}>
+            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Địa chỉ Email</span>
+            <div style={{ fontSize: '0.9rem', color: C.gray800, marginTop: 2 }}>{user.email}</div>
+          </div>
+          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Vai trò</span>
+              <div style={{ marginTop: 2 }}><RoleBadge role={user.role} /></div>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase', display: 'block', textAlign: 'right' }}>Trạng thái</span>
+              <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: user.isActive ? '#22C55E' : '#EF4444',
+                  display: 'inline-block'
+                }} />
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: user.isActive ? '#15803D' : '#DC2626' }}>
+                  {user.isActive ? 'Đang hoạt động' : 'Đang bị khóa'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div style={{ paddingBottom: 4 }}>
+            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Ngày tạo tài khoản</span>
+            <div style={{ fontSize: '0.88rem', color: C.gray800, marginTop: 2 }}>
+              {new Date(user.createdAt).toLocaleString('vi-VN', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+              })}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+          <button onClick={onClose} style={{
+            padding: '9px 24px', borderRadius: 10, border: 'none',
+            background: C.navy, color: C.white, fontWeight: 600, fontSize: '0.88rem',
+            cursor: 'pointer', boxShadow: '0 4px 12px rgba(30,58,95,0.2)'
+          }}>
+            Đóng
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Add / Edit modals ─────────────────────────────────────────────
 function AddUserModal({ onAdd, onClose }: {
   onAdd: (input: { fullName: string; email: string; role: string; password: string }) => Promise<void>;
@@ -438,6 +537,8 @@ export function UserManagementPage() {
   const [editTarget, setEditTarget]  = useState<UserItem | null>(null);
   const [resetPasswordFor, setResetPasswordFor] = useState<UserItem | null>(null);
   const [tempPassword, setTempPassword] = useState('');
+  const [viewTarget, setViewTarget] = useState<UserItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
 
   // Confirm dialog
   const [confirmTarget, setConfirmTarget] = useState<UserItem | null>(null);
@@ -516,12 +617,32 @@ export function UserManagementPage() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!deleteTarget) return;
+    const user = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await deleteUser(user.id);
+      showToast(`Đã xóa tài khoản "${user.fullName}" thành công!`, 'success');
+      await fetchUsers();
+    } catch (err: any) {
+      const msg = err.response?.data?.message ?? err.message ?? 'Không thể xóa tài khoản';
+      showToast(msg, 'error');
+    }
+  };
+
   // Count active admins
   const activeAdminCount = users.filter((u) => u.role === 'ADMIN' && u.isActive).length;
 
   const canToggleLock = (u: UserItem) => {
     if (u.id === currentUser?.id) return false; // own account
     if (u.role === 'ADMIN' && u.isActive && activeAdminCount <= 1) return false; // last admin
+    return true;
+  };
+
+  const canDelete = (u: UserItem) => {
+    if (u.id === currentUser?.id) return false; // own account
+    if (u.role === 'ADMIN' && activeAdminCount <= 1) return false; // last admin
     return true;
   };
 
@@ -692,6 +813,21 @@ export function UserManagementPage() {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {/* View Details */}
+                      <button
+                        onClick={() => setViewTarget(u)}
+                        title="Xem chi tiết"
+                        style={{
+                          padding: 7, borderRadius: 8, border: '1.5px solid #E5E7EB',
+                          background: C.white, color: C.gray600, cursor: 'pointer', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                        }}
+                        onMouseOver={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#F3F4F6'; b.style.borderColor = C.gray600; }}
+                        onMouseOut={(e)  => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; }}
+                      >
+                        <EyeIcon />
+                      </button>
+
                       {/* Edit */}
                       <button
                         onClick={() => setEditTarget(u)}
@@ -749,6 +885,31 @@ export function UserManagementPage() {
                       >
                         <KeyIcon />
                       </button>
+
+                      {/* Delete */}
+                      {(() => {
+                        const deletable = canDelete(u);
+                        return (
+                          <button
+                            onClick={() => deletable && setDeleteTarget(u)}
+                            title={deletable ? 'Xóa tài khoản' : 'Không thể xóa chính mình hoặc admin duy nhất'}
+                            disabled={!deletable}
+                            style={{
+                              padding: 7, borderRadius: 8,
+                              border: deletable ? '1.5px solid #E5E7EB' : '1.5px solid #F9FAFB',
+                              background: deletable ? C.white : '#F9FAFB',
+                              color: deletable ? '#DC2626' : '#D1D5DB',
+                              cursor: deletable ? 'pointer' : 'not-allowed',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseOver={(e) => { if (deletable) { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#FEE2E2'; b.style.borderColor = '#FCA5A5'; } }}
+                            onMouseOut={(e)  => { if (deletable) { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; } }}
+                          >
+                            <TrashIcon />
+                          </button>
+                        );
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -793,6 +954,24 @@ export function UserManagementPage() {
         <ResetPasswordDialog
           tempPassword={tempPassword}
           onClose={() => { setResetPasswordFor(null); setTempPassword(''); }}
+        />
+      )}
+
+      {viewTarget && (
+        <ViewUserModal
+          user={viewTarget}
+          onClose={() => setViewTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Xóa tài khoản vĩnh viễn?"
+          message={`Bạn có chắc chắn muốn xóa tài khoản "${deleteTarget.fullName}" (${deleteTarget.email})? Thao tác này sẽ xóa tất cả các dữ liệu liên quan (xe, đặt chỗ, gói tháng) và không thể hoàn tác.`}
+          confirmLabel="Xóa vĩnh viễn"
+          danger={true}
+          onConfirm={handleDeleteUser}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>

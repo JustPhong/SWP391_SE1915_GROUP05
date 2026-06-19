@@ -135,13 +135,13 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
           <button className={styles.topBarIconBtn} aria-label="Hỗ trợ">
             <HelpIcon size={18} />
           </button>
-          <div className={styles.userAvatar}>
+          <Link to="/profile" className={styles.userAvatar}>
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
               <span className={styles.roleBadge}>Quản lý</span>
             </div>
-          </div>
+          </Link>
         </div>
       </header>
 
