@@ -642,12 +642,6 @@ export function ManagerDashboardPage() {
           accent="green"
           Icon={IconMoney}
         />
-        {dateRange === 'today' && (
-          <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: '#6b7280', lineHeight: 1.5 }}>
-            Phi gui xe: {fmtVnd(kpiData?.sessionRevenue ?? 0)}<br />
-            Goi thang: {fmtVnd(kpiData?.monthlyRevenue ?? 0)}
-          </div>
-        )}
         {errorKpi && (
           <div style={{
             gridColumn: '1 / -1',
