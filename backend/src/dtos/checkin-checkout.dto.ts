@@ -13,7 +13,7 @@ export const checkInSchema = [
     .optional()
     .isBoolean()
     .withMessage('isMonthly must be a boolean'),
-];
+];   
 
 export const checkOutSchema = [
   body('paymentMethod')

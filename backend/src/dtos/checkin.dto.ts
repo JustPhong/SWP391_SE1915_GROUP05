@@ -14,7 +14,7 @@ export const submitCheckinSchema = [
     .isIn(['CAR', 'MOTORBIKE'])
     .withMessage('Loại xe không hợp lệ'),
   body('customerType')
-    .trim()
+    .trim()   
     .notEmpty()
     .withMessage('Loại khách không được để trống')
     .isIn(['monthly', 'casual'])
