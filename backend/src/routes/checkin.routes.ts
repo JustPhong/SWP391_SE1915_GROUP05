@@ -9,7 +9,7 @@ import { requirePermission } from '../middleware/permission.middleware';
 const router = Router();
 
 router.use(authenticate);
-
+   
 // GET /api/checkin/lookup/:plate
 router.get('/lookup/:plate', checkinController.lookup);
 
