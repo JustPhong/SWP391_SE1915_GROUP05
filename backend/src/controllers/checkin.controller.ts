@@ -30,3 +30,4 @@ export const checkinController = {
     return res.status(201).json({ success: true, data: result });
   }),
 };
+     
