@@ -359,7 +359,7 @@ export function FloorMapPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const canBook = isDriver && activeFloorCode === '3';
+  const canBook = false;
 
   // Load floor list on mount
   useEffect(() => {
