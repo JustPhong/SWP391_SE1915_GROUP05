@@ -13,4 +13,4 @@ export const reportQuerySchema = [
     .optional()
     .isInt({ min: 0 })
     .withMessage('Floor must be a non-negative integer'),
-];
+];    
