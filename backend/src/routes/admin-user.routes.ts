@@ -13,5 +13,5 @@ router.post('/',      requirePermission('account.manage'), adminUserController.c
 router.patch('/:id', requirePermission('account.manage'), adminUserController.update);
 router.patch('/:id/status',          requirePermission('account.manage'), adminUserController.toggleStatus);
 router.post('/:id/reset-password',   requirePermission('account.manage'), adminUserController.resetPassword);
-
+   
 export default router;
