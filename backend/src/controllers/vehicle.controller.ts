@@ -11,7 +11,7 @@ export const vehicleController = {
     });
     return res.status(201).json({ success: true, data: vehicle });
   }),
-
+  
   getByPlate: asyncHandler(async (req: AuthRequest, res: Response) => {
     const vehicle = await vehicleService.getByPlate(req.params.plateNumber);
     return res.status(200).json({ success: true, data: vehicle });
