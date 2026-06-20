@@ -13,7 +13,7 @@ export const getAllFloors = asyncHandler(
     });
     res.json({ success: true, data });
   }
-);
+);       
 
 /**
  * GET /floors/:floorCode
