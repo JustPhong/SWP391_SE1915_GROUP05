@@ -12,6 +12,7 @@ import {
   SettingsIcon,
   SearchIcon,
   SupportIcon,
+  LayoutIcon,
 } from './ui/Icons';
 import styles from '../styles/driver.module.css';
 
@@ -23,6 +24,7 @@ interface DriverLayoutProps {
 const driverNavItems = [
   { label: 'Trang chủ', path: '/', icon: HomeIcon },
   { label: 'Đặt chỗ', path: '/booking', icon: CalendarIcon },
+  { label: 'Sơ đồ tầng', path: '/floor-map', icon: LayoutIcon },
   { label: 'Gói tháng', path: '/monthly-package', icon: CarIconFilled },
   { label: 'Xe của tôi', path: '/my-vehicle', icon: CarIconFilled },
   { label: 'Lịch sử', path: '/history', icon: HistoryIcon },
