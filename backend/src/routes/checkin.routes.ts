@@ -10,13 +10,96 @@ const router = Router();
 
 router.use(authenticate);
 
-// GET /api/checkin/lookup/:plate
+/**
+ * @swagger
+ * /checkin/lookup/{plate}:
+ *   get:
+ *     summary: Look up a vehicle by license plate
+ *     tags: [Check-in]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: plate
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The license plate to look up
+ *     responses:
+ *       '200':
+ *         description: Vehicle or session info found
+ *       '401':
+ *         description: Unauthorized — missing or invalid JWT
+ *       '404':
+ *         description: No vehicle found for this license plate
+ */
 router.get('/lookup/:plate', checkinController.lookup);
 
-// GET /api/checkin/stats
+/**
+ * @swagger
+ * /checkin/stats:
+ *   get:
+ *     summary: Get check-in statistics for the current shift
+ *     tags: [Check-in]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Check-in statistics for the current shift
+ *       '401':
+ *         description: Unauthorized — missing or invalid JWT
+ */
 router.get('/stats', checkinController.stats);
 
-// POST /api/checkin
+/**
+ * @swagger
+ * /checkin:
+ *   post:
+ *     summary: Submit a vehicle check-in
+ *     tags: [Check-in]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - plate
+ *               - vehicleType
+ *               - customerType
+ *               - slotCode
+ *             properties:
+ *               plate:
+ *                 type: string
+ *                 description: License plate of the vehicle
+ *                 example: "30A-123.45"
+ *               vehicleType:
+ *                 type: string
+ *                 enum: [CAR, MOTORBIKE]
+ *                 description: Type of vehicle
+ *               customerType:
+ *                 type: string
+ *                 enum: [monthly, casual]
+ *                 description: Customer type (monthly subscriber or casual)
+ *               slotCode:
+ *                 type: string
+ *                 description: Code of the assigned parking slot
+ *                 example: "G-01"
+ *               isMonthly:
+ *                 type: boolean
+ *                 description: Whether the customer is a monthly subscriber
+ *     responses:
+ *       '201':
+ *         description: Check-in created successfully
+ *       '400':
+ *         description: Validation error
+ *       '401':
+ *         description: Unauthorized — missing or invalid JWT
+ *       '403':
+ *         description: Forbidden — missing checkin.create permission
+ */
 router.post('/', submitCheckinSchema, validate, requirePermission('checkin.create'), checkinController.submit);
 
 export default router;
