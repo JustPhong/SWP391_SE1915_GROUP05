@@ -13,7 +13,7 @@ export const vehicleSchema = [
     .isBoolean()
     .withMessage('isMonthly must be a boolean'),
 ];
-
+   
 export const vehicleUpdateSchema = [
   body('plateNumber')
     .optional()
