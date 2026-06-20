@@ -50,9 +50,6 @@ function IconCheck({ size = 14, color = C.green }: { size?: number; color?: stri
 function IconStar({ size = 12, color = C.amber }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
 }
-function IconPlus({ size = 14, color = C.green }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-}
 function IconInfo({ size = 15, color = C.navy }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 }
@@ -107,7 +104,7 @@ function SlotCard({ slot, isSelected, isSuggested, canBook, onSelect }: SlotCard
       bgColor = C.greenBg;
       borderColor = isSuggested ? C.amber : C.green;
       textColor = C.green;
-      icon = isSuggested ? <IconStar size={13} color={C.amber} /> : <IconPlus size={13} color={C.green} />;
+      icon = isSuggested ? <IconStar size={13} color={C.amber} /> : <IconCheck size={13} color={C.green} />;
       if (isSuggested) ring = true;
     }
   }
@@ -513,7 +510,7 @@ export function FloorMapPage() {
                     padding: '1px 6px',
                     fontWeight: 700,
                   }}>
-                    CASUAL
+                    VÃNG LAI
                   </span>
                 )}
               </button>
@@ -556,7 +553,7 @@ export function FloorMapPage() {
               <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: C.gray400 }}>
                 {activeFloor?.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} ·{' '}
                 {activeFloor?.customerType === 'CASUAL' ? 'Khách vãng lai' : 'Khách tháng'}
-                {activeFloor && ` · ${activeFloor.slots.filter(s => s.status === 'AVAILABLE').length}/${activeFloor.capacity} chỗ trống`}
+                {activeFloor && ` · ${activeFloor.slots.filter(s => s.status === 'AVAILABLE').length}/${activeFloor.slots.length} chỗ trống`}
               </p>
             </div>
           </div>
