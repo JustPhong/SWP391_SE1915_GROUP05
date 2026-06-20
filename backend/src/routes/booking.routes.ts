@@ -12,7 +12,7 @@ router.get('/active', bookingController.getActiveBookings);
 
 // GET /api/bookings  — all bookings (staff/manager only)
 router.get('/', authorize('STAFF', 'MANAGER', 'ADMIN'), bookingController.getAll);
-
+     
 // GET /api/bookings/vehicle/:vehicleId
 router.get('/vehicle/:vehicleId', bookingController.getByVehicle);
 
