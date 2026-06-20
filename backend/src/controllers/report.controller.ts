@@ -11,7 +11,7 @@ export const reportController = {
     const report = await reportService.getOccupancyReport({ floorId });
     return res.status(200).json({ success: true, data: report });
   }),
-
+   
   // ─── Existing summary (STAFF + MANAGER + ADMIN via router-level authorize) ─
 
   getSummary: asyncHandler(async (_req: AuthRequest, res: Response) => {
