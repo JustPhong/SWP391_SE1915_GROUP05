@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { floorMapService, type FloorWithSlots } from '../services/floorMap.service';
-import { useAuth } from '../context/AuthContext';
 import type { ParkingSlot, Floor } from '../types';
 import styles from '../styles/staff.module.css';
 
@@ -344,9 +343,6 @@ function BookingForm({ slot, floor, onConfirm, onCancel }: BookingFormProps) {
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
 export function FloorMapPage() {
-  const { user } = useAuth();
-  const isDriver = user?.role === 'DRIVER';
-
   const [floors, setFloors] = useState<Floor[]>([]);
   const [activeFloorCode, setActiveFloorCode] = useState<string>('G');
   const [activeFloor, setActiveFloor] = useState<FloorWithSlots | null>(null);
@@ -532,7 +528,7 @@ export function FloorMapPage() {
             </span>
           ))}
 
-          {isDriver && activeFloorCode === '3' && (
+          {canBook && (
             <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: C.blue, fontWeight: 600 }}>
               Nhấn vào ô trống để đặt chỗ
             </span>
