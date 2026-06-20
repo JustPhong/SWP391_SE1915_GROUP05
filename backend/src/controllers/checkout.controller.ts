@@ -10,7 +10,6 @@ export const checkoutController = {
     const result = await checkoutService.lookupPlate(plate);
     return res.status(200).json({ success: true, data: result });
   }),
-
   // GET /api/checkout/parked
   parked: asyncHandler(async (_req: AuthRequest, res: Response) => {
     const result = await checkoutService.getParkedVehicles();
@@ -29,7 +28,3 @@ export const checkoutController = {
     return res.status(200).json({ success: true, data: result });
   }),
 };
-
-
-
-
