@@ -9,7 +9,7 @@ async function main() {
     where: { email: TARGET_EMAIL },
     include: { roleRef: true },
   });
-
+  
   if (!user) {
     console.log('User not found');
     return;
