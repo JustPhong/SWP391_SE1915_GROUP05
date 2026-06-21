@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 const FLOOR_DEFINITIONS: { floorCode: string; name: string; vehicleType: string; customerType: string; capacity: number; slots: { code: string; type: string }[] }[] = [
-  {
+  {  
     floorCode: 'G',
     name: 'Tầng G',
     vehicleType: 'CAR',

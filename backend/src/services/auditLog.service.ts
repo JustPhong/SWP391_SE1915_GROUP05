@@ -112,3 +112,4 @@ export async function listLogs({ skip, take }: ListLogsParams) {
   ]);
   return { rows, total };
 }
+   

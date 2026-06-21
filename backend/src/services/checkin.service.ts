@@ -3,7 +3,7 @@ import { AppError } from '../utils/helpers';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const PKG_ACTIVE = 'ACTIVE';
-
+  
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;

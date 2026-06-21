@@ -19,7 +19,7 @@ import feeRuleRoutes from './fee-rule.routes';
 import auditLogRoutes from './audit-log.routes';
 
 const router = Router();
-
+   
 router.use('/auth', authRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/checkin-out', checkinCheckoutRoutes);

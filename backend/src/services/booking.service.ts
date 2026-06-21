@@ -10,7 +10,7 @@ const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_RESERVED = 'RESERVED';
 const SLOT_OCCUPIED = 'OCCUPIED';
 const BOOKING_DEPOSIT = 15000;
-
+   
 export interface CreateBookingInput {
   plateNumber: string;
   slotId: string;

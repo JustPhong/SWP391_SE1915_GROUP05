@@ -170,7 +170,7 @@ async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
       },
     });
   },
-
+    
   // Cập nhật tầng
   async updateFloor(
     id: number,

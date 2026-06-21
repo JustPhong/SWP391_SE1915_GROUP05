@@ -14,5 +14,5 @@ router.patch('/:id',           requirePermission('fee_rule.manage'), feeRuleCont
 router.put('/:id',             requirePermission('fee_rule.manage'), feeRuleController.update);
 router.patch('/:id/active',    requirePermission('fee_rule.manage'), feeRuleController.toggleActive);
 router.delete('/:id',          requirePermission('fee_rule.manage'), feeRuleController.remove);
-
+   
 export default router;

@@ -7,7 +7,7 @@ interface FloorOccupancy {
   capacity: number;
   percent: number;
 }
-
+   
 interface RecentCheckin {
   plate: string;
   vehicleType: string;

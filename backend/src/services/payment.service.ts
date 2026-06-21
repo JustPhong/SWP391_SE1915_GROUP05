@@ -8,7 +8,7 @@ export interface RecordPaymentInput {
   method: string;
   type: string;
 }
-
+   
 export const paymentService = {
   async recordPayment(input: RecordPaymentInput) {
     if (!input.checkInRecordId && !input.monthlyPackageId) {

@@ -7,7 +7,7 @@ export interface CreateVehicleInput {
   ownerId: string;
   isMonthly?: boolean;
 }
-
+    
 async function loadOwnedVehicleOrThrow(vehicleId: string, userId: string) {
   const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
   if (!vehicle) {

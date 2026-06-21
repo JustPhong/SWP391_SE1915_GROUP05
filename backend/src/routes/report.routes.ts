@@ -9,7 +9,7 @@ router.use(authenticate);
 router.use(authorize('MANAGER', 'ADMIN', 'STAFF'));
 
 // ─── STAFF + MANAGER + ADMIN ───────────────────────────────────────────────
-
+   
 // GET /api/reports/occupancy
 router.get('/occupancy', reportController.getOccupancy);
 

@@ -10,7 +10,7 @@ import {
 import { authenticate, authorize } from '../middleware/auth.middleware';
 
 const router = Router();
-
+    
 router.use(authenticate);
 
 router.get('/', getAllFloors);

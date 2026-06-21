@@ -7,3 +7,4 @@ const router = Router();
 router.get('/staff', dashboardController.getStaffDashboard);
 
 export default router;
+     

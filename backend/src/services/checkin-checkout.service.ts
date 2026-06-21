@@ -14,7 +14,7 @@ async function findCreditableDeposit(vehicleId: string) {
     where: { vehicleId, status: BOOKING_FULFILLED, depositStatus: 'PAID' },
     orderBy: { bookingTime: 'desc' },
   });
-}
+}    
 
 export interface CheckInInput {
   plateNumber: string;
