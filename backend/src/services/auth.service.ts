@@ -45,7 +45,7 @@ export const authService = {
     const roleName = input.role ?? 'DRIVER';
     const role = await prisma.role.findUnique({ where: { name: roleName } });
     if (!role) throw new AppError(400, 'Invalid role');
-
+   
     const user = await prisma.user.create({
       data: {
         fullName: input.fullName,
