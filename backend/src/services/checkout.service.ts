@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { calcFee } from '../utils/fee';
 import { feeRuleService } from './feeRule.service';
-
+  
 // ── Lookup result shapes ──────────────────────────────────
 export interface CheckoutLookupResult {
   found: boolean;
