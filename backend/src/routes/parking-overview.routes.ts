@@ -10,3 +10,4 @@ router.use(authorize('ADMIN'));
 router.get('/', parkingOverviewController.getOverview);
 
 export default router;
+  

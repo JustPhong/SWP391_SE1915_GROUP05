@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(authenticate);
 router.use(authorize('STAFF', 'MANAGER'));
-
+   
 router.post('/in', checkInSchema, validate, checkInController.checkIn);
 router.get('/active', checkInController.getActiveRecords);
 router.get('/preview/:recordId', checkOutController.preview);

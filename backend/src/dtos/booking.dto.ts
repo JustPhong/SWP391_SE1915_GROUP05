@@ -14,7 +14,7 @@ export const createBookingSchema = [
   body('expectedArrival')
     .isISO8601()
     .withMessage('Thời gian đến dự kiến phải là ngày hợp lệ'),
-];
+];   
 
 export const cancelBookingSchema = [
   body('bookingId')

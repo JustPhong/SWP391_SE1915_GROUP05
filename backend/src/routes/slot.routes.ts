@@ -82,4 +82,4 @@ router.get('/all', slotController.getAll);
  */
 router.patch('/:id/status', authenticate, authorize('STAFF', 'MANAGER', 'ADMIN'), slotController.updateStatus);
 
-export default router;
+export default router;   

@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
 
 const router = Router();
-
+   
 router.use(authenticate);
 
 /**

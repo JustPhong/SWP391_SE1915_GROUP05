@@ -119,4 +119,65 @@ export const feeRuleService = {
     invalidateCache();
     return updated;
   },
+
+  /**
+   * Create a new fee rule.
+   */
+  async createRule(input: {
+    vehicleType: string;
+    ruleType: string;
+    label: string;
+    startHour: number;
+    endHour: number;
+    blockMinutes?: number;
+    amount: number;
+  }) {
+    const rule = await prisma.feeRule.create({ data: input });
+    invalidateCache();
+    return rule;
+  },
+
+  /**
+   * Full update a rule (all fields).
+   */
+  async updateRule(id: number, input: {
+    vehicleType?: string;
+    ruleType?: string;
+    label?: string;
+    startHour?: number;
+    endHour?: number;
+    blockMinutes?: number;
+    amount?: number;
+  }) {
+    const existing = await prisma.feeRule.findUnique({ where: { id } });
+    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+
+    const updated = await prisma.feeRule.update({ where: { id }, data: input });
+    invalidateCache();
+    return updated;
+  },
+
+  /**
+   * Toggle isActive.
+   */
+  async toggleActive(id: number, isActive: boolean) {
+    const existing = await prisma.feeRule.findUnique({ where: { id } });
+    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+
+    const updated = await prisma.feeRule.update({ where: { id }, data: { isActive } });
+    invalidateCache();
+    return updated;
+  },
+
+  /**
+   * Delete a rule.
+   */
+  async deleteRule(id: number) {
+    const existing = await prisma.feeRule.findUnique({ where: { id } });
+    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+
+    await prisma.feeRule.delete({ where: { id } });
+    invalidateCache();
+  },
 };
+   

@@ -13,5 +13,5 @@ router.get('/my', vehicleController.getMyVehicles);
 router.get('/:plateNumber', vehicleController.getByPlate);
 router.patch('/:id', vehicleController.update);
 router.delete('/:id', vehicleController.remove);
-
+   
 export default router;

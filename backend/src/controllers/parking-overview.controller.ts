@@ -12,7 +12,7 @@ export const parkingOverviewController = {
       }),
       prisma.parkingSlot.count(),
     ]);
-
+  
     const totalFloors = floors.length;
     const totalAvailable = totalSlots - occupiedCount;
     const overallOccupancy = totalSlots > 0

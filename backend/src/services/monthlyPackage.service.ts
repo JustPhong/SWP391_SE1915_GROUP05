@@ -19,7 +19,7 @@ export interface CreatePackageInput {
   price: number;
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
 }
-
+     
 export const monthlyPackageService = {
   async create(input: CreatePackageInput) {
     if (input.expiryDate <= input.startDate) {

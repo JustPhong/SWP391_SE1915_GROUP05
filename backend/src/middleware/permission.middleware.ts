@@ -11,7 +11,7 @@ export const requirePermission = (permissionKey: string) => {
 
     if (req.user.role === 'ADMIN') {
       return next();
-    }
+    }   
 
     const roleRow = await prisma.role.findUnique({
       where: { name: req.user.role },

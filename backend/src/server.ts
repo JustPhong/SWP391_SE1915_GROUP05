@@ -27,5 +27,5 @@ app.listen(config.port, () => {
   console.log(`[Health] http://localhost:${config.port}/api/health`);
   console.log(`[Swagger] http://localhost:${config.port}/api-docs`);
 });
-
+   
 export default app;

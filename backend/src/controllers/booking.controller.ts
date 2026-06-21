@@ -13,7 +13,7 @@ export const bookingController = {
       createdById: req.user.id,
     });
     return res.status(201).json({ success: true, data: booking });
-  }),
+  }),     
 
   fulfill: asyncHandler(async (req: AuthRequest, res: Response) => {
     if (!req.user) throw new Error('Not authenticated');
@@ -45,3 +45,4 @@ export const bookingController = {
     return res.status(200).json({ success: true, data: bookings });
   }),
 };
+

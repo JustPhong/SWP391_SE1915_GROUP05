@@ -14,3 +14,4 @@ export const auditLogController = {
     return res.status(200).json({ success: true, data: { rows, total } });
   }),
 };
+  

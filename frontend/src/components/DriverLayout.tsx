@@ -10,7 +10,6 @@ import {
   LogoutIcon,
   BellIcon,
   SettingsIcon,
-  SearchIcon,
   SupportIcon,
   LayoutIcon,
 } from './ui/Icons';
@@ -149,10 +148,6 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
           <h1 className={styles.pageTitle}>{title}</h1>
         </div>
         <div className={styles.topBarRight}>
-          <div className={styles.searchBox}>
-            <SearchIcon size={14} />
-            <input type="text" placeholder="Tìm kiếm..." />
-          </div>
           <button className={styles.topBarIconBtn}>
             <BellIcon size={16} />
             <span className={styles.notifDot} />

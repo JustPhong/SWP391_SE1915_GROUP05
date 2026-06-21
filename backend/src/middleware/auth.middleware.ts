@@ -16,7 +16,7 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     return next(new AppError(401, 'No token provided'));
-  }
+  }   
 
   const token = header.slice(7);
   try {

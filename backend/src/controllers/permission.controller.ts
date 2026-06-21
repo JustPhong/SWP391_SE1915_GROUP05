@@ -14,7 +14,7 @@ export const permissionController = {
       prisma.permission.findMany({ orderBy: { category: 'asc' } }),
       prisma.role.findMany({ include: { rolePermissions: true } }),
     ]);
-
+      
     // Build matrix keyed by role NAME (frontend expects string keys)
     const roleMatrix: Record<string, Record<string, boolean>> = {};
     for (const r of roles) {

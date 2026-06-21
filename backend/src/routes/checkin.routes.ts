@@ -34,7 +34,6 @@ router.use(authenticate);
  *         description: No vehicle found for this license plate
  */
 router.get('/lookup/:plate', checkinController.lookup);
-
 /**
  * @swagger
  * /checkin/stats:

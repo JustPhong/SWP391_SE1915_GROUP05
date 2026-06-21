@@ -12,7 +12,7 @@ export const monthlyPackageController = {
       expiryDate: new Date(req.body.expiryDate),
     });
     return res.status(201).json({ success: true, data: pkg });
-  }),
+  }),    
 
   getActivePackages: asyncHandler(async (_req: AuthRequest, res: Response) => {
     const packages = await monthlyPackageService.getActivePackages();

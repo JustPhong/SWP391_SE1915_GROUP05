@@ -9,7 +9,7 @@ export const validate = (req: Request, _res: Response, next: NextFunction) => {
     return next(new AppError(400, messages));
   }
   next();
-};
+};   
 
 export const errorHandler = (
   err: Error,

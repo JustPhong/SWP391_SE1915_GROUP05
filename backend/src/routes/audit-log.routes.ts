@@ -11,3 +11,4 @@ router.use(authorize('ADMIN'));
 router.get('/', requirePermission('audit_log.view'), auditLogController.list);
 
 export default router;
+   

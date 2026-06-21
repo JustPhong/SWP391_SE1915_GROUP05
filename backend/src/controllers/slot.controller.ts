@@ -82,7 +82,7 @@
       targetId: id,
       description: `Cập nhật slot ${slot.code} từ ${slot.status} → ${status}`,
       metadata: { slotCode: slot.code, from: slot.status, to: status, reason: reason ?? null },
-    });
+    });    
 
     return res.status(200).json({ success: true, data: updated });
   }),

@@ -11,3 +11,4 @@ router.post('/login', loginSchema, validate, authController.login);
 router.get('/me', authenticate, authController.me);
 
 export default router;
+   

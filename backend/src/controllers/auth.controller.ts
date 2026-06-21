@@ -24,6 +24,6 @@ export const authController = {
         email: user.email,
         role: user.roleRef!.name,
       },
-    });
+    });    
   }),
 };

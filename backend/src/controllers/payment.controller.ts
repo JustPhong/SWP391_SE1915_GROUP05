@@ -12,7 +12,7 @@ export const paymentController = {
   getPayments: asyncHandler(async (req: AuthRequest, res: Response) => {
     const startDate = req.query.startDate
       ? new Date(req.query.startDate as string)
-      : undefined;
+      : undefined;   
     const endDate = req.query.endDate
       ? new Date(req.query.endDate as string)
       : undefined;

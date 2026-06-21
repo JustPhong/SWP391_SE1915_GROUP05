@@ -82,7 +82,7 @@ export const adminUserController = {
     const passwordHash = await bcrypt.hash(password.trim(), 12);
 
     const user = await prisma.user.create({
-      data: {
+      data: {    
         fullName:     fullName.trim(),
         email:        email.trim().toLowerCase(),
         passwordHash,
