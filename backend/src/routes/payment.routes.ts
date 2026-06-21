@@ -11,3 +11,4 @@ router.post('/', paymentController.recordPayment);
 router.get('/', paymentController.getPayments);
 
 export default router;
+   
