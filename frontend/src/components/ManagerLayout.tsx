@@ -10,7 +10,6 @@ import {
   LogoutIcon,
   BellIcon,
   HelpIcon,
-  SearchIcon,
 } from './ui/Icons';
 import styles from '../styles/manager.module.css';
 
@@ -125,10 +124,6 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
         </div>
 
         <div className={styles.topBarRight}>
-          <div className={styles.searchBox}>
-            <SearchIcon size={14} />
-            <input type="text" placeholder="Tìm kiếm..." />
-          </div>
           <button className={styles.topBarIconBtn} aria-label="Thông báo">
             <BellIcon size={18} />
           </button>
