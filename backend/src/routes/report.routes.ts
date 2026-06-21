@@ -96,17 +96,17 @@ router.get('/kpi-summary', authorize('MANAGER', 'ADMIN'), requirePermission('rep
  *       - in: query
  *         name: from
  *         required: false
+ *         description: "Start date in YYYY-MM-DD format (default: 7 days ago)"
  *         schema:
  *           type: string
  *           format: date
- *         description: Start date in YYYY-MM-DD format (default: 7 days ago)
  *       - in: query
  *         name: to
  *         required: false
+ *         description: "End date in YYYY-MM-DD format (default: today)"
  *         schema:
  *           type: string
  *           format: date
- *         description: End date in YYYY-MM-DD format (default: today)
  *     responses:
  *       '200':
  *         description: Daily revenue data [{ date, amount }, ...]
@@ -147,17 +147,17 @@ router.get('/vehicles-by-type', authorize('MANAGER', 'ADMIN'), reportController.
  *       - in: query
  *         name: from
  *         required: false
+ *         description: "Start date in YYYY-MM-DD format (default: 30 days ago)"
  *         schema:
  *           type: string
  *           format: date
- *         description: Start date in YYYY-MM-DD format (default: 30 days ago)
  *       - in: query
  *         name: to
  *         required: false
+ *         description: "End date in YYYY-MM-DD format (default: today)"
  *         schema:
  *           type: string
  *           format: date
- *         description: End date in YYYY-MM-DD format (default: today)
  *     responses:
  *       '200':
  *         description: Revenue breakdown { total, casualTotal, monthlyTotal, series, transactions }
@@ -198,17 +198,17 @@ router.get('/occupancy-detail', authorize('MANAGER', 'ADMIN'), reportController.
  *       - in: query
  *         name: from
  *         required: false
+ *         description: "Start date in YYYY-MM-DD format (default: 7 days ago)"
  *         schema:
  *           type: string
  *           format: date
- *         description: Start date in YYYY-MM-DD format (default: 7 days ago)
  *       - in: query
  *         name: to
  *         required: false
+ *         description: "End date in YYYY-MM-DD format (default: today)"
  *         schema:
  *           type: string
  *           format: date
- *         description: End date in YYYY-MM-DD format (default: today)
  *     responses:
  *       '200':
  *         description: Traffic report { totalIn, totalOut, currentlyParked, byVehicleType, daily, hourly, peakHour }
