@@ -23,5 +23,5 @@ app.listen(config.port, () => {
   console.log(`[Server] Running on http://localhost:${config.port}`);
   console.log(`[Health] http://localhost:${config.port}/api/health`);
 });
-
+   
 export default app;
