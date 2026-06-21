@@ -11,3 +11,4 @@ router.get('/',  permissionController.getAll);
 router.patch('/', permissionController.toggle);
 
 export default router;
+   
