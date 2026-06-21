@@ -5,27 +5,26 @@ import {
   updateUser,
   toggleUserStatus,
   resetUserPassword,
-  deleteUser,
   type UserItem,
 } from '../api/adminApi';
 import { useAuth } from '../context/AuthContext';
 
 // ── Design tokens (mirror manager page) ───────────────────────────
 const C = {
-  navy:       '#1E3A5F',
-  white:      '#FFFFFF',
-  gray50:     '#F9FAFB',
-  gray100:    '#F3F4F6',
-  gray200:    '#E5E7EB',
-  gray400:    '#9CA3AF',
-  gray600:    '#5C6B7A',
-  gray800:    '#2D3A45',
-  shadow:     '0 8px 32px rgba(30,58,95,0.10)',
+  navy: '#1E3A5F',
+  white: '#FFFFFF',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray400: '#9CA3AF',
+  gray600: '#5C6B7A',
+  gray800: '#2D3A45',
+  shadow: '0 8px 32px rgba(30,58,95,0.10)',
   // Role badge colours
-  driver:     { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' },
-  staff:      { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },
-  manager:    { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' },
-  admin:      { bg: '#EDE9FE', text: '#7C3AED', border: '#C4B5FD' },
+  driver: { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' },
+  staff: { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },
+  manager: { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' },
+  admin: { bg: '#EDE9FE', text: '#7C3AED', border: '#C4B5FD' },
 } as const;
 
 // ── Toast ─────────────────────────────────────────────────────────
@@ -181,10 +180,10 @@ function SelectInput({
 
 // ── Role badge ─────────────────────────────────────────────────────
 const ROLE_COLORS = {
-  DRIVER:  { bg: C.driver.bg,  text: C.driver.text,  border: C.driver.border },
-  STAFF:   { bg: C.staff.bg,   text: C.staff.text,   border: C.staff.border },
+  DRIVER: { bg: C.driver.bg, text: C.driver.text, border: C.driver.border },
+  STAFF: { bg: C.staff.bg, text: C.staff.text, border: C.staff.border },
   MANAGER: { bg: C.manager.bg, text: C.manager.text, border: C.manager.border },
-  ADMIN:   { bg: C.admin.bg,   text: C.admin.text,   border: C.admin.border },
+  ADMIN: { bg: C.admin.bg, text: C.admin.text, border: C.admin.border },
 } as const;
 
 const ROLE_LABELS: Record<string, string> = {
@@ -208,8 +207,8 @@ function RoleBadge({ role }: { role: string }) {
 function PencilIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
     </svg>
   );
 }
@@ -218,15 +217,15 @@ function LockToggleIcon({ locked }: { locked: boolean }) {
   if (locked) {
     return (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="2"/>
-        <path d="M7 11V7a5 5 0 0110 0v4"/>
+        <rect x="3" y="11" width="18" height="11" rx="2" />
+        <path d="M7 11V7a5 5 0 0110 0v4" />
       </svg>
     );
   }
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="11" width="18" height="11" rx="2"/>
-      <path d="M7 11V7a5 5 0 019.9-1"/>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 019.9-1" />
     </svg>
   );
 }
@@ -234,106 +233,8 @@ function LockToggleIcon({ locked }: { locked: boolean }) {
 function KeyIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
     </svg>
-  );
-}
-
-function EyeIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-      <circle cx="12" cy="12" r="3"></circle>
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"></polyline>
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-      <line x1="10" y1="11" x2="10" y2="17"></line>
-      <line x1="14" y1="11" x2="14" y2="17"></line>
-    </svg>
-  );
-}
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '';
-  if (parts.length === 1) return (parts[0]![0] ?? '').toUpperCase();
-  const first = parts[0]![0] ?? '';
-  const last  = parts[parts.length - 1]![0] ?? '';
-  return (first + last).toUpperCase();
-}
-
-function ViewUserModal({ user, onClose }: { user: UserItem; onClose: () => void }) {
-  return (
-    <Modal title="Thông tin tài khoản chi tiết" onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: '50%',
-            background: C.navy, color: C.white, display: 'flex',
-            alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', fontWeight: 700
-          }}>
-            {getInitials(user.fullName)}
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8 }}>
-            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>ID tài khoản</span>
-            <div style={{ fontSize: '0.88rem', color: C.gray800, fontFamily: 'monospace', wordBreak: 'break-all', marginTop: 2 }}>{user.id}</div>
-          </div>
-          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8 }}>
-            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Họ tên</span>
-            <div style={{ fontSize: '0.9rem', color: C.gray800, fontWeight: 600, marginTop: 2 }}>{user.fullName}</div>
-          </div>
-          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8 }}>
-            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Địa chỉ Email</span>
-            <div style={{ fontSize: '0.9rem', color: C.gray800, marginTop: 2 }}>{user.email}</div>
-          </div>
-          <div style={{ borderBottom: `1px solid ${C.gray100}`, paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Vai trò</span>
-              <div style={{ marginTop: 2 }}><RoleBadge role={user.role} /></div>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase', display: 'block', textAlign: 'right' }}>Trạng thái</span>
-              <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: user.isActive ? '#22C55E' : '#EF4444',
-                  display: 'inline-block'
-                }} />
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: user.isActive ? '#15803D' : '#DC2626' }}>
-                  {user.isActive ? 'Đang hoạt động' : 'Đang bị khóa'}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div style={{ paddingBottom: 4 }}>
-            <span style={{ fontSize: '0.75rem', color: C.gray400, fontWeight: 700, textTransform: 'uppercase' }}>Ngày tạo tài khoản</span>
-            <div style={{ fontSize: '0.88rem', color: C.gray800, marginTop: 2 }}>
-              {new Date(user.createdAt).toLocaleString('vi-VN', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit', second: '2-digit'
-              })}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-          <button onClick={onClose} style={{
-            padding: '9px 24px', borderRadius: 10, border: 'none',
-            background: C.navy, color: C.white, fontWeight: 600, fontSize: '0.88rem',
-            cursor: 'pointer', boxShadow: '0 4px 12px rgba(30,58,95,0.2)'
-          }}>
-            Đóng
-          </button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -343,16 +244,16 @@ function AddUserModal({ onAdd, onClose }: {
   onClose: () => void;
 }) {
   const [fullName, setFullName] = useState('');
-  const [email, setEmail]       = useState('');
-  const [role, setRole]         = useState<string>('STAFF');
-  const [password, setPassword]  = useState('');
-  const [saving, setSaving]      = useState(false);
-  const [error, setError]        = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<string>('STAFF');
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) { setError('Vui lòng nhập họ tên'); return; }
-    if (!email.trim())    { setError('Vui lòng nhập email');   return; }
+    if (!email.trim()) { setError('Vui lòng nhập email'); return; }
     if (!password.trim()) { setError('Vui lòng nhập mật khẩu'); return; }
     setError(''); setSaving(true);
     try {
@@ -383,9 +284,9 @@ function AddUserModal({ onAdd, onClose }: {
         <div>
           <FieldLabel>Vai trò</FieldLabel>
           <SelectInput value={role} onChange={setRole} options={[
-            { value: 'STAFF',   label: 'Nhân viên (STAFF)' },
+            { value: 'STAFF', label: 'Nhân viên (STAFF)' },
             { value: 'MANAGER', label: 'Quản lý (MANAGER)' },
-            { value: 'ADMIN',   label: 'Quản trị viên (ADMIN)' },
+            { value: 'ADMIN', label: 'Quản trị viên (ADMIN)' },
           ]} />
         </div>
         <div>
@@ -414,9 +315,9 @@ function EditUserModal({
   user, onSave, onClose,
 }: { user: UserItem; onSave: (id: string, data: { fullName: string; role: string }) => void; onClose: () => void }) {
   const [fullName, setFullName] = useState(user.fullName);
-  const [role, setRole]         = useState<string>(user.role);
-  const [saving, setSaving]      = useState(false);
-  const [error, setError]        = useState('');
+  const [role, setRole] = useState<string>(user.role);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -449,9 +350,9 @@ function EditUserModal({
         <div>
           <FieldLabel>Vai trò</FieldLabel>
           <SelectInput value={role} onChange={setRole} options={[
-            { value: 'STAFF',   label: 'Nhân viên (STAFF)' },
+            { value: 'STAFF', label: 'Nhân viên (STAFF)' },
             { value: 'MANAGER', label: 'Quản lý (MANAGER)' },
-            { value: 'ADMIN',   label: 'Quản trị viên (ADMIN)' },
+            { value: 'ADMIN', label: 'Quản trị viên (ADMIN)' },
           ]} />
         </div>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
@@ -524,21 +425,19 @@ function ResetPasswordDialog({
 export function UserManagementPage() {
   const { user: currentUser } = useAuth();
 
-  const [users, setUsers]         = useState<UserItem[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
-  const [toast, setToast]         = useState<Toast>(null);
-  const [search, setSearch]       = useState('');
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState<Toast>(null);
+  const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterActive, setFilterActive] = useState('');
 
   // Modals
-  const [showAdd, setShowAdd]       = useState(false);
-  const [editTarget, setEditTarget]  = useState<UserItem | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<UserItem | null>(null);
   const [resetPasswordFor, setResetPasswordFor] = useState<UserItem | null>(null);
   const [tempPassword, setTempPassword] = useState('');
-  const [viewTarget, setViewTarget] = useState<UserItem | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
 
   // Confirm dialog
   const [confirmTarget, setConfirmTarget] = useState<UserItem | null>(null);
@@ -549,12 +448,12 @@ export function UserManagementPage() {
     setLoading(true); setError('');
     try {
       const data = await getUsers({
-        ...(filterRole   ? { role: filterRole }   : {}),
+        ...(filterRole ? { role: filterRole } : {}),
         ...(search.trim() ? { search: search.trim() } : {}),
       });
       let result = data;
-      if (filterActive === 'active')   result = result.filter((u) => u.isActive);
-      if (filterActive === 'locked')  result = result.filter((u) => !u.isActive);
+      if (filterActive === 'active') result = result.filter((u) => u.isActive);
+      if (filterActive === 'locked') result = result.filter((u) => !u.isActive);
       setUsers(result);
     } catch (err: any) {
       const msg = err.response?.data?.message ?? err.message ?? 'Không tải được danh sách';
@@ -563,7 +462,7 @@ export function UserManagementPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterRole, search, filterActive]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
@@ -617,32 +516,12 @@ export function UserManagementPage() {
     }
   };
 
-  const handleDeleteUser = async () => {
-    if (!deleteTarget) return;
-    const user = deleteTarget;
-    setDeleteTarget(null);
-    try {
-      await deleteUser(user.id);
-      showToast(`Đã xóa tài khoản "${user.fullName}" thành công!`, 'success');
-      await fetchUsers();
-    } catch (err: any) {
-      const msg = err.response?.data?.message ?? err.message ?? 'Không thể xóa tài khoản';
-      showToast(msg, 'error');
-    }
-  };
-
   // Count active admins
   const activeAdminCount = users.filter((u) => u.role === 'ADMIN' && u.isActive).length;
 
   const canToggleLock = (u: UserItem) => {
     if (u.id === currentUser?.id) return false; // own account
     if (u.role === 'ADMIN' && u.isActive && activeAdminCount <= 1) return false; // last admin
-    return true;
-  };
-
-  const canDelete = (u: UserItem) => {
-    if (u.id === currentUser?.id) return false; // own account
-    if (u.role === 'ADMIN' && activeAdminCount <= 1) return false; // last admin
     return true;
   };
 
@@ -670,7 +549,7 @@ export function UserManagementPage() {
             display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
           }}
           onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#152D4A'; }}
-          onMouseOut={(e)  => { (e.currentTarget as HTMLButtonElement).style.background = C.navy; }}
+          onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = C.navy; }}
         >
           <span style={{ fontSize: '1.2rem', fontWeight: 700, lineHeight: 1 }}>+</span>
           Thêm tài khoản
@@ -687,7 +566,7 @@ export function UserManagementPage() {
         <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 360 }}>
           <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.gray400 }}
             width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>
+            <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" />
           </svg>
           <input
             type="text" placeholder="Tìm theo tên hoặc email…"
@@ -782,7 +661,7 @@ export function UserManagementPage() {
               {users.map((u) => (
                 <tr key={u.id} style={{ borderBottom: `1px solid ${C.gray100}`, transition: 'background 0.1s' }}
                   onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = C.gray50; }}
-                  onMouseOut={(e)  => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
                   <td style={{ padding: '14px 16px' }}>
                     <span style={{ fontWeight: 600, fontSize: '0.9rem', color: C.gray800 }}>{u.fullName}</span>
@@ -813,21 +692,6 @@ export function UserManagementPage() {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      {/* View Details */}
-                      <button
-                        onClick={() => setViewTarget(u)}
-                        title="Xem chi tiết"
-                        style={{
-                          padding: 7, borderRadius: 8, border: '1.5px solid #E5E7EB',
-                          background: C.white, color: C.gray600, cursor: 'pointer', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
-                        }}
-                        onMouseOver={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#F3F4F6'; b.style.borderColor = C.gray600; }}
-                        onMouseOut={(e)  => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; }}
-                      >
-                        <EyeIcon />
-                      </button>
-
                       {/* Edit */}
                       <button
                         onClick={() => setEditTarget(u)}
@@ -838,7 +702,7 @@ export function UserManagementPage() {
                           alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
                         }}
                         onMouseOver={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#EFF6FF'; b.style.borderColor = C.navy; }}
-                        onMouseOut={(e)  => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; }}
+                        onMouseOut={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; }}
                       >
                         <PencilIcon />
                       </button>
@@ -881,35 +745,10 @@ export function UserManagementPage() {
                           alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
                         }}
                         onMouseOver={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#FFF7ED'; b.style.borderColor = '#FED7AA'; }}
-                        onMouseOut={(e)  => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; }}
+                        onMouseOut={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; }}
                       >
                         <KeyIcon />
                       </button>
-
-                      {/* Delete */}
-                      {(() => {
-                        const deletable = canDelete(u);
-                        return (
-                          <button
-                            onClick={() => deletable && setDeleteTarget(u)}
-                            title={deletable ? 'Xóa tài khoản' : 'Không thể xóa chính mình hoặc admin duy nhất'}
-                            disabled={!deletable}
-                            style={{
-                              padding: 7, borderRadius: 8,
-                              border: deletable ? '1.5px solid #E5E7EB' : '1.5px solid #F9FAFB',
-                              background: deletable ? C.white : '#F9FAFB',
-                              color: deletable ? '#DC2626' : '#D1D5DB',
-                              cursor: deletable ? 'pointer' : 'not-allowed',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              transition: 'all 0.15s',
-                            }}
-                            onMouseOver={(e) => { if (deletable) { const b = e.currentTarget as HTMLButtonElement; b.style.background = '#FEE2E2'; b.style.borderColor = '#FCA5A5'; } }}
-                            onMouseOut={(e)  => { if (deletable) { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; b.style.borderColor = '#E5E7EB'; } }}
-                          >
-                            <TrashIcon />
-                          </button>
-                        );
-                      })()}
                     </div>
                   </td>
                 </tr>
@@ -954,24 +793,6 @@ export function UserManagementPage() {
         <ResetPasswordDialog
           tempPassword={tempPassword}
           onClose={() => { setResetPasswordFor(null); setTempPassword(''); }}
-        />
-      )}
-
-      {viewTarget && (
-        <ViewUserModal
-          user={viewTarget}
-          onClose={() => setViewTarget(null)}
-        />
-      )}
-
-      {deleteTarget && (
-        <ConfirmDialog
-          title="Xóa tài khoản vĩnh viễn?"
-          message={`Bạn có chắc chắn muốn xóa tài khoản "${deleteTarget.fullName}" (${deleteTarget.email})? Thao tác này sẽ xóa tất cả các dữ liệu liên quan (xe, đặt chỗ, gói tháng) và không thể hoàn tác.`}
-          confirmLabel="Xóa vĩnh viễn"
-          danger={true}
-          onConfirm={handleDeleteUser}
-          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>
