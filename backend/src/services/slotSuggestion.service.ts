@@ -37,7 +37,7 @@ export const slotSuggestionService = {
       orderBy: [{ floorId: 'asc' }, { code: 'asc' }],
     });
   },
-
+   
   async getAllSlotsGroupedByFloor() {
     const slots = await prisma.parkingSlot.findMany({
       orderBy: [{ floorId: 'asc' }, { code: 'asc' }],

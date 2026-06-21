@@ -7,7 +7,7 @@ const PKG_ACTIVE = 'ACTIVE';
 const BOOKING_ACTIVE = 'ACTIVE';
 const PAYMENT_SESSION = 'SESSION';
 const PAYMENT_MONTHLY = 'MONTHLY';
-
+   
 export interface OccupancyReport {
   totalSlots: number;
   availableSlots: number;
