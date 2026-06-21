@@ -140,17 +140,17 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
           </button>
         </div>
         <div className={styles.topBarRight}>
-          <Link to="/profile" className={styles.userAvatar}>
+          <div className={styles.userAvatar}>
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
               <span className={styles.shiftBadge}>{getShiftName()}</span>
             </div>
-          </Link>
+          </div>
           <button className={styles.iconBtn} aria-label="Thông báo">
             <BellIcon size={18} />
           </button>
-          
+
         </div>
       </header>
 
