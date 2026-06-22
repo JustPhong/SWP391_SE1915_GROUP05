@@ -11,26 +11,26 @@ import styles from '../styles/driver.module.css';
 //  PALETTE  (matches driver.module.css / DriverLayout)
 // ═══════════════════════════════════════════════════════
 const C = {
-  navy:        '#1E3A5F',
-  bg:          '#F3F4F6',
-  white:       '#FFFFFF',
-  green:       '#16A34A',
-  greenBg:     '#DCFCE7',
+  navy: '#1E3A5F',
+  bg: '#F3F4F6',
+  white: '#FFFFFF',
+  green: '#16A34A',
+  greenBg: '#DCFCE7',
   greenBorder: '#86EFAC',
-  gray50:      '#F9FAFB',
-  gray100:     '#F3F4F6',
-  gray200:     '#E5E7EB',
-  gray300:     '#D1D5DB',
-  gray400:     '#9CA3AF',
-  gray600:     '#6B7280',
-  gray900:     '#111827',
-  blue:        '#3B82F6',
-  blueBg:      '#EFF6FF',
-  red:         '#EF4444',
-  redBg:       '#FEF2F2',
-  redBorder:   '#FECACA',
-  amber:       '#D97706',
-  amberBg:     '#FEF3C7',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray300: '#D1D5DB',
+  gray400: '#9CA3AF',
+  gray600: '#6B7280',
+  gray900: '#111827',
+  blue: '#3B82F6',
+  blueBg: '#EFF6FF',
+  red: '#EF4444',
+  redBg: '#FEF2F2',
+  redBorder: '#FECACA',
+  amber: '#D97706',
+  amberBg: '#FEF3C7',
   amberBorder: '#FDE68A',
 };
 
@@ -56,8 +56,8 @@ const PACKAGES: PackagePlan[] = [
     name: 'Gói 1 tháng',
     durationDays: 30,
     prices: {
-      CAR:       { price: 1500000, priceLabel: '1.500.000đ', pricePerDay: '50.000đ/ngày' },
-      MOTORBIKE: { price: 300000,  priceLabel: '300.000đ',   pricePerDay: '10.000đ/ngày' },
+      CAR: { price: 1500000, priceLabel: '1.500.000đ', pricePerDay: '50.000đ/ngày' },
+      MOTORBIKE: { price: 300000, priceLabel: '300.000đ', pricePerDay: '10.000đ/ngày' },
     },
   },
   {
@@ -65,8 +65,8 @@ const PACKAGES: PackagePlan[] = [
     name: 'Gói 3 tháng',
     durationDays: 90,
     prices: {
-      CAR:       { price: 4000000, priceLabel: '4.000.000đ', pricePerDay: '44.444đ/ngày' },
-      MOTORBIKE: { price: 800000,  priceLabel: '800.000đ',   pricePerDay: '8.889đ/ngày'  },
+      CAR: { price: 4000000, priceLabel: '4.000.000đ', pricePerDay: '44.444đ/ngày' },
+      MOTORBIKE: { price: 800000, priceLabel: '800.000đ', pricePerDay: '8.889đ/ngày' },
     },
   },
   {
@@ -74,15 +74,15 @@ const PACKAGES: PackagePlan[] = [
     name: 'Gói 1 năm',
     durationDays: 365,
     prices: {
-      CAR:       { price: 15000000, priceLabel: '15.000.000đ', pricePerDay: '41.096đ/ngày' },
-      MOTORBIKE: { price: 3000000,  priceLabel: '3.000.000đ',  pricePerDay: '8.219đ/ngày'  },
+      CAR: { price: 15000000, priceLabel: '15.000.000đ', pricePerDay: '41.096đ/ngày' },
+      MOTORBIKE: { price: 3000000, priceLabel: '3.000.000đ', pricePerDay: '8.219đ/ngày' },
     },
   },
 ];
 
 const PAYMENT_METHODS: { value: 'CASH' | 'CARD' | 'EWALLET'; label: string }[] = [
-  { value: 'CASH',    label: 'Tiền mặt' },
-  { value: 'CARD',    label: 'Thẻ ngân hàng' },
+  { value: 'CASH', label: 'Tiền mặt' },
+  { value: 'CARD', label: 'Thẻ ngân hàng' },
   { value: 'EWALLET', label: 'Ví điện tử' },
 ];
 
@@ -110,19 +110,19 @@ function computeExpiry(start: Date, days: number): string {
 //  ICONS
 // ═══════════════════════════════════════════════════════
 function IconCheck({ size = 14, color = C.green }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>;
 }
 function IconCar({ size = 16, color = C.navy }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4"/><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z"/></svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>;
 }
 function IconBike({ size = 16, color = C.navy }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M12 17V9l4-4M12 5h3l2 4"/></svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>;
 }
 function IconCalendar({ size = 15, color = C.gray600 }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
 }
 function IconInfo({ size = 15, color = C.gray600 }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -198,10 +198,10 @@ function NoVehiclesState() {
 // ── Slot tile (mirrors SlotMap.tsx look) ──────────────
 function SlotTile({ slot, selected, onSelect }: { slot: ParkingSlot; selected: boolean; onSelect: () => void }) {
   const isAvailable = slot.status === 'AVAILABLE';
-  const isOccupied  = slot.status === 'OCCUPIED';
-  const bg     = isAvailable ? C.greenBg     : isOccupied ? C.redBg     : C.amberBg;
+  const isOccupied = slot.status === 'OCCUPIED';
+  const bg = isAvailable ? C.greenBg : isOccupied ? C.redBg : C.amberBg;
   const border = isAvailable ? C.greenBorder : isOccupied ? C.redBorder : C.amberBorder;
-  const text   = isAvailable ? '#15803D'     : isOccupied ? '#B91C1C'   : '#92400E';
+  const text = isAvailable ? '#15803D' : isOccupied ? '#B91C1C' : '#92400E';
   const canPick = isAvailable;
   return (
     <button
@@ -254,9 +254,9 @@ function SlotPicker({ slots, selectedSlotId, onSelect, loading, error, onRetry }
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
         {[
           { dot: C.green, text: 'Trống', tc: '#15803D' },
-          { dot: C.red,   text: 'Đã đỗ', tc: '#B91C1C' },
+          { dot: C.red, text: 'Đã đỗ', tc: '#B91C1C' },
           { dot: C.amber, text: 'Đã đặt', tc: '#92400E' },
-          { dot: C.navy,  text: 'Đã chọn', tc: C.navy },
+          { dot: C.navy, text: 'Đã chọn', tc: C.navy },
         ].map((it) => (
           <div key={it.text} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 11, height: 11, borderRadius: '50%', background: it.dot, flexShrink: 0 }} />
