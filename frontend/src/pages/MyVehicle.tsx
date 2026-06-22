@@ -9,23 +9,23 @@ import styles from '../styles/driver.module.css';
 //  PALETTE  (matches driver.module.css / DriverLayout)
 // ═══════════════════════════════════════════════════════
 const C = {
-  navy:     '#1E3A5F',
-  bg:       '#F3F4F6',
-  white:    '#FFFFFF',
-  green:    '#16A34A',
-  greenBg:  '#DCFCE7',
-  gray50:   '#F9FAFB',
-  gray100:  '#F3F4F6',
-  gray200:  '#E5E7EB',
-  gray300:  '#D1D5DB',
-  gray400:  '#9CA3AF',
-  gray600:  '#6B7280',
-  gray900:  '#111827',
-  red:      '#EF4444',
-  redBg:    '#FEF2F2',
-  redBorder:'#FECACA',
-  blue:     '#3B82F6',
-  blueBg:   '#EFF6FF',
+  navy: '#1E3A5F',
+  bg: '#F3F4F6',
+  white: '#FFFFFF',
+  green: '#16A34A',
+  greenBg: '#DCFCE7',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray300: '#D1D5DB',
+  gray400: '#9CA3AF',
+  gray600: '#6B7280',
+  gray900: '#111827',
+  red: '#EF4444',
+  redBg: '#FEF2F2',
+  redBorder: '#FECACA',
+  blue: '#3B82F6',
+  blueBg: '#EFF6FF',
 };
 
 // ═══════════════════════════════════════════════════════
@@ -82,12 +82,12 @@ function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: st
 type VehicleType = 'CAR' | 'MOTORBIKE';
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
-  { value: 'CAR',       label: 'Ô tô' },
+  { value: 'CAR', label: 'Ô tô' },
   { value: 'MOTORBIKE', label: 'Xe máy' },
 ];
 
 const TYPE_LABEL: Record<VehicleType, string> = {
-  CAR:       'Ô tô',
+  CAR: 'Ô tô',
   MOTORBIKE: 'Xe máy',
 };
 
