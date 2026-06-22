@@ -80,8 +80,7 @@ const PACKAGES: PackagePlan[] = [
   },
 ];
 
-const PAYMENT_METHODS: { value: 'CASH' | 'CARD' | 'EWALLET'; label: string }[] = [
-  { value: 'CASH',    label: 'Tiền mặt' },
+const PAYMENT_METHODS: { value: 'CARD' | 'EWALLET'; label: string }[] = [
   { value: 'CARD',    label: 'Thẻ ngân hàng' },
   { value: 'EWALLET', label: 'Ví điện tử' },
 ];
@@ -333,7 +332,7 @@ export function MonthlyPackagePage() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('3m');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'EWALLET'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'EWALLET'>('EWALLET');
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
@@ -439,7 +438,7 @@ export function MonthlyPackagePage() {
     setSelectedVehicleId(null);
     setSelectedSlotId(null);
     setSelectedPlanId('3m');
-    setPaymentMethod('CASH');
+    setPaymentMethod('EWALLET');
     setSubmitError('');
   };
 
