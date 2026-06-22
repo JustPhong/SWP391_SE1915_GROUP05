@@ -1,433 +1,491 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPermissions, togglePermission, type PermissionMatrix, type PermissionItem } from '../api/permissionApi';
+import api from '../services/api';
 
-// ── Design tokens ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+//  PALETTE — matches ManagerDashboard / design system
+// ═══════════════════════════════════════════════════════════
 const C = {
-  navy: '#1E3A5F',
-  white: '#FFFFFF',
-  gray50: '#F9FAFB',
-  gray100: '#F3F4F6',
-  gray200: '#E5E7EB',
-  gray400: '#9CA3AF',
-  gray600: '#5C6B7A',
-  gray800: '#2D3A45',
-  shadow: '0 8px 32px rgba(30,58,95,0.10)',
-  // Role badge colours
-  driver: { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' },
-  staff: { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },
-  manager: { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' },
-  admin: { bg: '#EDE9FE', text: '#7C3AED', border: '#C4B5FD' },
+  navy:      '#1E3A5F',
+  navyDark:  '#152D4A',
+  white:     '#FFFFFF',
+  gray50:    '#F9FAFB',
+  gray100:   '#F3F4F7',
+  gray200:   '#E2E8F0',
+  gray400:   '#9BA8B4',
+  gray600:   '#5C6B7A',
+  gray800:   '#2D3A45',
+  blue:      '#3B82F6',
+  blueBg:    '#EFF6FF',
+  green:     '#22C55E',
+  greenBg:   '#DCFCE7',
+  amber:     '#F59E0B',
+  amberBg:   '#FEF3C7',
+  red:       '#EF4444',
+  redBg:     '#FEE2E2',
+  shadow:    '0 8px 32px rgba(30, 58, 95, 0.08)',
 } as const;
 
-const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  DRIVER: C.driver,
-  STAFF: C.staff,
-  MANAGER: C.manager,
-  ADMIN: C.admin,
-};
+// ═══════════════════════════════════════════════════════════
+//  API TYPES
+// ═══════════════════════════════════════════════════════════
+interface SlotInfo {
+  code: string;
+  status: 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
+}
 
-const ROLE_LABELS: Record<string, string> = {
-  DRIVER: 'Người lái',
-  STAFF: 'Nhân viên',
-  MANAGER: 'Quản lý',
-  ADMIN: 'Quản trị',
-};
+interface FloorDetail {
+  floorCode: string;
+  vehicleType: 'CAR' | 'MOTORBIKE';
+  customerType: 'MONTHLY' | 'CASUAL';
+  capacity: number;
+  occupied: number;
+  available: number;
+  reserved: number;
+  rate: number;
+  slots: SlotInfo[];
+}
 
-// Core permissions that ADMIN column locks
-const LOCKED_ADMIN_PERMS = ['account.manage', 'permission.manage'];
+interface OccupancyDetail {
+  totalCapacity: number;
+  totalOccupied: number;
+  overallRate: number;
+  floors: FloorDetail[];
+}
 
-// ── Toast ───────────────────────────────────────────────────────────
-type Toast = { message: string; type: 'success' | 'error' } | null;
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+function rateColor(rate: number): string {
+  if (rate >= 85) return C.red;
+  if (rate >= 60) return C.amber;
+  return C.green;
+}
 
-function ToastBanner({ toast, onClear }: { toast: Toast; onClear: () => void }) {
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(onClear, 3500);
-    return () => clearTimeout(t);
-  }, [toast, onClear]);
+function rateBg(rate: number): string {
+  if (rate >= 85) return C.redBg;
+  if (rate >= 60) return C.amberBg;
+  return C.greenBg;
+}
 
-  if (!toast) return null;
-  const bg = toast.type === 'success' ? '#DCFCE7' : '#FEE2E2';
-  const text = toast.type === 'success' ? '#15803D' : '#DC2626';
-  const border = toast.type === 'success' ? '#BBF7D0' : '#FECACA';
+function slotStatusColor(status: SlotInfo['status']): { bg: string; border: string; text: string } {
+  switch (status) {
+    case 'AVAILABLE': return { bg: C.greenBg,  border: '#86EFAC', text: '#15803D' };
+    case 'OCCUPIED': return { bg: C.navy,     border: C.navyDark, text: C.white };
+    case 'RESERVED': return { bg: C.amberBg,  border: '#FCD34D', text: '#92400E' };
+  }
+}
+
+function floorLabel(floorCode: string): string {
+  const map: Record<string, string> = {
+    G: 'Tầng G', '0': 'Tầng G',
+    '1': 'Tầng 1', '2': 'Tầng 2', '3': 'Tầng 3',
+  };
+  return map[floorCode] ?? `Tầng ${floorCode}`;
+}
+
+function vehicleLabel(type: 'CAR' | 'MOTORBIKE'): string {
+  return type === 'CAR' ? 'Ô tô' : 'Xe máy';
+}
+
+function customerLabel(type: 'MONTHLY' | 'CASUAL'): string {
+  return type === 'MONTHLY' ? 'Gói tháng' : 'Khách lẻ';
+}
+
+// 'G' → 0 (ground floor first), '1'/'2'/'3' → parseInt + 1, others last
+function floorSortOrder(floorCode: string): number {
+  if (floorCode === 'G' || floorCode === '0') return 0;
+  const n = parseInt(floorCode, 10);
+  return isNaN(n) ? 99 : n + 1;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SLOT CELL
+// ═══════════════════════════════════════════════════════════
+function SlotCellInner({ slot }: { slot: SlotInfo }) {
+  const colors = slotStatusColor(slot.status);
+  return (
+    <div
+      title={`${slot.code} — ${slot.status === 'AVAILABLE' ? 'Trống' : slot.status === 'OCCUPIED' ? 'Đang dùng' : 'Đã đặt'}`}
+      style={{
+        width: 44,
+        height: 36,
+        borderRadius: 8,
+        background: colors.bg,
+        border: `1.5px solid ${colors.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 10,
+        fontWeight: 700,
+        color: colors.text,
+        cursor: 'default',
+        fontFamily: 'monospace',
+        flexShrink: 0,
+        transition: 'transform 0.15s',
+      }}
+    >
+      {slot.code}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FLOOR CARD
+// ═══════════════════════════════════════════════════════════
+function FloorCard({ floor }: { floor: FloorDetail }) {
+  const accent = rateColor(floor.rate);
+  const accentBg = rateBg(floor.rate);
+
   return (
     <div style={{
-      position: 'fixed', top: 20, right: 24, zIndex: 9999,
-      background: bg, border: `1.5px solid ${border}`, borderRadius: 12,
-      padding: '12px 20px', color: text, fontWeight: 600, fontSize: '0.9rem',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.12)', maxWidth: 400,
+      background: C.white,
+      borderRadius: 18,
+      padding: '24px 28px',
+      boxShadow: C.shadow,
     }}>
-      {toast.message}
-    </div>
-  );
-}
-
-// ── Toggle cell ────────────────────────────────────────────────────
-function ToggleCell({
-  role,
-  permKey,
-  allowed,
-  pending,
-  onToggle,
-}: {
-  role: string;
-  permKey: string;
-  allowed: boolean;
-  pending: boolean;
-  onToggle: (permKey: string, role: string, allowed: boolean) => void;
-}) {
-  const isLocked = role === 'ADMIN' && LOCKED_ADMIN_PERMS.includes(permKey);
-  const isPending = pending;
-
-  const handleToggle = () => {
-    if (isLocked || isPending) return;
-    onToggle(permKey, role, !allowed);
-  };
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <button
-        onClick={handleToggle}
-        disabled={isLocked || isPending}
-        title={
-          isLocked
-            ? 'Quyền cốt lõi, không thể tắt'
-            : isPending
-              ? 'Đang cập nhật…'
-              : allowed
-                ? 'Nhấn để tắt'
-                : 'Nhấn để bật'
-        }
-        style={{
-          width: 40,
-          height: 22,
-          borderRadius: 11,
-          border: 'none',
-          background: isLocked
-            ? C.gray200
-            : isPending
-              ? C.gray200
-              : allowed
-                ? '#7C3AED'
-                : C.gray200,
-          cursor: isLocked || isPending ? 'not-allowed' : 'pointer',
-          position: 'relative',
-          transition: 'background 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          padding: 0,
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.navy }}>
+            {floorLabel(floor.floorCode)}
+          </h3>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: C.gray600 }}>
+            {vehicleLabel(floor.vehicleType)} ({customerLabel(floor.customerType)})
+          </p>
+        </div>
+        {/* Rate badge */}
+        <div style={{
+          background: accentBg,
+          color: accent,
+          borderRadius: 999,
+          padding: '4px 12px',
+          fontSize: 13,
+          fontWeight: 700,
           flexShrink: 0,
-        }}
-      >
-        <span style={{
-          width: 18,
-          height: 18,
-          borderRadius: '50%',
-          background: C.white,
-          position: 'absolute',
-          left: isLocked || isPending
-            ? allowed ? 20 : 2
-            : allowed ? 20 : 2,
-          transform: 'translateX(-50%)',
-          transition: 'left 0.2s',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
         }}>
-          {(allowed || (isLocked && allowed)) && !isPending && (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          )}
-          {isLocked && (
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={C.gray400} strokeWidth="3" strokeLinecap="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0110 0v4" />
-            </svg>
-          )}
-        </span>
-      </button>
-    </div>
-  );
-}
-
-// ── Role column header ─────────────────────────────────────────────
-function RoleColHeader({ role }: { role: string }) {
-  const col = ROLE_COLORS[role] ?? C.driver;
-  return (
-    <div style={{ textAlign: 'center', minWidth: 80 }}>
-      <div style={{
-        display: 'inline-block',
-        padding: '4px 10px',
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        background: col.bg,
-        color: col.text,
-        border: `1px solid ${col.border}`,
-        whiteSpace: 'nowrap',
-      }}>
-        {ROLE_LABELS[role] ?? role}
+          {floor.rate}%
+        </div>
       </div>
+
+      {/* Occupancy bar */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: 13, color: C.gray600, fontWeight: 500 }}>
+            {floor.occupied}/{floor.capacity} chỗ
+          </span>
+          <span style={{ fontSize: 13, color: accent, fontWeight: 700 }}>
+            {floor.reserved > 0 && `(${floor.reserved} đã đặt) `}
+            {floor.available} trống
+          </span>
+        </div>
+        <div style={{ height: 10, background: C.gray200, borderRadius: 999 }}>
+          <div style={{
+            height: '100%',
+            width: `${Math.min(floor.rate, 100)}%`,
+            background: accent,
+            borderRadius: 999,
+            transition: 'width 0.5s ease',
+            minWidth: floor.rate > 0 ? 4 : 0,
+          }} />
+        </div>
+      </div>
+
+      {/* Slot grid */}
+      {floor.slots.length === 0 ? (
+        <p style={{ color: C.gray400, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
+          Chưa có dữ liệu slot cho tầng này
+        </p>
+      ) : (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          maxHeight: 160,
+          overflowY: 'auto',
+        }}>
+          {floor.slots.map((slot) => (
+            <SlotCellInner key={slot.code} slot={slot} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Category section ───────────────────────────────────────────────
-function CategorySection({
-  category,
-  permissions,
-  roleMatrix,
-  roles,
-  pendingKey,
-  onToggle,
-}: {
-  category: string;
-  permissions: PermissionItem[];
-  roleMatrix: Record<string, Record<string, boolean>>;
-  roles: string[];
-  pendingKey: string | null;
-  onToggle: (permKey: string, role: string, allowed: boolean) => void;
-}) {
-  return (
-    <>
-      {/* Category header row */}
-      <tr>
-        <td
-          colSpan={roles.length + 1}
-          style={{
-            background: '#EFF6FF',
-            padding: '10px 16px',
-            fontWeight: 800,
-            fontSize: '0.8rem',
-            color: '#1E40AF',
-            textTransform: 'uppercase',
-            letterSpacing: '0.07em',
-            borderTop: '1px solid #BFDBFE',
-            borderBottom: '1px solid #BFDBFE',
-          }}
-        >
-          {category}
-        </td>
-      </tr>
-      {/* Permission rows */}
-      {permissions.map((perm) => (
-        <tr
-          key={perm.key}
-          style={{ transition: 'background 0.1s' }}
-          onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = C.gray50; }}
-          onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-        >
-          {/* Label cell */}
-          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.gray100}` }}>
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray800 }}>{perm.label}</div>
-            <div style={{ fontSize: '0.72rem', color: C.gray400, fontFamily: 'monospace', marginTop: 2 }}>{perm.key}</div>
-          </td>
-          {/* Toggle cells */}
-          {roles.map((role) => (
-            <td
-              key={role}
-              style={{
-                padding: '12px 8px',
-                borderBottom: `1px solid ${C.gray100}`,
-                borderLeft: `1px solid ${C.gray100}`,
-              }}
-            >
-              <ToggleCell
-                role={role}
-                permKey={perm.key}
-                allowed={roleMatrix[role]?.[perm.key] ?? false}
-                pending={pendingKey === `${role}:${perm.key}`}
-                onToggle={onToggle}
-              />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  );
-}
-
-// ── Main page ──────────────────────────────────────────────────────
-export function PermissionsPage() {
-  const [matrix, setMatrix] = useState<PermissionMatrix | null>(null);
+// ═══════════════════════════════════════════════════════════
+//  MAIN PAGE
+// ═══════════════════════════════════════════════════════════
+export function OccupancyDetailPage() {
+  const [data, setData] = useState<OccupancyDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [toast, setToast] = useState<Toast>(null);
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
-
-  const fetchMatrix = useCallback(async () => {
-    setLoading(true); setError('');
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await getPermissions();
-      setMatrix(data);
-    } catch (err: any) {
-      const msg = err.response?.data?.message ?? err.message ?? 'Không tải được ma trận phân quyền';
-      setError(msg);
-      showToast(msg, 'error');
+      const resp = await api.get<{ success: boolean; data: OccupancyDetail }>(
+        '/reports/occupancy-detail'
+      );
+      setData(resp.data.data);
+    } catch {
+      setData(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchMatrix(); }, [fetchMatrix]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const handleToggle = async (permKey: string, role: string, allowed: boolean) => {
-    const key = `${role}:${permKey}`;
-    setPendingKey(key);
-
-    // Optimistic update
-    setMatrix((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      next.roleMatrix = { ...next.roleMatrix };
-      next.roleMatrix[role] = { ...next.roleMatrix[role], [permKey]: allowed };
-      return next;
-    });
-
-    try {
-      await togglePermission({ role, permissionKey: permKey, allowed });
-      showToast('Cập nhật quyền thành công!', 'success');
-    } catch (err: any) {
-      // Revert optimistic update
-      setMatrix((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        next.roleMatrix = { ...next.roleMatrix };
-        next.roleMatrix[role] = { ...next.roleMatrix[role], [permKey]: !allowed };
-        return next;
-      });
-      const msg = err.response?.data?.message ?? err.message ?? 'Cập nhật quyền thất bại';
-      showToast(msg, 'error');
-    } finally {
-      setPendingKey(null);
-    }
+  const t = data ?? {
+    totalCapacity: 120,
+    totalOccupied: 0,
+    overallRate: 0,
+    floors: [],
   };
 
-  const categories = matrix ? Object.keys(matrix.permissions) : [];
-  const totalPerms = categories.reduce((sum, cat) => sum + (matrix?.permissions[cat]?.length ?? 0), 0);
+  const overallColor = rateColor(t.overallRate);
+  const overallBg = rateBg(t.overallRate);
+  const totalAvailable = t.totalCapacity - t.totalOccupied;
 
   return (
-    <div>
-      <ToastBanner toast={toast} onClear={() => setToast(null)} />
-
-      {/* ── Page header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: C.navy }}>Phân quyền</h1>
-          <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: C.gray600 }}>
-            {loading ? '…' : `${totalPerms} quyền · ${categories.length} nhóm`}
-          </p>
-        </div>
-        <button
-          onClick={fetchMatrix}
-          style={{
-            padding: '10px 20px', borderRadius: 12, border: `1.5px solid ${C.gray200}`,
-            background: C.white, color: C.navy, fontWeight: 700, fontSize: '0.88rem',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-            transition: 'all 0.15s',
-          }}
-          onMouseOver={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.gray50; }}
-          onMouseOut={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; }}
-        >
-          ⟳ Làm mới
-        </button>
+    <div style={{
+      padding: '32px 36px',
+      minHeight: '100%',
+      background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+    }}>
+      {/* ── Page Header ─────────────────────────────────────── */}
+      <div style={{ marginBottom: 32 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: C.navy, margin: 0 }}>
+          Tỉ lệ lấp đầy
+        </h1>
+        <p style={{ fontSize: 14, color: C.gray600, margin: '4px 0 0' }}>
+          Tình trạng sử dụng bãi theo thời gian thực
+        </p>
       </div>
 
-      {/* ── Info banner ── */}
+      {/* ── Top Summary Cards ─────────────────────────────── */}
       <div style={{
-        background: '#FFF7ED',
-        border: '1.5px solid #FED7AA',
-        borderRadius: 12,
-        padding: '12px 16px',
-        marginBottom: '1rem',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        fontSize: '0.82rem',
-        color: '#9A3412',
-        lineHeight: 1.6,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 20,
+        marginBottom: 28,
       }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A3412" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        Admin luôn có đầy đủ mọi quyền. Những quyền cốt lõi (
-        <code style={{ background: '#FED7AA', borderRadius: 4, padding: '1px 4px' }}>account.manage</code>,{' '}
-        <code style={{ background: '#FED7AA', borderRadius: 4, padding: '1px 4px' }}>permission.manage</code>) không thể tắt cho Admin.
+        {/* Tổng sức chứa */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '24px 28px',
+          boxShadow: C.shadow,
+          borderTop: `4px solid ${C.navy}`,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.gray600, margin: 0 }}>Tổng sức chứa</p>
+          <p style={{ fontSize: 32, fontWeight: 800, color: C.navy, margin: '6px 0 0', lineHeight: 1 }}>
+            {loading ? '…' : t.totalCapacity}
+          </p>
+          <p style={{ fontSize: 12, color: C.gray400, margin: '4px 0 0' }}>vị trí</p>
+        </div>
+
+        {/* Đang sử dụng */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '24px 28px',
+          boxShadow: C.shadow,
+          borderTop: `4px solid ${C.blue}`,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.gray600, margin: 0 }}>Đang sử dụng</p>
+          <p style={{ fontSize: 32, fontWeight: 800, color: C.blue, margin: '6px 0 0', lineHeight: 1 }}>
+            {loading ? '…' : t.totalOccupied}
+          </p>
+          <p style={{ fontSize: 12, color: C.gray400, margin: '4px 0 0' }}>chỗ đang chiếm</p>
+        </div>
+
+        {/* Còn trống */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '24px 28px',
+          boxShadow: C.shadow,
+          borderTop: `4px solid ${C.green}`,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.gray600, margin: 0 }}>Còn trống</p>
+          <p style={{ fontSize: 32, fontWeight: 800, color: C.green, margin: '6px 0 0', lineHeight: 1 }}>
+            {loading ? '…' : totalAvailable}
+          </p>
+          <p style={{ fontSize: 12, color: C.gray400, margin: '4px 0 0' }}>vị trí trống</p>
+        </div>
       </div>
 
-      {/* ── Matrix card ── */}
+      {/* ── Overall Rate Card ─────────────────────────────── */}
       <div style={{
         background: C.white,
-        borderRadius: 16,
+        borderRadius: 18,
+        padding: '28px',
         boxShadow: C.shadow,
-        overflow: 'hidden',
+        marginBottom: 28,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 32,
       }}>
-        {loading ? (
-          <div style={{ padding: '60px 24px', textAlign: 'center', color: C.gray400, fontSize: '0.95rem' }}>
-            Đang tải ma trận phân quyền…
+        <div style={{ flex: 1 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: '0 0 4px' }}>
+            Tỉ lệ lấp đầy toàn bãi
+          </h2>
+          <p style={{ fontSize: 13, color: C.gray600, margin: 0 }}>
+            {loading ? 'Đang tính…' : `${t.totalOccupied} / ${t.totalCapacity} vị trí`}
+          </p>
+        </div>
+
+        {/* Big rate */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          {loading ? (
+            <p style={{ fontSize: 40, fontWeight: 800, color: C.gray400 }}>…</p>
+          ) : (
+            <>
+              <p style={{
+                fontSize: 52,
+                fontWeight: 800,
+                color: overallColor,
+                margin: 0,
+                lineHeight: 1,
+              }}>
+                {t.overallRate.toFixed(1)}%
+              </p>
+              <span style={{
+                background: overallBg,
+                color: overallColor,
+                borderRadius: 999,
+                padding: '2px 12px',
+                fontSize: 11,
+                fontWeight: 700,
+              }}>
+                {t.overallRate >= 85 ? 'Bận' : t.overallRate >= 60 ? 'Trung bình' : 'Thông thoáng'}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ flex: 2 }}>
+          <div style={{ height: 16, background: C.gray200, borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${Math.min(t.overallRate, 100)}%`,
+              background: loading
+                ? C.gray400
+                : overallColor,
+              borderRadius: 999,
+              transition: 'width 0.6s ease',
+            }} />
           </div>
-        ) : error && !matrix ? (
-          <div style={{ padding: '60px 24px', textAlign: 'center', color: '#DC2626', fontSize: '0.95rem' }}>
-            {error}
+          {/* Segmented legend */}
+          <div style={{
+            display: 'flex',
+            marginTop: 8,
+            gap: 16,
+            fontSize: 11,
+            color: C.gray400,
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: C.green, display: 'inline-block' }} />
+              Thông thoáng (&lt;60%)
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: C.amber, display: 'inline-block' }} />
+              Trung bình (60–84%)
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: C.red, display: 'inline-block' }} />
+              Bận (≥85%)
+            </span>
           </div>
-        ) : matrix ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
-              <thead>
-                <tr style={{ background: C.gray50 }}>
-                  <th style={{
-                    padding: '14px 16px',
-                    textAlign: 'left',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    color: C.gray600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    borderBottom: `2px solid ${C.gray200}`,
-                    minWidth: 200,
-                  }}>
-                    Quyền
-                  </th>
-                  {matrix.roles.map((role) => (
-                    <th key={role} style={{
-                      padding: '14px 8px',
-                      textAlign: 'center',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      color: C.gray600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      borderBottom: `2px solid ${C.gray200}`,
-                      borderLeft: `1px solid ${C.gray100}`,
-                    }}>
-                      <RoleColHeader role={role} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((category) => (
-                  <CategorySection
-                    key={category}
-                    category={category}
-                    permissions={matrix.permissions[category]}
-                    roleMatrix={matrix.roleMatrix}
-                    roles={matrix.roles}
-                    pendingKey={pendingKey}
-                    onToggle={handleToggle}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+        </div>
       </div>
+
+      {/* ── Floor Cards ───────────────────────────────────── */}
+      {loading ? (
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '48px',
+          boxShadow: C.shadow,
+          textAlign: 'center',
+          color: C.gray400,
+          fontSize: 14,
+        }}>
+          Đang tải dữ liệu…
+        </div>
+      ) : t.floors.length === 0 ? (
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '48px',
+          boxShadow: C.shadow,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={C.gray200} strokeWidth="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M9 21V9"/>
+          </svg>
+          <p style={{ color: C.gray400, fontSize: 14, margin: 0 }}>Chưa có dữ liệu tầng nào</p>
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))',
+          gap: 20,
+        }}>
+          {t.floors.slice().sort((a, b) => floorSortOrder(a.floorCode) - floorSortOrder(b.floorCode)).map((floor) => (
+            <FloorCard key={floor.floorCode} floor={floor} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Slot Legend ───────────────────────────────────── */}
+      {!loading && t.floors.length > 0 && (
+        <div style={{
+          marginTop: 20,
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 24,
+          fontSize: 12,
+          color: C.gray600,
+        }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 28, height: 22, borderRadius: 6,
+              background: C.greenBg, border: `1.5px solid #86EFAC`,
+              display: 'inline-block',
+            }} />
+            Trống
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 28, height: 22, borderRadius: 6,
+              background: C.navy, border: `1.5px solid ${C.navyDark}`,
+              display: 'inline-block',
+            }} />
+            Đang dùng
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              width: 28, height: 22, borderRadius: 6,
+              background: C.amberBg, border: `1.5px solid #FCD34D`,
+              display: 'inline-block',
+            }} />
+            Đã đặt
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,42 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPermissions, togglePermission, type PermissionMatrix, type PermissionItem } from '../api/permissionApi';
+import { getParkingOverview, type ParkingOverviewResponse } from '../api/parkingApi';
 
 // ── Design tokens ──────────────────────────────────────────────────
 const C = {
-  navy: '#1E3A5F',
+  navy:  '#1E3A5F',
   white: '#FFFFFF',
-  gray50: '#F9FAFB',
-  gray100: '#F3F4F6',
-  gray200: '#E5E7EB',
-  gray400: '#9CA3AF',
-  gray600: '#5C6B7A',
-  gray800: '#2D3A45',
+  gray50:  '#F9FAFB',
+  gray100:  '#F3F4F6',
+  gray200:  '#E5E7EB',
+  gray400:  '#9CA3AF',
+  gray600:  '#5C6B7A',
+  gray800:  '#2D3A45',
   shadow: '0 8px 32px rgba(30,58,95,0.10)',
-  // Role badge colours
-  driver: { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' },
-  staff: { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },
-  manager: { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' },
-  admin: { bg: '#EDE9FE', text: '#7C3AED', border: '#C4B5FD' },
 } as const;
 
-const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  DRIVER: C.driver,
-  STAFF: C.staff,
-  MANAGER: C.manager,
-  ADMIN: C.admin,
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  DRIVER: 'Người lái',
-  STAFF: 'Nhân viên',
-  MANAGER: 'Quản lý',
-  ADMIN: 'Quản trị',
-};
-
-// Core permissions that ADMIN column locks
-const LOCKED_ADMIN_PERMS = ['account.manage', 'permission.manage'];
-
-// ── Toast ───────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────
 type Toast = { message: string; type: 'success' | 'error' } | null;
 
 function ToastBanner({ toast, onClear }: { toast: Toast; onClear: () => void }) {
@@ -45,7 +23,6 @@ function ToastBanner({ toast, onClear }: { toast: Toast; onClear: () => void }) 
     const t = setTimeout(onClear, 3500);
     return () => clearTimeout(t);
   }, [toast, onClear]);
-
   if (!toast) return null;
   const bg = toast.type === 'success' ? '#DCFCE7' : '#FEE2E2';
   const text = toast.type === 'success' ? '#15803D' : '#DC2626';
@@ -62,210 +39,133 @@ function ToastBanner({ toast, onClear }: { toast: Toast; onClear: () => void }) 
   );
 }
 
-// ── Toggle cell ────────────────────────────────────────────────────
-function ToggleCell({
-  role,
-  permKey,
-  allowed,
-  pending,
-  onToggle,
+// ── KPI card ──────────────────────────────────────────────────────
+function KpiCard({
+  label,
+  value,
+  icon,
+  accent = false,
+  sub,
 }: {
-  role: string;
-  permKey: string;
-  allowed: boolean;
-  pending: boolean;
-  onToggle: (permKey: string, role: string, allowed: boolean) => void;
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  accent?: boolean;
+  sub?: string;
 }) {
-  const isLocked = role === 'ADMIN' && LOCKED_ADMIN_PERMS.includes(permKey);
-  const isPending = pending;
-
-  const handleToggle = () => {
-    if (isLocked || isPending) return;
-    onToggle(permKey, role, !allowed);
-  };
-
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <button
-        onClick={handleToggle}
-        disabled={isLocked || isPending}
-        title={
-          isLocked
-            ? 'Quyền cốt lõi, không thể tắt'
-            : isPending
-              ? 'Đang cập nhật…'
-              : allowed
-                ? 'Nhấn để tắt'
-                : 'Nhấn để bật'
-        }
-        style={{
-          width: 40,
-          height: 22,
-          borderRadius: 11,
-          border: 'none',
-          background: isLocked
-            ? C.gray200
-            : isPending
-              ? C.gray200
-              : allowed
-                ? '#7C3AED'
-                : C.gray200,
-          cursor: isLocked || isPending ? 'not-allowed' : 'pointer',
-          position: 'relative',
-          transition: 'background 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          padding: 0,
-          flexShrink: 0,
-        }}
-      >
-        <span style={{
-          width: 18,
-          height: 18,
-          borderRadius: '50%',
-          background: C.white,
-          position: 'absolute',
-          left: isLocked || isPending
-            ? allowed ? 20 : 2
-            : allowed ? 20 : 2,
-          transform: 'translateX(-50%)',
-          transition: 'left 0.2s',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          {(allowed || (isLocked && allowed)) && !isPending && (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          )}
-          {isLocked && (
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={C.gray400} strokeWidth="3" strokeLinecap="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0110 0v4" />
-            </svg>
-          )}
-        </span>
-      </button>
-    </div>
-  );
-}
-
-// ── Role column header ─────────────────────────────────────────────
-function RoleColHeader({ role }: { role: string }) {
-  const col = ROLE_COLORS[role] ?? C.driver;
-  return (
-    <div style={{ textAlign: 'center', minWidth: 80 }}>
+    <div style={{
+      background: C.white,
+      borderRadius: 16,
+      padding: '20px 24px',
+      boxShadow: C.shadow,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 16,
+      minWidth: 0,
+      flex: '1 1 160px',
+    }}>
       <div style={{
-        display: 'inline-block',
-        padding: '4px 10px',
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        background: col.bg,
-        color: col.text,
-        border: `1px solid ${col.border}`,
-        whiteSpace: 'nowrap',
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        background: accent ? '#EDE9FE' : '#EFF6FF',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
       }}>
-        {ROLE_LABELS[role] ?? role}
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: '1.6rem', fontWeight: 800, color: accent ? '#7C3AED' : C.navy, lineHeight: 1.2 }}>
+          {value}
+        </div>
+        <div style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 600, marginTop: 2 }}>
+          {label}
+        </div>
+        {sub && (
+          <div style={{ fontSize: '0.72rem', color: C.gray400, marginTop: 1 }}>{sub}</div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Category section ───────────────────────────────────────────────
-function CategorySection({
-  category,
-  permissions,
-  roleMatrix,
-  roles,
-  pendingKey,
-  onToggle,
-}: {
-  category: string;
-  permissions: PermissionItem[];
-  roleMatrix: Record<string, Record<string, boolean>>;
-  roles: string[];
-  pendingKey: string | null;
-  onToggle: (permKey: string, role: string, allowed: boolean) => void;
-}) {
+// ── Occupancy bar ─────────────────────────────────────────────────
+function OccupancyBar({ percent }: { percent: number }) {
+  const hue = percent >= 80 ? 0 : percent >= 50 ? 30 : 120;
+  const barColor = `hsl(${hue}, 70%, 45%)`;
   return (
-    <>
-      {/* Category header row */}
-      <tr>
-        <td
-          colSpan={roles.length + 1}
-          style={{
-            background: '#EFF6FF',
-            padding: '10px 16px',
-            fontWeight: 800,
-            fontSize: '0.8rem',
-            color: '#1E40AF',
-            textTransform: 'uppercase',
-            letterSpacing: '0.07em',
-            borderTop: '1px solid #BFDBFE',
-            borderBottom: '1px solid #BFDBFE',
-          }}
-        >
-          {category}
-        </td>
-      </tr>
-      {/* Permission rows */}
-      {permissions.map((perm) => (
-        <tr
-          key={perm.key}
-          style={{ transition: 'background 0.1s' }}
-          onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = C.gray50; }}
-          onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-        >
-          {/* Label cell */}
-          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${C.gray100}` }}>
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray800 }}>{perm.label}</div>
-            <div style={{ fontSize: '0.72rem', color: C.gray400, fontFamily: 'monospace', marginTop: 2 }}>{perm.key}</div>
-          </td>
-          {/* Toggle cells */}
-          {roles.map((role) => (
-            <td
-              key={role}
-              style={{
-                padding: '12px 8px',
-                borderBottom: `1px solid ${C.gray100}`,
-                borderLeft: `1px solid ${C.gray100}`,
-              }}
-            >
-              <ToggleCell
-                role={role}
-                permKey={perm.key}
-                allowed={roleMatrix[role]?.[perm.key] ?? false}
-                pending={pendingKey === `${role}:${perm.key}`}
-                onToggle={onToggle}
-              />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
+      <div style={{
+        flex: 1,
+        height: 8,
+        borderRadius: 4,
+        background: C.gray100,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${percent}%`,
+          height: '100%',
+          background: barColor,
+          borderRadius: 4,
+          transition: 'width 0.4s ease',
+        }} />
+      </div>
+      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: C.gray800, minWidth: 36 }}>
+        {percent}%
+      </span>
+    </div>
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────
-export function PermissionsPage() {
-  const [matrix, setMatrix] = useState<PermissionMatrix | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [toast, setToast] = useState<Toast>(null);
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
+// ── Badge helpers ─────────────────────────────────────────────────
+const CUSTOMER_TYPE_LABELS: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  MONTHLY: { label: 'Theo tháng', bg: '#EDE9FE', text: '#7C3AED', border: '#C4B5FD' },
+  CASUAL:  { label: 'Vãng lai',   bg: '#FEF3C7', text: '#92400E', border: '#FDE68A' },
+};
+
+const VEHICLE_TYPE_LABELS: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  CAR:       { label: 'Ô tô',      bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' },
+  MOTORBIKE: { label: 'Xe máy',   bg: '#F0FDF4', text: '#15803D', border: '#BBF7D0' },
+};
+
+function Badge({ value, map }: { value: string; map: Record<string, { label: string; bg: string; text: string; border: string }> }) {
+  const s = map[value] ?? { label: value, bg: C.gray100, text: C.gray600, border: C.gray200 };
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '3px 10px',
+      borderRadius: 999,
+      fontSize: 12,
+      fontWeight: 700,
+      background: s.bg,
+      color: s.text,
+      border: `1px solid ${s.border}`,
+      whiteSpace: 'nowrap',
+    }}>
+      {s.label}
+    </span>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────
+export function ParkingConfigPage() {
+  const [data, setData]         = useState<ParkingOverviewResponse | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState('');
+  const [toast, setToast]       = useState<Toast>(null);
 
   const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
 
-  const fetchMatrix = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const data = await getPermissions();
-      setMatrix(data);
+      const result = await getParkingOverview();
+      setData(result);
     } catch (err: any) {
-      const msg = err.response?.data?.message ?? err.message ?? 'Không tải được ma trận phân quyền';
+      const msg = err.response?.data?.message ?? err.message ?? 'Không tải được dữ liệu';
       setError(msg);
       showToast(msg, 'error');
     } finally {
@@ -273,42 +173,12 @@ export function PermissionsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchMatrix(); }, [fetchMatrix]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleToggle = async (permKey: string, role: string, allowed: boolean) => {
-    const key = `${role}:${permKey}`;
-    setPendingKey(key);
-
-    // Optimistic update
-    setMatrix((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      next.roleMatrix = { ...next.roleMatrix };
-      next.roleMatrix[role] = { ...next.roleMatrix[role], [permKey]: allowed };
-      return next;
-    });
-
-    try {
-      await togglePermission({ role, permissionKey: permKey, allowed });
-      showToast('Cập nhật quyền thành công!', 'success');
-    } catch (err: any) {
-      // Revert optimistic update
-      setMatrix((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        next.roleMatrix = { ...next.roleMatrix };
-        next.roleMatrix[role] = { ...next.roleMatrix[role], [permKey]: !allowed };
-        return next;
-      });
-      const msg = err.response?.data?.message ?? err.message ?? 'Cập nhật quyền thất bại';
-      showToast(msg, 'error');
-    } finally {
-      setPendingKey(null);
-    }
+  const { building, floors } = data ?? {
+    building: { totalFloors: 0, totalSlots: 0, occupied: 0, available: 0, overallOccupancy: 0 },
+    floors: [],
   };
-
-  const categories = matrix ? Object.keys(matrix.permissions) : [];
-  const totalPerms = categories.reduce((sum, cat) => sum + (matrix?.permissions[cat]?.length ?? 0), 0);
 
   return (
     <div>
@@ -317,116 +187,204 @@ export function PermissionsPage() {
       {/* ── Page header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: C.navy }}>Phân quyền</h1>
+          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: C.navy }}>
+            Cấu hình bãi & slot
+          </h1>
           <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: C.gray600 }}>
-            {loading ? '…' : `${totalPerms} quyền · ${categories.length} nhóm`}
+            Tổng quan cấu trúc bãi đỗ — Tòa nhà A
           </p>
         </div>
         <button
-          onClick={fetchMatrix}
+          onClick={fetchData}
           style={{
-            padding: '10px 20px', borderRadius: 12, border: `1.5px solid ${C.gray200}`,
-            background: C.white, color: C.navy, fontWeight: 700, fontSize: '0.88rem',
+            padding: '10px 20px', borderRadius: 12,
+            border: `1.5px solid ${C.gray200}`,
+            background: C.white, color: C.navy,
+            fontWeight: 700, fontSize: '0.88rem',
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
             transition: 'all 0.15s',
           }}
-          onMouseOver={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.gray50; }}
-          onMouseOut={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.background = C.white; }}
+          onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = C.gray50; }}
+          onMouseOut={(e)  => { (e.currentTarget as HTMLButtonElement).style.background = C.white; }}
         >
           ⟳ Làm mới
         </button>
       </div>
 
-      {/* ── Info banner ── */}
-      <div style={{
-        background: '#FFF7ED',
-        border: '1.5px solid #FED7AA',
-        borderRadius: 12,
-        padding: '12px 16px',
-        marginBottom: '1rem',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        fontSize: '0.82rem',
-        color: '#9A3412',
-        lineHeight: 1.6,
-      }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A3412" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        Admin luôn có đầy đủ mọi quyền. Những quyền cốt lõi (
-        <code style={{ background: '#FED7AA', borderRadius: 4, padding: '1px 4px' }}>account.manage</code>,{' '}
-        <code style={{ background: '#FED7AA', borderRadius: 4, padding: '1px 4px' }}>permission.manage</code>) không thể tắt cho Admin.
+      {/* ── KPI cards ── */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        <KpiCard
+          label="Tổng số tầng"
+          value={loading ? '—' : building.totalFloors}
+          accent={false}
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E3A5F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18M3 15h18M9 21V9"/>
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Tổng số slot"
+          value={loading ? '—' : building.totalSlots}
+          accent={false}
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E3A5F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Đang sử dụng"
+          value={loading ? '—' : building.occupied}
+          accent={true}
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 11l1.5-5h11L19 11"/>
+              <path d="M3 11h18v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7z"/>
+              <circle cx="7" cy="16" r="2"/>
+              <circle cx="17" cy="16" r="2"/>
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Còn trống"
+          value={loading ? '—' : building.available}
+          accent={false}
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Tỉ lệ lấp đầy"
+          value={loading ? '—' : `${building.overallOccupancy}%`}
+          accent={true}
+          icon={
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"/>
+              <line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          }
+        />
       </div>
 
-      {/* ── Matrix card ── */}
+      {/* ── Floor table card ── */}
       <div style={{
         background: C.white,
         borderRadius: 16,
         boxShadow: C.shadow,
         overflow: 'hidden',
+        marginBottom: '1rem',
       }}>
         {loading ? (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: C.gray400, fontSize: '0.95rem' }}>
-            Đang tải ma trận phân quyền…
+            Đang tải dữ liệu bãi đỗ…
           </div>
-        ) : error && !matrix ? (
+        ) : error && !data ? (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: '#DC2626', fontSize: '0.95rem' }}>
             {error}
           </div>
-        ) : matrix ? (
+        ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: C.gray50 }}>
-                  <th style={{
-                    padding: '14px 16px',
-                    textAlign: 'left',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    color: C.gray600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    borderBottom: `2px solid ${C.gray200}`,
-                    minWidth: 200,
-                  }}>
-                    Quyền
-                  </th>
-                  {matrix.roles.map((role) => (
-                    <th key={role} style={{
-                      padding: '14px 8px',
-                      textAlign: 'center',
+                  {['Tầng', 'Loại khách', 'Loại xe', 'Tổng slot', 'Đang dùng', 'Còn trống', 'Tỉ lệ lấp đầy'].map((h) => (
+                    <th key={h} style={{
+                      padding: '12px 16px',
+                      textAlign: 'left',
                       fontSize: '0.75rem',
                       fontWeight: 700,
                       color: C.gray600,
                       textTransform: 'uppercase',
                       letterSpacing: '0.06em',
                       borderBottom: `2px solid ${C.gray200}`,
-                      borderLeft: `1px solid ${C.gray100}`,
                     }}>
-                      <RoleColHeader role={role} />
+                      {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {categories.map((category) => (
-                  <CategorySection
-                    key={category}
-                    category={category}
-                    permissions={matrix.permissions[category]}
-                    roleMatrix={matrix.roleMatrix}
-                    roles={matrix.roles}
-                    pendingKey={pendingKey}
-                    onToggle={handleToggle}
-                  />
+                {floors.map((floor) => (
+                  <tr
+                    key={floor.floorCode}
+                    style={{
+                      borderBottom: `1px solid ${C.gray100}`,
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = C.gray50; }}
+                    onMouseOut={(e)  => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  >
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.95rem', color: C.navy }}>
+                        {floor.floorName}
+                      </span>
+                      <span style={{ marginLeft: 6, fontSize: '0.72rem', color: C.gray400, fontFamily: 'monospace' }}>
+                        ({floor.floorCode})
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <Badge value={floor.customerType} map={CUSTOMER_TYPE_LABELS} />
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <Badge value={floor.vehicleType} map={VEHICLE_TYPE_LABELS} />
+                    </td>
+                    <td style={{ padding: '14px 16px', fontWeight: 700, fontSize: '0.95rem', color: C.gray800 }}>
+                      {floor.totalSlots}
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        fontWeight: 700, fontSize: '0.875rem',
+                        color: floor.occupied > 0 ? '#7C3AED' : C.gray400,
+                      }}>
+                        {floor.occupied > 0 && (
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#7C3AED', display: 'inline-block', flexShrink: 0 }} />
+                        )}
+                        {floor.occupied}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', fontWeight: 700, fontSize: '0.875rem', color: '#15803D' }}>
+                      {floor.available}
+                    </td>
+                    <td style={{ padding: '14px 16px', minWidth: 160 }}>
+                      <OccupancyBar percent={floor.occupancyPercent} />
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : null}
+        )}
+      </div>
+
+      {/* ── Read-only notice ── */}
+      <div style={{
+        background: '#F0F9FF',
+        border: '1.5px solid #BAE6FD',
+        borderRadius: 12,
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        fontSize: '0.82rem',
+        color: '#0369A1',
+        lineHeight: 1.6,
+      }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0369A1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Trang này chỉ hiển thị. Việc thay đổi cấu trúc bãi cần thao tác trực tiếp trong cơ sở dữ liệu để đảm bảo toàn vẹn dữ liệu.
       </div>
     </div>
   );
