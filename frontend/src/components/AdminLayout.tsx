@@ -129,9 +129,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <button className={styles.topBarIconBtn} aria-label="Thông báo">
             <BellIcon size={18} />
           </button>
-          <button className={styles.topBarIconBtn} aria-label="Hỗ trợ">
-            <HelpIcon size={18} />
-          </button>
           <Link to="/profile" className={styles.userAvatar}>
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
