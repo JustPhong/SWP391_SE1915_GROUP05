@@ -14,37 +14,37 @@ import {
 //  DESIGN TOKENS  (matches codebase palette)
 // ═══════════════════════════════════════════════════════
 const C = {
-  navy:        '#1E3A5F',
-  navyLight:   '#2C4F78',
-  bg:          'linear-gradient(160deg,#EFF6FF 0%,#DBEAFE 50%,#EFF6FF 100%)',
-  white:       '#FFFFFF',
-  green:       '#16A34A',
-  greenBg:     '#DCFCE7',
-  greenBorder:  '#86EFAC',
-  yellow:      '#D97706',
-  yellowBg:    '#FEF9C3',
+  navy: '#1E3A5F',
+  navyLight: '#2C4F78',
+  bg: 'linear-gradient(160deg,#EFF6FF 0%,#DBEAFE 50%,#EFF6FF 100%)',
+  white: '#FFFFFF',
+  green: '#16A34A',
+  greenBg: '#DCFCE7',
+  greenBorder: '#86EFAC',
+  yellow: '#D97706',
+  yellowBg: '#FEF9C3',
   yellowBorder: '#FDE047',
-  red:         '#DC2626',
-  redBg:       '#FEE2E2',
-  redBorder:   '#FECACA',
-  gray50:      '#F9FAFB',
-  gray100:     '#F3F5F7',
-  gray200:     '#E5E7EB',
-  gray400:     '#9CA3AF',
-  gray500:     '#6B7280',
-  gray800:     '#111827',
-  shadow:      '0 8px 32px rgba(30,58,95,0.08)',
+  red: '#DC2626',
+  redBg: '#FEE2E2',
+  redBorder: '#FECACA',
+  gray50: '#F9FAFB',
+  gray100: '#F3F5F7',
+  gray200: '#E5E7EB',
+  gray400: '#9CA3AF',
+  gray500: '#6B7280',
+  gray800: '#111827',
+  shadow: '0 8px 32px rgba(30,58,95,0.08)',
 };
 
 const VALID_PROVINCE_CODES = [
-  11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
-  30,31,32,33,34,35,36,37,38,39,40,41,
+  11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+  30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
   43,
-  47,48,49,50,51,52,53,54,55,56,57,58,59,
-  60,61,62,63,64,65,66,67,68,69,
-  70,71,72,73,74,75,76,77,78,79,
-  81,82,83,84,85,86,88,89,90,
-  92,93,94,95,97,98,99,
+  47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+  60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+  70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+  81, 82, 83, 84, 85, 86, 88, 89, 90,
+  92, 93, 94, 95, 97, 98, 99,
 ];
 
 /** Strip spaces/dots/dashes and uppercase. */
@@ -96,7 +96,7 @@ type PageState = 'idle' | 'monthly_valid' | 'monthly_expired' | 'casual';
 
 const now = (): string => {
   const d = new Date();
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
 // ═══════════════════════════════════════════════════════
@@ -105,77 +105,77 @@ const now = (): string => {
 function IconCar({ size = 16, color = '#6B7280' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4"/>
-      <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z"/>
+      <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" />
+      <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" />
     </svg>
   );
 }
 function IconMoto({ size = 16, color = '#6B7280' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/>
-      <path d="M12 17V9l4 2M8 9l4-4 4 4"/>
+      <circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" />
+      <path d="M12 17V9l4 2M8 9l4-4 4 4" />
     </svg>
   );
 }
 function IconLock({ size = 14, color = '#6B7280' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-      <path d="M7 11V7a5 5 0 0110 0v4"/>
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
     </svg>
   );
 }
 function IconStar({ size = 12, color = '#3B82F6' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
 }
 function IconCheck({ size = 14, color = C.green }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
 function IconX({ size = 14, color = C.red }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
 function IconAlert({ size = 16, color = C.red }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
   );
 }
 function IconUsers({ size = 14, color = '#6B7280' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-      <circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
     </svg>
   );
 }
 function IconSearch({ size = 16, color = '#fff' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   );
 }
 function IconGrid({ size = 14, color = '#6B7280' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-      <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
     </svg>
   );
 }
@@ -319,8 +319,8 @@ function AlertBanner({
   const map = {
     success: { bg: C.greenBg, border: C.greenBorder, color: '#15803D' },
     warning: { bg: C.yellowBg, border: C.yellowBorder, color: '#92400E' },
-    error:   { bg: C.redBg,   border: C.redBorder,   color: '#991B1B' },
-    info:    { bg: '#EFF6FF', border: '#BFDBFE',      color: C.navy },
+    error: { bg: C.redBg, border: C.redBorder, color: '#991B1B' },
+    info: { bg: '#EFF6FF', border: '#BFDBFE', color: C.navy },
   };
   const s = map[type];
   return (
@@ -336,9 +336,9 @@ function AlertBanner({
     }}>
       <span style={{ color: s.color, fontSize: '0.9rem', lineHeight: 1.4, flexShrink: 0 }}>
         {type === 'success' ? <IconCheck size={14} color={s.color} />
-          : type === 'warning'  ? <IconAlert size={14} color={C.yellow} />
-          : type === 'error'    ? <IconAlert size={14} color={s.color} />
-          : <IconAlert size={14} color={s.color} />}
+          : type === 'warning' ? <IconAlert size={14} color={C.yellow} />
+            : type === 'error' ? <IconAlert size={14} color={s.color} />
+              : <IconAlert size={14} color={s.color} />}
       </span>
       <span style={{ color: s.color, fontSize: '0.8rem', lineHeight: 1.5 }}>{children}</span>
     </div>
@@ -395,7 +395,7 @@ export function CheckInPage() {
 
   // ── Load stats on mount ────────────────────────────
   useEffect(() => {
-    getCheckinStats().then(setStats).catch(() => {});
+    getCheckinStats().then(setStats).catch(() => { });
   }, []);
 
   // ── Auto-lookup if plate was passed via ?plate= ─────
@@ -447,7 +447,7 @@ export function CheckInPage() {
         } else {
           setMotorbikeAutoSlot(null);
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [pageState, vehicleType]);
 
@@ -1065,7 +1065,7 @@ export function CheckInPage() {
             {/* Secondary actions */}
             {pageState === 'monthly_expired' && (
               <button
-                onClick={() => {}}
+                onClick={() => { }}
                 style={{
                   padding: '0.75rem 1.25rem',
                   background: C.white,
