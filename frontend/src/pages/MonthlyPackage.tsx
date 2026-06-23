@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
@@ -80,12 +81,6 @@ const PACKAGES: PackagePlan[] = [
   },
 ];
 
-const PAYMENT_METHODS: { value: 'CARD' | 'EWALLET'; label: string }[] = [
-  { value: 'CARD',    label: 'Thẻ ngân hàng' },
-  { value: 'EWALLET', label: 'Ví điện tử' },
-];
-
-
 const TYPE_LABEL: Record<VType, string> = { CAR: 'Ô tô', MOTORBIKE: 'Xe máy' };
 const PAYMENT_LABEL: Record<'CASH' | 'CARD' | 'EWALLET', string> = {
   CASH: 'Tiền mặt', CARD: 'Thẻ ngân hàng', EWALLET: 'Ví điện tử',
@@ -104,6 +99,11 @@ function computeExpiry(start: Date, days: number): string {
   const d = new Date(start);
   d.setDate(d.getDate() + days);
   return d.toISOString();
+}
+function formatCountdown(secs: number) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -333,12 +333,17 @@ export function MonthlyPackagePage() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('3m');
-  const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'EWALLET'>('EWALLET');
+  const paymentMethod = 'EWALLET' as const;
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [createdPkg, setCreatedPkg] = useState<MonthlyPackage | null>(null);
+
+  // QR payment
+  const [showQR, setShowQR] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [countdown, setCountdown] = useState(300);
 
   // Derived
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? null;
@@ -434,12 +439,31 @@ export function MonthlyPackagePage() {
     }
   };
 
+  const handleProceedToQR = async () => {
+    const payload = `PARKSMART|${selectedPlan.name}|${totalAmount}|${today.toISOString()}`;
+    try {
+      const url = await QRCode.toDataURL(payload, { width: 220, margin: 2 });
+      setQrDataUrl(url);
+      setShowQR(true);
+      setCountdown(300);
+      setSubmitError('');
+    } catch {
+      setSubmitError('Không thể tạo mã QR. Vui lòng thử lại.');
+    }
+  };
+
+  useEffect(() => {
+    if (!showQR || countdown <= 0) return;
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [showQR, countdown]);
+
   const handleReset = () => {
     setCreatedPkg(null);
     setSelectedVehicleId(null);
     setSelectedSlotId(null);
     setSelectedPlanId('3m');
-    setPaymentMethod('EWALLET');
+    setShowQR(false);
     setSubmitError('');
   };
 
@@ -485,6 +509,90 @@ export function MonthlyPackagePage() {
         <button onClick={handleReset} style={{ padding: '0.6rem 1.5rem', background: C.navy, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
           Mua thêm gói khác
         </button>
+      </div>
+    );
+  }
+
+  // ── QR Payment Screen ─────────────────────────────────
+  if (showQR) {
+    const selectedSlot = allSlots.find((s) => s.id === selectedSlotId);
+    const billRows: { label: string; value: string }[] = [
+      { label: 'Gói', value: selectedPlan.name },
+      { label: 'Xe', value: selectedVehicle!.plateNumber },
+      { label: 'Loại', value: TYPE_LABEL[vehicleType!] },
+      ...(vehicleType === 'CAR' && selectedSlot ? [{ label: 'Chỗ đỗ', value: selectedSlot.code }] : []),
+      { label: 'Ngày bắt đầu', value: formatDDMMYYYY(today.toISOString()) },
+      { label: 'Ngày hết hạn', value: expiryLabel },
+      { label: 'Thời hạn', value: `${selectedPlan.durationDays} ngày` },
+    ];
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+        <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.gray900, textAlign: 'center' }}>Thanh toán gói tháng</p>
+
+        {/* Bill */}
+        <div className={styles.card}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+            {billRows.map((r) => (
+              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>{r.label}</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{r.value}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.5rem' }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
+            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
+          </div>
+        </div>
+
+        {/* QR Code */}
+        <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem' }}>
+          <img src={qrDataUrl} alt="QR thanh toán" width={220} height={220} style={{ borderRadius: 8, border: `1px solid ${C.gray200}` }} />
+          <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
+            Mở ứng dụng ngân hàng hoặc ví điện tử và quét mã để thanh toán
+          </p>
+        </div>
+
+        {/* Countdown */}
+        <div style={{ textAlign: 'center' }}>
+          {countdown > 0 ? (
+            <p style={{ margin: 0, fontSize: '0.875rem', color: countdown <= 60 ? C.red : C.amber, fontWeight: 600 }}>
+              Mã QR hết hạn sau {formatCountdown(countdown)}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: C.red, fontWeight: 700 }}>Mã QR đã hết hạn</p>
+              <button onClick={handleProceedToQR} style={{ padding: '0.5rem 1.25rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 8, fontSize: '0.82rem', fontWeight: 700, color: C.navy, cursor: 'pointer' }}>
+                Tạo lại mã
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Error */}
+        {submitError && (
+          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
+        )}
+
+        {/* CTA */}
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit || countdown === 0}
+          style={{ width: '100%', padding: '0.9rem', background: canSubmit && countdown > 0 ? C.navy : C.gray300, color: canSubmit && countdown > 0 ? C.white : C.gray400, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: canSubmit && countdown > 0 ? 'pointer' : 'not-allowed', boxShadow: canSubmit && countdown > 0 ? '0 4px 14px rgba(30,58,95,0.25)' : 'none', transition: 'all 0.2s ease' }}
+        >
+          {submitting ? 'Đang xử lý...' : 'Tôi đã thanh toán'}
+        </button>
+
+        {/* Cancel */}
+        <button
+          onClick={() => setShowQR(false)}
+          style={{ width: '100%', padding: '0.7rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 12, fontSize: '0.875rem', fontWeight: 700, color: C.gray600, cursor: 'pointer', transition: 'all 0.2s ease' }}
+        >
+          Hủy
+        </button>
+
       </div>
     );
   }
@@ -567,32 +675,6 @@ export function MonthlyPackagePage() {
         </div>
       )}
 
-      {/* SECTION 6: payment method */}
-      {vehicleType && (
-        <div className={styles.card}>
-          <p style={{ margin: '0 0 0.85rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Phương thức thanh toán</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {PAYMENT_METHODS.map((opt) => {
-              const sel = paymentMethod === opt.value;
-              return (
-                <button key={opt.value} onClick={() => { setPaymentMethod(opt.value); setSubmitError(''); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: 10, border: `1.5px solid ${sel ? C.navy : C.gray200}`, background: sel ? C.blueBg : C.white, cursor: 'pointer', transition: 'all 0.15s ease' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    {sel ? (
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: C.navy, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <IconCheck size={11} color={C.white} />
-                      </div>
-                    ) : (
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${C.gray300}`, flexShrink: 0 }} />
-                    )}
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{opt.label}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Error banner */}
       {submitError && (
         <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
@@ -600,11 +682,11 @@ export function MonthlyPackagePage() {
 
       {/* CTA */}
       <button
-        onClick={handleSubmit}
+        onClick={handleProceedToQR}
         disabled={!canSubmit}
         style={{ width: '100%', padding: '0.9rem', background: canSubmit ? C.navy : C.gray300, color: canSubmit ? C.white : C.gray400, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed', boxShadow: canSubmit ? '0 4px 14px rgba(30,58,95,0.25)' : 'none', transition: 'all 0.2s ease' }}
       >
-        {submitting ? 'Đang xử lý...' : 'Mua gói tháng'}
+        Tiến hành thanh toán
       </button>
 
     </div>
