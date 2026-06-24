@@ -28,6 +28,7 @@ import { ParkingConfigPage } from './pages/ParkingConfig';
 import { FeeRulesPage } from './pages/FeeRules';
 import { AuditLogsPage } from './pages/AuditLogs';
 import { ProfilePage } from './pages/Profile';
+import { WelcomePage } from './pages/WelcomePage';
 
 function LoadingScreen() {
   return (
@@ -120,12 +121,11 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
-
-      {/* Role-aware redirect from / */}
+      <Route path="/login" element={user ? <RedirectToRoleHome /> : <LoginPage />} />
+      <Route path="/register" element={user ? <RedirectToRoleHome /> : <RegisterPage />} />
+      <Route path="/" element={<WelcomePage />} />
       <Route
-        path="/"
+        path="/dashboard-home"
         element={
           <ProtectedRoute>
             <RedirectToRoleHome />

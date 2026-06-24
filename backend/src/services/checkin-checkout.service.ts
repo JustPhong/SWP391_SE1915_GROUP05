@@ -74,7 +74,7 @@ export const checkInService = {
     } else {
       const slot = await slotSuggestionService.suggestSlot(vehicle.type, zone);
       if (!slot) throw new AppError(404, 'No available slot found');
-      targetSlotId = slot.id;
+      targetSlotId = slot.slotId;
     }
 
     const slot = await prisma.parkingSlot.findUnique({ where: { id: targetSlotId } });
