@@ -99,6 +99,8 @@ router.get('/stats', checkinController.stats);
  *       '403':
  *         description: Forbidden — missing checkin.create permission
  */
+// GET /api/checkin/suggest?vehicleType=CAR&zone=CASUAL&top=3
+router.get('/suggest', checkinController.suggest);
 router.post('/', submitCheckinSchema, validate, requirePermission('checkin.create'), checkinController.submit);
 
 export default router;
