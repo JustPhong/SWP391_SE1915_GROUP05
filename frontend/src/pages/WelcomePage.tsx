@@ -35,12 +35,22 @@ export const WelcomePage: React.FC = () => {
         </div>
 
         <div className={styles.navActions}>
-          <a
-            href="mailto:support@parksmart.com"
-            className={styles.supportLink}
-          >
-            Support
-          </a>
+          <div className={styles.supportDropdownContainer}>
+            <span className={styles.supportLink}>
+              Support <span className={styles.dropdownArrow}>▾</span>
+            </span>
+            <div className={styles.dropdownMenu}>
+              <a href="#" className={styles.dropdownItem} onClick={(e) => { e.preventDefault(); alert('Trung tâm trợ giúp (Help centre) đang được xây dựng.'); }}>
+                Help centre
+              </a>
+              <a href="#" className={styles.dropdownItem} onClick={(e) => { e.preventDefault(); alert('Câu hỏi thường gặp (FAQs) đang được xây dựng.'); }}>
+                FAQs
+              </a>
+              <a href="mailto:support@parksmart.com" className={styles.dropdownItem}>
+                Contact us
+              </a>
+            </div>
+          </div>
           {user ? (
             <>
               <button

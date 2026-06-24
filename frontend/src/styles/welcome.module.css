@@ -338,3 +338,102 @@
     font-size: 2.15rem;
   }
 }
+
+/* Support Dropdown CSS */
+.supportDropdownContainer {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.supportLink {
+  color: #9ca3af;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0;
+  transition: color 0.2s ease;
+  user-select: none;
+}
+
+.supportDropdownContainer:hover .supportLink {
+  color: #ffffff;
+}
+
+.dropdownArrow {
+  font-size: 0.65rem;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.supportDropdownContainer:hover .dropdownArrow {
+  transform: rotate(180deg);
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: 100%;
+  right: 50%;
+  transform: translateX(50%) translateY(12px);
+  background-color: #131924;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.5rem 0;
+  min-width: 150px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 150;
+}
+
+/* Top white pointer arrow matching screenshot */
+.dropdownMenu::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent transparent #131924 transparent;
+  display: block;
+}
+
+.dropdownMenu::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(1px);
+  border-width: 7px;
+  border-style: solid;
+  border-color: transparent transparent rgba(255, 255, 255, 0.08) transparent;
+  z-index: -1;
+  display: block;
+}
+
+.supportDropdownContainer:hover .dropdownMenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(50%) translateY(4px);
+}
+
+.dropdownItem {
+  display: block;
+  padding: 0.55rem 1.2rem;
+  color: #d1d5db;
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.dropdownItem:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
