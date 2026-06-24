@@ -3,7 +3,7 @@ import { AppError } from "../utils/helpers";
 
 const BOOKING_ACTIVE = "ACTIVE";
 const SLOT_AVAILABLE = "AVAILABLE";
-const NO_SHOW_CUTOFF_MINUTES = 30;
+const NO_SHOW_CUTOFF_MINUTES = 15;
 
 export interface FloorWithSlots {
   id: number;
@@ -77,72 +77,70 @@ export const floorService = {
   },
 
   // Lấy slot theo tầng và trạng thái — kèm thông tin xe đang đỗ
-async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
-  await floorService.cleanupNoShowBookings();
+  async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
+    await floorService.cleanupNoShowBookings();
 
-  const floor = await prisma.floor.findUnique({
-    where: { floorCode },
-  });
+    const floor = await prisma.floor.findUnique({
+      where: { floorCode },
+    });
 
-  if (!floor) {
-    throw new AppError(404, "Floor not found");
-  }
+    if (!floor) {
+      throw new AppError(404, "Floor not found");
+    }
 
-  const slots = await prisma.parkingSlot.findMany({
-    where: {
-      floorId: floor.id,
-      ...(status ? { status } : {}),
-    },
-    orderBy: { code: "asc" },
-    select: {
-      id: true,
-      code: true,
-      type: true,
-      status: true,
-      isFixed: true,
-      assignedVehicleId: true,
-      // ← JOIN session đang đỗ
-      checkInRecords: {
-        where: { status: "PARKING" },
-        take: 1,
-        select: {
-          checkInTime: true,
-          isMonthly: true,
-          vehicle: {
-            select: {
-              plateNumber: true,
-              type: true,
+    const slots = await prisma.parkingSlot.findMany({
+      where: {
+        floorId: floor.id,
+        ...(status ? { status } : {}),
+      },
+      orderBy: { code: "asc" },
+      select: {
+        id: true,
+        code: true,
+        type: true,
+        status: true,
+        isFixed: true,
+        assignedVehicleId: true,
+        checkInRecords: {
+          where: { status: "PARKING" },
+          take: 1,
+          select: {
+            checkInTime: true,
+            isMonthly: true,
+            vehicle: {
+              select: {
+                plateNumber: true,
+                type: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  // Format: gộp vehicle lên level slot
-  return {
-    floorId: floor.id,
-    floorCode: floor.floorCode,
-    name: floor.name,
-    vehicleType: floor.vehicleType,
-    customerType: floor.customerType,
-    slots: slots.map((slot) => {
-      const session = slot.checkInRecords[0] ?? null;
-      const { checkInRecords, ...slotBase } = slot;
-      return {
-        ...slotBase,
-        vehicle: session
-          ? {
-              plateNumber: session.vehicle.plateNumber,
-              vehicleType: session.vehicle.type,
-              entryTime: session.checkInTime,
-              isMonthly: session.isMonthly,
-            }
-          : null,
-      };
-    }),
-  };
-},
+    return {
+      floorId: floor.id,
+      floorCode: floor.floorCode,
+      name: floor.name,
+      vehicleType: floor.vehicleType,
+      customerType: floor.customerType,
+      slots: slots.map((slot) => {
+        const session = slot.checkInRecords[0] ?? null;
+        const { checkInRecords, ...slotBase } = slot;
+        return {
+          ...slotBase,
+          vehicle: session
+            ? {
+                plateNumber: session.vehicle.plateNumber,
+                vehicleType: session.vehicle.type,
+                entryTime: session.checkInTime,
+                isMonthly: session.isMonthly,
+              }
+            : null,
+        };
+      }),
+    };
+  },
 
   // Tạo tầng
   async createFloor(input: FloorInput): Promise<FloorWithSlots> {
@@ -170,15 +168,13 @@ async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
       },
     });
   },
-    
+
   // Cập nhật tầng
   async updateFloor(
     id: number,
     input: Partial<FloorInput>
   ): Promise<FloorWithSlots> {
-    const floor = await prisma.floor.findUnique({
-      where: { id },
-    });
+    const floor = await prisma.floor.findUnique({ where: { id } });
 
     if (!floor) {
       throw new AppError(404, "Không tìm thấy tầng");
@@ -186,12 +182,8 @@ async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
 
     if (input.floorCode) {
       const duplicated = await prisma.floor.findFirst({
-        where: {
-          floorCode: input.floorCode,
-          NOT: { id },
-        },
+        where: { floorCode: input.floorCode, NOT: { id } },
       });
-
       if (duplicated) {
         throw new AppError(409, "Mã tầng đã tồn tại");
       }
@@ -219,9 +211,7 @@ async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
   async removeFloor(id: number): Promise<void> {
     const floor = await prisma.floor.findUnique({
       where: { id },
-      include: {
-        slots: true,
-      },
+      include: { slots: true },
     });
 
     if (!floor) {
@@ -232,40 +222,60 @@ async getSlotsByFloorAndStatus(floorCode: string, status?: string) {
       throw new AppError(400, "Tầng còn slot, không thể xóa");
     }
 
-    await prisma.floor.delete({
-      where: { id },
-    });
+    await prisma.floor.delete({ where: { id } });
   },
 
-  // Dọn booking quá hạn
+  // BR-BK-03: Dọn booking quá 15 phút chưa check-in
   async cleanupNoShowBookings(): Promise<number> {
-    const cutoff = new Date(
-      Date.now() - NO_SHOW_CUTOFF_MINUTES * 60 * 1000
-    );
+    const cutoff = new Date(Date.now() - NO_SHOW_CUTOFF_MINUTES * 60 * 1000);
 
     const bookings = await prisma.booking.findMany({
       where: {
         status: BOOKING_ACTIVE,
-        expectedArrival: {
-          lt: cutoff,
-        },
+        expectedArrival: { lt: cutoff },
+      },
+      include: {
+        vehicle: { select: { plateNumber: true } },
+        slot:    { select: { code: true } },
       },
     });
 
     for (const booking of bookings) {
-      await prisma.$transaction([
-        prisma.booking.update({
+      await prisma.$transaction(async (tx) => {
+        // 1. Đánh NO_SHOW + mất cọc
+        await tx.booking.update({
           where: { id: booking.id },
-         data: { status: 'NO_SHOW', depositStatus: 'FORFEITED' },
-        }),
-        prisma.parkingSlot.update({
+          data: { status: "NO_SHOW", depositStatus: "FORFEITED" },
+        });
+
+        // 2. Nhả slot về AVAILABLE
+        await tx.parkingSlot.update({
           where: { id: booking.slotId },
           data: { status: SLOT_AVAILABLE },
-        }),
-      ]);
+        });
+
+        // 3. Ghi AuditLog
+        await tx.auditLog.create({
+          data: {
+            actorId:     null,
+            actorName:   "System",
+            actorRole:   "SYSTEM",
+            action:      "booking.no_show",
+            targetType:  "Booking",
+            targetId:    String(booking.id),
+            description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại ô ${booking.slot.code} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
+            metadata:    JSON.stringify({
+              bookingId:        booking.id,
+              plate:            booking.vehicle.plateNumber,
+              slotCode:         booking.slot.code,
+              expectedArrival:  booking.expectedArrival,
+              depositForfeited: true,
+            }),
+          },
+        });
+      });
     }
 
-  
     return bookings.length;
   },
 };

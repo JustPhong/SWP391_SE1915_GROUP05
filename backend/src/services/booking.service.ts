@@ -10,7 +10,7 @@ const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_RESERVED = 'RESERVED';
 const SLOT_OCCUPIED = 'OCCUPIED';
 const BOOKING_DEPOSIT = 15000;
-   
+
 export interface CreateBookingInput {
   plateNumber: string;
   slotId: string;
@@ -47,9 +47,9 @@ export const bookingService = {
     });
     if (!slot) throw new AppError(404, 'Không tìm thấy vị trí đỗ');
 
-    // 3. Business rule: slot's floor must be CAR + CASUAL (Tầng 3)
-    if (slot.floor.vehicleType !== 'CAR' || slot.floor.customerType !== 'CASUAL') {
-      throw new AppError(400, 'Chỉ có thể đặt chỗ tại Tầng 3 (ô tô, khách vãng lai)');
+    // 3. Business rule: slot must be CAR floor
+    if (slot.floor.vehicleType !== 'CAR') {
+      throw new AppError(400, 'Chỉ đặt chỗ được cho ô tô.');
     }
 
     // 4. Business rule: slot must be AVAILABLE
@@ -57,11 +57,11 @@ export const bookingService = {
       throw new AppError(409, 'Vị trí này không còn trống');
     }
 
-    // 5. Create booking + reserve slot in a transaction
-    const [booking] = await prisma.$transaction([
-      prisma.booking.create({
+    // 5. Create booking + payment + reserve slot in a transaction
+    const booking = await prisma.$transaction(async (tx) => {
+      const newBooking = await tx.booking.create({
         data: {
-          vehicleId: vehicle.id,
+          vehicleId: vehicle!.id,
           slotId: input.slotId,
           expectedArrival: input.expectedArrival,
           status: BOOKING_ACTIVE,
@@ -74,12 +74,29 @@ export const bookingService = {
           vehicle: true,
           createdBy: { select: { id: true, fullName: true, email: true } },
         },
-      }),
-      prisma.parkingSlot.update({
+      });
+
+      // Ghi nhận thu cọc 15.000đ (BR-BK-01)
+      await tx.payment.create({
+        data: {
+          amount: BOOKING_DEPOSIT,
+          method: 'CASH',
+          type: 'SESSION',
+          status: 'SUCCESS',
+          paidAt: new Date(),
+          collectedById: input.createdById,
+          transactionCode: `DEP-${newBooking.id}`,
+        },
+      });
+
+      // Giữ slot
+      await tx.parkingSlot.update({
         where: { id: input.slotId },
         data: { status: SLOT_RESERVED },
-      }),
-    ]);
+      });
+
+      return newBooking;
+    });
 
     return booking;
   },

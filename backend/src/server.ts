@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { startNoShowCleanupJob } from './jobs/noShowCleanup.job';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use(errorHandler);
 app.listen(config.port, () => {
   console.log(`[Server] Running on http://localhost:${config.port}`);
   console.log(`[Health] http://localhost:${config.port}/api/health`);
+  startNoShowCleanupJob();
 });
- 
+
 export default app;
