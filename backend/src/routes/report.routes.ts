@@ -219,4 +219,17 @@ router.get('/occupancy-detail', authorize('MANAGER', 'ADMIN'), reportController.
  */
 router.get('/traffic', authorize('MANAGER', 'ADMIN'), reportController.getTraffic);
 
+/**
+ * GET /reports/sessions
+ * Query: from, to (YYYY-MM-DD), vehicleType (CAR|MOTORBIKE)
+ * Log toàn bộ parking session phục vụ phân tích
+ */
+router.get('/sessions', authorize('MANAGER', 'ADMIN'), reportController.getSessionLog);
+
+/**
+ * GET /reports/sessions/export
+ * Query: from, to (YYYY-MM-DD), vehicleType (CAR|MOTORBIKE)
+ * Export CSV toàn bộ session
+ */
+router.get('/sessions/export', authorize('MANAGER', 'ADMIN'), reportController.exportSessionsCsv);
 export default router;

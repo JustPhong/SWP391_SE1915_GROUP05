@@ -503,4 +503,68 @@ export const reportService = {
       peakHour,
     };
   },
+
+  // ─── Parking session log (phân tích thuật toán) ──────────────────────────
+async getSessionLog(from: Date, to: Date, vehicleType?: string) {
+  const records = await prisma.checkInRecord.findMany({
+    where: {
+      checkInTime: { gte: from, lte: to },
+      ...(vehicleType ? { vehicle: { type: vehicleType } } : {}),
+    },
+    include: {
+      vehicle: { select: { plateNumber: true, type: true, isMonthly: true } },
+      slot:    { select: { code: true, floor: { select: { floorCode: true, vehicleType: true, customerType: true } } } },
+    },
+    orderBy: { checkInTime: 'asc' },
+  });
+
+  return records.map((r) => {
+    const durationMin = r.checkOutTime
+      ? Math.round((new Date(r.checkOutTime).getTime() - new Date(r.checkInTime).getTime()) / 60000)
+      : null;
+    return {
+      sessionId:    r.id,
+      plate:        r.vehicle.plateNumber,
+      vehicleType:  r.vehicle.type,
+      isMonthly:    r.isMonthly,
+      floorCode:    r.slot.floor.floorCode,
+      slotCode:     r.slot.code,
+      customerType: r.slot.floor.customerType,
+      checkInTime:  r.checkInTime,
+      checkOutTime: r.checkOutTime ?? null,
+      durationMin,
+      isLostTicket: r.isLostTicket,
+      status:       r.status,
+    };
+  });
+},
+
+// ─── Export CSV cho phân tích thuật toán ─────────────────────────────────
+async exportSessionsCsv(from: Date, to: Date, vehicleType?: string): Promise<string> {
+  const sessions = await reportService.getSessionLog(from, to, vehicleType);
+
+  const header = [
+    'sessionId', 'plate', 'vehicleType', 'isMonthly',
+    'floorCode', 'slotCode', 'customerType',
+    'checkInTime', 'checkOutTime', 'durationMin',
+    'isLostTicket', 'status',
+  ].join(',');
+
+  const rows = sessions.map((s) => [
+    s.sessionId,
+    s.plate,
+    s.vehicleType,
+    s.isMonthly,
+    s.floorCode,
+    s.slotCode,
+    s.customerType,
+    s.checkInTime.toISOString(),
+    s.checkOutTime ? new Date(s.checkOutTime).toISOString() : '',
+    s.durationMin ?? '',
+    s.isLostTicket,
+    s.status,
+  ].join(','));
+
+  return [header, ...rows].join('\n');
+},
 };

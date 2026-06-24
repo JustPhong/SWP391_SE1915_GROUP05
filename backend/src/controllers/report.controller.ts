@@ -185,4 +185,36 @@ export const reportController = {
     const data = await reportService.getRevenueDetail(from, to);
     return res.status(200).json({ success: true, data });
   }),
+
+  getSessionLog: asyncHandler(async (req: AuthRequest, res: Response) => {
+  const now = new Date();
+  const from = req.query.from
+    ? new Date(req.query.from as string)
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+  const to = req.query.to
+    ? new Date(req.query.to as string + 'T23:59:59')
+    : now;
+  const vehicleType = req.query.vehicleType as string | undefined;
+
+  const data = await reportService.getSessionLog(from, to, vehicleType);
+  return res.json({ success: true, data, total: data.length });
+}),
+
+exportSessionsCsv: asyncHandler(async (req: AuthRequest, res: Response) => {
+  const now = new Date();
+  const from = req.query.from
+    ? new Date(req.query.from as string)
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+  const to = req.query.to
+    ? new Date(req.query.to as string + 'T23:59:59')
+    : now;
+  const vehicleType = req.query.vehicleType as string | undefined;
+
+  const csv = await reportService.exportSessionsCsv(from, to, vehicleType);
+  const filename = `sessions_${from.toISOString().split('T')[0]}_${to.toISOString().split('T')[0]}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.send('\uFEFF' + csv); // BOM cho Excel đọc được UTF-8
+}),
 };
