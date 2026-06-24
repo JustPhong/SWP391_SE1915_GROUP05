@@ -176,3 +176,4 @@ router.post('/:id/cancel', cancelBookingSchema, validate, bookingController.canc
 router.post('/:id/fulfill', authorize('STAFF', 'MANAGER', 'ADMIN'), bookingController.fulfill);
 
 export default router;
+ 
