@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import { checkoutController } from '../controllers/checkout.controller';
+import { authenticate } from '../middleware/auth.middleware';
+import { requirePermission } from '../middleware/permission.middleware';
 
 const router = Router();
 
-// GET /api/checkout/lookup/:plate
+router.use(authenticate);
+
 router.get('/lookup/:plate', checkoutController.lookup);
-
-// GET /api/checkout/parked
 router.get('/parked', checkoutController.parked);
-
-// POST /api/checkout
-router.post('/', checkoutController.submit);
+router.post('/', requirePermission('checkout.create'), checkoutController.submit);
+router.post('/lost-ticket', requirePermission('checkout.lost_ticket'), checkoutController.lostTicket);
 
 export default router;

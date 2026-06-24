@@ -10,6 +10,7 @@ export const checkoutController = {
     const result = await checkoutService.lookupPlate(plate);
     return res.status(200).json({ success: true, data: result });
   }),
+
   // GET /api/checkout/parked
   parked: asyncHandler(async (_req: AuthRequest, res: Response) => {
     const result = await checkoutService.getParkedVehicles();
@@ -18,13 +19,55 @@ export const checkoutController = {
 
   // POST /api/checkout
   submit: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { plate, method } = req.body as { plate?: string; method?: 'CASH' | 'CARD' | 'EWALLET' };
+    const {
+      plate,
+      method,
+    } = req.body as {
+      plate?: string;
+      method?: 'CASH' | 'CARD' | 'EWALLET';
+    };
 
     if (!plate) {
-      return res.status(400).json({ success: false, message: 'plate là bắt buộc.' });
+      return res.status(400).json({
+        success: false,
+        message: 'plate là bắt buộc.',
+      });
     }
 
     const result = await checkoutService.submit({ plate, method });
-    return res.status(200).json({ success: true, data: result });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  }),
+
+  // POST /api/checkout/lost-ticket
+  lostTicket: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const {
+      plate,
+      method,
+    } = req.body as {
+      plate?: string;
+      method?: 'CASH' | 'CARD' | 'EWALLET';
+    };
+
+    if (!plate) {
+      return res.status(400).json({
+        success: false,
+        message: 'plate là bắt buộc.',
+      });
+    }
+
+    const result = await checkoutService.submitLostTicket({
+      plate,
+      method,
+      staffId: req.user!.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
   }),
 };

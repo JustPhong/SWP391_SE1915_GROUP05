@@ -247,7 +247,7 @@ model AuditLog {
   actorId     String?  @db.NVarChar(36)             // user who performed the action (null for system/anonymous)
   actorName   String?  @db.NVarChar(150)            // denormalized snapshot of the actor's name/email at action time
   actorRole   String?  @db.NVarChar(30)             // role at action time (ADMIN/MANAGER/STAFF/DRIVER)
-  action      String   @db.NVarChar(60)             // machine code, e.g. "account.lock", "permission.toggle", "fee_rule.update"
+  action      String   @db.NVarChar(60)              // machine code, e.g. "account.lock", "permission.toggle", "fee_rule.update"
   targetType  String?  @db.NVarChar(50)             // entity type, e.g. "User", "RolePermission", "FeeRule"
   targetId    String?  @db.NVarChar(36)             // id of the affected entity
   description String   @db.NVarChar(500)            // human-readable Vietnamese summary, e.g. "Khoá tài khoản nhân viên A"
