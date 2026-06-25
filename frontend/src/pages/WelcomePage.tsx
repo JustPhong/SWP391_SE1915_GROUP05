@@ -205,7 +205,10 @@ export const WelcomePage: React.FC = () => {
               <div className={styles.pricingPrice}>1.500.000đ</div>
               <div className={styles.pricingPerDay}>50.000đ/ngày</div>
               <ul className={styles.pricingPerks}>
-                <li>Chỗ đỗ cố định khi đăng ký</li>
+                <li>Chỗ đỗ cố định riêng</li>
+                <li>Không tính phí theo lượt</li>
+                <li>Ra vào không giới hạn</li>
+                <li>Ưu tiên khu gói tháng</li>
               </ul>
               <button className={styles.pricingBtn} onClick={() => navigate('/login')}>
                 Chọn gói
@@ -227,7 +230,10 @@ export const WelcomePage: React.FC = () => {
               <div className={styles.pricingPerDay}>44.444đ/ngày</div>
               <div className={styles.savingTag}>Tiết kiệm ~11%</div>
               <ul className={styles.pricingPerks}>
-                <li>Chỗ đỗ cố định khi đăng ký</li>
+                <li>Chỗ đỗ cố định riêng</li>
+                <li>Không tính phí theo lượt</li>
+                <li>Ra vào không giới hạn</li>
+                <li>Ưu tiên khu gói tháng</li>
               </ul>
               <button className={`${styles.pricingBtn} ${styles.pricingBtnFeatured}`} onClick={() => navigate('/login')}>
                 Chọn gói
@@ -247,7 +253,10 @@ export const WelcomePage: React.FC = () => {
               <div className={styles.pricingPerDay}>41.096đ/ngày</div>
               <div className={styles.savingTag}>Tiết kiệm ~17%</div>
               <ul className={styles.pricingPerks}>
-                <li>Chỗ đỗ cố định khi đăng ký</li>
+                <li>Chỗ đỗ cố định riêng</li>
+                <li>Không tính phí theo lượt</li>
+                <li>Ra vào không giới hạn</li>
+                <li>Ưu tiên khu gói tháng</li>
               </ul>
               <button className={styles.pricingBtn} onClick={() => navigate('/login')}>
                 Chọn gói
