@@ -303,7 +303,7 @@ export function BookingPage() {
                 { bg: C.greenBg, border: C.green, label: 'Trống', dotColor: C.green },
                 { bg: C.amberBg, border: C.amberBorder, label: 'Được đặt trước', dotColor: C.amberBorder },
                 { bg: C.gray600, border: C.gray600, label: 'Đang sử dụng', dotColor: C.gray600 },
-                { bg: '#DBEAFE', border: C.blue, label: 'Gợi ý', dotColor: C.blue },
+                { bg: '#DBEAFE', border: C.blue, label: 'Đã xếp', dotColor: C.blue },
               ] as const).map(({ bg, border, label, dotColor }) => (
                 <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: dotColor }}>
                   <span style={{
