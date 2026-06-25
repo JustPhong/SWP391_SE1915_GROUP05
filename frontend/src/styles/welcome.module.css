@@ -360,7 +360,162 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   4. FEATURES
+   4. CASUAL PRICING
+══════════════════════════════════════════════════════════════ */
+.casualCard {
+  background: #ffffff;
+  border: 1.5px solid #dae9f5;
+  border-radius: 14px;
+  padding: 1.75rem;
+  position: relative;
+  box-shadow: 0 2px 10px rgba(22,41,63,0.05);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.casualCard:hover {
+  border-color: #2d5fd0;
+  box-shadow: 0 6px 24px rgba(45, 95, 208, 0.12);
+  transform: translateY(-2px);
+}
+
+.casualCardFeatured {
+  border-color: #2d5fd0;
+  border-width: 2px;
+  box-shadow: 0 6px 28px rgba(45, 95, 208, 0.2);
+  transform: scale(1.03);
+  z-index: 1;
+}
+.casualCardFeatured:hover {
+  box-shadow: 0 12px 40px rgba(45, 95, 208, 0.28);
+  transform: scale(1.03) translateY(-2px);
+}
+
+.casualBadge {
+  position: absolute;
+  top: -0.7rem;
+  right: 1.5rem;
+  background: linear-gradient(135deg, #2d5fd0, #1a4abf);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.9rem;
+  border-radius: 20px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(45,95,208,0.35);
+}
+
+.casualIcon {
+  width: 44px;
+  height: 44px;
+  background: #eff6ff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.casualTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #16293f;
+  margin: 0;
+}
+
+.casualTimeBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.timeBlock {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f0f7ff;
+  border: 1px solid #dae9f5;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+.timeBlockNight {
+  background: #fff8f0;
+  border-color: #fde8c8;
+}
+
+.timeBlockLeft {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.timeBlockLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #16293f;
+}
+.timeBlockHours {
+  font-size: 0.72rem;
+  color: #8aacbf;
+  font-weight: 500;
+}
+
+.timeBlockPrice {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #2d5fd0;
+}
+.timeBlockUnit {
+  font-size: 0.72rem;
+  color: #8aacbf;
+  font-weight: 500;
+}
+
+.casualBtn {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  border: 1.5px solid #2d5fd0;
+  background: transparent;
+  color: #2d5fd0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  transition: all 0.2s ease;
+}
+.casualBtn:hover {
+  background: #eff6ff;
+}
+
+.casualBtnFeatured {
+  background: linear-gradient(135deg, #2d5fd0, #1a4abf);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(45, 95, 208, 0.35);
+}
+.casualBtnFeatured:hover {
+  background: linear-gradient(135deg, #1a4abf, #1638a8);
+  box-shadow: 0 6px 20px rgba(45, 95, 208, 0.45);
+}
+
+.casualFootnote {
+  font-size: 0.8rem;
+  color: #8aacbf;
+  text-align: center;
+  margin-top: 1.25rem;
+  font-style: italic;
+}
+
+.casualCardFeatured .casualTitle {
+  margin-top: 0.25rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   5. FEATURES
 ══════════════════════════════════════════════════════════════ */
 .featureCard {
   background: #ffffff;
@@ -399,7 +554,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   5. PROCESS
+   6. PROCESS
 ══════════════════════════════════════════════════════════════ */
 .processCard {
   background: #ffffff;
@@ -448,7 +603,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   6. ZONES / PRICING
+   7. PRICING (monthly)
 ══════════════════════════════════════════════════════════════ */
 .pricingCard {
   background: #ffffff;
@@ -623,7 +778,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   7. CTA BAND
+   8. CTA BAND
 ══════════════════════════════════════════════════════════════ */
 .ctaBand {
   background: linear-gradient(135deg, #16293f, #1e3a5f);
@@ -655,7 +810,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   8. FOOTER
+   9. FOOTER
 ══════════════════════════════════════════════════════════════ */
 .footer {
   background: #0e1e2e;
