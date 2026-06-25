@@ -287,6 +287,12 @@
   box-shadow: 0 1px 4px rgba(22,41,63,0.06);
 }
 
+.chipGreen {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
 .heroCtas {
   display: flex;
   gap: 0.875rem;
