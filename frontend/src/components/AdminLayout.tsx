@@ -48,7 +48,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       }
     } catch { /* ignore */ }
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const closeSidebar = () => setSidebarOpen(false);
