@@ -59,7 +59,7 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const closeSidebar = () => setSidebarOpen(false);
