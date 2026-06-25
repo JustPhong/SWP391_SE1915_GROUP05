@@ -46,7 +46,7 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
       }
     } catch { /* ignore */ }
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const closeSidebar = () => setSidebarOpen(false);
