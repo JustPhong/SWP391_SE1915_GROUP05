@@ -24,7 +24,7 @@ export const WelcomePage: React.FC = () => {
             <span className={styles.navSupport}>Hỗ trợ</span>
             {user ? (
               <>
-                <button className={styles.btnPrimary} onClick={() => navigate('/dashboard')}>
+                <button className={styles.btnPrimary} onClick={() => navigate('/login')}>
                   Vào Dashboard
                 </button>
                 <button className={styles.btnGhost} onClick={() => { logout(); navigate('/'); }}>
@@ -68,7 +68,7 @@ export const WelcomePage: React.FC = () => {
             <div className={styles.heroCtas}>
               {user ? (
                 <>
-                  <button className={styles.btnPrimary} onClick={() => navigate('/dashboard')}>
+                  <button className={styles.btnPrimary} onClick={() => navigate('/login')}>
                     Vào Dashboard
                   </button>
                   <button className={styles.btnOutline} onClick={() => { logout(); navigate('/'); }}>
@@ -183,31 +183,75 @@ export const WelcomePage: React.FC = () => {
       {/* ── 6. ZONES / PRICING ─────────────────────────── */}
       <section className={styles.section}>
         <div className={styles.sectionInner}>
-          <span className={styles.eyebrow}>Khu vực &amp; biểu phí</span>
-          <h2 className={styles.sectionTitle}>Phân khu rõ ràng, biểu phí minh bạch</h2>
-          <div className={styles.cardGrid2}>
+          <span className={styles.eyebrow}>Bảng giá gói tháng</span>
+          <h2 className={styles.sectionTitle}>Chọn gói phù hợp với bạn</h2>
+          <p className={styles.pricingNote}>
+            Giá áp dụng cho ô tô. Xe máy có biểu giá riêng.
+          </p>
+          <div className={styles.cardGrid3}>
             <div className={styles.pricingCard}>
-              <div className={styles.pricingHeader}>
-                <span className={styles.pricingDot} style={{ backgroundColor: '#2d5fd0' }} />
-                <span className={styles.pricingTier}>Vãng lai</span>
+              <div className={styles.pricingIcon}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
               </div>
+              <div className={styles.pricingHeader}>
+                <span className={styles.pricingTier}>Gói 1 tháng</span>
+              </div>
+              <div className={styles.pricingDuration}>30 ngày</div>
+              <div className={styles.pricingPrice}>1.500.000đ</div>
+              <div className={styles.pricingPerDay}>50.000đ/ngày</div>
               <ul className={styles.pricingPerks}>
-                <li>Đỗ theo lượt</li>
-                <li>Thanh toán QR tại chỗ</li>
-                <li>Không cần đăng ký</li>
+                <li>Chỗ đỗ cố định khi đăng ký</li>
               </ul>
+              <button className={styles.pricingBtn} onClick={() => navigate('/login')}>
+                Chọn gói
+              </button>
             </div>
             <div className={`${styles.pricingCard} ${styles.pricingCardFeatured}`}>
-              <div className={styles.pricingBadge}>Phổ biến</div>
-              <div className={styles.pricingHeader}>
-                <span className={styles.pricingDot} style={{ backgroundColor: '#f59e0b' }} />
-                <span className={styles.pricingTier}>Gói tháng</span>
+              <div className={styles.pricingBadge}>Tiết kiệm hơn</div>
+              <div className={styles.pricingIcon}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 11 12 14 22 4"/>
+                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
               </div>
+              <div className={styles.pricingHeader}>
+                <span className={styles.pricingTier}>Gói 3 tháng</span>
+              </div>
+              <div className={styles.pricingDuration}>90 ngày</div>
+              <div className={styles.pricingPrice}>4.000.000đ</div>
+              <div className={styles.pricingPerDay}>44.444đ/ngày</div>
+              <div className={styles.savingTag}>Tiết kiệm ~11%</div>
               <ul className={styles.pricingPerks}>
-                <li>Chỗ đỗ ưu tiên cố định</li>
-                <li>Ra vào không giới hạn</li>
-                <li>Báo cáo chi tiêu hàng tháng</li>
+                <li>Chỗ đỗ cố định khi đăng ký</li>
               </ul>
+              <button className={`${styles.pricingBtn} ${styles.pricingBtnFeatured}`} onClick={() => navigate('/login')}>
+                Chọn gói
+              </button>
+            </div>
+            <div className={styles.pricingCard}>
+              <div className={styles.pricingIcon}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </div>
+              <div className={styles.pricingHeader}>
+                <span className={styles.pricingTier}>Gói 1 năm</span>
+              </div>
+              <div className={styles.pricingDuration}>365 ngày</div>
+              <div className={styles.pricingPrice}>15.000.000đ</div>
+              <div className={styles.pricingPerDay}>41.096đ/ngày</div>
+              <div className={styles.savingTag}>Tiết kiệm ~17%</div>
+              <ul className={styles.pricingPerks}>
+                <li>Chỗ đỗ cố định khi đăng ký</li>
+              </ul>
+              <button className={styles.pricingBtn} onClick={() => navigate('/login')}>
+                Chọn gói
+              </button>
             </div>
           </div>
         </div>
@@ -221,7 +265,7 @@ export const WelcomePage: React.FC = () => {
             Bắt đầu miễn phí ngay hôm nay.
           </p>
           {user ? (
-            <button className={styles.btnWhite} onClick={() => navigate('/dashboard')}>
+            <button className={styles.btnWhite} onClick={() => navigate('/login')}>
               Vào Dashboard
             </button>
           ) : (
