@@ -1,5 +1,6 @@
 import prisma from '../config/db';
 import { floorService } from './floor.service';
+import { slotSuggestionService } from './slotSuggestion.service';
 import { AppError } from '../utils/helpers';
 
 const BOOKING_ACTIVE = 'ACTIVE';
@@ -13,7 +14,6 @@ const BOOKING_DEPOSIT = 15000;
 
 export interface CreateBookingInput {
   plateNumber: string;
-  slotId?: string;
   expectedArrival: Date;
   createdById: string;
 }
@@ -25,78 +25,33 @@ export interface FulfillBookingInput {
 
 export const bookingService = {
   async create(input: CreateBookingInput) {
-    // 1. Find vehicle
-    const vehicle = await prisma.vehicle.findUnique({
+    // 1. Find or create vehicle (casual bookings are allowed)
+    let vehicle = await prisma.vehicle.findUnique({
       where: { plateNumber: input.plateNumber },
     });
-
-    // BR01 + BR02: chỉ cư dân gói tháng mới được booking
     if (!vehicle) {
-      throw new AppError(403, 'Xe chưa đăng ký trong hệ thống. Khách vãng lai không được đặt chỗ trước.');
-    }
-    if (!vehicle.isMonthly) {
-      throw new AppError(403, 'BR02: Khách vãng lai không được tạo booking trước.');
-    }
-
-    // Kiểm tra gói tháng còn hiệu lực
-    const activePackage = await prisma.monthlyPackage.findFirst({
-      where: {
-        vehicleId: vehicle.id,
-        status: 'ACTIVE',
-        expiryDate: { gt: new Date() },
-      },
-    });
-    if (!activePackage) {
-      throw new AppError(403, 'BR01: Gói tháng đã hết hạn. Vui lòng gia hạn để đặt chỗ.');
+      vehicle = await prisma.vehicle.create({
+        data: {
+          plateNumber: input.plateNumber,
+          type: 'CAR',
+          ownerId: input.createdById,
+          isMonthly: false,
+        },
+      });
     }
 
-    // 2. Load slot + floor
-    if (!input.slotId) {
-      throw new AppError(400, 'Vui lòng chọn vị trí đỗ xe.');
-    }
-    const slot = await prisma.parkingSlot.findUnique({
-      where: { id: input.slotId },
-      include: { floor: true },
-    });
-    if (!slot) throw new AppError(404, 'Không tìm thấy vị trí đỗ');
-
-    // BR03: chỉ MONTHLY floor mới được chọn slot cụ thể
-    if (slot.floor.customerType !== 'MONTHLY') {
-      throw new AppError(400, 'BR03: Khách vãng lai không được chọn vị trí đỗ xe.');
+    // 2. Auto-assign best slot using the existing Greedy algorithm
+    const suggestion = await slotSuggestionService.suggestSlot('CAR', 'CASUAL');
+    if (!suggestion) {
+      throw new AppError(409, 'Hiện không còn chỗ trống cho khách vãng lai (ô tô). Vui lòng thử lại sau.');
     }
 
-    // Loại xe phải khớp
-    if (slot.floor.vehicleType !== 'CAR') {
-      throw new AppError(400, 'Chỉ đặt chỗ được cho ô tô.');
-    }
-
-    // BR04: slot phải AVAILABLE
-    if (slot.status !== SLOT_AVAILABLE) {
-      throw new AppError(409, 'BR04: Vị trí này không còn trống.');
-    }
-
-    // BR06: không được có 2 booking trùng thời gian cho cùng slot (±30 phút)
-    const arrival = new Date(input.expectedArrival);
-    const windowStart = new Date(arrival.getTime() - 30 * 60000);
-    const windowEnd   = new Date(arrival.getTime() + 30 * 60000);
-
-    const conflict = await prisma.booking.findFirst({
-      where: {
-        slotId: input.slotId,
-        status: BOOKING_ACTIVE,
-        expectedArrival: { gte: windowStart, lte: windowEnd },
-      },
-    });
-    if (conflict) {
-      throw new AppError(409, 'BR06: Vị trí này đã có booking trong khoảng thời gian đó.');
-    }
-
-    // 5. Transaction: tạo booking + payment cọc + reserve slot
+    // 3. Transaction: tạo booking + payment cọc + reserve slot
     const booking = await prisma.$transaction(async (tx) => {
       const newBooking = await tx.booking.create({
         data: {
           vehicleId:       vehicle.id,
-          slotId:          input.slotId!,
+          slotId:          suggestion.slotId,
           expectedArrival: input.expectedArrival,
           status:          BOOKING_ACTIVE,
           depositAmount:   BOOKING_DEPOSIT,
@@ -125,7 +80,7 @@ export const bookingService = {
 
       // Giữ slot
       await tx.parkingSlot.update({
-        where: { id: input.slotId },
+        where: { id: suggestion.slotId },
         data: { status: SLOT_RESERVED },
       });
 

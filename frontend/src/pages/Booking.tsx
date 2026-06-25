@@ -61,15 +61,12 @@ function IconClock({ size = 16, color = C.gray600 }: { size?: number; color?: st
 // ═══════════════════════════════════════════════════════
 interface SlotCardProps {
   slot: ParkingSlot;
-  isSelected: boolean;
-  isSuggested: boolean;
-  onSelect: (slot: ParkingSlot) => void;
+  isAssigned: boolean;
 }
 
-function SlotCard({ slot, isSelected, isSuggested, onSelect }: SlotCardProps) {
+function SlotCard({ slot, isAssigned }: SlotCardProps) {
   const status = slot.status as ApiSlotStatus;
   const isAvailable = status === 'AVAILABLE';
-  const isClickable = isAvailable;
 
   let icon: JSX.Element;
   let bgColor: string;
@@ -91,26 +88,16 @@ function SlotCard({ slot, isSelected, isSuggested, onSelect }: SlotCardProps) {
       textColor = '#92400E';
       break;
     default:
-      if (isSelected) {
-        icon = <IconCheck size={13} color={C.white} />;
-        bgColor = C.navy;
-        borderColor = C.navy;
-        textColor = C.white;
-        ring = true;
-      } else {
-        icon = isSuggested ? <IconStar size={13} color={C.blue} /> : <IconPlus size={14} color={C.green} />;
-        bgColor = C.greenBg;
-        borderColor = isSuggested ? C.blue : C.green;
-        textColor = isSuggested ? C.blue : C.green;
-        if (isSuggested) ring = true;
-      }
+      icon = isAssigned ? <IconStar size={13} color={C.blue} /> : <IconPlus size={14} color={C.green} />;
+      bgColor = C.greenBg;
+      borderColor = isAssigned ? C.blue : C.green;
+      textColor = isAssigned ? C.blue : C.green;
+      if (isAssigned) ring = true;
   }
 
   return (
-    <button
-      onClick={() => isClickable && onSelect(slot)}
-      disabled={!isClickable}
-              title={isAvailable ? `Chọn vị trí ${slot.code}` : `Vị trí ${slot.code}: ${status}`}
+    <div
+      title={isAvailable ? `Vị trí ${slot.code} – trống` : `Vị trí ${slot.code}: ${status}`}
       style={{
         width: 64,
         height: 56,
@@ -122,9 +109,9 @@ function SlotCard({ slot, isSelected, isSuggested, onSelect }: SlotCardProps) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 2,
-        cursor: isClickable ? 'pointer' : 'not-allowed',
-        opacity: isClickable ? 1 : 0.6,
-        boxShadow: isSelected ? `0 0 0 3px ${C.navy}40` : 'none',
+        cursor: 'default',
+        opacity: 1,
+        boxShadow: isAssigned ? `0 0 0 3px ${C.navy}40` : 'none',
         padding: 0,
         position: 'relative',
         boxSizing: 'border-box',
@@ -133,7 +120,7 @@ function SlotCard({ slot, isSelected, isSuggested, onSelect }: SlotCardProps) {
     >
       <span style={{ color: textColor, fontSize: '0.75rem', fontWeight: 700 }}>{slot.code}</span>
       {icon}
-      {isSuggested && !isSelected && (
+      {isAssigned && (
         <span style={{
           position: 'absolute',
           top: -7,
@@ -146,10 +133,10 @@ function SlotCard({ slot, isSelected, isSuggested, onSelect }: SlotCardProps) {
           borderRadius: 6,
           lineHeight: 1.4,
         }}>
-          Gợi ý
+          Đã xếp
         </span>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -164,8 +151,9 @@ interface FloorInfo {
 export function BookingPage() {
   const [floor, setFloor] = useState<FloorInfo | null>(null);
   const [slots, setSlots] = useState<ParkingSlot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<ParkingSlot | null>(null);
+  const [assignedSlot, setAssignedSlot] = useState<ParkingSlot | null>(null);
   const [plateNumber, setPlateNumber] = useState('');
+  const [arrivalTime, setArrivalTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -204,13 +192,7 @@ export function BookingPage() {
     loadSlots();
   }, [loadSlots]);
 
-  const handleSelectSlot = (slot: ParkingSlot) => {
-    setSelectedSlot((prev) => (prev?.id === slot.id ? null : slot));
-    setErrorMsg('');
-  };
-
   const handleConfirm = async () => {
-    if (!selectedSlot) return;
     const plate = plateNumber.trim();
     if (!plate) {
       setErrorMsg('Vui lòng nhập biển số xe.');
@@ -220,17 +202,22 @@ export function BookingPage() {
       setErrorMsg('Biển số xe không hợp lệ.');
       return;
     }
+    if (!arrivalTime) {
+      setErrorMsg('Vui lòng chọn thời gian dự kiến tới.');
+      return;
+    }
 
     setSubmitting(true);
     setErrorMsg('');
     try {
-      const expectedArrival = new Date().toISOString();
-      const res = await api.post<{ success: boolean; data: { id: number } }>('/bookings', {
+      const expectedArrival = new Date(arrivalTime).toISOString();
+      const res = await api.post<{ success: boolean; data: { id: string; slot: ParkingSlot } }>('/bookings', {
         plateNumber: plate,
-        slotId: selectedSlot.id,
         expectedArrival,
       });
-      setBookingId(`PKS${String(res.data.data.id).padStart(8, '0')}`);
+      const slot = res.data.data.slot;
+      setAssignedSlot(slot);
+      setBookingId(`PKS-${String(res.data.data.id).slice(0, 8).toUpperCase()}`);
       setConfirmed(true);
       await loadSlots();
     } catch (err: any) {
@@ -241,8 +228,9 @@ export function BookingPage() {
   };
 
   const handleReset = () => {
-    setSelectedSlot(null);
+    setAssignedSlot(null);
     setPlateNumber('');
+    setArrivalTime('');
     setConfirmed(false);
     setErrorMsg('');
     setBookingId('');
@@ -253,12 +241,13 @@ export function BookingPage() {
   const rowASlots = slots.slice(0, half);
   const rowBSlots = slots.slice(half);
 
-  // Suggested: first available slot per row
-  const suggestedIds = new Set<string>();
-  const rowAAvail = rowASlots.find((s) => s.status === 'AVAILABLE');
-  const rowBAvail = rowBSlots.find((s) => s.status === 'AVAILABLE');
-  if (rowAAvail) suggestedIds.add(rowAAvail.id);
-  if (rowBAvail) suggestedIds.add(rowBAvail.id);
+  const assignedSlotId = assignedSlot?.id ?? null;
+
+  const canConfirm =
+    !confirmed &&
+    !submitting &&
+    plateNumber.trim().length >= 4 &&
+    arrivalTime.trim().length > 0;
 
   const floorLabel = floor ? `${floor.name} – Ô tô (Khách vãng lai)` : 'Đang tải…';
 
@@ -354,7 +343,7 @@ export function BookingPage() {
                 color: C.blue,
                 flexShrink: 0,
               }}>
-                Chọn ô trống để đặt chỗ
+                Hệ thống tự chọn vị trí tối ưu
               </span>
             </div>
 
@@ -376,7 +365,7 @@ export function BookingPage() {
             )}
 
             {/* Success state */}
-            {confirmed && selectedSlot ? (
+            {confirmed && assignedSlot ? (
               <div style={{
                 background: C.greenBg,
                 border: `1.5px solid ${C.green}`,
@@ -395,7 +384,7 @@ export function BookingPage() {
                     Mã đặt chỗ: <strong>{bookingId}</strong>
                   </p>
                   <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#166534' }}>
-                    Vị trí: <strong>{selectedSlot.code}</strong> · Hết hạn sau 15 phút
+                    Hệ thống đã xếp cho bạn vị trí <strong>{assignedSlot.code}</strong> · Hết hạn sau 15 phút
                   </p>
                   <button
                     onClick={handleReset}
@@ -434,9 +423,7 @@ export function BookingPage() {
                       <SlotCard
                         key={slot.id}
                         slot={slot}
-                        isSelected={selectedSlot?.id === slot.id}
-                        isSuggested={suggestedIds.has(slot.id)}
-                        onSelect={handleSelectSlot}
+                        isAssigned={assignedSlotId === slot.id}
                       />
                     ))}
                   </div>
@@ -458,9 +445,7 @@ export function BookingPage() {
                         <SlotCard
                           key={slot.id}
                           slot={slot}
-                          isSelected={selectedSlot?.id === slot.id}
-                          isSuggested={suggestedIds.has(slot.id)}
-                          onSelect={handleSelectSlot}
+                          isAssigned={assignedSlotId === slot.id}
                         />
                       ))}
                     </div>
@@ -518,6 +503,31 @@ export function BookingPage() {
                 />
               </div>
 
+              {/* Thời gian dự kiến tới */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.gray400, marginBottom: '0.35rem' }}>
+                  Thời gian dự kiến tới
+                </label>
+                <input
+                  type="datetime-local"
+                  value={arrivalTime}
+                  onChange={(e) => { setArrivalTime(e.target.value); setErrorMsg(''); }}
+                  disabled={confirmed || submitting}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    border: `1.5px solid ${C.gray200}`,
+                    borderRadius: 8,
+                    fontSize: '0.875rem',
+                    color: C.gray800,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    background: confirmed ? C.gray50 : C.white,
+                  }}
+                />
+              </div>
+
               {/* Vị trí */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: 32, height: 32, background: C.gray50, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -527,8 +537,8 @@ export function BookingPage() {
                   <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.gray400 }}>
                     Vị trí
                   </p>
-                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color: selectedSlot ? C.navy : C.gray400 }}>
-                    {selectedSlot ? `${selectedSlot.code}` : '—'}
+                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color: assignedSlot ? C.navy : C.gray400 }}>
+                    {assignedSlot ? `${assignedSlot.code}` : '—'}
                   </p>
                 </div>
               </div>
@@ -547,7 +557,7 @@ export function BookingPage() {
                   <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color: C.green }}>
                     {BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ
                   </p>
-                  {selectedSlot && (
+                  {assignedSlot && (
                     <p style={{ margin: '0.15rem 0 0', fontSize: '0.7rem', color: C.gray400 }}>
                       Cọc sẽ được trừ vào phí gửi xe khi bạn vào bãi.
                     </p>
@@ -590,28 +600,28 @@ export function BookingPage() {
 
           {/* ── 5. Confirm button ─────────────────────── */}
           <button
-            disabled={!selectedSlot || confirmed || submitting}
+            disabled={!canConfirm}
             onClick={handleConfirm}
             style={{
               width: '100%',
               padding: '0.85rem',
-              background: selectedSlot && !confirmed && !submitting ? C.navy : C.gray200,
-              color: selectedSlot && !confirmed && !submitting ? C.white : C.gray400,
+              background: canConfirm ? C.navy : C.gray200,
+              color: canConfirm ? C.white : C.gray400,
               border: 'none',
               borderRadius: 12,
               fontSize: '0.95rem',
               fontWeight: 700,
-              cursor: selectedSlot && !confirmed && !submitting ? 'pointer' : 'not-allowed',
-              boxShadow: selectedSlot && !confirmed && !submitting ? '0 4px 14px rgba(30, 58, 95, 0.25)' : 'none',
+              cursor: canConfirm ? 'pointer' : 'not-allowed',
+              boxShadow: canConfirm ? '0 4px 14px rgba(30, 58, 95, 0.25)' : 'none',
               transition: 'all 0.2s ease',
             }}
           >
             {submitting ? 'Đang xử lý...' : 'Xác nhận đặt chỗ'}
           </button>
 
-          {selectedSlot && !confirmed && !submitting && (
+          {!confirmed && !submitting && (
             <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', color: C.gray400 }}>
-              Chọn vị trí {selectedSlot.code} — đặt cọc {BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ, giữ chỗ 15 phút
+              Đặt cọc {BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ — hệ thống sẽ tự chọn vị trí tối ưu cho bạn
             </p>
           )}
 
