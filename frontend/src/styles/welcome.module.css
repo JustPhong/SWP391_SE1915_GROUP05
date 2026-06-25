@@ -879,6 +879,595 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
+   XE CUA BAN — USER DASHBOARD
+══════════════════════════════════════════════════════════════ */
+.vcbPage {
+  min-height: calc(100vh - 70px);
+  background: linear-gradient(160deg, #d6e6f6 0%, #ffffff 55%);
+  padding: 3rem 2rem;
+}
+.vcbInner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.vcbHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.vcbTitle {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #16293f;
+  letter-spacing: -0.3px;
+  margin: 0 0 0.3rem;
+}
+.vcbSubtitle {
+  font-size: 0.9rem;
+  color: #5a7a96;
+  margin: 0;
+}
+
+/* Stats row */
+.vcbStatsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.vcbStatCard {
+  background: #ffffff;
+  border: 1.5px solid #dae9f5;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  box-shadow: 0 2px 10px rgba(22,41,63,0.05);
+  transition: all 0.2s ease;
+}
+.vcbStatCard:hover {
+  border-color: #2d5fd0;
+  box-shadow: 0 4px 16px rgba(45,95,208,0.1);
+  transform: translateY(-1px);
+}
+.vcbStatCardActive {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+.vcbStatIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.vcbStatValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #16293f;
+  line-height: 1.1;
+}
+.vcbStatLabel {
+  font-size: 0.75rem;
+  color: #8aacbf;
+  font-weight: 500;
+  margin-top: 0.1rem;
+}
+
+/* Active session banner */
+.vcbActiveSession {
+  background: linear-gradient(135deg, #16293f, #1e3a5f);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 4px 20px rgba(22,41,63,0.2);
+}
+.vcbActiveLeft {}
+.vcbActivePlate {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.35rem;
+}
+.vcbActiveMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.vcbActiveSlot {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.65);
+}
+.vcbActiveRight {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.vcbActiveTime {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.vcbActiveTimeLabel {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.vcbActiveTimeValue {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+.vcbActiveDate {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.55);
+}
+.vcbActiveEst {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.vcbActiveEstLabel {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.vcbActiveEstValue {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #86efac;
+}
+
+/* Package banner */
+.vcbPackageBanner {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.vcbPkgLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.vcbPkgName {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #15803d;
+}
+.vcbPkgSep {
+  color: #bbf7d0;
+  font-weight: 700;
+}
+.vcbPkgExpiry {
+  font-size: 0.8rem;
+  color: #4a6a85;
+}
+.vcbPkgDays {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+.vcbPkgDaysNum {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #15803d;
+  line-height: 1;
+}
+.vcbPkgDaysLabel {
+  font-size: 0.75rem;
+  color: #4a6a85;
+}
+
+/* Badge */
+.vcbBadge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #2d5fd0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.6rem;
+  border-radius: 20px;
+}
+
+/* Section */
+.vcbSection {
+  background: #ffffff;
+  border: 1.5px solid #dae9f5;
+  border-radius: 14px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 10px rgba(22,41,63,0.05);
+}
+.vcbSectionTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #16293f;
+  margin: 0 0 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.vcbSectionCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d6e6f6;
+  color: #2d5fd0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+}
+.vcbSectionToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+}
+
+/* Vehicles */
+.vcbVehicleList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.vcbVehicleCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  background: #f0f7ff;
+  border: 1px solid #dae9f5;
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+.vcbVehicleCard:hover {
+  border-color: #2d5fd0;
+  background: #eff6ff;
+}
+.vcbVehicleInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+.vcbVehicleIcon {
+  width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.vcbVehiclePlate {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #16293f;
+  letter-spacing: 0.3px;
+}
+.vcbVehicleType {
+  font-size: 0.75rem;
+  color: #8aacbf;
+  margin-top: 0.15rem;
+  display: flex;
+  align-items: center;
+}
+.vcbVehicleRemove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #8aacbf;
+  padding: 0.4rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+.vcbVehicleRemove:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+/* Empty state */
+.vcbEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+.vcbEmpty p {
+  font-size: 0.875rem;
+  color: #8aacbf;
+  margin: 0;
+}
+.vcbEmptyBtn {
+  background: none;
+  border: 1.5px solid #2d5fd0;
+  color: #2d5fd0;
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.vcbEmptyBtn:hover {
+  background: #eff6ff;
+}
+
+/* History */
+.vcbHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.vcbHistoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f0f7ff;
+  border: 1px solid #dae9f5;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.vcbHistoryItem:hover {
+  border-color: #2d5fd0;
+}
+.vcbHistoryLeft {}
+.vcbHistoryPlate {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #16293f;
+  margin-bottom: 0.15rem;
+}
+.vcbHistoryMeta {
+  font-size: 0.72rem;
+  color: #8aacbf;
+}
+.vcbHistoryRight {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.vcbHistoryDuration {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #16293f;
+}
+.vcbHistoryAmount {
+  font-size: 0.75rem;
+  color: #2d5fd0;
+  font-weight: 600;
+}
+
+/* Loading */
+.vcbLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: #8aacbf;
+  font-size: 0.875rem;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #dae9f5;
+  border-top-color: #2d5fd0;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Tab switcher */
+.tabSwitcher {
+  display: flex;
+  gap: 0.25rem;
+  background: #d6e6f6;
+  border-radius: 10px;
+  padding: 4px;
+}
+.tabBtn {
+  background: transparent;
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5a7a96;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.tabBtn:hover {
+  color: #16293f;
+  background: rgba(255,255,255,0.5);
+}
+.tabBtnActive {
+  background: #ffffff;
+  color: #2d5fd0;
+  box-shadow: 0 1px 4px rgba(22,41,63,0.1);
+}
+
+/* User greeting */
+.userGreeting {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a6a85;
+  padding: 0 0.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════════════════════════ */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(22,41,63,0.45);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modalCard {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.75rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(22,41,63,0.25);
+  animation: slideUp 0.2s ease;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.modalTitle {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #16293f;
+  margin: 0;
+}
+.modalClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #8aacbf;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+.modalClose:hover {
+  color: #16293f;
+  background: #d6e6f6;
+}
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.formLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #16293f;
+  letter-spacing: 0.02em;
+}
+.formInput {
+  width: 100%;
+  padding: 0.6rem 0.875rem;
+  border: 1.5px solid #dae9f5;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #16293f;
+  background: #f8fcff;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.formInput:focus {
+  border-color: #2d5fd0;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(45,95,208,0.1);
+}
+.typeSelector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.typeOption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1.5px solid #dae9f5;
+  border-radius: 8px;
+  background: #f8fcff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #5a7a96;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.typeOption:hover {
+  border-color: #2d5fd0;
+  color: #2d5fd0;
+}
+.typeOptionActive {
+  border-color: #2d5fd0;
+  background: #eff6ff;
+  color: #2d5fd0;
+}
+.formError {
+  font-size: 0.8rem;
+  color: #ef4444;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════════════════════════ */
 @media (max-width: 1024px) {
@@ -954,5 +1543,31 @@
   .footerLinks {
     grid-template-columns: 1fr;
     gap: 1.5rem;
+  }
+  .vcbPage {
+    padding: 2rem 1.25rem;
+  }
+  .vcbHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .vcbStatsRow {
+    grid-template-columns: 1fr;
+  }
+  .vcbActiveSession {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .vcbActiveRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .vcbPackageBanner {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .tabSwitcher {
+    width: 100%;
+    justify-content: center;
   }
 }
