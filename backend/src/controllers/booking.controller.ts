@@ -8,7 +8,6 @@ export const bookingController = {
     if (!req.user) throw new Error('Not authenticated');
     const booking = await bookingService.create({
       plateNumber: req.body.plateNumber,
-      slotId: req.body.slotId,
       expectedArrival: new Date(req.body.expectedArrival),
       createdById: req.user.id,
     });
