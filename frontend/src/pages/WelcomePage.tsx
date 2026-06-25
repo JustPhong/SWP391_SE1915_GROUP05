@@ -116,7 +116,7 @@ export const WelcomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── 4. FEATURES ─────────────────────────────────── */}
+      {/* ── 5. FEATURES ─────────────────────────────────── */}
       <section className={styles.section}>
         <div className={styles.sectionInner}>
           <span className={styles.eyebrow}>Tính năng nổi bật</span>
@@ -149,7 +149,94 @@ export const WelcomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── 5. PROCESS ─────────────────────────────────── */}
+      {/* ── 4. CASUAL PRICING ─────────────────────────────── */}
+      <section className={styles.section}>
+        <div className={styles.sectionInner}>
+          <span className={styles.eyebrow}>Giá vãng lai</span>
+          <h2 className={styles.sectionTitle}>Đỗ xe theo lượt — không cần đăng ký</h2>
+          <p className={styles.pricingNote}>
+            Không cần tài khoản. Ra vào nhanh chóng, tính phí theo thời gian thực.
+          </p>
+          <div className={styles.cardGrid2}>
+            <div className={styles.casualCard}>
+              <div className={styles.casualIcon}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 8v4l3 3"/>
+                </svg>
+              </div>
+              <h3 className={styles.casualTitle}>Xe máy</h3>
+              <div className={styles.casualTimeBlocks}>
+                <div className={styles.timeBlock}>
+                  <div className={styles.timeBlockLeft}>
+                    <span className={styles.timeBlockLabel}>Ban ngày</span>
+                    <span className={styles.timeBlockHours}>06:00 – 17:59</span>
+                  </div>
+                  <span className={styles.timeBlockPrice}>3.000đ</span>
+                  <span className={styles.timeBlockUnit}>/ 4 giờ</span>
+                </div>
+                <div className={styles.timeBlock}>
+                  <div className={styles.timeBlockLeft}>
+                    <span className={styles.timeBlockLabel}>Ban đêm</span>
+                    <span className={styles.timeBlockHours}>18:00 – 05:59</span>
+                  </div>
+                  <span className={styles.timeBlockPrice}>4.000đ</span>
+                  <span className={styles.timeBlockUnit}>/ 4 giờ</span>
+                </div>
+              </div>
+              <button className={styles.casualBtn} onClick={() => navigate('/login')}>
+                Đặt chỗ ngay
+              </button>
+            </div>
+            <div className={`${styles.casualCard} ${styles.casualCardFeatured}`}>
+              <div className={styles.casualBadge}>Phổ biến</div>
+              <div className={styles.casualIcon}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="3" width="15" height="13" rx="2" ry="2"/>
+                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                  <circle cx="5.5" cy="18.5" r="2.5"/>
+                  <circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+              </div>
+              <h3 className={styles.casualTitle}>Ô tô</h3>
+              <div className={styles.casualTimeBlocks}>
+                <div className={styles.timeBlock}>
+                  <div className={styles.timeBlockLeft}>
+                    <span className={styles.timeBlockLabel}>Ban ngày</span>
+                    <span className={styles.timeBlockHours}>06:00 – 17:59</span>
+                  </div>
+                  <span className={styles.timeBlockPrice}>15.000đ</span>
+                  <span className={styles.timeBlockUnit}>/ 2 giờ</span>
+                </div>
+                <div className={styles.timeBlock}>
+                  <div className={styles.timeBlockLeft}>
+                    <span className={styles.timeBlockLabel}>Buổi tối</span>
+                    <span className={styles.timeBlockHours}>18:00 – 23:59</span>
+                  </div>
+                  <span className={styles.timeBlockPrice}>20.000đ</span>
+                  <span className={styles.timeBlockUnit}>/ 2 giờ</span>
+                </div>
+                <div className={`${styles.timeBlock} ${styles.timeBlockNight}`}>
+                  <div className={styles.timeBlockLeft}>
+                    <span className={styles.timeBlockLabel}>Đêm muộn</span>
+                    <span className={styles.timeBlockHours}>00:00 – 05:59</span>
+                  </div>
+                  <span className={styles.timeBlockPrice}>100.000đ</span>
+                  <span className={styles.timeBlockUnit}>trọn đêm</span>
+                </div>
+              </div>
+              <button className={`${styles.casualBtn} ${styles.casualBtnFeatured}`} onClick={() => navigate('/login')}>
+                Đặt chỗ ngay
+              </button>
+            </div>
+          </div>
+          <p className={styles.casualFootnote}>
+            Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.
+          </p>
+        </div>
+      </section>
+
+      {/* ── 6. PROCESS ─────────────────────────────────── */}
       <section className={styles.sectionAlt}>
         <div className={styles.sectionInner}>
           <span className={styles.eyebrow}>Quy trình vận hành</span>
@@ -180,7 +267,7 @@ export const WelcomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── 6. ZONES / PRICING ─────────────────────────── */}
+      {/* ── 7. PRICING ─────────────────────────────────── */}
       <section className={styles.section}>
         <div className={styles.sectionInner}>
           <span className={styles.eyebrow}>Bảng giá gói tháng</span>
@@ -266,7 +353,7 @@ export const WelcomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── 7. CTA BAND ────────────────────────────────── */}
+      {/* ── 8. CTA BAND ────────────────────────────────── */}
       <section className={styles.ctaBand}>
         <div className={styles.ctaBandInner}>
           <h2 className={styles.ctaTitle}>Sẵn sàng vận hành bãi đỗ thông minh?</h2>
@@ -290,7 +377,7 @@ export const WelcomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── 8. FOOTER ─────────────────────────────────── */}
+      {/* ── 9. FOOTER ─────────────────────────────────── */}
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
