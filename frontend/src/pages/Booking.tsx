@@ -384,7 +384,7 @@ export function BookingPage() {
                     Mã đặt chỗ: <strong>{bookingId}</strong>
                   </p>
                   <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#166534' }}>
-                    Hệ thống đã xếp cho bạn vị trí <strong>{assignedSlot.code}</strong> · Hết hạn sau 15 phút
+                    Hệ thống đã xếp cho bạn vị trí <strong>{assignedSlot.code}</strong> · Hết hạn sau 30 phút
                   </p>
                   <button
                     onClick={handleReset}
@@ -575,7 +575,7 @@ export function BookingPage() {
                     Thời gian giữ
                   </p>
                   <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color: C.gray800 }}>
-                    15 phút
+                    30 phút
                   </p>
                 </div>
               </div>
@@ -594,7 +594,7 @@ export function BookingPage() {
           }}>
             <span style={{ fontSize: '1rem', lineHeight: 1.4, flexShrink: 0 }}>⚠</span>
             <p style={{ margin: 0, fontSize: '0.8rem', color: '#991B1B', lineHeight: 1.5 }}>
-              Đặt chỗ sẽ tự động bị hủy và mất cọc nếu xe không vào bãi trong 15 phút.
+              Đặt chỗ sẽ tự động bị hủy và mất cọc nếu xe không vào bãi trong 30 phút.
             </p>
           </div>
 
