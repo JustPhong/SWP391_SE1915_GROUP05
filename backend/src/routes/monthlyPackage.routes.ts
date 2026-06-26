@@ -3,7 +3,6 @@ import { monthlyPackageController } from '../controllers/monthlyPackage.controll
 import { createMonthlyPackageSchema } from '../dtos/monthly-package.dto';
 import { validate } from '../middleware/error.middleware';
 import { authenticate } from '../middleware/auth.middleware';
-import { requirePermission } from '../middleware/permission.middleware';
 
 const router = Router();
    
@@ -127,7 +126,6 @@ router.get('/vehicle/:vehicleId', monthlyPackageController.getByVehicle);
  */
 router.post(
   '/',
-  requirePermission('package.buy'),
   createMonthlyPackageSchema,
   validate,
   monthlyPackageController.create

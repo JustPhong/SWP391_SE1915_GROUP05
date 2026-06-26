@@ -24,6 +24,8 @@ import { FeeRulesPage } from './pages/FeeRules';
 import { AuditLogsPage } from './pages/AuditLogs';
 import { ProfilePage } from './pages/Profile';
 import { WelcomePage } from './pages/WelcomePage';
+import { BookingPage } from './pages/Booking';
+import { MonthlyPackagePage } from './pages/MonthlyPackage';
 
 function LoadingScreen() {
   return (
@@ -270,6 +272,35 @@ function AppRoutes() {
         }
       />
 
+      {/* Booking — yêu cầu có gói tháng */}
+      <Route
+        path="/booking"
+        element={
+          <ProtectedRoute>
+            <BookingPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/floor-map"
+        element={
+          <ProtectedRoute>
+            <DriverLayout title="Sơ đồ tầng">
+              <FloorMapPage />
+            </DriverLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/monthly-package"
+        element={
+          <ProtectedRoute>
+            <DriverLayout title="Gói tháng">
+              <MonthlyPackagePage />
+            </DriverLayout>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/profile" element={<ProfileRoute />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
