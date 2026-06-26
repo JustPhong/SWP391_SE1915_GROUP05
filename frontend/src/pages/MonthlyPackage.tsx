@@ -132,22 +132,21 @@ function IconInfo({ size = 15, color = C.gray600 }: { size?: number; color?: str
 // ── Vehicle picker card ────────────────────────────────
 function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; selected: boolean; onSelect: () => void }) {
   const isCar = vehicle.type === 'CAR';
-  const disabled = vehicle.isMonthly;
+  const hasPackage = vehicle.isMonthly;
   return (
     <button
       onClick={onSelect}
-      disabled={disabled}
       style={{
-        background: selected ? C.blueBg : disabled ? C.gray50 : C.white,
+        background: selected ? C.blueBg : C.white,
         border: selected ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
         borderRadius: 14, padding: '0.85rem 1rem',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        cursor: 'pointer',
         textAlign: 'left', width: '100%', boxSizing: 'border-box',
-        opacity: disabled ? 0.65 : 1, position: 'relative',
+        position: 'relative',
         display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'all 0.15s ease',
       }}
     >
-      {selected && !disabled && (
+      {selected && (
         <div style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, background: C.navy, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <IconCheck size={12} color={C.white} />
         </div>
@@ -157,21 +156,21 @@ function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; 
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'Consolas', monospace", fontSize: '1rem', fontWeight: 800, color: disabled ? C.gray400 : C.gray900, letterSpacing: '0.03em' }}>
+          <span style={{ fontFamily: "'Consolas', monospace", fontSize: '1rem', fontWeight: 800, color: C.gray900, letterSpacing: '0.03em' }}>
             {vehicle.plateNumber}
           </span>
           <span style={{ background: C.blueBg, color: C.blue, fontSize: '0.65rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 20 }}>
             {TYPE_LABEL[vehicle.type]}
           </span>
-          {disabled && (
+          {hasPackage && (
             <span style={{ background: C.greenBg, color: C.green, fontSize: '0.65rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 20 }}>
               Đã có gói tháng
             </span>
           )}
         </div>
-        {disabled && (
+        {hasPackage && (
           <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: C.gray600 }}>
-            Xe đã đăng ký gói tháng — không thể mua thêm
+            Xe đã đăng ký gói tháng — gói mới sẽ gia hạn thêm
           </p>
         )}
       </div>

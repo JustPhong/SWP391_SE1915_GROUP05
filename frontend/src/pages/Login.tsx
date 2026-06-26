@@ -68,14 +68,12 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      subtitle="Infrastructure Management Portal"
+      subtitle="Hệ thống quản lý bãi đỗ xe thông minh"
       footerText="Don't have an account?"
       footerLink={{ text: 'Sign up', to: '/register' }}
     >
-      <h2 className={styles.heading}>Welcome back</h2>
-      <p className={styles.description}>
-        Please enter your credentials to manage slots.
-      </p>
+      <h2 className={styles.heading}>Sign in</h2>
+      <p className={styles.description}>Manage your parking slots with ease.</p>
 
       {apiError && (
         <div className={`${styles.alert} ${styles['alert--error']}`}>{apiError}</div>
@@ -145,23 +143,10 @@ export function LoginPage() {
         {/* Submit */}
         <button
           type="submit"
-          className={styles.btn}
+          className={`${styles.btn} ${styles['btn--primary']}`}
           disabled={loading}
-          style={{
-            background: '#1E3A5F',
-            color: '#fff',
-            width: '100%',
-            padding: '12px',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 14px rgba(30, 58, 95, 0.25)',
-            opacity: loading ? 0.6 : 1,
-          }}
         >
-          {loading ? 'Đang đăng nhập...' : 'Log In'}
+          {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </form>
     </AuthLayout>
