@@ -5,6 +5,7 @@ import { getCurrentSession, getMyPackage, getHistory, CurrentSession, MyPackage,
 import { getMyVehicles, addVehicle, removeVehicle, Vehicle } from '../api/vehicleApi';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
+import { PACKAGES, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 
 type Tab = 'home' | 'vehicles';
@@ -494,7 +495,6 @@ export const WelcomePage: React.FC = () => {
           <FeaturesSection />
           <ProcessSection />
           <PricingSection navigate={navigate} />
-          <Footer navigate={navigate} />
         </>
       ) : (
         /* ── XE CUA BAN ──────────────────────────────── */
@@ -943,16 +943,45 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
 }
 
 function PricingSection({ navigate }: { navigate: (path: string) => void }) {
+  const [vtype, setVtype] = useState<VType>('CAR');
+  const CAR_PERKS = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
+  const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
+  const perks = vtype === 'CAR' ? CAR_PERKS : MOTO_PERKS;
   return (
     <section className={styles.section}>
       <div className={styles.sectionInner}>
         <span className={styles.eyebrow}>Bảng giá gói tháng</span>
         <h2 className={styles.sectionTitle}>Chọn gói phù hợp với bạn</h2>
-        <p className={styles.pricingNote}>Giá áp dụng cho ô tô. Xe máy có biểu giá riêng.</p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            Ô tô
+          </button>
+          <button type="button" className={`${styles.typeOption} ${vtype === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('MOTORBIKE')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
+            Xe máy
+          </button>
+        </div>
+        <p className={styles.pricingNote}>
+          {vtype === 'CAR'
+            ? 'Giá áp dụng cho ô tô. Xe máy có biểu giá riêng.'
+            : 'Giá áp dụng cho xe máy. Ô tô có biểu giá riêng.'}
+        </p>
         <div className={styles.cardGrid3}>
-          <PricingCard title="Gói 1 tháng" duration="30 ngày" price="1.500.000đ" perDay="50.000đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="calendar" onClick={() => navigate('/monthly-package')} />
-          <PricingCard title="Gói 3 tháng" duration="90 ngày" price="4.000.000đ" perDay="44.444đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="check" featured saving="Tiết kiệm ~11%" onClick={() => navigate('/monthly-package')} />
-          <PricingCard title="Gói 1 năm" duration="365 ngày" price="15.000.000đ" perDay="41.096đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="star" saving="Tiết kiệm ~17%" onClick={() => navigate('/monthly-package')} />
+          {PACKAGES.map((pkg, i) => (
+            <PricingCard
+              key={pkg.id}
+              title={pkg.name}
+              duration={`${pkg.durationDays} ngày`}
+              price={pkg.prices[vtype].priceLabel}
+              perDay={pkg.prices[vtype].pricePerDay}
+              perks={perks}
+              icon={i === 0 ? 'calendar' : i === 1 ? 'check' : 'star'}
+              featured={i === 1}
+              saving={i === 1 ? 'Tiết kiệm ~11%' : i === 2 ? 'Tiết kiệm ~17%' : undefined}
+              onClick={() => navigate('/monthly-package')}
+            />
+          ))}
         </div>
       </div>
     </section>
