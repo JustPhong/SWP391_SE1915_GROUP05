@@ -498,10 +498,16 @@ function HeroLoggedIn({
               : <span className={styles.chip}>Khách vãng lai</span>}
           </div>
           <div className={styles.heroCtas}>
-            <button className={styles.btnPrimary} onClick={() => navigate('/login')}>
+            <button
+              className={styles.btnPrimary}
+              onClick={() => navigate(session ? '/driver-dashboard' : '/booking')}
+            >
               {session ? 'Xem chi tiết' : 'Đặt chỗ ngay'}
             </button>
-            <button className={styles.btnOutline} onClick={() => navigate('/login')}>
+            <button
+              className={styles.btnOutline}
+              onClick={() => navigate(session ? '/driver-dashboard' : '#pricing')}
+            >
               {session ? 'Thanh toán' : 'Tìm hiểu thêm'}
             </button>
           </div>
@@ -550,7 +556,7 @@ function CasualPricingSection({ navigate }: { navigate: (path: string) => void }
                 <span className={styles.timeBlockPrice}>4.000đ</span><span className={styles.timeBlockUnit}>/ 4 giờ</span>
               </div>
             </div>
-            <button className={styles.casualBtn} onClick={() => navigate('/login')}>Đặt chỗ ngay</button>
+            <button className={styles.casualBtn} onClick={() => navigate('/booking')}>Đặt chỗ ngay</button>
           </div>
           <div className={`${styles.casualCard} ${styles.casualCardFeatured}`}>
             <div className={styles.casualBadge}>Phổ biến</div>
@@ -572,7 +578,7 @@ function CasualPricingSection({ navigate }: { navigate: (path: string) => void }
                 <span className={styles.timeBlockPrice}>100.000đ</span><span className={styles.timeBlockUnit}>trọn đêm</span>
               </div>
             </div>
-            <button className={`${styles.casualBtn} ${styles.casualBtnFeatured}`} onClick={() => navigate('/login')}>Đặt chỗ ngay</button>
+            <button className={`${styles.casualBtn} ${styles.casualBtnFeatured}`} onClick={() => navigate('/booking')}>Đặt chỗ ngay</button>
           </div>
         </div>
         <p className={styles.casualFootnote}>Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.</p>
@@ -641,9 +647,9 @@ function PricingSection({ navigate }: { navigate: (path: string) => void }) {
         <h2 className={styles.sectionTitle}>Chọn gói phù hợp với bạn</h2>
         <p className={styles.pricingNote}>Giá áp dụng cho ô tô. Xe máy có biểu giá riêng.</p>
         <div className={styles.cardGrid3}>
-          <PricingCard title="Gói 1 tháng" duration="30 ngày" price="1.500.000đ" perDay="50.000đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="calendar" onClick={() => navigate('/login')} />
-          <PricingCard title="Gói 3 tháng" duration="90 ngày" price="4.000.000đ" perDay="44.444đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="check" featured saving="Tiết kiệm ~11%" onClick={() => navigate('/login')} />
-          <PricingCard title="Gói 1 năm" duration="365 ngày" price="15.000.000đ" perDay="41.096đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="star" saving="Tiết kiệm ~17%" onClick={() => navigate('/login')} />
+          <PricingCard title="Gói 1 tháng" duration="30 ngày" price="1.500.000đ" perDay="50.000đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="calendar" onClick={() => navigate('/monthly-package')} />
+          <PricingCard title="Gói 3 tháng" duration="90 ngày" price="4.000.000đ" perDay="44.444đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="check" featured saving="Tiết kiệm ~11%" onClick={() => navigate('/monthly-package')} />
+          <PricingCard title="Gói 1 năm" duration="365 ngày" price="15.000.000đ" perDay="41.096đ/ngày" perks={['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng']} icon="star" saving="Tiết kiệm ~17%" onClick={() => navigate('/monthly-package')} />
         </div>
       </div>
     </section>

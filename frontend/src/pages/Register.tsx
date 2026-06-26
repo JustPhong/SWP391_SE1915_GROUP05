@@ -138,10 +138,12 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      subtitle="Create your account to start managing your parking"
+      subtitle="Tạo tài khoản để bắt đầu sử dụng dịch vụ đỗ xe thông minh"
       footerText="Already have an account?"
-      footerLink={{ text: 'Log in', to: '/login' }}
+      footerLink={{ text: 'Sign in', to: '/login' }}
     >
+      <h2 className={styles.heading}>Create account</h2>
+      <p className={styles.description}>Join ParkSmart and manage your parking effortlessly.</p>
       <form onSubmit={handleSubmit} noValidate>
 
         {/* Full Name - full width */}
@@ -321,21 +323,8 @@ export function RegisterPage() {
         {/* Submit */}
         <button
           type="submit"
-          className={styles.btn}
+          className={`${styles.btn} ${styles['btn--primary']}`}
           disabled={loading || !!plateError}
-          style={{
-            background: '#1E3A5F',
-            color: '#fff',
-            width: '100%',
-            padding: '12px',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 14px rgba(30, 58, 95, 0.25)',
-            opacity: loading ? 0.6 : 1,
-          }}
         >
           {loading ? 'Creating account...' : 'Create Account'}
         </button>
