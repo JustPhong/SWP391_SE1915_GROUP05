@@ -60,6 +60,235 @@ export const WelcomePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // ── Support Modal & FAQ states ────────────────────────────
+  const [activeSupportTab, setActiveSupportTab] = useState<'help' | 'faq' | 'contact' | null>(null);
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [contactForm, setContactForm] = useState({ name: '', phone: '', email: '', subject: 'Sự cố thanh toán', message: '' });
+  const [isContactSubmitted, setIsContactSubmitted] = useState(false);
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+
+  const toggleFaq = (index: number) => {
+    setExpandedFaq(expandedFaq === index ? null : index);
+  };
+
+  const handleContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setContactSubmitting(true);
+    setTimeout(() => {
+      setContactSubmitting(false);
+      setIsContactSubmitted(true);
+    }, 800);
+  };
+
+  const resetContactForm = () => {
+    setContactForm({ name: '', phone: '', email: '', subject: 'Sự cố thanh toán', message: '' });
+    setIsContactSubmitted(false);
+  };
+
+  const renderSupportModal = () => {
+    if (!activeSupportTab) return null;
+
+    return (
+      <div className={styles.supportModalBackdrop} onClick={() => setActiveSupportTab(null)}>
+        <div className={styles.supportModal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.supportModalHeader}>
+            <span className={styles.supportModalTitle}>Trung tâm Hỗ trợ ParkSmart</span>
+            <button className={styles.supportModalClose} onClick={() => setActiveSupportTab(null)}>&times;</button>
+          </div>
+
+          <div className={styles.supportModalTabs}>
+            <button
+              className={`${styles.supportModalTab} ${activeSupportTab === 'help' ? styles.supportModalTabActive : ''}`}
+              onClick={() => { setActiveSupportTab('help'); resetContactForm(); }}
+            >
+              Trung tâm trợ giúp
+            </button>
+            <button
+              className={`${styles.supportModalTab} ${activeSupportTab === 'faq' ? styles.supportModalTabActive : ''}`}
+              onClick={() => { setActiveSupportTab('faq'); resetContactForm(); }}
+            >
+              Câu hỏi thường gặp
+            </button>
+            <button
+              className={`${styles.supportModalTab} ${activeSupportTab === 'contact' ? styles.supportModalTabActive : ''}`}
+              onClick={() => { setActiveSupportTab('contact'); }}
+            >
+              Liên hệ chúng tôi
+            </button>
+          </div>
+
+          <div className={styles.supportModalBody}>
+            {activeSupportTab === 'help' && (
+              <div className={styles.helpGrid}>
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardTitle}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 9.21v3z"/></svg>
+                    <span>Hotline 24/7</span>
+                  </div>
+                  <div className={styles.helpCardContent}>
+                    <p style={{ fontWeight: 600, color: '#16293f', fontSize: '1.1rem', margin: '0.2rem 0' }}>1900 6868</p>
+                    <p>Hỗ trợ khẩn cấp, giải quyết sự cố ra vào bãi và lỗi thanh toán mọi lúc mọi nơi.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardTitle}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Hỗ trợ qua Email</span>
+                  </div>
+                  <div className={styles.helpCardContent}>
+                    <p style={{ fontWeight: 600, color: '#16293f', fontSize: '1rem', margin: '0.2rem 0' }}>support@parksmart.vn</p>
+                    <p>Tiếp nhận các phản hồi, đề xuất, yêu cầu hóa đơn hoặc đăng ký gói tháng cho doanh nghiệp.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardTitle}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    <span>Thời gian phục vụ</span>
+                  </div>
+                  <div className={styles.helpCardContent}>
+                    <p style={{ fontWeight: 600, color: '#16293f', margin: '0.2rem 0' }}>Thứ 2 - Chủ Nhật</p>
+                    <p>Mở cửa phục vụ liên tục 24 giờ mỗi ngày, kể cả các ngày lễ Tết.</p>
+                  </div>
+                </div>
+
+                <div className={styles.helpCard}>
+                  <div className={styles.helpCardTitle}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>Văn phòng Quản lý</span>
+                  </div>
+                  <div className={styles.helpCardContent}>
+                    <p style={{ fontWeight: 600, color: '#16293f', margin: '0.2rem 0' }}>Tầng lửng B1</p>
+                    <p>Bãi đỗ xe ParkSmart, 123 Đường 3/2, Quận 10, TP. Hồ Chí Minh.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSupportTab === 'faq' && (
+              <div className={styles.faqList}>
+                {[
+                  {
+                    q: "Làm thế nào để mua gói vé tháng?",
+                    a: "Để đăng ký vé tháng, bạn cần đăng nhập tài khoản của mình, vào mục 'Xe của tôi' để thêm phương tiện đỗ xe, sau đó điều hướng tới mục 'Gói tháng', chọn gói đỗ xe phù hợp (1 tháng, 3 tháng hoặc 1 năm) và thanh toán nhanh chóng bằng mã QR."
+                  },
+                  {
+                    q: "Tôi có thể hủy đặt chỗ trước khi vào bãi không?",
+                    a: "Có, bạn hoàn toàn có thể hủy đặt chỗ bất kỳ lúc nào trước giờ hẹn tối thiểu 30 phút. Nếu hủy sau thời gian này hoặc không tới bãi xe (No-show), bạn có thể bị mất số tiền cọc (nếu có)."
+                  },
+                  {
+                    q: "Nếu tôi làm mất vé giấy/thẻ vãng lai thì phải xử lý thế nào?",
+                    a: "Hãy liên hệ ngay với nhân viên Staff tại bốt trực cổng ra hoặc phòng điều hành tầng B1. Phí đền bù mất thẻ là 500.000đ, cộng thêm phí đỗ xe thực tế tính từ thời điểm xe check-in vào bãi dựa trên lịch sử ghi nhận camera."
+                  },
+                  {
+                    q: "Hệ thống hỗ trợ những phương thức thanh toán nào?",
+                    a: "ParkSmart hỗ trợ các hình thức thanh toán đa dạng bao gồm: tiền mặt trực tiếp tại quầy, quẹt thẻ ngân hàng (ATM/Visa/Mastercard), hoặc quét mã QR thanh toán qua MoMo, ZaloPay, VNPAY."
+                  },
+                  {
+                    q: "Tôi mua vé tháng có được chọn chỗ đỗ cố định không?",
+                    a: "Khi bạn đăng ký gói vé tháng cố định (Fixed Slot), hệ thống sẽ sử dụng thuật toán phân vùng tối ưu để tự động chọn và gán một vị trí đỗ xe riêng biệt dành cho bạn. Bạn có thể yêu cầu Manager thay đổi vị trí này nếu khu vực đó còn trống."
+                  }
+                ].map((item, index) => (
+                  <div key={index} className={`${styles.faqItem} ${expandedFaq === index ? styles.faqItemOpen : ''}`}>
+                    <button className={styles.faqQuestion} onClick={() => toggleFaq(index)}>
+                      <span>{item.q}</span>
+                      <span style={{ transition: 'transform 0.2s', transform: expandedFaq === index ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                    </button>
+                    {expandedFaq === index && (
+                      <div className={styles.faqAnswer}>
+                        {item.a}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeSupportTab === 'contact' && (
+              isContactSubmitted ? (
+                <div className={styles.successMessage}>
+                  <div className={styles.successIcon}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <h4 className={styles.successTitle}>Gửi phản hồi thành công!</h4>
+                  <p className={styles.successText}>
+                    Cảm ơn bạn. Yêu cầu hỗ trợ của bạn đã được chuyển tới bộ phận kỹ thuật. Chúng tôi sẽ phản hồi lại bạn sớm nhất có thể.
+                  </p>
+                  <button className={styles.btnOutline} onClick={resetContactForm}>Gửi tin nhắn khác</button>
+                </div>
+              ) : (
+                <form className={styles.contactForm} onSubmit={handleContactSubmit}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formGroupLabel}>Họ và tên</label>
+                    <input
+                      type="text"
+                      className={styles.formInput}
+                      placeholder="Nhập họ và tên của bạn"
+                      value={contactForm.name}
+                      onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup} >
+                    <label className={styles.formGroupLabel}>Số điện thoại</label>
+                    <input
+                      type="tel"
+                      className={styles.formInput}
+                      placeholder="Nhập số điện thoại"
+                      value={contactForm.phone}
+                      onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formGroupLabel}>Địa chỉ Email</label>
+                    <input
+                      type="email"
+                      className={styles.formInput}
+                      placeholder="example@gmail.com"
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formGroupLabel}>Vấn đề cần hỗ trợ</label>
+                    <select
+                      className={styles.formSelect}
+                      value={contactForm.subject}
+                      onChange={(e) => setContactForm({ ...contactForm, subject: e.target.value })}
+                    >
+                      <option value="Sự cố thanh toán">Sự cố thanh toán</option>
+                      <option value="Lỗi đặt chỗ (Booking)">Lỗi đặt chỗ (Booking)</option>
+                      <option value="Thẻ/Vé đỗ xe">Thẻ/Vé đỗ xe</option>
+                      <option value="Gói tháng cố định">Gói tháng cố định</option>
+                      <option value="Đóng góp ý kiến">Đóng góp ý kiến</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formGroupLabel}>Nội dung</label>
+                    <textarea
+                      className={styles.formTextarea}
+                      placeholder="Mô tả chi tiết vấn đề bạn đang gặp phải..."
+                      value={contactForm.message}
+                      onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className={styles.btnPrimary} disabled={contactSubmitting} style={{ marginTop: '0.5rem' }}>
+                    {contactSubmitting ? 'Đang gửi...' : 'Gửi yêu cầu hỗ trợ'}
+                  </button>
+                </form>
+              )
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Add vehicle form ─────────────────────────────────────
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [newPlate, setNewPlate] = useState('');
@@ -150,7 +379,23 @@ export const WelcomePage: React.FC = () => {
               <span className={styles.logoText}>Park<span className={styles.logoTextAccent}>Smart</span></span>
             </div>
             <div className={styles.navRight}>
-              <span className={styles.navSupport}>Hỗ trợ</span>
+              {/* Dropdown Support */}
+              <div className={styles.supportDropdownContainer}>
+                <span className={styles.navSupport}>
+                  Hỗ trợ <span style={{ fontSize: '0.75rem', marginLeft: '2px' }}>▼</span>
+                </span>
+                <div className={styles.supportDropdownMenu}>
+                  <button className={styles.supportDropdownItem} onClick={() => setActiveSupportTab('help')}>
+                    Trung tâm trợ giúp
+                  </button>
+                  <button className={styles.supportDropdownItem} onClick={() => setActiveSupportTab('faq')}>
+                    Câu hỏi thường gặp
+                  </button>
+                  <button className={styles.supportDropdownItem} onClick={() => setActiveSupportTab('contact')}>
+                    Liên hệ chúng tôi
+                  </button>
+                </div>
+              </div>
               <button className={styles.btnGhost} onClick={() => navigate('/login')}>Đăng nhập</button>
               <button className={styles.btnPrimary} onClick={() => navigate('/register')}>Đăng ký</button>
             </div>
@@ -164,6 +409,8 @@ export const WelcomePage: React.FC = () => {
         <PricingSection navigate={navigate} />
         <CtaBand navigate={navigate} />
         <Footer navigate={navigate} />
+
+        {renderSupportModal()}
       </div>
     );
   }
@@ -192,6 +439,23 @@ export const WelcomePage: React.FC = () => {
           </div>
 
           <div className={styles.navRight}>
+            {/* Dropdown Support */}
+            <div className={styles.supportDropdownContainer}>
+              <span className={styles.navSupport}>
+                Hỗ trợ <span style={{ fontSize: '0.75rem', marginLeft: '2px' }}>▼</span>
+              </span>
+              <div className={styles.supportDropdownMenu}>
+                <button className={styles.supportDropdownItem} onClick={() => setActiveSupportTab('help')}>
+                  Trung tâm trợ giúp
+                </button>
+                <button className={styles.supportDropdownItem} onClick={() => setActiveSupportTab('faq')}>
+                  Câu hỏi thường gặp
+                </button>
+                <button className={styles.supportDropdownItem} onClick={() => setActiveSupportTab('contact')}>
+                  Liên hệ chúng tôi
+                </button>
+              </div>
+            </div>
             <span className={styles.userGreeting}>{user.fullName}</span>
             <button className={styles.btnGhost} onClick={() => { logout(); navigate('/'); }}>
               Đăng xuất
@@ -422,6 +686,8 @@ export const WelcomePage: React.FC = () => {
 
       {/* ── Footer (home tab only) ─────────────────────────── */}
       {activeTab === 'home' && <Footer navigate={navigate} />}
+
+      {renderSupportModal()}
     </div>
   );
 };
