@@ -26,13 +26,13 @@ export function LoginPage() {
     const newErrors: FormErrors = {};
 
     if (!form.email.trim()) {
-      newErrors.email = 'Email or Username is required';
+      newErrors.email = 'Vui lòng nhập email hoặc tên đăng nhập';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Email không đúng định dạng';
     }
 
     if (!form.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Vui lòng nhập mật khẩu';
     }
 
     setErrors(newErrors);
@@ -69,11 +69,11 @@ export function LoginPage() {
   return (
     <AuthLayout
       subtitle="Hệ thống quản lý bãi đỗ xe thông minh"
-      footerText="Don't have an account?"
-      footerLink={{ text: 'Sign up', to: '/register' }}
+      footerText="Chưa có tài khoản?"
+      footerLink={{ text: 'Đăng ký ngay', to: '/register' }}
     >
-      <h2 className={styles.heading}>Sign in</h2>
-      <p className={styles.description}>Manage your parking slots with ease.</p>
+      <h2 className={styles.heading}>Đăng nhập</h2>
+      <p className={styles.description}>Quản lý chỗ đỗ xe của bạn một cách dễ dàng.</p>
 
       {apiError && (
         <div className={`${styles.alert} ${styles['alert--error']}`}>{apiError}</div>
@@ -82,7 +82,7 @@ export function LoginPage() {
       <form onSubmit={handleSubmit} noValidate>
         {/* Email */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Email or Username</label>
+          <label className={styles.inputLabel}>Email hoặc tên đăng nhập</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <PersonIcon size={15} />
@@ -101,14 +101,14 @@ export function LoginPage() {
 
         {/* Password */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Password</label>
+          <label className={styles.inputLabel}>Mật khẩu</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <LockIcon size={15} />
             </span>
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder="Nhập mật khẩu của bạn"
               className={`${styles.input} ${errors.password ? styles['input--error'] : ''}`}
               value={form.password}
               onChange={(e) => { setForm({ ...form, password: e.target.value }); setApiError(''); }}
@@ -133,10 +133,10 @@ export function LoginPage() {
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            Remember me
+            Ghi nhớ đăng nhập
           </label>
           <button type="button" className={styles.linkBtn}>
-            Forgot password?
+            Quên mật khẩu?
           </button>
         </div>
 
@@ -146,7 +146,7 @@ export function LoginPage() {
           className={`${styles.btn} ${styles['btn--primary']}`}
           disabled={loading}
         >
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </AuthLayout>
