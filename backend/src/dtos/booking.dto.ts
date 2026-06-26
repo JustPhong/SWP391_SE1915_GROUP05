@@ -1,4 +1,4 @@
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 
 export const createBookingSchema = [
   body('plateNumber')
@@ -10,6 +10,6 @@ export const createBookingSchema = [
 ];
 
 export const cancelBookingSchema = [
-  body('bookingId')
-    .isInt().withMessage('Booking ID phải là số nguyên hợp lệ'),
+  param('id')
+    .isUUID().withMessage('Booking ID phải là UUID hợp lệ'),
 ];

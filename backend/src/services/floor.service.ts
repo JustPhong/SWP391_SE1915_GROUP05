@@ -3,7 +3,7 @@ import { AppError } from "../utils/helpers";
 
 const BOOKING_ACTIVE = "ACTIVE";
 const SLOT_AVAILABLE = "AVAILABLE";
-const NO_SHOW_CUTOFF_MINUTES = 15;
+const NO_SHOW_CUTOFF_MINUTES = 30;
 
 export interface FloorWithSlots {
   id: number;
@@ -225,7 +225,7 @@ export const floorService = {
     await prisma.floor.delete({ where: { id } });
   },
 
-  // BR-BK-03: Dọn booking quá 15 phút chưa check-in
+  // BR-BK-03: Dọn booking quá 30 phút chưa check-in
   async cleanupNoShowBookings(): Promise<number> {
     const cutoff = new Date(Date.now() - NO_SHOW_CUTOFF_MINUTES * 60 * 1000);
 
