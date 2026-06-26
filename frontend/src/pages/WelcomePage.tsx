@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getCurrentSession, getMyPackage, getHistory, CurrentSession, MyPackage, HistoryItem } from '../api/driverDashboardApi';
 import { getMyVehicles, addVehicle, removeVehicle, Vehicle } from '../api/vehicleApi';
+import { BookingModal, BookingSuccess } from '../components/BookingModal';
+import type { ParkingSlot } from '../types';
 import styles from '../styles/welcome.module.css';
 
 type Tab = 'home' | 'vehicles';
@@ -66,6 +68,15 @@ export const WelcomePage: React.FC = () => {
   const [contactForm, setContactForm] = useState({ name: '', phone: '', email: '', subject: 'Sự cố thanh toán', message: '' });
   const [isContactSubmitted, setIsContactSubmitted] = useState(false);
   const [contactSubmitting, setContactSubmitting] = useState(false);
+
+  // ── Booking modal state ─────────────────────────────────────
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState<{ bookingId: string; slotCode: string } | null>(null);
+
+  const handleBookingSuccess = (slot: ParkingSlot, bookingId: string) => {
+    setBookingOpen(false);
+    setBookingSuccess({ bookingId, slotCode: slot.code });
+  };
 
   const toggleFaq = (index: number) => {
     setExpandedFaq(expandedFaq === index ? null : index);
@@ -403,13 +414,25 @@ export const WelcomePage: React.FC = () => {
         </nav>
 
         <HeroSection navigate={navigate} />
-        <CasualPricingSection navigate={navigate} />
+        <CasualPricingSection onBooking={() => setBookingOpen(true)} />
         <FeaturesSection />
         <ProcessSection />
         <PricingSection navigate={navigate} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
+        <BookingModal
+          open={bookingOpen}
+          onClose={() => setBookingOpen(false)}
+          onSuccess={handleBookingSuccess}
+        />
+        {bookingSuccess && (
+          <BookingSuccess
+            bookingId={bookingSuccess.bookingId}
+            slotCode={bookingSuccess.slotCode}
+            onClose={() => setBookingSuccess(null)}
+          />
+        )}
       </div>
     );
   }
@@ -466,8 +489,8 @@ export const WelcomePage: React.FC = () => {
       {/* ── TAB CONTENT ─────────────────────────────────── */}
       {activeTab === 'home' ? (
         <>
-          <HeroLoggedIn user={user} session={session} navigate={navigate} />
-          <CasualPricingSection navigate={navigate} />
+          <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
+          <CasualPricingSection onBooking={() => setBookingOpen(true)} />
           <FeaturesSection />
           <ProcessSection />
           <PricingSection navigate={navigate} />
@@ -686,6 +709,18 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'home' && <Footer navigate={navigate} />}
 
       {renderSupportModal()}
+      <BookingModal
+        open={bookingOpen}
+        onClose={() => setBookingOpen(false)}
+        onSuccess={handleBookingSuccess}
+      />
+      {bookingSuccess && (
+        <BookingSuccess
+          bookingId={bookingSuccess.bookingId}
+          slotCode={bookingSuccess.slotCode}
+          onClose={() => setBookingSuccess(null)}
+        />
+      )}
     </div>
   );
 };
@@ -734,10 +769,12 @@ function HeroLoggedIn({
   user,
   session,
   navigate,
+  onBooking,
 }: {
   user: { fullName: string; email: string };
   session: CurrentSession | null;
   navigate: (path: string) => void;
+  onBooking: () => void;
 }) {
   const firstName = user.fullName.trim().split(/\s+/)[0] ?? user.email;
   const greeting = getGreeting();
@@ -766,7 +803,7 @@ function HeroLoggedIn({
           <div className={styles.heroCtas}>
             <button
               className={styles.btnPrimary}
-              onClick={() => navigate(session ? '/driver-dashboard' : '/booking')}
+              onClick={() => session ? navigate('/driver-dashboard') : onBooking()}
             >
               {session ? 'Xem chi tiết' : 'Đặt chỗ ngay'}
             </button>
@@ -799,7 +836,7 @@ function formatCurrencyInline(n: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 }
 
-function CasualPricingSection({ navigate }: { navigate: (path: string) => void }) {
+function CasualPricingSection({ onBooking }: { onBooking: () => void }) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionInner}>
@@ -822,7 +859,7 @@ function CasualPricingSection({ navigate }: { navigate: (path: string) => void }
                 <span className={styles.timeBlockPrice}>4.000đ</span><span className={styles.timeBlockUnit}>/ 4 giờ</span>
               </div>
             </div>
-            <button className={styles.casualBtn} onClick={() => navigate('/booking')}>Đặt chỗ ngay</button>
+            <button className={styles.casualBtn} onClick={onBooking}>Đặt chỗ ngay</button>
           </div>
           <div className={`${styles.casualCard} ${styles.casualCardFeatured}`}>
             <div className={styles.casualBadge}>Phổ biến</div>
@@ -844,7 +881,7 @@ function CasualPricingSection({ navigate }: { navigate: (path: string) => void }
                 <span className={styles.timeBlockPrice}>100.000đ</span><span className={styles.timeBlockUnit}>trọn đêm</span>
               </div>
             </div>
-            <button className={`${styles.casualBtn} ${styles.casualBtnFeatured}`} onClick={() => navigate('/booking')}>Đặt chỗ ngay</button>
+            <button className={`${styles.casualBtn} ${styles.casualBtnFeatured}`} onClick={onBooking}>Đặt chỗ ngay</button>
           </div>
         </div>
         <p className={styles.casualFootnote}>Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.</p>
