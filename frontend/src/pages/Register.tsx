@@ -124,7 +124,7 @@ export function RegisterPage() {
 
     try {
       await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
-      navigate('/dashboard-home');
+      navigate('/welcome');
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
