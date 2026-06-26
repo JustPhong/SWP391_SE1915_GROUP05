@@ -236,14 +236,14 @@
    2. HERO
 ══════════════════════════════════════════════════════════════ */
 .hero {
-  padding: 5rem 2rem 6rem;
+  padding: 4rem 2rem 5rem;
 }
 .heroInner {
   max-width: 1100px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 3rem;
   align-items: center;
 }
 
@@ -305,20 +305,23 @@
 }
 
 .showcaseCard {
-  background: linear-gradient(145deg, #eaf3fd, #ffffff);
-  border: 1.5px solid #dae9f5;
+  background: linear-gradient(145deg, #dbeafe, #eff6ff);
+  border: 1.5px solid #bfdbfe;
   border-radius: 18px;
-  padding: 2rem;
-  box-shadow: 0 8px 40px rgba(45, 95, 208, 0.1), 0 2px 10px rgba(22,41,63,0.06);
+  padding: 0;
   overflow: hidden;
+  box-shadow: 0 12px 48px rgba(45, 95, 208, 0.14), 0 2px 10px rgba(22, 41, 63, 0.06);
+  aspect-ratio: 4 / 3;
 }
 
 .heroImage {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  border-radius: 12px;
   object-fit: cover;
+  object-position: center;
+  transform: scale(1.08);
+  transform-origin: center;
 }
 
 /* Legend overlay */

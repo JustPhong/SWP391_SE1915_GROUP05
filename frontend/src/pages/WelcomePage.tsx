@@ -448,7 +448,7 @@ function HeroSection({ navigate }: { navigate: (path: string) => void }) {
         </div>
         <div className={styles.heroRight}>
           <div className={styles.showcaseCard}>
-            <img src="/parking_hero.png" alt="Bãi đỗ xe ParkSmart" className={styles.heroImage} />
+            <img src="/parking_hero.png" alt="Mô hình tòa nhà đỗ xe ParkSmart" className={styles.heroImage} />
           </div>
           <div className={styles.legendCard}>
             <div className={styles.legendTitle}>Khu vực đỗ</div>
@@ -508,7 +508,7 @@ function HeroLoggedIn({
         </div>
         <div className={styles.heroRight}>
           <div className={styles.showcaseCard}>
-            <img src="/parking_hero.png" alt="Bãi đỗ xe ParkSmart" className={styles.heroImage} />
+            <img src="/parking_hero.png" alt="Mô hình tòa nhà đỗ xe ParkSmart" className={styles.heroImage} />
           </div>
           <div className={styles.legendCard}>
             <div className={styles.legendTitle}>Khu vực đỗ</div>
