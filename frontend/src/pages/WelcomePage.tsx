@@ -162,7 +162,6 @@ export const WelcomePage: React.FC = () => {
         <FeaturesSection />
         <ProcessSection />
         <PricingSection navigate={navigate} />
-        <CtaBand navigate={navigate} />
         <Footer navigate={navigate} />
       </div>
     );
@@ -208,7 +207,6 @@ export const WelcomePage: React.FC = () => {
           <FeaturesSection />
           <ProcessSection />
           <PricingSection navigate={navigate} />
-          <CtaBand navigate={navigate} />
           <Footer navigate={navigate} />
         </>
       ) : (
@@ -673,19 +671,6 @@ function PricingCard({ title, duration, price, perDay, perks, icon, featured, sa
       <ul className={styles.pricingPerks}>{perks.map(p => <li key={p}>{p}</li>)}</ul>
       <button className={`${styles.pricingBtn} ${featured ? styles.pricingBtnFeatured : ''}`} onClick={onClick}>Chọn gói</button>
     </div>
-  );
-}
-
-function CtaBand({ navigate }: { navigate: (path: string) => void }) {
-  return (
-    <section className={styles.ctaBand}>
-      <div className={styles.ctaBandInner}>
-        <h2 className={styles.ctaTitle}>Sẵn sàng vận hành bãi đỗ thông minh?</h2>
-        <p className={styles.ctaSubtitle}>Bắt đầu miễn phí ngay hôm nay.</p>
-        <button className={styles.btnWhite} onClick={() => navigate('/register')}>Đăng ký miễn phí</button>
-        <button className={styles.btnWhiteOutline} onClick={() => navigate('/login')}>Đăng nhập</button>
-      </div>
-    </section>
   );
 }
 
