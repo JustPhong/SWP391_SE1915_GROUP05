@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../context/AuthContext';
+import { getRoleHomePath } from '../utils/authRoutes';
 import { validatePlate } from '../utils/plate';
 import {
   PersonIcon,
@@ -123,8 +124,8 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
-      navigate('/dashboard-home');
+      const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
+      navigate(getRoleHomePath(user.role), { replace: true });
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||

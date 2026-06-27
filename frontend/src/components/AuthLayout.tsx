@@ -13,9 +13,7 @@ export function AuthLayout({ children, subtitle, footerText, footerLink }: AuthL
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <div className={styles.logo}>
-          <span className={styles.logoText}>P</span>
-        </div>
+        <img src="/logo.png" alt="ParkSmart Logo" className={styles.logo} />
 
         <h1 className={styles.brand} style={{ fontWeight: 700, color: '#1E3A5F' }}>
           ParkSmart Vietnam

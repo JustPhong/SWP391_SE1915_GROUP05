@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRoleHomePath } from '../utils/authRoutes';
 import { AuthLayout } from '../components/AuthLayout';
 import { PersonIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/Icons';
 import styles from '../styles/auth.module.css';
@@ -46,15 +47,16 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await login(form.email, form.password);
-      navigate('/dashboard-home');
+      const user = await login(form.email.trim(), form.password);
+      navigate(getRoleHomePath(user.role), { replace: true });
     } catch (err: unknown) {
-      const isNetwork =
-        !err ||
-        (err as { response?: unknown }).response === undefined;
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const serverMessage = axiosErr.response?.data?.message;
 
-      if (isNetwork) {
+      if (!axiosErr.response) {
         setApiError('Không thể kết nối tới máy chủ. Vui lòng thử lại.');
+      } else if (serverMessage) {
+        setApiError(serverMessage);
       } else {
         setApiError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
       }
@@ -82,7 +84,7 @@ export function LoginPage() {
       <form onSubmit={handleSubmit} noValidate>
         {/* Email */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Email or Username</label>
+          <label className={styles.inputLabel}>Email</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <PersonIcon size={15} />

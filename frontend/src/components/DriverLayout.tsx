@@ -78,7 +78,7 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
       {/* Sidebar */}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarLogo}>
-          <div className={styles.sidebarLogoIcon}>P</div>
+          <img src="/logo.png" alt="ParkSmart Logo" className={styles.sidebarLogoIcon} />
           <div className={styles.sidebarLogoText}>
             <span className={styles.sidebarLogoName}>ParkSmart</span>
             <span className={styles.sidebarLogoSub}>Quản lý tài xế</span>

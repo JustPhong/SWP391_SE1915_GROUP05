@@ -7,61 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================
-// LƯU Ý: SQL Server KHÔNG hỗ trợ enum của Prisma.
-// Nên các trường dưới đây dùng String, và giá trị hợp lệ
-// được kiểm soát ở tầng code (thư mục dtos/ hoặc validators/).
-// Giá trị cho phép:
-//   Vehicle.type     : MOTORBIKE | CAR
-//   ParkingSlot.type : MOTORBIKE | CAR
-//   ParkingSlot.status   : AVAILABLE | OCCUPIED | RESERVED
-//   Floor.vehicleType   : CAR | MOTORBIKE
-//   Floor.customerType   : MONTHLY | CASUAL
-//   MonthlyPackage.status: ACTIVE | EXPIRED
-//   Booking.status   : ACTIVE | FULFILLED | NO_SHOW | CANCELLED
-//   Booking.depositStatus: PENDING | PAID | REFUNDED | FORFEITED
-//   CheckInRecord.status: PARKING | COMPLETED
-//   Payment.status   : PENDING | SUCCESS | FAILED | REFUNDED
-//   Payment.method   : CASH | CARD | EWALLET
-//   Payment.type     : SESSION | MONTHLY
-// ============================================================
-
 model User {
-  id           String   @id @default(uuid())
-  fullName     String   @db.NVarChar(100)
-  email        String   @unique @db.NVarChar(150)
-  phoneNumber  String?  @db.NVarChar(20)
-  passwordHash String   @db.NVarChar(255)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  roleId        Int
-  roleRef       Role     @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  vehicles        Vehicle[]
-  monthlyPackages MonthlyPackage[]
-  bookings        Booking[]
-  checkInsHandled  CheckInRecord[] @relation("CheckedInBy")
-  checkOutsHandled CheckInRecord[] @relation("CheckedOutBy")
+  id                String           @id @default(uuid())
+  fullName          String           @db.NVarChar(100)
+  email             String           @unique @db.NVarChar(150)
+  phoneNumber       String?          @db.NVarChar(20)
+  passwordHash      String           @db.NVarChar(255)
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  roleId            Int
+  bookings          Booking[]
+  checkInsHandled   CheckInRecord[]  @relation("CheckedInBy")
+  checkOutsHandled  CheckInRecord[]  @relation("CheckedOutBy")
+  monthlyPackages   MonthlyPackage[]
   paymentsCollected Payment[]
+  roleRef           Role             @relation(fields: [roleId], references: [id], onUpdate: NoAction)
+  vehicles          Vehicle[]
 
   @@index([roleId])
 }
 
 model Vehicle {
-  id          String   @id @default(uuid())
-  plateNumber String   @unique @db.NVarChar(15)
-  type        String   @db.NVarChar(30)
-  isMonthly   Boolean  @default(false)
-  ownerId     String
-  owner       User     @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  fixedSlots     ParkingSlot[]
-  monthlyPackage MonthlyPackage?
+  id             String          @id @default(uuid())
+  plateNumber    String          @unique @db.NVarChar(15)
+  type           String          @db.NVarChar(30)
+  isMonthly      Boolean         @default(false)
+  ownerId        String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   bookings       Booking[]
   checkInRecords CheckInRecord[]
+  monthlyPackage MonthlyPackage?
+  fixedSlots     ParkingSlot[]
+  owner          User            @relation(fields: [ownerId], references: [id], onUpdate: NoAction)
 
   @@index([ownerId])
 }
@@ -75,28 +54,24 @@ model Floor {
   capacity     Int
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-
-  slots ParkingSlot[]
+  slots        ParkingSlot[]
 }
 
 model ParkingSlot {
-  id                String   @id @default(uuid())
-  code              String   @unique @db.NVarChar(20)
-  type              String   @db.NVarChar(30)
-  status            String   @default("AVAILABLE") @db.NVarChar(30)
-  isFixed           Boolean  @default(false)
-  // DERIVED/cache of the fixed-slot assignment. SOURCE OF TRUTH = MonthlyPackage.slotId.
-  // Always keep in sync at the service layer; never edit this column directly.
+  id                String           @id @default(uuid())
+  code              String           @unique @db.NVarChar(20)
+  type              String           @db.NVarChar(30)
+  status            String           @default("AVAILABLE") @db.NVarChar(30)
+  isFixed           Boolean          @default(false)
   assignedVehicleId String?
-  assignedVehicle   Vehicle? @relation(fields: [assignedVehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   floorId           Int
-  floor             Floor    @relation(fields: [floorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  monthlyPackage MonthlyPackage[]
-  bookings       Booking[]
-  checkInRecords CheckInRecord[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  bookings          Booking[]
+  checkInRecords    CheckInRecord[]
+  monthlyPackage    MonthlyPackage[]
+  assignedVehicle   Vehicle?         @relation(fields: [assignedVehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  floor             Floor            @relation(fields: [floorId], references: [id], onUpdate: NoAction)
 
   @@index([floorId])
   @@index([status])
@@ -106,11 +81,8 @@ model ParkingSlot {
 model MonthlyPackage {
   id         String       @id @default(uuid())
   userId     String
-  user       User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   vehicleId  String       @unique
-  vehicle    Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   slotId     String?
-  slot       ParkingSlot? @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   planName   String?      @db.NVarChar(60)
   startDate  DateTime
   expiryDate DateTime
@@ -118,51 +90,52 @@ model MonthlyPackage {
   status     String       @default("ACTIVE") @db.NVarChar(30)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
-
-  payments Payment[]
+  slot       ParkingSlot? @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user       User         @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  vehicle    Vehicle      @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
+  payments   Payment[]
 
   @@index([userId])
   @@index([status, expiryDate])
 }
 
 model Booking {
-  id             String   @id @default(uuid())
-  vehicleId      String
-  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  slotId         String
-  slot           ParkingSlot @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  bookingTime    DateTime @default(now())
+  id              String      @id @default(uuid())
+  vehicleId       String
+  slotId          String
+  bookingTime     DateTime    @default(now())
   expectedArrival DateTime
-  status         String   @default("ACTIVE") @db.NVarChar(30)
-  depositAmount  Decimal  @default(0) @db.Decimal(10, 2)
-  depositStatus  String   @default("PENDING") @db.NVarChar(30)
-  createdById    String
-  createdBy      User     @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status          String      @default("ACTIVE") @db.NVarChar(30)
+  depositAmount   Decimal     @default(0) @db.Decimal(10, 2)
+  depositStatus   String      @default("PENDING") @db.NVarChar(30)
+  createdById     String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  createdBy       User        @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+  slot            ParkingSlot @relation(fields: [slotId], references: [id], onUpdate: NoAction)
+  vehicle         Vehicle     @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
 
   @@index([status, expectedArrival])
 }
 
 model CheckInRecord {
-  id           String      @id @default(uuid())
-  vehicleId    String
-  vehicle      Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  slotId       String
-  slot         ParkingSlot @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  checkInTime  DateTime    @default(now())
-  checkOutTime DateTime?
-  isMonthly    Boolean     @default(false)
-  status       String      @default("PARKING") @db.NVarChar(30)
-  isLostTicket Boolean     @default(false)
-  checkedInById String?
-  checkedInBy  User?       @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id             String      @id @default(uuid())
+  vehicleId      String
+  slotId         String
+  checkInTime    DateTime    @default(now())
+  checkOutTime   DateTime?
+  isMonthly      Boolean     @default(false)
+  status         String      @default("PARKING") @db.NVarChar(30)
+  isLostTicket   Boolean     @default(false)
+  checkedInById  String?
   checkedOutById String?
-  checkedOutBy User?       @relation("CheckedOutBy", fields: [checkedOutById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  payments Payment[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  checkedInBy    User?       @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  checkedOutBy   User?       @relation("CheckedOutBy", fields: [checkedOutById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  slot           ParkingSlot @relation(fields: [slotId], references: [id], onUpdate: NoAction)
+  vehicle        Vehicle     @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
+  payments       Payment[]
 
   @@index([status])
   @@index([vehicleId])
@@ -172,19 +145,19 @@ model CheckInRecord {
 model Payment {
   id               String          @id @default(uuid())
   checkInRecordId  String?
-  checkInRecord    CheckInRecord?  @relation(fields: [checkInRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   monthlyPackageId String?
-  monthlyPackage   MonthlyPackage? @relation(fields: [monthlyPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   amount           Decimal         @db.Decimal(10, 2)
   method           String          @db.NVarChar(30)
   paidAt           DateTime        @default(now())
   type             String          @db.NVarChar(30)
   status           String          @default("SUCCESS") @db.NVarChar(30)
   collectedById    String?
-  collectedBy      User?           @relation(fields: [collectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   transactionCode  String?         @db.NVarChar(50)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+  checkInRecord    CheckInRecord?  @relation(fields: [checkInRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  collectedBy      User?           @relation(fields: [collectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  monthlyPackage   MonthlyPackage? @relation(fields: [monthlyPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([paidAt])
   @@index([checkInRecordId])
@@ -192,30 +165,26 @@ model Payment {
 }
 
 model Permission {
-  id        String   @id @default(uuid())
-  key       String   @unique @db.NVarChar(30)
-  label     String   @db.NVarChar(100)
-  category  String   @db.NVarChar(50)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
+  id              String           @id @default(uuid())
+  key             String           @unique @db.NVarChar(30)
+  label           String           @db.NVarChar(100)
+  category        String           @db.NVarChar(50)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
   rolePermissions RolePermission[]
 }
 
 model RolePermission {
-  id            String   @id @default(uuid())
-  permissionKey String   @db.NVarChar(30)
-  allowed       Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
-
-  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
-
-  roleId  Int
-  roleRef Role     @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id            String     @id @default(uuid())
+  permissionKey String     @db.NVarChar(30)
+  allowed       Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt
+  roleId        Int
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+  roleRef       Role       @relation(fields: [roleId], references: [id], onUpdate: NoAction)
 
   @@unique([roleId, permissionKey])
-
   @@index([roleId])
 }
 
@@ -224,8 +193,8 @@ model Role {
   name            String           @unique @db.NVarChar(30)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @default(now()) @updatedAt
-  users           User[]
   rolePermissions RolePermission[]
+  users           User[]
 }
 
 model FeeRule {
@@ -244,14 +213,14 @@ model FeeRule {
 
 model AuditLog {
   id          String   @id @default(uuid())
-  actorId     String?  @db.NVarChar(36)             // user who performed the action (null for system/anonymous)
-  actorName   String?  @db.NVarChar(150)            // denormalized snapshot of the actor's name/email at action time
-  actorRole   String?  @db.NVarChar(30)             // role at action time (ADMIN/MANAGER/STAFF/DRIVER)
-  action      String   @db.NVarChar(60)              // machine code, e.g. "account.lock", "permission.toggle", "fee_rule.update"
-  targetType  String?  @db.NVarChar(50)             // entity type, e.g. "User", "RolePermission", "FeeRule"
-  targetId    String?  @db.NVarChar(36)             // id of the affected entity
-  description String   @db.NVarChar(500)            // human-readable Vietnamese summary, e.g. "Khoá tài khoản nhân viên A"
-  metadata    String?  @db.NVarChar(Max)            // optional JSON string with extra detail (old/new values)
+  actorId     String?  @db.NVarChar(36)
+  actorName   String?  @db.NVarChar(150)
+  actorRole   String?  @db.NVarChar(30)
+  action      String   @db.NVarChar(60)
+  targetType  String?  @db.NVarChar(50)
+  targetId    String?  @db.NVarChar(36)
+  description String   @db.NVarChar(500)
+  metadata    String?  @db.NVarChar(Max)
   ipAddress   String?  @db.NVarChar(45)
   createdAt   DateTime @default(now())
 

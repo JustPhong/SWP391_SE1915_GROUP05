@@ -17,22 +17,15 @@
 }
 
 .logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: #1E3A5F;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  display: block;
   margin: 0 auto 1.25rem;
+  object-fit: cover;
   box-shadow: 0 6px 20px rgba(30, 58, 95, 0.25);
 }
 
-.logoText {
-  color: #fff;
-  font-size: 1.75rem;
-  font-weight: 700;
-}
 
 .brand {
   color: #1E3A5F;

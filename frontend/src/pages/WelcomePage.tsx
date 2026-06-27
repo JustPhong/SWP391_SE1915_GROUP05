@@ -146,7 +146,7 @@ export const WelcomePage: React.FC = () => {
         <nav className={styles.nav}>
           <div className={styles.navInner}>
             <div className={styles.logo} onClick={() => navigate('/')}>
-              <div className={styles.logoBox}><span className={styles.logoLetter}>P</span></div>
+              <img src="/logo.png" alt="ParkSmart Logo" className={styles.logoImg} />
               <span className={styles.logoText}>Park<span className={styles.logoTextAccent}>Smart</span></span>
             </div>
             <div className={styles.navRight}>
@@ -177,7 +177,7 @@ export const WelcomePage: React.FC = () => {
       <nav className={styles.nav}>
         <div className={styles.navInner}>
           <div className={styles.logo} onClick={() => { setActiveTab('home'); }}>
-            <div className={styles.logoBox}><span className={styles.logoLetter}>P</span></div>
+            <img src="/logo.png" alt="ParkSmart Logo" className={styles.logoImg} />
             <span className={styles.logoText}>Park<span className={styles.logoTextAccent}>Smart</span></span>
           </div>
 
@@ -695,7 +695,7 @@ function Footer({ navigate }: { navigate: (path: string) => void }) {
       <div className={styles.footerInner}>
         <div className={styles.footerBrand}>
           <div className={styles.logo} onClick={() => navigate('/')}>
-            <div className={styles.logoBox}><span className={styles.logoLetter}>P</span></div>
+            <img src="/logo.png" alt="ParkSmart Logo" className={styles.logoImg} />
             <span className={`${styles.logoText} ${styles.logoTextFooter}`}>Park<span className={styles.logoTextAccent}>Smart</span></span>
           </div>
           <p className={styles.footerTagline}>Giải pháp đỗ xe thông minh &amp; tối ưu.</p>
