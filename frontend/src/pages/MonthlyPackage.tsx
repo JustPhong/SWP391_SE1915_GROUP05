@@ -140,12 +140,14 @@ function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; 
   const hasPackage = vehicle.isMonthly;
   return (
     <button
-      onClick={onSelect}
+      disabled={hasPackage}
+      onClick={hasPackage ? undefined : onSelect}
       style={{
         background: selected ? C.blueBg : C.white,
         border: selected ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
         borderRadius: 14, padding: '0.85rem 1rem',
-        cursor: 'pointer',
+        cursor: hasPackage ? 'not-allowed' : 'pointer',
+        opacity: hasPackage ? 0.6 : 1,
         textAlign: 'left', width: '100%', boxSizing: 'border-box',
         position: 'relative',
         display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'all 0.15s ease',
@@ -175,7 +177,7 @@ function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; 
         </div>
         {hasPackage && (
           <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: C.gray600 }}>
-            Xe đã đăng ký gói tháng — gói mới sẽ gia hạn thêm
+            Xe đã có gói tháng đang hoạt động — không thể mua thêm
           </p>
         )}
       </div>
