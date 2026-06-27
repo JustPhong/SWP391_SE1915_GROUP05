@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
@@ -25,13 +25,13 @@ export function LoginPage() {
     const newErrors: FormErrors = {};
 
     if (!form.email.trim()) {
-      newErrors.email = 'Vui lÃ²ng nháº­p email hoáº·c tÃªn Ä‘Äƒng nháº­p';
+      newErrors.email = 'Vui lòng nhập email hoặc tên đăng nhập';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Email khÃ´ng Ä‘Ãºng Ä‘á»‹nh dáº¡ng';
+      newErrors.email = 'Email không đúng định dạng';
     }
 
     if (!form.password) {
-      newErrors.password = 'Vui lÃ²ng nháº­p máº­t kháº©u';
+      newErrors.password = 'Vui lòng nhập mật khẩu';
     }
 
     setErrors(newErrors);
@@ -47,17 +47,16 @@ export function LoginPage() {
 
     try {
       await login(form.email, form.password);
-      navigate('/dashboard-home');
+      navigate('/');
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const serverMessage = axiosErr.response?.data?.message;
+      const isNetwork =
+        !err ||
+        (err as { response?: unknown }).response === undefined;
 
-      if (!axiosErr.response) {
-        setApiError('KhÃ´ng thá»ƒ káº¿t ná»‘i tá»›i mÃ¡y chá»§. Vui lÃ²ng thá»­ láº¡i.');
-      } else if (serverMessage) {
-        setApiError(serverMessage);
+      if (isNetwork) {
+        setApiError('Không thể kết nối tới máy chủ. Vui lòng thử lại.');
       } else {
-        setApiError('Email hoáº·c máº­t kháº©u khÃ´ng Ä‘Ãºng. Vui lÃ²ng kiá»ƒm tra láº¡i.');
+        setApiError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
       }
       setForm((prev) => ({ ...prev, password: '' }));
     } finally {
@@ -67,12 +66,12 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      subtitle="Há»‡ thá»‘ng quáº£n lÃ½ bÃ£i Ä‘á»— xe thÃ´ng minh"
-      footerText="ChÆ°a cÃ³ tÃ i khoáº£n?"
-      footerLink={{ text: 'ÄÄƒng kÃ½ ngay', to: '/register' }}
+      subtitle="Hệ thống quản lý bãi đỗ xe thông minh"
+      footerText="Chưa có tài khoản?"
+      footerLink={{ text: 'Đăng ký ngay', to: '/register' }}
     >
-      <h2 className={styles.heading}>ÄÄƒng nháº­p</h2>
-      <p className={styles.description}>Quáº£n lÃ½ chá»— Ä‘á»— xe cá»§a báº¡n má»™t cÃ¡ch dá»… dÃ ng.</p>
+      <h2 className={styles.heading}>Đăng nhập</h2>
+      <p className={styles.description}>Quản lý chỗ đỗ xe của bạn một cách dễ dàng.</p>
 
       {apiError && (
         <div className={`${styles.alert} ${styles['alert--error']}`}>{apiError}</div>
@@ -81,7 +80,7 @@ export function LoginPage() {
       <form onSubmit={handleSubmit} noValidate>
         {/* Email */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Email or Username</label>
+          <label className={styles.inputLabel}>Email hoặc tên đăng nhập</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <PersonIcon size={15} />
@@ -100,14 +99,14 @@ export function LoginPage() {
 
         {/* Password */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Máº­t kháº©u</label>
+          <label className={styles.inputLabel}>Mật khẩu</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <LockIcon size={15} />
             </span>
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Nháº­p máº­t kháº©u cá»§a báº¡n"
+              placeholder="Nhập mật khẩu của bạn"
               className={`${styles.input} ${errors.password ? styles['input--error'] : ''}`}
               value={form.password}
               onChange={(e) => { setForm({ ...form, password: e.target.value }); setApiError(''); }}
@@ -132,10 +131,10 @@ export function LoginPage() {
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            Ghi nhá»› Ä‘Äƒng nháº­p
+            Ghi nhớ đăng nhập
           </label>
           <button type="button" className={styles.linkBtn}>
-            QuÃªn máº­t kháº©u?
+            Quên mật khẩu?
           </button>
         </div>
 
@@ -145,7 +144,7 @@ export function LoginPage() {
           className={`${styles.btn} ${styles['btn--primary']}`}
           disabled={loading}
         >
-          {loading ? 'Äang Ä‘Äƒng nháº­p...' : 'ÄÄƒng nháº­p'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </AuthLayout>
