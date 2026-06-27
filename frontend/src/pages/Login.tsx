@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getRoleHomePath } from '../utils/authRoutes';
 import { AuthLayout } from '../components/AuthLayout';
 import { PersonIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/Icons';
-import { getMyPackage } from '../api/driverDashboardApi';
 import styles from '../styles/auth.module.css';
 
 interface FormErrors {

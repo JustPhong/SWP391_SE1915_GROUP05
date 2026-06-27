@@ -124,13 +124,8 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-<<<<<<< HEAD
       const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
       navigate(getRoleHomePath(user.role), { replace: true });
-=======
-      await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
-      navigate('/welcome');
->>>>>>> 2f64c34383e92cdbc39ea1b579820378c71a0531
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
