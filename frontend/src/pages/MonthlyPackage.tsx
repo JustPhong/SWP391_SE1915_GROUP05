@@ -337,7 +337,7 @@ export function MonthlyPackagePage() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('3m');
-  const paymentMethod = 'EWALLET' as const;
+  const [paymentMethod, setPaymentMethod] = useState<'EWALLET' | 'CARD'>('EWALLET');
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
@@ -348,6 +348,10 @@ export function MonthlyPackagePage() {
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [countdown, setCountdown] = useState(300);
+
+  // Card payment (demo / mock)
+  const [showCard, setShowCard] = useState(false);
+  const [cardForm, setCardForm] = useState({ number: '', name: '', expiry: '', cvv: '' });
 
   // Derived
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? null;
@@ -469,6 +473,9 @@ export function MonthlyPackagePage() {
     setSelectedSlotId(null);
     setSelectedPlanId('3m');
     setShowQR(false);
+    setShowCard(false);
+    setPaymentMethod('EWALLET');
+    setCardForm({ number: '', name: '', expiry: '', cvv: '' });
     setSubmitError('');
   };
 
@@ -514,6 +521,114 @@ export function MonthlyPackagePage() {
         <button onClick={handleReset} style={{ padding: '0.6rem 1.5rem', background: C.navy, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
           Mua thêm gói khác
         </button>
+      </div>
+    );
+  }
+
+  // ── Card Payment Screen (demo / mock) ──────────────────
+  if (showCard) {
+    const inputStyle: React.CSSProperties = {
+      width: '100%',
+      padding: '0.65rem 0.75rem',
+      fontSize: '0.9rem',
+      border: `1.5px solid ${C.gray200}`,
+      borderRadius: 10,
+      background: C.white,
+      color: C.gray900,
+      boxSizing: 'border-box',
+      outline: 'none',
+    };
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+        <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.gray900, textAlign: 'center' }}>Thanh toán bằng thẻ</p>
+
+        {/* Bill summary */}
+        <div className={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0' }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
+            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
+          </div>
+        </div>
+
+        {/* Card form */}
+        <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Số thẻ</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="cc-number"
+              placeholder="0000 0000 0000 0000"
+              value={cardForm.number}
+              onChange={(e) => setCardForm((f) => ({ ...f, number: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Tên chủ thẻ</label>
+            <input
+              type="text"
+              autoComplete="cc-name"
+              placeholder="NGUYEN VAN A"
+              value={cardForm.name}
+              onChange={(e) => setCardForm((f) => ({ ...f, name: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Ngày hết hạn</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="cc-exp"
+                placeholder="MM/YY"
+                value={cardForm.expiry}
+                onChange={(e) => setCardForm((f) => ({ ...f, expiry: e.target.value }))}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>CVV</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="cc-csc"
+                placeholder="•••"
+                value={cardForm.cvv}
+                onChange={(e) => setCardForm((f) => ({ ...f, cvv: e.target.value }))}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: C.gray400, textAlign: 'center', lineHeight: 1.5 }}>
+            Đây là cổng thanh toán mô phỏng cho mục đích demo.
+          </p>
+        </div>
+
+        {/* Error */}
+        {submitError && (
+          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
+        )}
+
+        {/* CTA */}
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{ width: '100%', padding: '0.9rem', background: submitting ? C.gray300 : C.navy, color: submitting ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: submitting ? 'none' : '0 4px 14px rgba(30,58,95,0.25)', transition: 'all 0.2s ease' }}
+        >
+          {submitting ? 'Đang xử lý...' : `Thanh toán ${formatVND(totalAmount)}`}
+        </button>
+
+        {/* Back */}
+        <button
+          onClick={() => setShowCard(false)}
+          style={{ width: '100%', padding: '0.7rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 12, fontSize: '0.875rem', fontWeight: 700, color: C.gray600, cursor: 'pointer', transition: 'all 0.2s ease' }}
+        >
+          Quay lại
+        </button>
+
       </div>
     );
   }
@@ -685,9 +800,41 @@ export function MonthlyPackagePage() {
         <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
       )}
 
+      {/* Payment method picker */}
+      <div className={styles.card} style={{ padding: '0.85rem' }}>
+        <p style={{ margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 700, color: C.gray900 }}>Phương thức thanh toán</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          {([
+            { id: 'EWALLET', label: 'Quét mã QR' },
+            { id: 'CARD', label: 'Thẻ ngân hàng' },
+          ] as const).map((opt) => {
+            const active = paymentMethod === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setPaymentMethod(opt.id)}
+                style={{
+                  padding: '0.65rem 0.5rem',
+                  background: active ? C.blueBg : C.white,
+                  border: active ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
+                  borderRadius: 10,
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: active ? C.navy : C.gray600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* CTA */}
       <button
-        onClick={handleProceedToQR}
+        onClick={() => { if (paymentMethod === 'CARD') setShowCard(true); else handleProceedToQR(); }}
         disabled={!canSubmit}
         style={{ width: '100%', padding: '0.9rem', background: canSubmit ? C.navy : C.gray300, color: canSubmit ? C.white : C.gray400, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed', boxShadow: canSubmit ? '0 4px 14px rgba(30,58,95,0.25)' : 'none', transition: 'all 0.2s ease' }}
       >
