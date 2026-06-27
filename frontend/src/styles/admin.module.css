@@ -29,18 +29,11 @@
 }
 
 .sidebarLogoIcon {
-  width: 36px;
-  height: 36px;
-  background: #FFFFFF;
+  width: 38px;
+  height: 38px;
   border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1E3A5F;
   flex-shrink: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  object-fit: cover;
 }
 
 .sidebarLogoText {
@@ -300,7 +293,8 @@
   margin-left: 248px;
   width: calc(100% - 248px);
   background: linear-gradient(160deg, #F5F3FF 0%, #EDE9FE 50%, #F5F3FF 100%);
-  min-height: calc(100vh - 64px); /* fill viewport minus 64px sticky topBar */
+  min-height: calc(100vh - 64px);
+  /* fill viewport minus 64px sticky topBar */
   padding: 1.5rem;
   box-sizing: border-box;
 }

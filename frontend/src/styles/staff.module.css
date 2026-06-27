@@ -29,18 +29,11 @@
 }
 
 .sidebarLogoIcon {
-  width: 36px;
-  height: 36px;
-  background: #FFFFFF;
+  width: 38px;
+  height: 38px;
   border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1E3A5F;
   flex-shrink: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  object-fit: cover;
 }
 
 .sidebarLogoText {

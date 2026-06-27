@@ -81,7 +81,7 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
 
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarLogo}>
-          <div className={styles.sidebarLogoIcon}>P</div>
+          <img src="/logo.png" alt="ParkSmart Logo" className={styles.sidebarLogoIcon} />
           <div className={styles.sidebarLogoText}>
             <span className={styles.sidebarLogoName}>PARKING SYSTEM</span>
             <span className={styles.sidebarLogoSub}>Nhân viên trực ca</span>

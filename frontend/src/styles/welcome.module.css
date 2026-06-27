@@ -115,6 +115,13 @@
   line-height: 1;
   user-select: none;
 }
+.logoImg {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 7px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 .logoText {
   font-size: 1.3rem;
   font-weight: 800;

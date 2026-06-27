@@ -5,14 +5,14 @@ import { authService } from '../services/auth.service';
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (
     fullName: string,
     email: string,
     password: string,
     plateNumber: string,
     vehicleType: 'MOTORBIKE' | 'CAR'
-  ) => Promise<void>;
+  ) => Promise<User>;
   logout: () => void;
   isLoading: boolean;
   setUser: (user: User | null) => void;
@@ -49,12 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const response = await authService.login({ email, password });
     setToken(response.token);
     setUser(response.user);
     localStorage.setItem('token', response.token);
     localStorage.setItem('user', JSON.stringify(response.user));
+    return response.user;
   };
 
   const register = async (
@@ -63,12 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     plateNumber: string,
     vehicleType: 'MOTORBIKE' | 'CAR'
-  ) => {
+  ): Promise<User> => {
     const response = await authService.register({ fullName, email, password, plateNumber, vehicleType });
     setToken(response.token);
     setUser(response.user);
     localStorage.setItem('token', response.token);
     localStorage.setItem('user', JSON.stringify(response.user));
+    return response.user;
   };
 
   const logout = () => {
