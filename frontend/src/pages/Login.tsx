@@ -47,7 +47,7 @@ export function LoginPage() {
 
     try {
       await login(form.email, form.password);
-      navigate('/');
+      navigate('/dashboard-home');
     } catch (err: unknown) {
       const isNetwork =
         !err ||
