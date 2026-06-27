@@ -15,9 +15,7 @@ export function AuthLayout({ children, subtitle, footerText, footerLink }: AuthL
       <div className={styles.container}>
         <img src="/logo.png" alt="ParkSmart Logo" className={styles.logo} />
 
-        <h1 className={styles.brand} style={{ fontWeight: 700, color: '#1E3A5F' }}>
-          ParkSmart Vietnam
-        </h1>
+        <h1 className={styles.brand}>ParkSmart Vietnam</h1>
         <p className={styles.subtitle}>{subtitle}</p>
 
         <div className={styles.card}>{children}</div>
@@ -31,7 +29,7 @@ export function AuthLayout({ children, subtitle, footerText, footerLink }: AuthL
 
         <div className={styles.meta}>
           <p>HO CHI MINH CITY</p>
-          <p>© 2026 ParkSmart Vietnam. Smart Infrastructure Solutions.</p>
+          <p>&copy; 2026 ParkSmart Vietnam. Smart Infrastructure Solutions.</p>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleHomePath } from '../utils/authRoutes';
 import { AuthLayout } from '../components/AuthLayout';
 import { PersonIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/Icons';
+import { getMyPackage } from '../api/driverDashboardApi';
 import styles from '../styles/auth.module.css';
 
 interface FormErrors {
@@ -26,13 +27,13 @@ export function LoginPage() {
     const newErrors: FormErrors = {};
 
     if (!form.email.trim()) {
-      newErrors.email = 'Email or Username is required';
+      newErrors.email = 'Vui lòng nhập email hoặc tên đăng nhập';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Email không đúng định dạng';
     }
 
     if (!form.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Vui lòng nhập mật khẩu';
     }
 
     setErrors(newErrors);
@@ -47,8 +48,8 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const user = await login(form.email.trim(), form.password);
-      navigate(getRoleHomePath(user.role), { replace: true });
+      await login(form.email, form.password);
+      navigate('/dashboard-home');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
       const serverMessage = axiosErr.response?.data?.message;
@@ -68,14 +69,12 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      subtitle="Infrastructure Management Portal"
-      footerText="Don't have an account?"
-      footerLink={{ text: 'Sign up', to: '/register' }}
+      subtitle="Hệ thống quản lý bãi đỗ xe thông minh"
+      footerText="Chưa có tài khoản?"
+      footerLink={{ text: 'Đăng ký ngay', to: '/register' }}
     >
-      <h2 className={styles.heading}>Welcome back</h2>
-      <p className={styles.description}>
-        Please enter your credentials to manage slots.
-      </p>
+      <h2 className={styles.heading}>Đăng nhập</h2>
+      <p className={styles.description}>Quản lý chỗ đỗ xe của bạn một cách dễ dàng.</p>
 
       {apiError && (
         <div className={`${styles.alert} ${styles['alert--error']}`}>{apiError}</div>
@@ -84,7 +83,7 @@ export function LoginPage() {
       <form onSubmit={handleSubmit} noValidate>
         {/* Email */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Email</label>
+          <label className={styles.inputLabel}>Email or Username</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <PersonIcon size={15} />
@@ -103,14 +102,14 @@ export function LoginPage() {
 
         {/* Password */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Password</label>
+          <label className={styles.inputLabel}>Mật khẩu</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>
               <LockIcon size={15} />
             </span>
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder="Nhập mật khẩu của bạn"
               className={`${styles.input} ${errors.password ? styles['input--error'] : ''}`}
               value={form.password}
               onChange={(e) => { setForm({ ...form, password: e.target.value }); setApiError(''); }}
@@ -135,33 +134,20 @@ export function LoginPage() {
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            Remember me
+            Ghi nhớ đăng nhập
           </label>
           <button type="button" className={styles.linkBtn}>
-            Forgot password?
+            Quên mật khẩu?
           </button>
         </div>
 
         {/* Submit */}
         <button
           type="submit"
-          className={styles.btn}
+          className={`${styles.btn} ${styles['btn--primary']}`}
           disabled={loading}
-          style={{
-            background: '#1E3A5F',
-            color: '#fff',
-            width: '100%',
-            padding: '12px',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 14px rgba(30, 58, 95, 0.25)',
-            opacity: loading ? 0.6 : 1,
-          }}
         >
-          {loading ? 'Đang đăng nhập...' : 'Log In'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </AuthLayout>

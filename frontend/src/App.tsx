@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { getMyPackage } from './api/driverDashboardApi';
 import { DriverLayout } from './components/DriverLayout';
 import { StaffLayout } from './components/StaffLayout';
 import { ManagerLayout } from './components/ManagerLayout';
@@ -62,6 +64,26 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/" replace />;
   }
   return <StaffLayout>{children}</StaffLayout>;
+}
+
+function PackageRequiredRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const [pkgChecked, setPkgChecked] = useState(false);
+  const [hasPkg, setHasPkg] = useState(false);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) { window.location.href = '/login'; return; }
+    getMyPackage().then((pkg) => {
+      setHasPkg(!!pkg);
+      setPkgChecked(true);
+    });
+  }, [user, isLoading]);
+
+  if (isLoading || !pkgChecked) return <LoadingScreen />;
+  if (!user) return null;
+  if (!hasPkg) return <Navigate to="/monthly-package" replace />;
+  return <DriverLayout>{children}</DriverLayout>;
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
@@ -299,25 +321,21 @@ function AppRoutes() {
         }
       />
 
-      {/* Booking / monthly — DriverLayout */}
+      {/* Booking / floor-map — yêu cầu có gói tháng */}
       <Route
         path="/booking"
         element={
-          <ProtectedRoute>
-            <DriverLayout title="Đặt chỗ">
-              <BookingPage />
-            </DriverLayout>
-          </ProtectedRoute>
+          <PackageRequiredRoute>
+            <BookingPage />
+          </PackageRequiredRoute>
         }
       />
       <Route
         path="/floor-map"
         element={
-          <ProtectedRoute>
-            <DriverLayout title="Sơ đồ bãi đỗ">
-              <FloorMapPage />
-            </DriverLayout>
-          </ProtectedRoute>
+          <PackageRequiredRoute>
+            <FloorMapPage />
+          </PackageRequiredRoute>
         }
       />
       <Route

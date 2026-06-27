@@ -40,8 +40,8 @@ interface FormErrors {
 }
 
 const VEHICLE_OPTIONS = [
-  { value: 'MOTORBIKE', label: 'Motorbike' },
-  { value: 'CAR', label: 'Car' },
+  { value: 'MOTORBIKE', label: 'Xe máy' },
+  { value: 'CAR', label: 'Ô tô' },
 ];
 
 export function RegisterPage() {
@@ -68,19 +68,19 @@ export function RegisterPage() {
     const newErrors: FormErrors = {};
 
     if (!form.fullName.trim()) {
-      newErrors.fullName = 'Full Name is required';
+      newErrors.fullName = 'Vui lòng nhập họ và tên';
     }
 
     if (!form.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Vui lòng nhập email';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Email không đúng định dạng';
     }
 
     if (!form.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
+      newErrors.phone = 'Vui lòng nhập số điện thoại';
     } else if (!/^\d{10,11}$/.test(form.phone.replace(/\s/g, ''))) {
-      newErrors.phone = 'Invalid phone number';
+      newErrors.phone = 'Số điện thoại không hợp lệ';
     }
 
     if (!form.licensePlate.trim()) {
@@ -93,23 +93,23 @@ export function RegisterPage() {
     }
 
     if (!form.vehicleType) {
-      newErrors.vehicleType = 'Please select vehicle type';
+      newErrors.vehicleType = 'Vui lòng chọn loại xe';
     }
 
     if (!form.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Vui lòng nhập mật khẩu';
     } else if (form.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
     if (!form.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
+      newErrors.confirmPassword = 'Vui lòng xác nhận mật khẩu';
     } else if (form.password !== form.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
     }
 
     if (!form.agreeTerms) {
-      newErrors.agreeTerms = 'You must agree to the Terms and Conditions';
+      newErrors.agreeTerms = 'Bạn cần đồng ý với Điều khoản sử dụng';
     }
 
     setErrors(newErrors);
@@ -124,13 +124,18 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
+<<<<<<< HEAD
       const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
       navigate(getRoleHomePath(user.role), { replace: true });
+=======
+      await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
+      navigate('/welcome');
+>>>>>>> 2f64c34383e92cdbc39ea1b579820378c71a0531
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         (err as Error)?.message ||
-        'Registration failed. Please try again.';
+        'Đăng ký thất bại. Vui lòng thử lại.';
       setApiError(message);
     } finally {
       setLoading(false);
@@ -139,20 +144,23 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      subtitle="Create your account to start managing your parking"
-      footerText="Already have an account?"
-      footerLink={{ text: 'Log in', to: '/login' }}
+      subtitle="Tạo tài khoản để bắt đầu sử dụng dịch vụ đỗ xe thông minh"
+      footerText="Đã có tài khoản?"
+      footerLink={{ text: 'Đăng nhập ngay', to: '/login' }}
     >
+      <h2 className={styles.heading}>Tạo tài khoản</h2>
+      <p className={styles.description}>Tham gia ParkSmart và quản lý chỗ đỗ xe dễ dàng.</p>
+
       <form onSubmit={handleSubmit} noValidate>
 
-        {/* Full Name - full width */}
+        {/* Full Name */}
         <div className={styles.inputField}>
-          <label className={styles.inputLabel}>Full Name</label>
+          <label className={styles.inputLabel}>Họ và tên</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}><PersonIcon size={15} /></span>
             <input
               type="text"
-              placeholder="Nguyen Van A"
+              placeholder="Nguyễn Văn A"
               className={`${styles.input} ${errors.fullName ? styles['input--error'] : ''}`}
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
@@ -161,7 +169,7 @@ export function RegisterPage() {
           {errors.fullName && <p className={styles.inputError}>{errors.fullName}</p>}
         </div>
 
-        {/* Email + Phone - two columns */}
+        {/* Email + Phone */}
         <div className={styles.fieldGrid}>
           <div className={styles.inputField}>
             <label className={styles.inputLabel}>Email</label>
@@ -180,7 +188,7 @@ export function RegisterPage() {
           </div>
 
           <div className={styles.inputField}>
-            <label className={styles.inputLabel}>Phone Number</label>
+            <label className={styles.inputLabel}>Số điện thoại</label>
             <div className={styles.inputWrapper}>
               <span className={styles.inputIcon}><PhoneIcon size={15} /></span>
               <input
@@ -196,10 +204,10 @@ export function RegisterPage() {
           </div>
         </div>
 
-        {/* License Plate + Vehicle Type - two columns */}
+        {/* License Plate + Vehicle Type */}
         <div className={styles.fieldGrid}>
           <div className={styles.inputField}>
-            <label className={styles.inputLabel}>License Plate Number</label>
+            <label className={styles.inputLabel}>Biển số xe</label>
             <div className={styles.inputWrapper}>
               <span className={styles.inputIcon}><LicensePlateIcon size={15} /></span>
               <input
@@ -227,7 +235,7 @@ export function RegisterPage() {
           </div>
 
           <div className={styles.inputField}>
-            <label className={styles.inputLabel}>Vehicle Type</label>
+            <label className={styles.inputLabel}>Loại xe</label>
             <div className={styles.inputWrapper}>
               <span className={styles.inputIcon}><CarIcon size={15} /></span>
               <select
@@ -235,7 +243,7 @@ export function RegisterPage() {
                 value={form.vehicleType}
                 onChange={(e) => setForm({ ...form, vehicleType: e.target.value as FormData['vehicleType'] })}
               >
-                <option value="" disabled>Select type</option>
+                <option value="" disabled>Chọn loại xe</option>
                 {VEHICLE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
@@ -248,15 +256,15 @@ export function RegisterPage() {
           </div>
         </div>
 
-        {/* Password + Confirm - two columns */}
+        {/* Password + Confirm */}
         <div className={styles.fieldGrid}>
           <div className={styles.inputField}>
-            <label className={styles.inputLabel}>Password</label>
+            <label className={styles.inputLabel}>Mật khẩu</label>
             <div className={styles.inputWrapper}>
               <span className={styles.inputIcon}><LockIcon size={15} /></span>
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Min. 6 characters"
+                placeholder="Tối thiểu 6 ký tự"
                 className={`${styles.input} ${errors.password ? styles['input--error'] : ''}`}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -274,12 +282,12 @@ export function RegisterPage() {
           </div>
 
           <div className={styles.inputField}>
-            <label className={styles.inputLabel}>Confirm Password</label>
+            <label className={styles.inputLabel}>Xác nhận mật khẩu</label>
             <div className={styles.inputWrapper}>
               <span className={styles.inputIcon}><LockIcon size={15} /></span>
               <input
                 type={showConfirm ? 'text' : 'password'}
-                placeholder="Re-enter password"
+                placeholder="Nhập lại mật khẩu"
                 className={`${styles.input} ${errors.confirmPassword ? styles['input--error'] : ''}`}
                 value={form.confirmPassword}
                 onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
@@ -305,9 +313,9 @@ export function RegisterPage() {
               checked={form.agreeTerms}
               onChange={(e) => setForm({ ...form, agreeTerms: e.target.checked })}
             />
-            I agree to the{' '}
+            Tôi đồng ý với{' '}
             <button type="button" className={styles.linkBtn}>
-              Terms and Conditions
+              Điều khoản sử dụng
             </button>
           </label>
         </div>
@@ -322,23 +330,10 @@ export function RegisterPage() {
         {/* Submit */}
         <button
           type="submit"
-          className={styles.btn}
+          className={`${styles.btn} ${styles['btn--primary']}`}
           disabled={loading || !!plateError}
-          style={{
-            background: '#1E3A5F',
-            color: '#fff',
-            width: '100%',
-            padding: '12px',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 14px rgba(30, 58, 95, 0.25)',
-            opacity: loading ? 0.6 : 1,
-          }}
         >
-          {loading ? 'Creating account...' : 'Create Account'}
+          {loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
         </button>
       </form>
     </AuthLayout>

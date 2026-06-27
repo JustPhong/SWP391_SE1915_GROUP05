@@ -6,6 +6,7 @@ import { vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import api from '../services/api';
 import type { Vehicle, ParkingSlot, MonthlyPackage } from '../types';
+import { PACKAGES, type PackagePlan } from '../constants/packages';
 import styles from '../styles/driver.module.css';
 
 // ═══════════════════════════════════════════════════════
@@ -44,43 +45,6 @@ const C = {
 // ═══════════════════════════════════════════════════════
 type VType = 'CAR' | 'MOTORBIKE';
 
-interface PackagePlan {
-  id: string;
-  name: string;
-  durationDays: number;
-  prices: Record<VType, { price: number; priceLabel: string; pricePerDay: string }>;
-}
-
-const PACKAGES: PackagePlan[] = [
-  {
-    id: '1m',
-    name: 'Gói 1 tháng',
-    durationDays: 30,
-    prices: {
-      CAR: { price: 1500000, priceLabel: '1.500.000đ', pricePerDay: '50.000đ/ngày' },
-      MOTORBIKE: { price: 300000, priceLabel: '300.000đ', pricePerDay: '10.000đ/ngày' },
-    },
-  },
-  {
-    id: '3m',
-    name: 'Gói 3 tháng',
-    durationDays: 90,
-    prices: {
-      CAR: { price: 4000000, priceLabel: '4.000.000đ', pricePerDay: '44.444đ/ngày' },
-      MOTORBIKE: { price: 800000, priceLabel: '800.000đ', pricePerDay: '8.889đ/ngày' },
-    },
-  },
-  {
-    id: '1y',
-    name: 'Gói 1 năm',
-    durationDays: 365,
-    prices: {
-      CAR: { price: 15000000, priceLabel: '15.000.000đ', pricePerDay: '41.096đ/ngày' },
-      MOTORBIKE: { price: 3000000, priceLabel: '3.000.000đ', pricePerDay: '8.219đ/ngày' },
-    },
-  },
-];
-
 const TYPE_LABEL: Record<VType, string> = { CAR: 'Ô tô', MOTORBIKE: 'Xe máy' };
 const PAYMENT_LABEL: Record<'CASH' | 'CARD' | 'EWALLET', string> = {
   CASH: 'Tiền mặt', CARD: 'Thẻ ngân hàng', EWALLET: 'Ví điện tử',
@@ -104,6 +68,47 @@ function formatCountdown(secs: number) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  VIETQR (EMVCo) PAYLOAD — demo bank account
+// ═══════════════════════════════════════════════════════
+const VIETQR_BANK_BIN = '970422'; // MB Bank (demo)
+const VIETQR_ACCOUNT = '0000000000'; // demo account
+
+function emvField(id: string, value: string): string {
+  const len = value.length.toString().padStart(2, '0');
+  return `${id}${len}${value}`;
+}
+
+function crc16(str: string): string {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+      crc &= 0xFFFF;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function buildVietQR(amount: number, note: string): string {
+  const acqId = emvField('00', VIETQR_BANK_BIN) + emvField('01', VIETQR_ACCOUNT);
+  const merchantAccount =
+    emvField('00', 'A000000727') +
+    emvField('01', acqId) +
+    emvField('02', 'QRIBFTTA');
+  let payload =
+    emvField('00', '01') +
+    emvField('01', '12') +               // 12 = dynamic (one-time, has amount)
+    emvField('38', merchantAccount) +
+    emvField('53', '704') +              // VND
+    emvField('54', String(Math.round(amount))) +
+    emvField('58', 'VN') +
+    emvField('62', emvField('08', note.slice(0, 25)));
+  payload += '6304';
+  return payload + crc16(payload);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -132,22 +137,23 @@ function IconInfo({ size = 15, color = C.gray600 }: { size?: number; color?: str
 // ── Vehicle picker card ────────────────────────────────
 function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; selected: boolean; onSelect: () => void }) {
   const isCar = vehicle.type === 'CAR';
-  const disabled = vehicle.isMonthly;
+  const hasPackage = vehicle.isMonthly;
   return (
     <button
-      onClick={onSelect}
-      disabled={disabled}
+      disabled={hasPackage}
+      onClick={hasPackage ? undefined : onSelect}
       style={{
-        background: selected ? C.blueBg : disabled ? C.gray50 : C.white,
+        background: selected ? C.blueBg : C.white,
         border: selected ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
         borderRadius: 14, padding: '0.85rem 1rem',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        cursor: hasPackage ? 'not-allowed' : 'pointer',
+        opacity: hasPackage ? 0.6 : 1,
         textAlign: 'left', width: '100%', boxSizing: 'border-box',
-        opacity: disabled ? 0.65 : 1, position: 'relative',
+        position: 'relative',
         display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'all 0.15s ease',
       }}
     >
-      {selected && !disabled && (
+      {selected && (
         <div style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, background: C.navy, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <IconCheck size={12} color={C.white} />
         </div>
@@ -157,21 +163,21 @@ function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; 
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: "'Consolas', monospace", fontSize: '1rem', fontWeight: 800, color: disabled ? C.gray400 : C.gray900, letterSpacing: '0.03em' }}>
+          <span style={{ fontFamily: "'Consolas', monospace", fontSize: '1rem', fontWeight: 800, color: C.gray900, letterSpacing: '0.03em' }}>
             {vehicle.plateNumber}
           </span>
           <span style={{ background: C.blueBg, color: C.blue, fontSize: '0.65rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 20 }}>
             {TYPE_LABEL[vehicle.type]}
           </span>
-          {disabled && (
+          {hasPackage && (
             <span style={{ background: C.greenBg, color: C.green, fontSize: '0.65rem', fontWeight: 700, padding: '0.12rem 0.5rem', borderRadius: 20 }}>
               Đã có gói tháng
             </span>
           )}
         </div>
-        {disabled && (
+        {hasPackage && (
           <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: C.gray600 }}>
-            Xe đã đăng ký gói tháng — không thể mua thêm
+            Xe đã có gói tháng đang hoạt động — không thể mua thêm
           </p>
         )}
       </div>
@@ -333,7 +339,7 @@ export function MonthlyPackagePage() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('3m');
-  const paymentMethod = 'EWALLET' as const;
+  const [paymentMethod, setPaymentMethod] = useState<'EWALLET' | 'CARD'>('EWALLET');
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
@@ -344,6 +350,10 @@ export function MonthlyPackagePage() {
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [countdown, setCountdown] = useState(300);
+
+  // Card payment (demo / mock)
+  const [showCard, setShowCard] = useState(false);
+  const [cardForm, setCardForm] = useState({ number: '', name: '', expiry: '', cvv: '' });
 
   // Derived
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? null;
@@ -440,7 +450,8 @@ export function MonthlyPackagePage() {
   };
 
   const handleProceedToQR = async () => {
-    const payload = `PARKSMART|${selectedPlan.name}|${totalAmount}|${today.toISOString()}`;
+    const note = `ParkSmart ${selectedPlan.name}`.replace(/[^a-zA-Z0-9 ]/g, '');
+    const payload = buildVietQR(totalAmount, note);
     try {
       const url = await QRCode.toDataURL(payload, { width: 220, margin: 2 });
       setQrDataUrl(url);
@@ -464,6 +475,9 @@ export function MonthlyPackagePage() {
     setSelectedSlotId(null);
     setSelectedPlanId('3m');
     setShowQR(false);
+    setShowCard(false);
+    setPaymentMethod('EWALLET');
+    setCardForm({ number: '', name: '', expiry: '', cvv: '' });
     setSubmitError('');
   };
 
@@ -509,6 +523,114 @@ export function MonthlyPackagePage() {
         <button onClick={handleReset} style={{ padding: '0.6rem 1.5rem', background: C.navy, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
           Mua thêm gói khác
         </button>
+      </div>
+    );
+  }
+
+  // ── Card Payment Screen (demo / mock) ──────────────────
+  if (showCard) {
+    const inputStyle: React.CSSProperties = {
+      width: '100%',
+      padding: '0.65rem 0.75rem',
+      fontSize: '0.9rem',
+      border: `1.5px solid ${C.gray200}`,
+      borderRadius: 10,
+      background: C.white,
+      color: C.gray900,
+      boxSizing: 'border-box',
+      outline: 'none',
+    };
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+        <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.gray900, textAlign: 'center' }}>Thanh toán bằng thẻ</p>
+
+        {/* Bill summary */}
+        <div className={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0' }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
+            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
+          </div>
+        </div>
+
+        {/* Card form */}
+        <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Số thẻ</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="cc-number"
+              placeholder="0000 0000 0000 0000"
+              value={cardForm.number}
+              onChange={(e) => setCardForm((f) => ({ ...f, number: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Tên chủ thẻ</label>
+            <input
+              type="text"
+              autoComplete="cc-name"
+              placeholder="NGUYEN VAN A"
+              value={cardForm.name}
+              onChange={(e) => setCardForm((f) => ({ ...f, name: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Ngày hết hạn</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="cc-exp"
+                placeholder="MM/YY"
+                value={cardForm.expiry}
+                onChange={(e) => setCardForm((f) => ({ ...f, expiry: e.target.value }))}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>CVV</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="cc-csc"
+                placeholder="•••"
+                value={cardForm.cvv}
+                onChange={(e) => setCardForm((f) => ({ ...f, cvv: e.target.value }))}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: C.gray400, textAlign: 'center', lineHeight: 1.5 }}>
+            Đây là cổng thanh toán mô phỏng cho mục đích demo.
+          </p>
+        </div>
+
+        {/* Error */}
+        {submitError && (
+          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
+        )}
+
+        {/* CTA */}
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{ width: '100%', padding: '0.9rem', background: submitting ? C.gray300 : C.navy, color: submitting ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: submitting ? 'none' : '0 4px 14px rgba(30,58,95,0.25)', transition: 'all 0.2s ease' }}
+        >
+          {submitting ? 'Đang xử lý...' : `Thanh toán ${formatVND(totalAmount)}`}
+        </button>
+
+        {/* Back */}
+        <button
+          onClick={() => setShowCard(false)}
+          style={{ width: '100%', padding: '0.7rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 12, fontSize: '0.875rem', fontWeight: 700, color: C.gray600, cursor: 'pointer', transition: 'all 0.2s ease' }}
+        >
+          Quay lại
+        </button>
+
       </div>
     );
   }
@@ -680,9 +802,41 @@ export function MonthlyPackagePage() {
         <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
       )}
 
+      {/* Payment method picker */}
+      <div className={styles.card} style={{ padding: '0.85rem' }}>
+        <p style={{ margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 700, color: C.gray900 }}>Phương thức thanh toán</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          {([
+            { id: 'EWALLET', label: 'Quét mã QR' },
+            { id: 'CARD', label: 'Thẻ ngân hàng' },
+          ] as const).map((opt) => {
+            const active = paymentMethod === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setPaymentMethod(opt.id)}
+                style={{
+                  padding: '0.65rem 0.5rem',
+                  background: active ? C.blueBg : C.white,
+                  border: active ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
+                  borderRadius: 10,
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: active ? C.navy : C.gray600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* CTA */}
       <button
-        onClick={handleProceedToQR}
+        onClick={() => { if (paymentMethod === 'CARD') setShowCard(true); else handleProceedToQR(); }}
         disabled={!canSubmit}
         style={{ width: '100%', padding: '0.9rem', background: canSubmit ? C.navy : C.gray300, color: canSubmit ? C.white : C.gray400, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed', boxShadow: canSubmit ? '0 4px 14px rgba(30,58,95,0.25)' : 'none', transition: 'all 0.2s ease' }}
       >
