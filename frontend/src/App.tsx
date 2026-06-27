@@ -145,7 +145,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <RedirectToRoleHome /> : <LoginPage />} />
       <Route path="/register" element={user ? <RedirectToRoleHome /> : <RegisterPage />} />
-      <Route path="/" element={<WelcomePage />} />
+      <Route path="/" element={user ? <RedirectToRoleHome /> : <WelcomePage />} />
       <Route
         path="/dashboard-home"
         element={

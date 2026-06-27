@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
 import { PersonIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/Icons';
-import { getMyPackage } from '../api/driverDashboardApi';
 import styles from '../styles/auth.module.css';
 
 interface FormErrors {
@@ -48,8 +47,7 @@ export function LoginPage() {
 
     try {
       await login(form.email, form.password);
-      const pkg = await getMyPackage();
-      navigate(pkg ? '/dashboard-home' : '/welcome');
+      navigate('/');
     } catch (err: unknown) {
       const isNetwork =
         !err ||
