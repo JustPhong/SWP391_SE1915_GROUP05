@@ -71,6 +71,47 @@ function formatCountdown(secs: number) {
 }
 
 // ═══════════════════════════════════════════════════════
+//  VIETQR (EMVCo) PAYLOAD — demo bank account
+// ═══════════════════════════════════════════════════════
+const VIETQR_BANK_BIN = '970422'; // MB Bank (demo)
+const VIETQR_ACCOUNT = '0000000000'; // demo account
+
+function emvField(id: string, value: string): string {
+  const len = value.length.toString().padStart(2, '0');
+  return `${id}${len}${value}`;
+}
+
+function crc16(str: string): string {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+      crc &= 0xFFFF;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function buildVietQR(amount: number, note: string): string {
+  const acqId = emvField('00', VIETQR_BANK_BIN) + emvField('01', VIETQR_ACCOUNT);
+  const merchantAccount =
+    emvField('00', 'A000000727') +
+    emvField('01', acqId) +
+    emvField('02', 'QRIBFTTA');
+  let payload =
+    emvField('00', '01') +
+    emvField('01', '12') +               // 12 = dynamic (one-time, has amount)
+    emvField('38', merchantAccount) +
+    emvField('53', '704') +              // VND
+    emvField('54', String(Math.round(amount))) +
+    emvField('58', 'VN') +
+    emvField('62', emvField('08', note.slice(0, 25)));
+  payload += '6304';
+  return payload + crc16(payload);
+}
+
+// ═══════════════════════════════════════════════════════
 //  ICONS
 // ═══════════════════════════════════════════════════════
 function IconCheck({ size = 14, color = C.green }: { size?: number; color?: string }) {
@@ -403,7 +444,8 @@ export function MonthlyPackagePage() {
   };
 
   const handleProceedToQR = async () => {
-    const payload = `PARKSMART|${selectedPlan.name}|${totalAmount}|${today.toISOString()}`;
+    const note = `ParkSmart ${selectedPlan.name}`.replace(/[^a-zA-Z0-9 ]/g, '');
+    const payload = buildVietQR(totalAmount, note);
     try {
       const url = await QRCode.toDataURL(payload, { width: 220, margin: 2 });
       setQrDataUrl(url);
