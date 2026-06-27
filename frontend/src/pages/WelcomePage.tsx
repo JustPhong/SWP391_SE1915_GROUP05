@@ -894,12 +894,42 @@ function FeaturesSection() {
   return (
     <section className={styles.section}>
       <div className={styles.sectionInner}>
-        <span className={styles.eyebrow}>Tính năng nổi bật</span>
-        <h2 className={styles.sectionTitle}>Mọi thứ bạn cần để vận hành bãi đỗ</h2>
+        <span className={styles.eyebrow}>Vì sao chọn ParkSmart</span>
+        <h2 className={styles.sectionTitle}>Đỗ xe thông minh, tiện cho bạn</h2>
         <div className={styles.cardGrid3}>
-          <FeatureCard num="01" title="Đặt chỗ tự động" desc="Khách vãng lai đặt chỗ trước, hệ thống tự xếp vị trí tối ưu bằng giải thuật Greedy, không cần chọn thủ công." />
-          <FeatureCard num="02" title="Check-in/out QR" desc="Quét mã QR tại cổng, vào ra nhanh chóng, quản lý vé thất lạc dễ dàng." />
-          <FeatureCard num="03" title="Báo cáo trực quan" desc="Thống kê tỉ lệ lấp đầy, doanh thu, lưu lượng theo thời gian thực." />
+          <FeatureCard
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            }
+            title="Tiết kiệm thời gian"
+            desc="Luôn có chỗ sẵn khi bạn đến — không vòng vòng tìm chỗ, không chờ đợi giờ cao điểm."
+          />
+          <FeatureCard
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="6" width="18" height="13" rx="2" />
+                <path d="M3 10h18" />
+                <path d="M16 14h2" />
+                <path d="M7 6V4" />
+                <path d="M17 6V4" />
+              </svg>
+            }
+            title="Chi phí minh bạch"
+            desc="Phí tính tự động theo thời gian thực tế, hiển thị rõ ràng, không lo tính sai."
+          />
+          <FeatureCard
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            }
+            title="An tâm & an toàn"
+            desc="Bãi có mái che, khu vực riêng cho ô tô và xe máy, chỗ đỗ luôn ổn định."
+          />
         </div>
       </div>
     </section>
@@ -922,10 +952,10 @@ function ProcessSection() {
   );
 }
 
-function FeatureCard({ num, title, desc }: { num: string; title: string; desc: string }) {
+function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
   return (
     <div className={styles.featureCard}>
-      <div className={styles.featureNum}>{num}</div>
+      <div className={styles.featureIcon}>{icon}</div>
       <h3 className={styles.featureCardTitle}>{title}</h3>
       <p className={styles.featureCardDesc}>{desc}</p>
     </div>
