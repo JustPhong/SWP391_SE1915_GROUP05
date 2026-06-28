@@ -6,12 +6,13 @@ import { addVehicle } from '../api/vehicleApi';
 import { ProfilePage } from './Profile';
 import { HistoryPage } from './History';
 import { MyVehiclePage } from './MyVehicle';
+import { MonthlyPackagePage } from './MonthlyPackage';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 
-type Tab = 'home' | 'vehicles' | 'profile' | 'history';
+type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly';
 
 // ── Helpers ─────────────────────────────────────────────────
 function getGreeting(): string {
@@ -420,6 +421,9 @@ export const WelcomePage: React.FC = () => {
             <button className={`${styles.tabBtn} ${activeTab === 'history' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('history')}>
               Lịch sử
             </button>
+            <button className={`${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('monthly')}>
+              Gói tháng
+            </button>
           </div>
 
           <div className={styles.navRight}>
@@ -475,7 +479,7 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'home' ? (
         <>
           <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
-          <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
+          <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} onSelectPackage={() => setActiveTab('monthly')} />
           <FeaturesSection />
           <ProcessSection />
         </>
@@ -494,6 +498,12 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'history' && (
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
           <HistoryPage />
+        </div>
+      )}
+
+      {activeTab === 'monthly' && (
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+          <MonthlyPackagePage />
         </div>
       )}
 
@@ -749,7 +759,7 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
   );
 }
 
-function PricingSection({ navigate, onBooking }: { navigate: (path: string) => void; onBooking: () => void }) {
+function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (path: string) => void; onBooking: () => void; onSelectPackage?: () => void }) {
   const [vtype, setVtype] = useState<VType>('CAR');
   const CAR_PERKS = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
   const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
@@ -789,7 +799,7 @@ function PricingSection({ navigate, onBooking }: { navigate: (path: string) => v
               icon={i === 0 ? 'calendar' : i === 1 ? 'check' : 'star'}
               featured={i === 1}
               saving={i === 1 ? 'Tiết kiệm ~11%' : i === 2 ? 'Tiết kiệm ~17%' : undefined}
-              onClick={() => navigate('/monthly-package')}
+              onClick={onSelectPackage ?? (() => navigate('/monthly-package'))}
             />
           ))}
         </div>
