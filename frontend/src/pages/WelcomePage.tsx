@@ -7,12 +7,13 @@ import { ProfilePage } from './Profile';
 import { HistoryPage } from './History';
 import { MyVehiclePage } from './MyVehicle';
 import { MonthlyPackagePage } from './MonthlyPackage';
+import { BookingPage } from './Booking';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 
-type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly';
+type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking';
 
 // ── Helpers ─────────────────────────────────────────────────
 function getGreeting(): string {
@@ -424,6 +425,9 @@ export const WelcomePage: React.FC = () => {
             <button className={`${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('monthly')}>
               Gói tháng
             </button>
+            <button className={`${styles.tabBtn} ${activeTab === 'booking' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('booking')}>
+              Đặt chỗ
+            </button>
           </div>
 
           <div className={styles.navRight}>
@@ -504,6 +508,20 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'monthly' && (
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
           <MonthlyPackagePage />
+        </div>
+      )}
+
+      {activeTab === 'booking' && (
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+          {hasPackage ? (
+            <BookingPage />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.75rem' }}>Tính năng dành cho khách gói tháng</h2>
+              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Đặt chỗ trước chỉ áp dụng cho khách đã đăng ký gói tháng. Vui lòng mua gói tháng để sử dụng.</p>
+              <button className={styles.btnPrimary} onClick={() => setActiveTab('monthly')}>Xem gói tháng</button>
+            </div>
+          )}
         </div>
       )}
 
