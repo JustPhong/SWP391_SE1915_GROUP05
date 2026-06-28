@@ -166,7 +166,7 @@ export function SearchVehiclePage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray500 }}>Loại khách</p>
-                    <p style={{ margin: '0.35rem 0 0', fontSize: '1rem', fontWeight: 700, color: C.gray800 }}>
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '1rem', fontWeight: 700, color: C.gray500 }}>
                       {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
                     </p>
                   </div>
