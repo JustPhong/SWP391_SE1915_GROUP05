@@ -112,7 +112,7 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
         </nav>
 
         <div className={styles.sidebarFooter}>
-          <button className={styles.sidebarBottomItem}>
+          <button className={styles.sidebarBottomItem} onClick={() => navigate('/support')} aria-label="Trung tâm hỗ trợ">
             <span className={styles.navItemIcon}>
               <HelpIcon size={16} />
             </span>

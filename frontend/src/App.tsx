@@ -25,6 +25,7 @@ import { FeeRulesPage } from './pages/FeeRules';
 import { AuditLogsPage } from './pages/AuditLogs';
 import { ProfilePage } from './pages/Profile';
 import { WelcomePage } from './pages/WelcomePage';
+import { SupportPage } from './pages/Support';
 import { BookingPage } from './pages/Booking';
 import { MonthlyPackagePage } from './pages/MonthlyPackage';
 
@@ -197,10 +198,26 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/staff/reports"
+        element={
+          <StaffRoute>
+            <ReportPage />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/reports"
         element={
           <StaffRoute>
             <ReportPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/support"
+        element={
+          <StaffRoute>
+            <SupportPage />
           </StaffRoute>
         }
       />
