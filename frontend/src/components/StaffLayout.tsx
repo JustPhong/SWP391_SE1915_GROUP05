@@ -147,7 +147,7 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
               <span className={styles.shiftBadge}>{getShiftName()}</span>
             </div>
           </div>
-          <button className={styles.iconBtn} aria-label="Thông báo">
+          <button className={styles.iconBtn} aria-label="Thông báo" onClick={() => navigate('/notifications')}>
             <BellIcon size={18} />
           </button>
 

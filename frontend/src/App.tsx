@@ -26,6 +26,7 @@ import { AuditLogsPage } from './pages/AuditLogs';
 import { ProfilePage } from './pages/Profile';
 import { WelcomePage } from './pages/WelcomePage';
 import { SupportPage } from './pages/Support';
+import { NotificationsPage } from './pages/Notifications';
 import { BookingPage } from './pages/Booking';
 import { MonthlyPackagePage } from './pages/MonthlyPackage';
 
@@ -218,6 +219,14 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <SupportPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <StaffRoute>
+            <NotificationsPage />
           </StaffRoute>
         }
       />
