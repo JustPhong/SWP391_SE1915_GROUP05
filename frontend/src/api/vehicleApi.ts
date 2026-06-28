@@ -25,7 +25,7 @@ export async function getMyVehicles(): Promise<Vehicle[]> {
   }
 }
 
-export async function addVehicle(data: { plateNumber: string; type: 'CAR' | 'MOTORBIKE'; isMonthly?: boolean }): Promise<Vehicle> {
+export async function addVehicle(data: { plateNumber: string; type: 'CAR' | 'MOTORBIKE'; isMonthly?: boolean; brand?: string; model?: string; color?: string; year?: number }): Promise<Vehicle> {
   try {
     const response = await api.post<{ success: boolean; data: Vehicle }>('/vehicles', data);
     return unwrap(response);

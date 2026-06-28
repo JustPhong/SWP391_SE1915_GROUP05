@@ -2,7 +2,7 @@ import api from './api';
 import type { Vehicle } from '../types';
 
 export const vehicleService = {
-  create: async (data: { plateNumber: string; type: 'MOTORBIKE' | 'CAR'; isMonthly?: boolean }) => {
+  create: async (data: { plateNumber: string; type: 'MOTORBIKE' | 'CAR'; isMonthly?: boolean; brand?: string; model?: string; color?: string; year?: number }) => {
     const response = await api.post<{ success: boolean; data: Vehicle }>('/vehicles', data);
     return response.data.data;
   },
@@ -17,7 +17,7 @@ export const vehicleService = {
     return response.data.data;
   },
 
-  update: async (id: string, data: Partial<{ plateNumber: string; type: string }>) => {
+  update: async (id: string, data: Partial<{ plateNumber: string; type: string; brand?: string; model?: string; color?: string; year?: number }>) => {
     const response = await api.patch<{ success: boolean; data: Vehicle }>(`/vehicles/${id}`, data);
     return response.data.data;
   },

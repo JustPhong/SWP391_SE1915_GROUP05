@@ -6,6 +6,10 @@ export interface CreateVehicleInput {
   type: string;
   ownerId: string;
   isMonthly?: boolean;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
 }
     
 async function loadOwnedVehicleOrThrow(vehicleId: string, userId: string) {
@@ -28,7 +32,17 @@ export const vehicleService = {
       throw new AppError(409, 'Vehicle with this plate number already exists');
     }
 
-    return prisma.vehicle.create({ data: input });
+    const data = {
+      plateNumber: input.plateNumber,
+      type: input.type,
+      ownerId: input.ownerId,
+      isMonthly: input.isMonthly ?? false,
+      brand: input.brand ?? undefined,
+      model: input.model ?? undefined,
+      color: input.color ?? undefined,
+      year: input.year ?? undefined,
+    };
+    return prisma.vehicle.create({ data });
   },
 
   async getByPlate(plateNumber: string) {

@@ -61,6 +61,10 @@ export const authService = {
         type: input.vehicleType,
         ownerId: user.id,
         isMonthly: false,
+        brand: (input as any).brand || undefined,
+        model: (input as any).model || undefined,
+        color: (input as any).color || undefined,
+        year: (input as any).year || undefined,
       },
     });
 
