@@ -5,7 +5,7 @@ import { getCurrentSession, getMyPackage, getHistory, CurrentSession, MyPackage,
 import { getMyVehicles, addVehicle, removeVehicle, Vehicle } from '../api/vehicleApi';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
-import { PACKAGES, type VType } from '../constants/packages';
+import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 
 type Tab = 'home' | 'vehicles';
@@ -35,22 +35,16 @@ export const WelcomePage: React.FC = () => {
   const { user, logout } = useAuth();
 
   // ── User type detection ──────────────────────────────────
-  // We fetch the package once to decide: monthly → /dashboard, casual → stay here
+  // All users stay on the Welcome page (including monthly customers) — no redirect.
   const [pkgLoading, setPkgLoading] = useState(true);
   const [hasPackage, setHasPackage] = useState(false); // true = monthly customer
 
   useEffect(() => {
     if (!user) { setPkgLoading(false); return; }
-
     getMyPackage().then(pkg => {
-      if (pkg) {
-        // Monthly customer → redirect to full dashboard
-        navigate('/dashboard', { replace: true });
-      } else {
-        // Casual user → stay on welcome page with tabs
-        setHasPackage(false);
-        setPkgLoading(false);
-      }
+      // Mọi user đều ở lại trang Welcome (kể cả khách gói tháng) — không redirect sang /dashboard nữa
+      setHasPackage(!!pkg);
+      setPkgLoading(false);
     }).catch(() => setPkgLoading(false));
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -415,10 +409,9 @@ export const WelcomePage: React.FC = () => {
         </nav>
 
         <HeroSection navigate={navigate} />
-        <CasualPricingSection onBooking={() => setBookingOpen(true)} />
+        <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
         <FeaturesSection />
         <ProcessSection />
-        <PricingSection navigate={navigate} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
@@ -491,10 +484,9 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'home' ? (
         <>
           <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
-          <CasualPricingSection onBooking={() => setBookingOpen(true)} />
+          <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
           <FeaturesSection />
           <ProcessSection />
-          <PricingSection navigate={navigate} />
         </>
       ) : (
         /* ── XE CUA BAN ──────────────────────────────── */
@@ -836,60 +828,6 @@ function formatCurrencyInline(n: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 }
 
-function CasualPricingSection({ onBooking }: { onBooking: () => void }) {
-  return (
-    <section className={styles.section}>
-      <div className={styles.sectionInner}>
-        <span className={styles.eyebrow}>Giá vãng lai</span>
-        <h2 className={styles.sectionTitle}>Đỗ xe theo lượt — không cần đăng ký</h2>
-        <p className={styles.pricingNote}>Không cần tài khoản. Ra vào nhanh chóng, tính phí theo thời gian thực.</p>
-        <div className={styles.cardGrid2}>
-          <div className={styles.casualCard}>
-            <div className={styles.casualIcon}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-            </div>
-            <h3 className={styles.casualTitle}>Xe máy</h3>
-            <div className={styles.casualTimeBlocks}>
-              <div className={styles.timeBlock}>
-                <div className={styles.timeBlockLeft}><span className={styles.timeBlockLabel}>Ban ngày</span><span className={styles.timeBlockHours}>06:00 – 17:59</span></div>
-                <span className={styles.timeBlockPrice}>3.000đ</span><span className={styles.timeBlockUnit}>/ 4 giờ</span>
-              </div>
-              <div className={styles.timeBlock}>
-                <div className={styles.timeBlockLeft}><span className={styles.timeBlockLabel}>Ban đêm</span><span className={styles.timeBlockHours}>18:00 – 05:59</span></div>
-                <span className={styles.timeBlockPrice}>4.000đ</span><span className={styles.timeBlockUnit}>/ 4 giờ</span>
-              </div>
-            </div>
-            <button className={styles.casualBtn} onClick={onBooking}>Đặt chỗ ngay</button>
-          </div>
-          <div className={`${styles.casualCard} ${styles.casualCardFeatured}`}>
-            <div className={styles.casualBadge}>Phổ biến</div>
-            <div className={styles.casualIcon}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-            </div>
-            <h3 className={styles.casualTitle}>Ô tô</h3>
-            <div className={styles.casualTimeBlocks}>
-              <div className={styles.timeBlock}>
-                <div className={styles.timeBlockLeft}><span className={styles.timeBlockLabel}>Ban ngày</span><span className={styles.timeBlockHours}>06:00 – 17:59</span></div>
-                <span className={styles.timeBlockPrice}>15.000đ</span><span className={styles.timeBlockUnit}>/ 2 giờ</span>
-              </div>
-              <div className={styles.timeBlock}>
-                <div className={styles.timeBlockLeft}><span className={styles.timeBlockLabel}>Buổi tối</span><span className={styles.timeBlockHours}>18:00 – 23:59</span></div>
-                <span className={styles.timeBlockPrice}>20.000đ</span><span className={styles.timeBlockUnit}>/ 2 giờ</span>
-              </div>
-              <div className={`${styles.timeBlock} ${styles.timeBlockNight}`}>
-                <div className={styles.timeBlockLeft}><span className={styles.timeBlockLabel}>Đêm muộn</span><span className={styles.timeBlockHours}>00:00 – 05:59</span></div>
-                <span className={styles.timeBlockPrice}>100.000đ</span><span className={styles.timeBlockUnit}>trọn đêm</span>
-              </div>
-            </div>
-            <button className={`${styles.casualBtn} ${styles.casualBtnFeatured}`} onClick={onBooking}>Đặt chỗ ngay</button>
-          </div>
-        </div>
-        <p className={styles.casualFootnote}>Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.</p>
-      </div>
-    </section>
-  );
-}
-
 function FeaturesSection() {
   return (
     <section className={styles.section}>
@@ -972,17 +910,19 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
   );
 }
 
-function PricingSection({ navigate }: { navigate: (path: string) => void }) {
+function PricingSection({ navigate, onBooking }: { navigate: (path: string) => void; onBooking: () => void }) {
   const [vtype, setVtype] = useState<VType>('CAR');
   const CAR_PERKS = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
   const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
   const perks = vtype === 'CAR' ? CAR_PERKS : MOTO_PERKS;
+  const casual = CASUAL_PRICING[vtype];
   return (
     <section className={styles.section}>
       <div className={styles.sectionInner}>
-        <span className={styles.eyebrow}>Bảng giá gói tháng</span>
-        <h2 className={styles.sectionTitle}>Chọn gói phù hợp với bạn</h2>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <span className={styles.eyebrow}>Bảng giá</span>
+        <h2 className={styles.sectionTitle}>Chọn cách đỗ phù hợp với bạn</h2>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.75rem' }}>
           <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
             Ô tô
@@ -992,10 +932,11 @@ function PricingSection({ navigate }: { navigate: (path: string) => void }) {
             Xe máy
           </button>
         </div>
-        <p className={styles.pricingNote}>
+
+        <p className={styles.pricingNote} style={{ marginTop: 0 }}>
           {vtype === 'CAR'
-            ? 'Giá áp dụng cho ô tô. Xe máy có biểu giá riêng.'
-            : 'Giá áp dụng cho xe máy. Ô tô có biểu giá riêng.'}
+            ? 'Khách gói tháng được ưu tiên chỗ đỗ cố định — tiết kiệm hơn hẳn so với trả theo lượt.'
+            : 'Khách gói tháng ra vào không giới hạn — tiết kiệm hơn hẳn so với trả theo lượt.'}
         </p>
         <div className={styles.cardGrid3}>
           {PACKAGES.map((pkg, i) => (
@@ -1013,6 +954,42 @@ function PricingSection({ navigate }: { navigate: (path: string) => void }) {
             />
           ))}
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', maxWidth: 520, margin: '2.75rem auto 1.5rem', color: '#94a3b8' }}>
+          <span style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.06em' }}>HOẶC ĐỖ THEO LƯỢT</span>
+          <span style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+        </div>
+
+        <p className={styles.pricingNote} style={{ marginTop: 0 }}>
+          Chỉ đỗ một lần? Trả theo lượt, không cần tài khoản — tính phí theo thời gian thực.
+        </p>
+        <div className={styles.cardGrid2} style={{ maxWidth: 460, margin: '0 auto' }}>
+          <div className={styles.casualCard}>
+            <div className={styles.casualIcon}>
+              {vtype === 'CAR' ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
+              )}
+            </div>
+            <h3 className={styles.casualTitle}>{casual.title} — vãng lai</h3>
+            <div className={styles.casualTimeBlocks}>
+              {casual.blocks.map(b => (
+                <div key={b.label} className={`${styles.timeBlock} ${b.isNight ? styles.timeBlockNight : ''}`}>
+                  <div className={styles.timeBlockLeft}>
+                    <span className={styles.timeBlockLabel}>{b.label}</span>
+                    <span className={styles.timeBlockHours}>{b.hours}</span>
+                  </div>
+                  <span className={styles.timeBlockPrice}>{b.price}</span>
+                  <span className={styles.timeBlockUnit}>{b.unit}</span>
+                </div>
+              ))}
+            </div>
+            <button className={styles.casualBtn} onClick={onBooking}>Đặt chỗ ngay</button>
+          </div>
+        </div>
+        <p className={styles.casualFootnote}>Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.</p>
       </div>
     </section>
   );

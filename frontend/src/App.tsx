@@ -46,7 +46,7 @@ function RedirectToRoleHome() {
   if (user.role === 'ADMIN')   return <Navigate to="/admin/users" replace />;
   if (user.role === 'MANAGER') return <Navigate to="/manager/dashboard" replace />;
   if (user.role === 'STAFF')   return <Navigate to="/staff/dashboard" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/" replace />;
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -145,7 +145,15 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <RedirectToRoleHome /> : <LoginPage />} />
       <Route path="/register" element={user ? <RedirectToRoleHome /> : <RegisterPage />} />
-      <Route path="/" element={user ? <RedirectToRoleHome /> : <WelcomePage />} />
+      <Route
+        path="/"
+        element={
+          user?.role === 'ADMIN' ? <Navigate to="/admin/users" replace />
+          : user?.role === 'MANAGER' ? <Navigate to="/manager/dashboard" replace />
+          : user?.role === 'STAFF' ? <Navigate to="/staff/dashboard" replace />
+          : <WelcomePage />
+        }
+      />
       <Route
         path="/dashboard-home"
         element={
