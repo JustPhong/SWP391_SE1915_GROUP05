@@ -31,11 +31,11 @@ export function ReportPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: '1.5rem' }}>Reports & Statistics</h1>
+      <h1 style={{ marginBottom: '1.5rem' }}>Báo cáo và Thống kê</h1>
 
       <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>From</label>
+          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Từ ngày</label>
           <input
             type="date"
             value={startDate}
@@ -44,7 +44,7 @@ export function ReportPage() {
           />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>To</label>
+          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Đến ngày</label>
           <input
             type="date"
             value={endDate}
@@ -57,32 +57,32 @@ export function ReportPage() {
           disabled={loading}
           style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}
         >
-          Refresh
+          Làm mới
         </button>
       </div>
 
       {occupancy && (
         <>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Occupancy Overview</h2>
+          <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Tổng quan tình trạng</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-            <StatCard label="Total Slots" value={occupancy.totalSlots} />
-            <StatCard label="Available" value={occupancy.availableSlots} color="#2ecc71" />
-            <StatCard label="Occupied" value={occupancy.occupiedSlots} color="#e74c3c" />
-            <StatCard label="Reserved" value={occupancy.reservedSlots} color="#f39c12" />
-            <StatCard label="Occupancy Rate" value={`${occupancy.occupancyRate.toFixed(1)}%`} color="#3498db" />
+            <StatCard label="Tổng số ô" value={occupancy.totalSlots} />
+            <StatCard label="Số ô trống" value={occupancy.availableSlots} color="#2ecc71" />
+            <StatCard label="Số ô đã sử dụng" value={occupancy.occupiedSlots} color="#e74c3c" />
+            <StatCard label="Số ô đã đặt" value={occupancy.reservedSlots} color="#f39c12" />
+            <StatCard label="Tỉ lệ lấp đầy" value={`${occupancy.occupancyRate.toFixed(1)}%`} color="#3498db" />
           </div>
 
           {occupancy.byFloor.length > 0 && (
             <>
-              <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>By Floor</h3>
+              <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Theo từng tầng</h3>
               <Table
                 columns={[
-                  { key: 'floor', label: 'Floor' },
-                  { key: 'total', label: 'Total' },
-                  { key: 'available', label: 'Available' },
-                  { key: 'occupied', label: 'Occupied' },
-                  { key: 'reserved', label: 'Reserved' },
-                  { key: 'occupancyRate', label: 'Occupancy %', render: (row) => `${row.occupancyRate.toFixed(1)}%` },
+                  { key: 'floor', label: 'Tầng' },
+                  { key: 'total', label: 'Tổng' },
+                  { key: 'available', label: 'Trống' },
+                  { key: 'occupied', label: 'Đã sử dụng' },
+                  { key: 'reserved', label: 'Đã đặt' },
+                  { key: 'occupancyRate', label: 'Tỉ lệ %', render: (row) => `${row.occupancyRate.toFixed(1)}%` },
                 ]}
                 data={occupancy.byFloor}
               />
@@ -93,17 +93,17 @@ export function ReportPage() {
 
       {revenue && (
         <>
-          <h2 style={{ fontSize: '1.2rem', margin: '2rem 0 1rem' }}>Revenue</h2>
+          <h2 style={{ fontSize: '1.2rem', margin: '2rem 0 1rem' }}>Doanh thu</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-            <StatCard label="Total Revenue" value={`${revenue.totalRevenue.toLocaleString()} VND`} color="#2ecc71" />
-            <StatCard label="Session Revenue" value={`${revenue.sessionRevenue.toLocaleString()} VND`} />
-            <StatCard label="Monthly Revenue" value={`${revenue.monthlyRevenue.toLocaleString()} VND`} color="#9b59b6" />
-            <StatCard label="Transactions" value={revenue.transactionCount} color="#3498db" />
+            <StatCard label="Tổng doanh thu" value={`${revenue.totalRevenue.toLocaleString()} VND`} color="#2ecc71" />
+            <StatCard label="Doanh thu lượt" value={`${revenue.sessionRevenue.toLocaleString()} VND`} />
+            <StatCard label="Doanh thu gói tháng" value={`${revenue.monthlyRevenue.toLocaleString()} VND`} color="#9b59b6" />
+            <StatCard label="Số giao dịch" value={revenue.transactionCount} color="#3498db" />
           </div>
 
           {Object.keys(revenue.byMethod).length > 0 && (
             <>
-              <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>By Payment Method</h3>
+              <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Theo phương thức thanh toán</h3>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
                 {Object.entries(revenue.byMethod).map(([method, amount]) => (
                   <div key={method} style={{ background: '#f8f9fa', padding: '0.75rem 1rem', borderRadius: '4px' }}>
