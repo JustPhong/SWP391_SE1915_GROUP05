@@ -1,24 +1,17 @@
-import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { getMyPackage } from './api/driverDashboardApi';
 import { DriverLayout } from './components/DriverLayout';
 import { StaffLayout } from './components/StaffLayout';
 import { ManagerLayout } from './components/ManagerLayout';
 import { AdminLayout } from './components/AdminLayout';
-import { DriverDashboardPage } from './pages/DriverDashboard';
 import { LoginPage } from './pages/Login';
 import { RegisterPage } from './pages/Register';
 import { CheckInPage } from './pages/CheckIn';
 import { CheckOutPage } from './pages/CheckOut';
-import { BookingPage } from './pages/Booking';
-import { MonthlyPackagePage } from './pages/MonthlyPackage';
 import { ReportPage } from './pages/Report';
 import { SlotMapPage } from './pages/SlotMap';
 import { FloorMapPage } from './pages/FloorMap';
 import { BookingManagementPage } from './pages/BookingManagement';
-import { MyVehiclePage } from './pages/MyVehicle';
-import { HistoryPage } from './pages/History';
 import { StaffDashboardPage } from './pages/StaffDashboard';
 import { ManagerDashboardPage } from './pages/ManagerDashboard';
 import { RevenueDetailPage } from './pages/RevenueDetail';
@@ -64,26 +57,6 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/" replace />;
   }
   return <StaffLayout>{children}</StaffLayout>;
-}
-
-function PackageRequiredRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  const [pkgChecked, setPkgChecked] = useState(false);
-  const [hasPkg, setHasPkg] = useState(false);
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!user) { window.location.href = '/login'; return; }
-    getMyPackage().then((pkg) => {
-      setHasPkg(!!pkg);
-      setPkgChecked(true);
-    });
-  }, [user, isLoading]);
-
-  if (isLoading || !pkgChecked) return <LoadingScreen />;
-  if (!user) return null;
-  if (!hasPkg) return <Navigate to="/monthly-package" replace />;
-  return <DriverLayout>{children}</DriverLayout>;
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
@@ -159,38 +132,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RedirectToRoleHome />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Driver routes — DriverLayout */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DriverLayout>
-              <DriverDashboardPage />
-            </DriverLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/my-vehicle"
-        element={
-          <ProtectedRoute>
-            <DriverLayout title="Xe của tôi">
-              <MyVehiclePage />
-            </DriverLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/history"
-        element={
-          <ProtectedRoute>
-            <DriverLayout title="Lịch sử">
-              <HistoryPage />
-            </DriverLayout>
           </ProtectedRoute>
         }
       />
@@ -329,33 +270,6 @@ function AppRoutes() {
         }
       />
 
-      {/* Booking / floor-map — yêu cầu có gói tháng */}
-      <Route
-        path="/booking"
-        element={
-          <PackageRequiredRoute>
-            <BookingPage />
-          </PackageRequiredRoute>
-        }
-      />
-      <Route
-        path="/floor-map"
-        element={
-          <PackageRequiredRoute>
-            <FloorMapPage />
-          </PackageRequiredRoute>
-        }
-      />
-      <Route
-        path="/monthly-package"
-        element={
-          <ProtectedRoute>
-            <DriverLayout title="Gói tháng">
-              <MonthlyPackagePage />
-            </DriverLayout>
-          </ProtectedRoute>
-        }
-      />
       <Route path="/profile" element={<ProfileRoute />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

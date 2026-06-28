@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
@@ -186,7 +185,7 @@ function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; 
 }
 
 // ── Empty state: no vehicles ──────────────────────────
-function NoVehiclesState() {
+function NoVehiclesState({ onAddVehicle }: { onAddVehicle?: () => void }) {
   return (
     <div className={styles.card} style={{ background: C.gray50, border: `1.5px dashed ${C.gray300}`, padding: '1.75rem 1.25rem', textAlign: 'center' }}>
       <div style={{ width: 52, height: 52, background: C.white, border: `1.5px solid ${C.gray200}`, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
@@ -194,9 +193,9 @@ function NoVehiclesState() {
       </div>
       <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: C.gray900 }}>Bạn chưa có xe</p>
       <p style={{ margin: '0.25rem 0 1rem', fontSize: '0.82rem', color: C.gray600 }}>Thêm xe trước khi mua gói tháng</p>
-      <Link to="/my-vehicle" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', background: C.navy, color: C.white, borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none' }}>
+      <button onClick={onAddVehicle} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.1rem', background: C.navy, color: C.white, borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer' }}>
         Thêm xe ngay
-      </Link>
+      </button>
     </div>
   );
 }
@@ -322,7 +321,7 @@ function PackageCard({ pkg, selected, vehicleType, onSelect }: { pkg: PackagePla
 // ═══════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
-export function MonthlyPackagePage() {
+export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void } = {}) {
   const { user, isLoading: authLoading } = useAuth();
 
   // Vehicles
@@ -732,7 +731,7 @@ export function MonthlyPackagePage() {
         {loadingVehicles ? (
           <div style={{ padding: '1.5rem', textAlign: 'center', color: C.gray400, fontSize: '0.875rem', fontWeight: 600 }}>Đang tải danh sách xe...</div>
         ) : vehicles.length === 0 ? (
-          <NoVehiclesState />
+          <NoVehiclesState onAddVehicle={onAddVehicle} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {vehicles.map((v) => (

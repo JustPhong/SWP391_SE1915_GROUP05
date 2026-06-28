@@ -511,7 +511,7 @@ export const WelcomePage: React.FC = () => {
 
       {activeTab === 'monthly' && (
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
-          <MonthlyPackagePage />
+          <MonthlyPackagePage onAddVehicle={() => setActiveTab('vehicles')} />
         </div>
       )}
 
