@@ -130,4 +130,28 @@ export const authService = {
     if (!user) throw new AppError(404, 'User not found');
     return user;
   },
+
+  async updateProfile(userId: string, input: { fullName?: string }) {
+    if (!input.fullName || !input.fullName.trim()) {
+      throw new AppError(400, 'Họ tên không được để trống');
+    }
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { fullName: input.fullName.trim() },
+      include: { roleRef: true },
+    });
+    return user;
+  },
+
+  async changePassword(userId: string, input: { currentPassword: string; newPassword: string }) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'User not found');
+    const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    if (!valid) throw new AppError(400, 'Mật khẩu hiện tại không đúng');
+    if (!input.newPassword || input.newPassword.length < 6) {
+      throw new AppError(400, 'Mật khẩu mới phải có ít nhất 6 ký tự');
+    }
+    const passwordHash = await bcrypt.hash(input.newPassword, 12);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  },
 };
