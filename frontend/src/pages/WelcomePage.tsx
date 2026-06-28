@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getCurrentSession, getMyPackage, getHistory, CurrentSession, MyPackage, HistoryItem } from '../api/driverDashboardApi';
 import { getMyVehicles, addVehicle, removeVehicle, Vehicle } from '../api/vehicleApi';
+import { ProfilePage } from './Profile';
+import { HistoryPage } from './History';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 
-type Tab = 'home' | 'vehicles';
+type Tab = 'home' | 'vehicles' | 'profile' | 'history';
 
 // ── Helpers ─────────────────────────────────────────────────
 function getGreeting(): string {
@@ -452,6 +454,9 @@ export const WelcomePage: React.FC = () => {
             <button className={`${styles.tabBtn} ${activeTab === 'vehicles' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('vehicles')}>
               Xe của bạn
             </button>
+            <button className={`${styles.tabBtn} ${activeTab === 'history' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('history')}>
+              Lịch sử
+            </button>
           </div>
 
           <div className={styles.navRight}>
@@ -472,10 +477,33 @@ export const WelcomePage: React.FC = () => {
                 </button>
               </div>
             </div>
-            <span className={styles.userGreeting}>{user.fullName}</span>
-            <button className={styles.btnGhost} onClick={() => { logout(); navigate('/'); }}>
-              Đăng xuất
-            </button>
+            <div className={styles.supportDropdownContainer}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  background: '#2d5fd0', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700, fontSize: '0.85rem', flexShrink: 0,
+                }}>
+                  {user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                  <span className={styles.userGreeting} style={{ fontWeight: 600 }}>{user.fullName}</span>
+                  {hasPackage && (
+                    <span style={{ fontSize: '0.72rem', color: '#2d5fd0', fontWeight: 600 }}>Cư dân</span>
+                  )}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '0.15rem' }}>▼</span>
+              </div>
+              <div className={styles.supportDropdownMenu}>
+                <button className={styles.supportDropdownItem} onClick={() => setActiveTab('profile')}>
+                  Hồ sơ của tôi
+                </button>
+                <button className={styles.supportDropdownItem} onClick={() => { logout(); navigate('/'); }}>
+                  Đăng xuất
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </nav>
@@ -488,7 +516,7 @@ export const WelcomePage: React.FC = () => {
           <FeaturesSection />
           <ProcessSection />
         </>
-      ) : (
+      ) : activeTab === 'vehicles' ? (
         /* ── XE CUA BAN ──────────────────────────────── */
         <div className={styles.vcbPage}>
           <div className={styles.vcbInner}>
@@ -655,6 +683,18 @@ export const WelcomePage: React.FC = () => {
               </>
             )}
           </div>
+        </div>
+      ) : null}
+
+      {activeTab === 'profile' && (
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+          <ProfilePage />
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+          <HistoryPage />
         </div>
       )}
 
