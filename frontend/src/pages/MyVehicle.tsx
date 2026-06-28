@@ -352,10 +352,14 @@ function AddVehicleForm({
   submitting: boolean;
   error: string;
   onCancel: () => void;
-  onSubmit: (plateNumber: string, type: VehicleType) => Promise<void>;
+  onSubmit: (plateNumber: string, type: VehicleType, brand?: string, model?: string, color?: string, year?: number) => Promise<void>;
 }) {
   const [plateNumber, setPlateNumber] = useState('');
   const [type, setType] = useState<VehicleType>('CAR');
+  const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
+  const [color, setColor] = useState('');
+  const [year, setYear] = useState<number | ''>('');
   const [localError, setLocalError] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
@@ -366,7 +370,8 @@ function AddVehicleForm({
       return;
     }
     setLocalError('');
-    await onSubmit(trimmed, type);
+    const yearVal = year === '' ? undefined : Number(year);
+    await onSubmit(trimmed, type, brand?.trim() || undefined, model?.trim() || undefined, color?.trim() || undefined, yearVal);
   };
 
   const displayError = localError || error;
@@ -486,6 +491,29 @@ function AddVehicleForm({
         </div>
       </div>
 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.9rem' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span>
+          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Ví dụ: Toyota" disabled={submitting}
+            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Mẫu</span>
+          <input type="text" value={model} onChange={e => setModel(e.target.value)} placeholder="Ví dụ: Vios" disabled={submitting}
+            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Màu</span>
+          <input type="text" value={color} onChange={e => setColor(e.target.value)} placeholder="Ví dụ: Trắng" disabled={submitting}
+            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm</span>
+          <input type="number" value={year === '' ? '' : year} onChange={e => setYear(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ví dụ: 2020" disabled={submitting}
+            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} min={1900} max={new Date().getFullYear()} />
+        </label>
+      </div>
+
       <button
         type="submit"
         disabled={submitting || !plateNumber.trim()}
@@ -547,11 +575,11 @@ export function MyVehiclePage() {
     loadVehicles();
   }, [authLoading, user, loadVehicles]);
 
-  const handleAddVehicle = async (plateNumber: string, type: VehicleType) => {
+  const handleAddVehicle = async (plateNumber: string, type: VehicleType, brand?: string, model?: string, color?: string, year?: number) => {
     setSubmitting(true);
     setFormError('');
     try {
-      await vehicleService.create({ plateNumber, type });
+      await vehicleService.create({ plateNumber, type, brand, model, color, year });
       setFormOpen(false);
       setFormError('');
       await loadVehicles();

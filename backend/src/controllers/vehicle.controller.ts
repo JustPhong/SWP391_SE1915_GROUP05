@@ -5,10 +5,17 @@ import { asyncHandler } from '../utils/helpers';
 
 export const vehicleController = {
   create: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const vehicle = await vehicleService.create({
-      ...req.body,
+    const payload = {
+      plateNumber: req.body.plateNumber,
+      type: req.body.type,
+      isMonthly: req.body.isMonthly,
+      brand: req.body.brand,
+      model: req.body.model,
+      color: req.body.color,
+      year: req.body.year,
       ownerId: req.user!.id,
-    });
+    };
+    const vehicle = await vehicleService.create(payload);
     return res.status(201).json({ success: true, data: vehicle });
   }),
   

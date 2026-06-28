@@ -9,6 +9,7 @@ import { RegisterPage } from './pages/Register';
 import { CheckInPage } from './pages/CheckIn';
 import { CheckOutPage } from './pages/CheckOut';
 import { ReportPage } from './pages/Report';
+import SearchVehiclePage from './pages/SearchVehicle';
 import { SlotMapPage } from './pages/SlotMap';
 import { FloorMapPage } from './pages/FloorMap';
 import { BookingManagementPage } from './pages/BookingManagement';
@@ -24,6 +25,10 @@ import { FeeRulesPage } from './pages/FeeRules';
 import { AuditLogsPage } from './pages/AuditLogs';
 import { ProfilePage } from './pages/Profile';
 import { WelcomePage } from './pages/WelcomePage';
+import { SupportPage } from './pages/Support';
+import { NotificationsPage } from './pages/Notifications';
+import { BookingPage } from './pages/Booking';
+import { MonthlyPackagePage } from './pages/MonthlyPackage';
 
 function LoadingScreen() {
   return (
@@ -154,6 +159,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/staff/search"
+        element={
+          <StaffRoute>
+            <SearchVehiclePage />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/staff/checkout"
         element={
           <StaffRoute>
@@ -186,10 +199,34 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/staff/reports"
+        element={
+          <StaffRoute>
+            <ReportPage />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/reports"
         element={
           <StaffRoute>
             <ReportPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/support"
+        element={
+          <StaffRoute>
+            <SupportPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <StaffRoute>
+            <NotificationsPage />
           </StaffRoute>
         }
       />
@@ -270,6 +307,35 @@ function AppRoutes() {
         }
       />
 
+      {/* Booking — yêu cầu có gói tháng */}
+      <Route
+        path="/booking"
+        element={
+          <ProtectedRoute>
+            <BookingPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/floor-map"
+        element={
+          <ProtectedRoute>
+            <DriverLayout title="Sơ đồ tầng">
+              <FloorMapPage />
+            </DriverLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/monthly-package"
+        element={
+          <ProtectedRoute>
+            <DriverLayout title="Gói tháng">
+              <MonthlyPackagePage />
+            </DriverLayout>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/profile" element={<ProfileRoute />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

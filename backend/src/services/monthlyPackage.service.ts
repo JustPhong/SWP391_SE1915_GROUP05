@@ -31,6 +31,9 @@ export const monthlyPackageService = {
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
+    if (vehicle.ownerId !== input.userId) {
+      throw new AppError(403, 'Bạn không có quyền với xe này');
+    }
 
     const existingActive = await prisma.monthlyPackage.findFirst({
       where: { vehicleId: input.vehicleId, status: PKG_ACTIVE },

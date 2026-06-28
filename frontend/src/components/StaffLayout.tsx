@@ -22,11 +22,11 @@ interface StaffLayoutProps {
 
 const staffNavItems = [
   { label: 'Tổng quan', path: '/staff/dashboard', icon: HomeIcon },
+  { label: 'Tra cứu xe', path: '/staff/search', icon: SearchIcon },
   { label: 'Check-in', path: '/staff/checkin', icon: CheckCircleIcon },
   { label: 'Check-out', path: '/staff/checkout', icon: LogoutIcon },
-  { label: 'Sơ đồ tầng', path: '/staff/slot-map', icon: LayoutIcon },
+  { label: 'Sơ đồ tầng', path: '/staff/floor-map', icon: LayoutIcon },
   { label: 'Đặt chỗ', path: '/staff/bookings', icon: CalendarIcon },
-  { label: 'Tra cứu xe', path: '/staff/search', icon: SearchIcon },
   { label: 'Báo cáo ca', path: '/staff/reports', icon: BellIcon },
 ];
 
@@ -112,7 +112,7 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
         </nav>
 
         <div className={styles.sidebarFooter}>
-          <button className={styles.sidebarBottomItem}>
+          <button className={styles.sidebarBottomItem} onClick={() => navigate('/support')} aria-label="Trung tâm hỗ trợ">
             <span className={styles.navItemIcon}>
               <HelpIcon size={16} />
             </span>
@@ -147,7 +147,7 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
               <span className={styles.shiftBadge}>{getShiftName()}</span>
             </div>
           </div>
-          <button className={styles.iconBtn} aria-label="Thông báo">
+          <button className={styles.iconBtn} aria-label="Thông báo" onClick={() => navigate('/notifications')}>
             <BellIcon size={18} />
           </button>
 

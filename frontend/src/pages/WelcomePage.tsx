@@ -302,6 +302,10 @@ export const WelcomePage: React.FC = () => {
   const [newType, setNewType] = useState<'CAR' | 'MOTORBIKE'>('CAR');
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [newBrand, setNewBrand] = useState('');
+  const [newModel, setNewModel] = useState('');
+  const [newColor, setNewColor] = useState('');
+  const [newYear, setNewYear] = useState<number | null>(null);
 
   // ── Fetch session (casual users only) ────────────────────
   useEffect(() => {
@@ -316,10 +320,14 @@ export const WelcomePage: React.FC = () => {
     setAddLoading(true);
     setAddError('');
     try {
-      await addVehicle({ plateNumber: newPlate.trim().toUpperCase(), type: newType });
+      await addVehicle({ plateNumber: newPlate.trim().toUpperCase(), type: newType, brand: newBrand || undefined, model: newModel || undefined, color: newColor || undefined, year: newYear ?? undefined });
       setShowAddVehicle(false);
       setNewPlate('');
       setNewType('CAR');
+      setNewBrand('');
+      setNewModel('');
+      setNewColor('');
+      setNewYear(null);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Thêm xe thất bại.');
     } finally {
@@ -575,6 +583,26 @@ export const WelcomePage: React.FC = () => {
                 <label className={styles.formLabel}>Biển số xe</label>
                 <input className={styles.formInput} type="text" placeholder="VD: 30A-123.45" value={newPlate}
                   onChange={e => setNewPlate(e.target.value.toUpperCase())} maxLength={20} required />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Hãng</label>
+                <input className={styles.formInput} type="text" placeholder="Ví dụ: Toyota" value={newBrand}
+                  onChange={e => setNewBrand(e.target.value)} maxLength={60} />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Mẫu</label>
+                <input className={styles.formInput} type="text" placeholder="Ví dụ: Vios" value={newModel}
+                  onChange={e => setNewModel(e.target.value)} maxLength={60} />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Màu</label>
+                <input className={styles.formInput} type="text" placeholder="Ví dụ: Trắng" value={newColor}
+                  onChange={e => setNewColor(e.target.value)} maxLength={30} />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Năm</label>
+                <input className={styles.formInput} type="number" placeholder="Ví dụ: 2020" value={newYear ?? ''}
+                  onChange={e => setNewYear(e.target.value === '' ? null : Number(e.target.value))} min={1900} max={new Date().getFullYear()} />
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Loại xe</label>

@@ -32,6 +32,10 @@ model Vehicle {
   id             String          @id @default(uuid())
   plateNumber    String          @unique @db.NVarChar(15)
   type           String          @db.NVarChar(30)
+  brand          String?         @db.NVarChar(60)
+  model          String?         @db.NVarChar(60)
+  color          String?         @db.NVarChar(30)
+  year           Int?
   isMonthly      Boolean         @default(false)
   ownerId        String
   createdAt      DateTime        @default(now())

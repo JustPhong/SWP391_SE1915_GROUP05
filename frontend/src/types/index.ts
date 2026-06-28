@@ -21,6 +21,10 @@ export interface Vehicle {
   isMonthly: boolean;
   ownerId: string;
   owner?: User;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
   createdAt: string;
 }
 
