@@ -22,11 +22,11 @@ interface StaffLayoutProps {
 
 const staffNavItems = [
   { label: 'Tổng quan', path: '/staff/dashboard', icon: HomeIcon },
+  { label: 'Tra cứu xe', path: '/staff/search', icon: SearchIcon },
   { label: 'Check-in', path: '/staff/checkin', icon: CheckCircleIcon },
   { label: 'Check-out', path: '/staff/checkout', icon: LogoutIcon },
   { label: 'Sơ đồ tầng', path: '/staff/floor-map', icon: LayoutIcon },
   { label: 'Đặt chỗ', path: '/staff/bookings', icon: CalendarIcon },
-  { label: 'Tra cứu xe', path: '/staff/search', icon: SearchIcon },
   { label: 'Báo cáo ca', path: '/staff/reports', icon: BellIcon },
 ];
 

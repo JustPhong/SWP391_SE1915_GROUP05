@@ -9,6 +9,7 @@ import { RegisterPage } from './pages/Register';
 import { CheckInPage } from './pages/CheckIn';
 import { CheckOutPage } from './pages/CheckOut';
 import { ReportPage } from './pages/Report';
+import SearchVehiclePage from './pages/SearchVehicle';
 import { SlotMapPage } from './pages/SlotMap';
 import { FloorMapPage } from './pages/FloorMap';
 import { BookingManagementPage } from './pages/BookingManagement';
@@ -152,6 +153,14 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <CheckInPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/staff/search"
+        element={
+          <StaffRoute>
+            <SearchVehiclePage />
           </StaffRoute>
         }
       />
