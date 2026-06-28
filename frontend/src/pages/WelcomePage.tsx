@@ -8,12 +8,13 @@ import { HistoryPage } from './History';
 import { MyVehiclePage } from './MyVehicle';
 import { MonthlyPackagePage } from './MonthlyPackage';
 import { BookingPage } from './Booking';
+import { FloorMapPage } from './FloorMap';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 
-type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking';
+type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking' | 'floormap';
 
 // ── Helpers ─────────────────────────────────────────────────
 function getGreeting(): string {
@@ -428,6 +429,9 @@ export const WelcomePage: React.FC = () => {
             <button className={`${styles.tabBtn} ${activeTab === 'booking' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('booking')}>
               Đặt chỗ
             </button>
+            <button className={`${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('floormap')}>
+              Sơ đồ tầng
+            </button>
           </div>
 
           <div className={styles.navRight}>
@@ -519,6 +523,20 @@ export const WelcomePage: React.FC = () => {
             <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.75rem' }}>Tính năng dành cho khách gói tháng</h2>
               <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Đặt chỗ trước chỉ áp dụng cho khách đã đăng ký gói tháng. Vui lòng mua gói tháng để sử dụng.</p>
+              <button className={styles.btnPrimary} onClick={() => setActiveTab('monthly')}>Xem gói tháng</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'floormap' && (
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+          {hasPackage ? (
+            <FloorMapPage />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.75rem' }}>Tính năng dành cho khách gói tháng</h2>
+              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Sơ đồ tầng chỉ áp dụng cho khách đã đăng ký gói tháng. Vui lòng mua gói tháng để sử dụng.</p>
               <button className={styles.btnPrimary} onClick={() => setActiveTab('monthly')}>Xem gói tháng</button>
             </div>
           )}
