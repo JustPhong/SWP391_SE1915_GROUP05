@@ -454,18 +454,35 @@ export const WelcomePage: React.FC = () => {
             </div>
             <div className={styles.supportDropdownContainer}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
-                <div style={{
-                  width: 38, height: 38, borderRadius: '50%',
-                  background: '#2d5fd0', color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700, fontSize: '0.85rem', flexShrink: 0,
-                }}>
-                  {user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                <div style={{ position: 'relative', flexShrink: 0, display: 'flex', overflow: 'visible' }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: '50%',
+                      background: '#2d5fd0', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 700, fontSize: '0.9rem',
+                      boxShadow: hasPackage ? '0 0 0 2px #fff, 0 0 0 4px #e6b422' : 'none',
+                    }}>
+                      {user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
+                    </div>
+                    {hasPackage && (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#f0b429" stroke="#b8860b" strokeWidth="0.6"
+                        style={{ position: 'absolute', top: -7, right: -7, transform: 'rotate(28deg)', zIndex: 3 }}>
+                        <path d="M3 7l4 4 5-7 5 7 4-4-1.5 11h-15L3 7z" />
+                        <circle cx="3" cy="7" r="1.4" /><circle cx="21" cy="7" r="1.4" /><circle cx="12" cy="4" r="1.4" />
+                      </svg>
+                    )}
+                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.3, gap: 2 }}>
                   <span className={styles.userGreeting} style={{ fontWeight: 600 }}>{user.fullName}</span>
                   {hasPackage && (
-                    <span style={{ fontSize: '0.72rem', color: '#2d5fd0', fontWeight: 600 }}>Cư dân</span>
+                    <span style={{
+                      alignSelf: 'flex-start',
+                      fontSize: '0.66rem', fontWeight: 700,
+                      color: '#9a7400', background: '#fdf4d8',
+                      border: '1px solid #f0dca0',
+                      padding: '1px 7px', borderRadius: 999,
+                      letterSpacing: '0.02em',
+                    }}>Cư dân</span>
                   )}
                 </div>
                 <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '0.15rem' }}>▼</span>
