@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getCurrentSession, getMyPackage, getHistory, CurrentSession, MyPackage, HistoryItem } from '../api/driverDashboardApi';
-import { getMyVehicles, addVehicle, removeVehicle, Vehicle } from '../api/vehicleApi';
+import { getCurrentSession, getMyPackage, CurrentSession } from '../api/driverDashboardApi';
+import { addVehicle } from '../api/vehicleApi';
 import { ProfilePage } from './Profile';
 import { HistoryPage } from './History';
+import { MyVehiclePage } from './MyVehicle';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
@@ -53,11 +54,6 @@ export const WelcomePage: React.FC = () => {
   // ── Tab state (casual users only) ─────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [session, setSession] = useState<CurrentSession | null>(null);
-  const [pkg, setPkg] = useState<MyPackage | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
 
   // ── Support Modal & FAQ states ────────────────────────────
   const [activeSupportTab, setActiveSupportTab] = useState<'help' | 'faq' | 'contact' | null>(null);
@@ -304,22 +300,11 @@ export const WelcomePage: React.FC = () => {
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
 
-  // ── Fetch VCB data (casual users only) ──────────────────
+  // ── Fetch session (casual users only) ────────────────────
   useEffect(() => {
     if (!user || hasPackage || pkgLoading) return;
-    setLoading(true);
-    Promise.all([getCurrentSession(), getMyPackage(), getMyVehicles()])
-      .then(([s, p, v]) => { setSession(s); setPkg(p); setVehicles(v); })
-      .finally(() => setLoading(false));
+    getCurrentSession().then(setSession);
   }, [user, hasPackage, pkgLoading]);
-
-  // ── Fetch history on demand ──────────────────────────────
-  const [historyTab, setHistoryTab] = useState(false);
-  useEffect(() => {
-    if (!user || hasPackage || pkgLoading || !historyTab) return;
-    setHistoryLoading(true);
-    getHistory().then(setHistory).finally(() => setHistoryLoading(false));
-  }, [user, hasPackage, pkgLoading, historyTab]);
 
   // ── Add vehicle ──────────────────────────────────────────
   const handleAddVehicle = async (e: React.FormEvent) => {
@@ -328,8 +313,7 @@ export const WelcomePage: React.FC = () => {
     setAddLoading(true);
     setAddError('');
     try {
-      const v = await addVehicle({ plateNumber: newPlate.trim().toUpperCase(), type: newType });
-      setVehicles(prev => [...prev, v]);
+      await addVehicle({ plateNumber: newPlate.trim().toUpperCase(), type: newType });
       setShowAddVehicle(false);
       setNewPlate('');
       setNewType('CAR');
@@ -339,27 +323,6 @@ export const WelcomePage: React.FC = () => {
       setAddLoading(false);
     }
   };
-
-  // ── Remove vehicle ───────────────────────────────────────
-  const handleRemoveVehicle = async (id: string) => {
-    if (!confirm('Bạn có chắc muốn xoá xe này?')) return;
-    try {
-      await removeVehicle(id);
-      setVehicles(prev => prev.filter(v => v.id !== id));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Xoá xe thất bại.');
-    }
-  };
-
-  // ── Formatters ───────────────────────────────────────────
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
-  const daysLeft = (iso: string) =>
-    Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
   // ── Loading screen while detecting user type ──────────────
   if (pkgLoading) {
@@ -517,172 +480,8 @@ export const WelcomePage: React.FC = () => {
           <ProcessSection />
         </>
       ) : activeTab === 'vehicles' ? (
-        /* ── XE CUA BAN ──────────────────────────────── */
-        <div className={styles.vcbPage}>
-          <div className={styles.vcbInner}>
-            <div className={styles.vcbHeader}>
-              <div>
-                <h1 className={styles.vcbTitle}>Xe của bạn</h1>
-                <p className={styles.vcbSubtitle}>Quản lý xe đã đăng ký, gói tháng và lịch sử gửi xe.</p>
-              </div>
-              <button className={styles.btnPrimary} onClick={() => setShowAddVehicle(true)}>+ Thêm xe</button>
-            </div>
-
-            {loading ? (
-              <div className={styles.vcbLoading}>
-                <div className={styles.spinner} />
-                <span>Đang tải dữ liệu...</span>
-              </div>
-            ) : (
-              <>
-                {/* Stats row */}
-                <div className={styles.vcbStatsRow}>
-                  <div className={styles.vcbStatCard}>
-                    <div className={styles.vcbStatIcon} style={{ background: '#eff6ff' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                    </div>
-                    <div>
-                      <div className={styles.vcbStatValue}>{vehicles.length}</div>
-                      <div className={styles.vcbStatLabel}>Xe đã đăng ký</div>
-                    </div>
-                  </div>
-                  <div className={`${styles.vcbStatCard} ${session ? styles.vcbStatCardActive : ''}`}>
-                    <div className={styles.vcbStatIcon} style={{ background: session ? '#dcfce7' : '#f0f7ff' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={session ? '#15803d' : '#2d5fd0'} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                    </div>
-                    <div>
-                      <div className={styles.vcbStatValue}>{session ? 'Đang đỗ' : 'Không'}</div>
-                      <div className={styles.vcbStatLabel}>Phiên đỗ hiện tại</div>
-                    </div>
-                  </div>
-                  <div className={styles.vcbStatCard}>
-                    <div className={styles.vcbStatIcon} style={{ background: pkg ? '#dcfce7' : '#f0f7ff' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={pkg ? '#15803d' : '#2d5fd0'} strokeWidth="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                    </div>
-                    <div>
-                      <div className={styles.vcbStatValue}>{pkg ? daysLeft(pkg.expiryDate) + ' ngày' : 'Chưa có'}</div>
-                      <div className={styles.vcbStatLabel}>{pkg ? pkg.planName : 'Gói tháng'}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Active session banner */}
-                {session && (
-                  <div className={styles.vcbActiveSession}>
-                    <div className={styles.vcbActiveLeft}>
-                      <div className={styles.vcbActivePlate}>{session.plateNumber}</div>
-                      <div className={styles.vcbActiveMeta}>
-                        <span className={styles.vcbBadge}>{session.isMonthly ? 'Gói tháng' : 'Vãng lai'}</span>
-                        <span className={styles.vcbActiveSlot}>Chỗ {session.slotCode} · {session.floor}</span>
-                      </div>
-                    </div>
-                    <div className={styles.vcbActiveRight}>
-                      <div className={styles.vcbActiveTime}>
-                        <span className={styles.vcbActiveTimeLabel}>Vào lúc</span>
-                        <span className={styles.vcbActiveTimeValue}>{formatTime(session.checkInTime)}</span>
-                        <span className={styles.vcbActiveDate}>{formatDate(session.checkInTime)}</span>
-                      </div>
-                      {!session.isMonthly && session.estimatedAmount != null && (
-                        <div className={styles.vcbActiveEst}>
-                          <span className={styles.vcbActiveEstLabel}>Ước tính</span>
-                          <span className={styles.vcbActiveEstValue}>{formatCurrency(session.estimatedAmount)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Package banner */}
-                {pkg && (
-                  <div className={styles.vcbPackageBanner}>
-                    <div className={styles.vcbPkgLeft}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                      <span className={styles.vcbPkgName}>{pkg.planName}</span>
-                      <span className={styles.vcbPkgSep}>·</span>
-                      <span className={styles.vcbPkgExpiry}>Hết hạn: {formatDate(pkg.expiryDate)}</span>
-                    </div>
-                    <div className={styles.vcbPkgDays}>
-                      <span className={styles.vcbPkgDaysNum}>{daysLeft(pkg.expiryDate)}</span>
-                      <span className={styles.vcbPkgDaysLabel}>ngày còn lại</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Vehicles */}
-                <div className={styles.vcbSection}>
-                  <h2 className={styles.vcbSectionTitle}>
-                    Xe đã đăng ký
-                    <span className={styles.vcbSectionCount}>{vehicles.length}</span>
-                  </h2>
-                  {vehicles.length === 0 ? (
-                    <div className={styles.vcbEmpty}>
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8aacbf" strokeWidth="1.5"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                      <p>Bạn chưa đăng ký xe nào.</p>
-                      <button className={styles.vcbEmptyBtn} onClick={() => setShowAddVehicle(true)}>Thêm xe ngay</button>
-                    </div>
-                  ) : (
-                    <div className={styles.vcbVehicleList}>
-                      {vehicles.map(v => (
-                        <div key={v.id} className={styles.vcbVehicleCard}>
-                          <div className={styles.vcbVehicleInfo}>
-                            <div className={styles.vcbVehicleIcon}>
-                              {v.type === 'CAR' ? (
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                              ) : (
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
-                              )}
-                            </div>
-                            <div>
-                              <div className={styles.vcbVehiclePlate}>{v.plateNumber}</div>
-                              <div className={styles.vcbVehicleType}>
-                                {v.type === 'CAR' ? 'Ô tô' : 'Xe máy'}
-                                {v.isMonthly && <span className={styles.vcbBadge} style={{ marginLeft: '0.5rem' }}>Gói tháng</span>}
-                              </div>
-                            </div>
-                          </div>
-                          <button className={styles.vcbVehicleRemove} onClick={() => handleRemoveVehicle(v.id)} title="Xoá xe">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* History */}
-                <div className={styles.vcbSection}>
-                  <button className={styles.vcbSectionToggle} onClick={() => setHistoryTab(h => !h)}>
-                    <h2 className={styles.vcbSectionTitle} style={{ margin: 0 }}>Lịch sử gửi xe</h2>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: historyTab ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                      <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                  </button>
-                  {historyTab && (
-                    historyLoading ? (
-                      <div className={styles.vcbLoading} style={{ padding: '2rem' }}><div className={styles.spinner} /></div>
-                    ) : history.length === 0 ? (
-                      <div className={styles.vcbEmpty} style={{ padding: '2rem' }}><p>Chưa có lịch sử gửi xe.</p></div>
-                    ) : (
-                      <div className={styles.vcbHistoryList}>
-                        {history.map(h => (
-                          <div key={h.id} className={styles.vcbHistoryItem}>
-                            <div className={styles.vcbHistoryLeft}>
-                              <div className={styles.vcbHistoryPlate}>{h.plateNumber}</div>
-                              <div className={styles.vcbHistoryMeta}>Chỗ {h.slotCode} · {formatDate(h.date)}</div>
-                            </div>
-                            <div className={styles.vcbHistoryRight}>
-                              <div className={styles.vcbHistoryDuration}>{h.duration}</div>
-                              <div className={styles.vcbHistoryAmount}>{formatCurrency(h.amount)}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+          <MyVehiclePage />
         </div>
       ) : null}
 
