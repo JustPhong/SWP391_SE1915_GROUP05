@@ -55,6 +55,16 @@
   line-height: 1.25;
 }
 
+.sectionSubtitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #16293f;
+  text-align: center;
+  margin: 2rem 0 1.25rem;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+}
+
 /* ── Shared card grid ─────────────────────────────────────── */
 .cardGrid3 {
   display: grid;
@@ -1523,6 +1533,9 @@
   .sectionTitle {
     font-size: 1.7rem;
   }
+  .sectionSubtitle {
+    font-size: 1rem;
+  }
   .footerInner {
     grid-template-columns: 1fr;
     gap: 2.5rem;
@@ -1571,6 +1584,9 @@
   }
   .sectionTitle {
     font-size: 1.5rem;
+  }
+  .sectionSubtitle {
+    font-size: 0.95rem;
   }
   .ctaTitle {
     font-size: 1.5rem;

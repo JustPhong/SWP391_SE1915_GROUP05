@@ -908,7 +908,7 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
     <section className={styles.section}>
       <div className={styles.sectionInner}>
         <span className={styles.eyebrow}>Bảng giá</span>
-        <h2 className={styles.sectionTitle}>Chọn cách đỗ phù hợp với bạn</h2>
+        <h2 className={styles.sectionTitle}>Đỗ một lần, hay đỗ thường xuyên?</h2>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.75rem' }}>
           <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')}>
@@ -919,34 +919,6 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
             Xe máy
           </button>
-        </div>
-
-        <p className={styles.pricingNote} style={{ marginTop: 0 }}>
-          {vtype === 'CAR'
-            ? 'Khách gói tháng được ưu tiên chỗ đỗ cố định — tiết kiệm hơn hẳn so với trả theo lượt.'
-            : 'Khách gói tháng ra vào không giới hạn — tiết kiệm hơn hẳn so với trả theo lượt.'}
-        </p>
-        <div className={styles.cardGrid3}>
-          {PACKAGES.map((pkg, i) => (
-            <PricingCard
-              key={pkg.id}
-              title={pkg.name}
-              duration={`${pkg.durationDays} ngày`}
-              price={pkg.prices[vtype].priceLabel}
-              perDay={pkg.prices[vtype].pricePerDay}
-              perks={perks}
-              icon={i === 0 ? 'calendar' : i === 1 ? 'check' : 'star'}
-              featured={i === 1}
-              saving={i === 1 ? 'Tiết kiệm ~11%' : i === 2 ? 'Tiết kiệm ~17%' : undefined}
-              onClick={onSelectPackage ?? (() => navigate('/monthly-package'))}
-            />
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', maxWidth: 520, margin: '2.75rem auto 1.5rem', color: '#94a3b8' }}>
-          <span style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.06em' }}>HOẶC ĐỖ THEO LƯỢT</span>
-          <span style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
         </div>
 
         <p className={styles.pricingNote} style={{ marginTop: 0 }}>
@@ -978,6 +950,24 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
           </div>
         </div>
         <p className={styles.casualFootnote}>Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.</p>
+
+        <h3 className={styles.sectionSubtitle}>Đỗ thường xuyên? Tiết kiệm với gói tháng</h3>
+        <div className={styles.cardGrid3}>
+          {PACKAGES.map((pkg, i) => (
+            <PricingCard
+              key={pkg.id}
+              title={pkg.name}
+              duration={`${pkg.durationDays} ngày`}
+              price={pkg.prices[vtype].priceLabel}
+              perDay={pkg.prices[vtype].pricePerDay}
+              perks={perks}
+              icon={i === 0 ? 'calendar' : i === 1 ? 'check' : 'star'}
+              featured={i === 1}
+              saving={i === 1 ? 'Tiết kiệm ~11%' : i === 2 ? 'Tiết kiệm ~17%' : undefined}
+              onClick={onSelectPackage ?? (() => navigate('/monthly-package'))}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
