@@ -45,4 +45,23 @@ export const authController = {
     await authService.changePassword(req.user!.id, req.body);
     return res.status(200).json({ success: true, message: 'Đổi mật khẩu thành công' });
   }),
+
+  uploadAvatar: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: 'Không có file ảnh' });
+    }
+    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    const user = await authService.updateAvatar(req.user!.id, avatarUrl);
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.roleRef!.name,
+        avatarUrl: user.avatarUrl ?? null,
+      },
+    });
+  }),
 };
