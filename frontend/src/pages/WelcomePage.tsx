@@ -55,7 +55,11 @@ export const WelcomePage: React.FC = () => {
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Tab state (casual users only) ─────────────────────────
-  const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const saved = sessionStorage.getItem('welcomeActiveTab');
+    const valid: Tab[] = ['home', 'vehicles', 'profile', 'history', 'monthly', 'booking', 'floormap'];
+    return saved && valid.includes(saved as Tab) ? (saved as Tab) : 'home';
+  });
   const [session, setSession] = useState<CurrentSession | null>(null);
 
   // ── Support Modal & FAQ states ────────────────────────────
@@ -68,6 +72,10 @@ export const WelcomePage: React.FC = () => {
   // ── Booking modal state ─────────────────────────────────────
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<{ bookingId: string; slotCode: string } | null>(null);
+
+  useEffect(() => {
+    sessionStorage.setItem('welcomeActiveTab', activeTab);
+  }, [activeTab]);
 
   const handleBookingSuccess = (slot: ParkingSlot, bookingId: string) => {
     setBookingOpen(false);
