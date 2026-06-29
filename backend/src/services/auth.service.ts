@@ -154,4 +154,13 @@ export const authService = {
     const passwordHash = await bcrypt.hash(input.newPassword, 12);
     await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
   },
+
+  async updateAvatar(userId: string, avatarUrl: string) {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+      include: { roleRef: true },
+    });
+    return user;
+  },
 };
