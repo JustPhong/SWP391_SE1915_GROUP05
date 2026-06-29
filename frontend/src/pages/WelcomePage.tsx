@@ -665,22 +665,25 @@ export const WelcomePage: React.FC = () => {
 // ═══════════════════════════════════════════════════════════════
 
 function HeroSection({ navigate, onBooking }: { navigate: (path: string) => void; onBooking: () => void }) {
+  const scrollToPricing = () => {
+    const el = document.getElementById('pricing');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.replaceState(null, '', '#pricing');
+    } else {
+      navigate('/#pricing');
+    }
+  };
   return (
-    <section className={styles.hero}>
+    <section className={`${styles.hero} ${styles.heroDark}`}>
       <div className={styles.heroInner}>
         <div className={styles.heroLeft}>
-          <span className={styles.eyebrow}>Hệ thống quản lý bãi đỗ xe</span>
-          <h1 className={styles.heroTitle}>Giải pháp đỗ xe<br /><span className={styles.titleAccent}>Thông minh &amp; Tối ưu</span></h1>
-          <p className={styles.heroSubtitle}>Hệ thống quản lý bãi đỗ xe toàn diện. Đặt chỗ trước, check-in/out bằng mã QR, quản lý trực quan.</p>
-          <div className={styles.chips}>
-            <span className={styles.chip}>Đặt chỗ trước</span>
-            <span className={styles.chip}>Mã QR check-in/out</span>
-            <span className={styles.chip}>Báo cáo realtime</span>
-          </div>
+          <span className={styles.eyebrow}>Bãi đỗ thông minh</span>
+          <h1 className={styles.heroTitle}>Luôn có chỗ.<br /><span className={styles.titleAccent}>Không vòng vòng tìm.</span></h1>
+          <p className={styles.heroSubtitle}>Đặt chỗ trước, check-in/out bằng QR, tính phí theo thời gian thực. Bãi nhiều tầng có mái che, camera, khu riêng cho ô tô &amp; xe máy.</p>
           <div className={styles.heroCtas}>
             <button className={styles.btnPrimary} onClick={onBooking}>Đặt chỗ ngay</button>
-            <button className={styles.btnOutline} onClick={() => navigate('/register')}>Đăng ký ngay</button>
-            <button className={styles.btnOutline} onClick={() => navigate('/login')}>Đăng nhập</button>
+            <button className={styles.btnOutlineDark} onClick={scrollToPricing}>Xem bảng giá</button>
           </div>
         </div>
         <div className={styles.heroRight}>
@@ -715,9 +718,18 @@ function HeroLoggedIn({
   const firstName = user.fullName.trim().split(/\s+/)[0] ?? user.email;
   const greeting = getGreeting();
   const title = getTitle(new Date());
+  const scrollToPricing = () => {
+    const el = document.getElementById('pricing');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.replaceState(null, '', '#pricing');
+    } else {
+      navigate('/#pricing');
+    }
+  };
 
   return (
-    <section className={styles.hero}>
+    <section className={`${styles.hero} ${styles.heroDark}`}>
       <div className={styles.heroInner}>
         <div className={styles.heroLeft}>
           <span className={styles.eyebrow}>
@@ -744,10 +756,10 @@ function HeroLoggedIn({
               {session ? 'Xem chi tiết' : 'Đặt chỗ ngay'}
             </button>
             <button
-              className={styles.btnOutline}
-              onClick={() => navigate(session ? '/driver-dashboard' : '#pricing')}
+              className={styles.btnOutlineDark}
+              onClick={session ? () => navigate('/driver-dashboard') : scrollToPricing}
             >
-              {session ? 'Thanh toán' : 'Tìm hiểu thêm'}
+              {session ? 'Thanh toán' : 'Xem bảng giá'}
             </button>
           </div>
         </div>
@@ -774,41 +786,23 @@ function formatCurrencyInline(n: number): string {
 
 function FeaturesSection() {
   return (
-    <section className={styles.section}>
+    <section className={styles.featuresSection}>
       <div className={styles.sectionInner}>
         <span className={styles.eyebrow}>Vì sao chọn ParkSmart</span>
         <h2 className={styles.sectionTitle}>Đỗ xe thông minh, tiện cho bạn</h2>
         <div className={styles.cardGrid3}>
           <FeatureCard
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-            }
+            icon={<span style={{ fontSize: '1.6rem', lineHeight: 1 }}>⏱️</span>}
             title="Tiết kiệm thời gian"
             desc="Luôn có chỗ sẵn khi bạn đến — không vòng vòng tìm chỗ, không chờ đợi giờ cao điểm."
           />
           <FeatureCard
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="6" width="18" height="13" rx="2" />
-                <path d="M3 10h18" />
-                <path d="M16 14h2" />
-                <path d="M7 6V4" />
-                <path d="M17 6V4" />
-              </svg>
-            }
+            icon={<span style={{ fontSize: '1.6rem', lineHeight: 1 }}>💳</span>}
             title="Chi phí minh bạch"
             desc="Phí tính tự động theo thời gian thực tế, hiển thị rõ ràng, không lo tính sai."
           />
           <FeatureCard
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z" />
-                <path d="M9 12l2 2 4-4" />
-              </svg>
-            }
+            icon={<span style={{ fontSize: '1.6rem', lineHeight: 1 }}>🛡️</span>}
             title="An tâm & an toàn"
             desc="Bãi có mái che, khu vực riêng cho ô tô và xe máy, chỗ đỗ luôn ổn định."
           />
@@ -841,19 +835,14 @@ function StatusStrip() {
     { emoji: '🅿️', label: 'Tình trạng', value: 'Còn 47 / 120 chỗ' },
   ];
   return (
-    <div style={{
-      background: '#16293f',
-      borderTop: '1px solid rgba(255,255,255,0.06)',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
-      padding: '1.1rem 2rem',
-    }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }} className={styles.cardGrid4}>
+    <div className={styles.statusStrip}>
+      <div className={`${styles.statusStripInner} ${styles.cardGrid4}`}>
         {items.map(item => (
-          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
-            <span style={{ fontSize: '1.25rem', lineHeight: 1, flexShrink: 0 }}>{item.emoji}</span>
+          <div key={item.label} className={styles.statusStripItem}>
+            <span className={styles.statusStripEmoji}>{item.emoji}</span>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#7a9cc6', lineHeight: 1.3 }}>{item.label}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#ffffff', lineHeight: 1.4, marginTop: '0.15rem' }}>{item.value}</span>
+              <span className={styles.statusStripLabel}>{item.label}</span>
+              <span className={styles.statusStripValue}>{item.value}</span>
             </div>
           </div>
         ))}
@@ -905,7 +894,7 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
   const perks = vtype === 'CAR' ? CAR_PERKS : MOTO_PERKS;
   const casual = CASUAL_PRICING[vtype];
   return (
-    <section className={styles.section}>
+    <section id="pricing" className={styles.section}>
       <div className={styles.sectionInner}>
         <span className={styles.eyebrow}>Bảng giá</span>
         <h2 className={styles.sectionTitle}>Đỗ một lần, hay đỗ thường xuyên?</h2>

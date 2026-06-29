@@ -36,10 +36,18 @@
   padding: 5rem 2rem;
 }
 .sectionAlt {
-  padding: 5rem 2rem;
-  background: #f0f7ff;
-  border-top: 1px solid #dae9f5;
-  border-bottom: 1px solid #dae9f5;
+  padding: 6rem 2rem;
+  background: #ffffff;
+  border-top: 1px solid #e6ebf2;
+  border-bottom: 1px solid #e6ebf2;
+}
+
+/* Light-blue band — used by "Vì sao chọn ParkSmart" to alternate with .sectionAlt above */
+.featuresSection {
+  padding: 6rem 2rem;
+  background: #eaf1fb;
+  border-top: 1px solid #e6ebf2;
+  border-bottom: 1px solid #e6ebf2;
 }
 .sectionInner {
   max-width: 1100px;
@@ -53,6 +61,24 @@
   margin: 0.6rem 0 2.5rem;
   letter-spacing: -0.3px;
   line-height: 1.25;
+}
+
+/* Larger, more spaced titles for process & features bands only — Pricing keeps the base style */
+.sectionAlt .sectionTitle,
+.featuresSection .sectionTitle {
+  font-size: 2.25rem;
+  margin: 0.6rem 0 3rem;
+}
+
+/* Centered headers for process & features bands only — Pricing stays left-aligned */
+.sectionAlt,
+.featuresSection {
+  text-align: center;
+}
+.sectionAlt .eyebrow,
+.featuresSection .eyebrow {
+  display: inline-block;
+  margin-inline: auto;
 }
 
 .sectionSubtitle {
@@ -69,12 +95,49 @@
 .cardGrid3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 .cardGrid4 {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1.25rem;
+}
+
+/* ── Status strip (light, attached to dark hero) ──────── */
+.statusStrip {
+  background: #ffffff;
+  border-top: 1px solid #dae9f5;
+  border-bottom: 1px solid #dae9f5;
+  padding: 1.1rem 2rem;
+}
+.statusStripInner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.statusStripItem {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.statusStripEmoji {
+  font-size: 1.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.statusStripLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a7a96;
+  line-height: 1.3;
+}
+.statusStripValue {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #16293f;
+  line-height: 1.4;
+  margin-top: 0.15rem;
 }
 .cardGrid2 {
   display: grid;
@@ -267,6 +330,72 @@
   grid-template-columns: 1fr 1.1fr;
   gap: 3rem;
   align-items: center;
+}
+
+/* ── Hero — dark navy variant (logged-out only) ──────── */
+.heroDark {
+  background: linear-gradient(135deg, #16293f 0%, #244a78 100%);
+  padding: 5rem 2rem 3.5rem;
+  margin-bottom: 0;
+  position: relative;
+}
+.heroDark .eyebrow {
+  background: rgba(255, 255, 255, 0.12);
+  color: #c5d2e4;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.heroDark .heroTitle {
+  color: #ffffff;
+}
+.heroDark .titleAccent {
+  color: #7eb1ff;
+}
+.heroDark .heroSubtitle {
+  color: #c5d2e4;
+}
+.heroDark .showcaseCard {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.28), 0 2px 10px rgba(22, 41, 63, 0.06);
+}
+.heroDark .legendCard {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
+}
+.heroDark .legendTitle {
+  color: #ffffff;
+}
+.heroDark .legendItem {
+  color: #c5d2e4;
+}
+.heroDark .chip {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #c5d2e4;
+  box-shadow: none;
+}
+.heroDark .chipGreen {
+  background: rgba(34, 197, 94, 0.22);
+  border-color: rgba(134, 239, 172, 0.45);
+  color: #d1fae5;
+}
+
+/* Light/translucent outline button sized to match .btnPrimary */
+.btnOutlineDark {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  padding: 0.5rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.btnOutlineDark:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.8);
 }
 
 .heroLeft {
@@ -550,35 +679,47 @@
 ══════════════════════════════════════════════════════════════ */
 .featureCard {
   background: #ffffff;
-  border: 1.5px solid #dae9f5;
-  border-radius: 14px;
-  padding: 1.75rem;
+  border: 1px solid #e6ebf2;
+  border-radius: 16px;
+  padding: 2.25rem;
+  min-height: 230px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
   transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-  box-shadow: 0 2px 10px rgba(22,41,63,0.05);
+  box-shadow: 0 12px 32px rgba(22, 41, 63, 0.10);
 }
 .featureCard:hover {
   border-color: #cfe0ff;
-  box-shadow: 0 12px 28px rgba(20,41,63,.10);
+  box-shadow: 0 16px 38px rgba(20, 41, 63, 0.13);
   transform: translateY(-4px);
 }
 
 .featureIcon {
-  width: 46px;
-  height: 46px;
-  display: inline-flex;
+  width: 52px;
+  height: 52px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f7ff;
+  background: #eaf1fb;
   color: #2d5fd0;
-  border-radius: 12px;
-  margin-bottom: 0.9rem;
+  border-radius: 14px;
+  margin-bottom: 1.25rem;
+}
+.featureIcon svg {
+  width: 24px;
+  height: 24px;
+  stroke: #2d5fd0;
+  stroke-width: 2;
 }
 
 .featureCardTitle {
   font-size: 0.975rem;
   font-weight: 700;
   color: #16293f;
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.5rem;
+  text-align: left;
 }
 
 .featureCardDesc {
@@ -586,6 +727,7 @@
   color: #4a6a85;
   line-height: 1.6;
   margin: 0;
+  text-align: left;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -593,18 +735,21 @@
 ══════════════════════════════════════════════════════════════ */
 .processCard {
   background: #ffffff;
-  border: 1.5px solid #dae9f5;
-  border-radius: 14px;
-  padding: 1.75rem;
+  border: 1px solid #e6ebf2;
+  border-radius: 16px;
+  padding: 2.25rem;
+  min-height: 230px;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.5rem;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 10px rgba(22,41,63,0.05);
+  box-shadow: 0 10px 30px rgba(22, 41, 63, 0.08);
 }
 .processCard:hover {
   border-color: #2d5fd0;
-  box-shadow: 0 6px 24px rgba(45, 95, 208, 0.12);
+  box-shadow: 0 14px 34px rgba(45, 95, 208, 0.14);
   transform: translateY(-2px);
 }
 
@@ -621,13 +766,15 @@
   font-weight: 800;
   box-shadow: 0 3px 10px rgba(45, 95, 208, 0.3);
   flex-shrink: 0;
+  margin-bottom: 0.75rem;
 }
 
 .processCardTitle {
   font-size: 0.975rem;
   font-weight: 700;
   color: #16293f;
-  margin: 0;
+  margin: 0 0 0.25rem;
+  text-align: left;
 }
 
 .processCardDesc {
@@ -635,6 +782,7 @@
   color: #4a6a85;
   line-height: 1.6;
   margin: 0;
+  text-align: left;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1981,5 +2129,23 @@
   .featureCard:hover {
     transition: none;
     transform: none;
+  }
+}
+
+/* Mobile: tighter section padding; cards stack and drop the min-height floor */
+@media (max-width: 768px) {
+  .sectionAlt,
+  .featuresSection {
+    padding: 3.5rem 1.25rem;
+  }
+  .sectionAlt .sectionTitle,
+  .featuresSection .sectionTitle {
+    font-size: 1.75rem;
+    margin: 0.6rem 0 2rem;
+  }
+  .featureCard,
+  .processCard {
+    padding: 1.5rem;
+    min-height: 0;
   }
 }
