@@ -393,9 +393,9 @@ export const WelcomePage: React.FC = () => {
         </nav>
 
         <HeroSection navigate={navigate} />
-        <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
-        <FeaturesSection />
         <ProcessSection />
+        <FeaturesSection />
+        <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
@@ -522,9 +522,9 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'home' ? (
         <>
           <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
-          <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} onSelectPackage={() => setActiveTab('monthly')} />
-          <FeaturesSection />
           <ProcessSection />
+          <FeaturesSection />
+          <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} onSelectPackage={() => setActiveTab('monthly')} />
         </>
       ) : activeTab === 'vehicles' ? (
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
