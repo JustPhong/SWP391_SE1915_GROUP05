@@ -12,6 +12,7 @@ model User {
   fullName          String           @db.NVarChar(100)
   email             String           @unique @db.NVarChar(150)
   phoneNumber       String?          @db.NVarChar(20)
+  avatarUrl         String?          @db.NVarChar(500)
   passwordHash      String           @db.NVarChar(255)
   isActive          Boolean          @default(true)
   createdAt         DateTime         @default(now())

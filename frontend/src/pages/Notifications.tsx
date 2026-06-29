@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function NotificationsPage() {
   const sample = [
     { id: '1', title: 'Hệ thống: Bảo trì định kỳ', body: 'Bãi sẽ được bảo trì vào 24/06/2026, 02:00-04:00.' },

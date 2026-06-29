@@ -26,4 +26,23 @@ export const authController = {
       },
     });    
   }),
+
+  updateProfile: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = await authService.updateProfile(req.user!.id, req.body);
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.roleRef!.name,
+        avatarUrl: user.avatarUrl ?? null,
+      },
+    });
+  }),
+
+  changePassword: asyncHandler(async (req: AuthRequest, res: Response) => {
+    await authService.changePassword(req.user!.id, req.body);
+    return res.status(200).json({ success: true, message: 'Đổi mật khẩu thành công' });
+  }),
 };

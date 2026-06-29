@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile } from '../api/profileApi';
+import { getMyPackage } from '../api/driverDashboardApi';
 
 const C = {
   navy:       '#1E3A5F',
@@ -43,6 +44,7 @@ export function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [hasPackage, setHasPackage] = useState(false);
 
   const [updatingName, setUpdatingName] = useState(false);
   const [updatingPwd, setUpdatingPwd] = useState(false);
@@ -57,6 +59,10 @@ export function ProfilePage() {
       setFullName(user.fullName);
     }
   }, [user]);
+
+  useEffect(() => {
+    getMyPackage().then(pkg => setHasPackage(!!pkg)).catch(() => {});
+  }, []);
 
   if (!user) return null;
 
@@ -127,23 +133,43 @@ export function ProfilePage() {
           background: C.white, borderRadius: 20, padding: '32px 24px',
           boxShadow: C.shadow, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap'
         }}>
-          <div style={{
-            width: 80, height: 80, borderRadius: '50%',
-            background: C.purple, color: C.white, display: 'flex',
-            alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700
-          }}>
-            {getInitials(user.fullName || user.email)}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%',
+              background: '#2d5fd0', color: C.white, display: 'flex',
+              alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700,
+              boxShadow: hasPackage ? '0 0 0 3px #fff, 0 0 0 6px #e6b422' : 'none',
+            }}>
+              {getInitials(user.fullName || user.email)}
+            </div>
+            {hasPackage && (
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="#f0b429" stroke="#b8860b" strokeWidth="0.6"
+                style={{ position: 'absolute', top: -12, right: -10, transform: 'rotate(28deg)' }}>
+                <path d="M3 7l4 4 5-7 5 7 4-4-1.5 11h-15L3 7z" />
+                <circle cx="3" cy="7" r="1.4" /><circle cx="21" cy="7" r="1.4" /><circle cx="12" cy="4" r="1.4" />
+              </svg>
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: C.gray800 }}>{user.fullName}</h2>
             <p style={{ margin: '4px 0 8px', fontSize: '0.9rem', color: C.gray600 }}>{user.email}</p>
-            <span style={{
-              display: 'inline-block', padding: '3px 12px', borderRadius: 12,
-              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-              background: '#EDE9FE', color: C.purple, border: `1px solid #C4B5FD`
-            }}>
-              {getRoleLabel(user.role)}
-            </span>
+            {hasPackage ? (
+              <span style={{
+                display: 'inline-block', padding: '3px 12px', borderRadius: 12,
+                fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                background: '#fdf4d8', color: '#9a7400', border: '1px solid #f0dca0'
+              }}>
+                Cư dân
+              </span>
+            ) : (
+              <span style={{
+                display: 'inline-block', padding: '3px 12px', borderRadius: 12,
+                fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                background: '#EDE9FE', color: C.purple, border: `1px solid #C4B5FD`
+              }}>
+                {getRoleLabel(user.role)}
+              </span>
+            )}
           </div>
         </div>
 
