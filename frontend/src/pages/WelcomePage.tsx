@@ -470,7 +470,9 @@ export const WelcomePage: React.FC = () => {
                       fontWeight: 700, fontSize: '0.9rem',
                       boxShadow: hasPackage ? '0 0 0 2px #fff, 0 0 0 4px #e6b422' : 'none',
                     }}>
-                      {user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
+                      {user.avatarUrl
+                        ? <img src={user.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        : user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
                     </div>
                     {hasPackage && (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="#f0b429" stroke="#b8860b" strokeWidth="0.6"
