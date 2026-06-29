@@ -64,4 +64,18 @@ export const authController = {
       },
     });
   }),
+
+  removeAvatar: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = await authService.removeAvatar(req.user!.id);
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.roleRef!.name,
+        avatarUrl: user.avatarUrl ?? null,
+      },
+    });
+  }),
 };

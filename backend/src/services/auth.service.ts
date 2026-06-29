@@ -163,4 +163,13 @@ export const authService = {
     });
     return user;
   },
+
+  async removeAvatar(userId: string) {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: null },
+      include: { roleRef: true },
+    });
+    return user;
+  },
 };
