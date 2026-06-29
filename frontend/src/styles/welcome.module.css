@@ -830,6 +830,13 @@
   color: rgba(255,255,255,0.7);
   line-height: 1.5;
 }
+.ctaActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
 .ctaBandInner .btnWhiteOutline {
   margin-top: 0.5rem;
 }
