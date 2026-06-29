@@ -31,3 +31,11 @@ export async function uploadAvatar(file: File): Promise<User> {
   }
   return response.data.data;
 }
+
+export async function removeAvatar(): Promise<User> {
+  const response = await api.delete<{ success: boolean; data: User }>('/auth/avatar');
+  if (!response.data.success) {
+    throw new Error('Xoá ảnh thất bại');
+  }
+  return response.data.data;
+}

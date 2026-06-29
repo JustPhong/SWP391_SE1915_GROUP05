@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile, changePassword, uploadAvatar } from '../api/profileApi';
+import { updateProfile, changePassword, uploadAvatar, removeAvatar } from '../api/profileApi';
 import { getMyPackage } from '../api/driverDashboardApi';
 
 const C = {
@@ -137,6 +137,19 @@ export function ProfilePage() {
     }
   };
 
+  const handleRemoveAvatar = async () => {
+    if (!confirm('Xoá ảnh đại diện và quay lại chữ viết tắt?')) return;
+    setUploadingAvatar(true);
+    try {
+      const updated = await removeAvatar();
+      setUser(updated);
+    } catch {
+      alert('Xoá ảnh thất bại. Vui lòng thử lại.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '12px 0 32px' }}>
       <div style={{ marginBottom: 24 }}>
@@ -212,6 +225,15 @@ export function ProfilePage() {
               }}>
                 {getRoleLabel(user.role)}
               </span>
+            )}
+            {user.avatarUrl && (
+              <button onClick={handleRemoveAvatar} style={{
+                marginTop: 8, padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600,
+                color: '#64748b', background: 'transparent', border: '1px solid #e2e8f0',
+                borderRadius: 8, cursor: 'pointer',
+              }}>
+                Xoá ảnh đại diện
+              </button>
             )}
           </div>
         </div>
