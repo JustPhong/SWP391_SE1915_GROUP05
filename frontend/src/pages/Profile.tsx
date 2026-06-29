@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile } from '../api/profileApi';
+import { updateProfile, changePassword } from '../api/profileApi';
 import { getMyPackage } from '../api/driverDashboardApi';
 
 const C = {
@@ -108,7 +108,7 @@ export function ProfilePage() {
     setUpdatingPwd(true);
 
     try {
-      await updateProfile({ currentPassword, newPassword });
+      await changePassword({ currentPassword, newPassword });
       setPwdSuccess('Đổi mật khẩu thành công!');
       setCurrentPassword('');
       setNewPassword('');
