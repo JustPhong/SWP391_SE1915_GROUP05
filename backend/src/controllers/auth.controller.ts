@@ -22,9 +22,10 @@ export const authController = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.roleRef!.name,
+role: user.roleRef!.name,
+        avatarUrl: user.avatarUrl ?? null,
       },
-    });    
+    });
   }),
 
   updateProfile: asyncHandler(async (req: AuthRequest, res: Response) => {
