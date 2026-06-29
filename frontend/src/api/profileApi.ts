@@ -19,3 +19,15 @@ export async function changePassword(input: { currentPassword: string; newPasswo
     throw new Error('Đổi mật khẩu thất bại');
   }
 }
+
+export async function uploadAvatar(file: File): Promise<User> {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const response = await api.post<{ success: boolean; data: User }>('/auth/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  if (!response.data.success) {
+    throw new Error('Tải ảnh lên thất bại');
+  }
+  return response.data.data;
+}

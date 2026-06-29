@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile, changePassword } from '../api/profileApi';
+import { updateProfile, changePassword, uploadAvatar } from '../api/profileApi';
 import { getMyPackage } from '../api/driverDashboardApi';
 
 const C = {
@@ -48,6 +48,8 @@ export function ProfilePage() {
 
   const [updatingName, setUpdatingName] = useState(false);
   const [updatingPwd, setUpdatingPwd] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   
   const [nameError, setNameError] = useState('');
   const [nameSuccess, setNameSuccess] = useState('');
@@ -120,6 +122,21 @@ export function ProfilePage() {
     }
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const updated = await uploadAvatar(file);
+      setUser(updated);
+    } catch (err) {
+      alert('Tải ảnh lên thất bại. Vui lòng thử lại.');
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '12px 0 32px' }}>
       <div style={{ marginBottom: 24 }}>
@@ -133,14 +150,17 @@ export function ProfilePage() {
           background: C.white, borderRadius: 20, padding: '32px 24px',
           boxShadow: C.shadow, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap'
         }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()} title="Đổi ảnh đại diện">
             <div style={{
               width: 80, height: 80, borderRadius: '50%',
               background: '#2d5fd0', color: C.white, display: 'flex',
               alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700,
-              boxShadow: hasPackage ? '0 0 0 3px #fff, 0 0 0 6px #e6b422' : 'none',
+              boxShadow: hasPackage ? '0 0 0 3px #fff, 0 0 0 6px #e6b422' : 'none', overflow: 'hidden',
             }}>
-              {getInitials(user.fullName || user.email)}
+              {user.avatarUrl
+                ? <img src={user.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : getInitials(user.fullName || user.email)
+              }
             </div>
             {hasPackage && (
               <svg width="34" height="34" viewBox="0 0 24 24" fill="#f0b429" stroke="#b8860b" strokeWidth="0.6"
@@ -148,6 +168,29 @@ export function ProfilePage() {
                 <path d="M3 7l4 4 5-7 5 7 4-4-1.5 11h-15L3 7z" />
                 <circle cx="3" cy="7" r="1.4" /><circle cx="21" cy="7" r="1.4" /><circle cx="12" cy="4" r="1.4" />
               </svg>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 26, height: 26, borderRadius: '50%',
+              background: '#f1f5f9', border: '2px solid #fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </div>
+            {uploadingAvatar && (
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.45)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', color: '#fff',
+                fontSize: '0.7rem', fontWeight: 600,
+              }}>
+                Đang tải...
+              </div>
             )}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
