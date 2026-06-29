@@ -393,6 +393,7 @@ export const WelcomePage: React.FC = () => {
         </nav>
 
         <HeroSection navigate={navigate} />
+        <StatusStrip />
         <ProcessSection />
         <FeaturesSection />
         <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
@@ -522,6 +523,7 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'home' ? (
         <>
           <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
+          <StatusStrip />
           <ProcessSection />
           <FeaturesSection />
           <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} onSelectPackage={() => setActiveTab('monthly')} />
@@ -811,6 +813,35 @@ function FeaturesSection() {
         </div>
       </div>
     </section>
+  );
+}
+
+function StatusStrip() {
+  const items = [
+    { emoji: '📍', label: 'Địa điểm', value: '123 Nguyễn Văn Linh, Q.7' },
+    { emoji: '🕐', label: 'Giờ mở cửa', value: 'Hoạt động 24/7' },
+    { emoji: '🛡️', label: 'Tiện ích', value: 'Mái che · Camera 24/7' },
+    { emoji: '🅿️', label: 'Tình trạng', value: 'Còn 47 / 120 chỗ' },
+  ];
+  return (
+    <div style={{
+      background: '#16293f',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      padding: '1.1rem 2rem',
+    }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }} className={styles.cardGrid4}>
+        {items.map(item => (
+          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+            <span style={{ fontSize: '1.25rem', lineHeight: 1, flexShrink: 0 }}>{item.emoji}</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#7a9cc6', lineHeight: 1.3 }}>{item.label}</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#ffffff', lineHeight: 1.4, marginTop: '0.15rem' }}>{item.value}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
