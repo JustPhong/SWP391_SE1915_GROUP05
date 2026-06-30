@@ -27,7 +27,7 @@ function getGreeting(): string {
 
 function getTitle(time: Date): string {
   const h = time.getHours();
-  if (h < 5)  return 'Vẫn chưa ngủ à?';
+  if (h < 5) return 'Vẫn chưa ngủ à?';
   if (h < 12) return 'Ngày mới tràn đầy năng lượng!';
   if (h < 14) return 'Buổi trưa rồi, xe đã đỗ chưa?';
   if (h < 17) return 'Chiều nay đỗ xe ở đâu?';
@@ -161,7 +161,7 @@ export const WelcomePage: React.FC = () => {
               <div className={styles.helpGrid}>
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardTitle}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 9.21v3z"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 9.21v3z" /></svg>
                     <span>Hotline 24/7</span>
                   </div>
                   <div className={styles.helpCardContent}>
@@ -172,7 +172,7 @@ export const WelcomePage: React.FC = () => {
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardTitle}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
                     <span>Hỗ trợ qua Email</span>
                   </div>
                   <div className={styles.helpCardContent}>
@@ -183,7 +183,7 @@ export const WelcomePage: React.FC = () => {
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardTitle}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
                     <span>Thời gian phục vụ</span>
                   </div>
                   <div className={styles.helpCardContent}>
@@ -194,7 +194,7 @@ export const WelcomePage: React.FC = () => {
 
                 <div className={styles.helpCard}>
                   <div className={styles.helpCardTitle}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
                     <span>Văn phòng Quản lý</span>
                   </div>
                   <div className={styles.helpCardContent}>
@@ -248,7 +248,7 @@ export const WelcomePage: React.FC = () => {
               isContactSubmitted ? (
                 <div className={styles.successMessage}>
                   <div className={styles.successIcon}>
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                   </div>
                   <h4 className={styles.successTitle}>Gửi phản hồi thành công!</h4>
                   <p className={styles.successText}>
@@ -501,25 +501,25 @@ export const WelcomePage: React.FC = () => {
             <div className={styles.supportDropdownContainer}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
                 <div style={{ position: 'relative', flexShrink: 0, display: 'flex', overflow: 'visible' }}>
-                    <div style={{
-                      width: 42, height: 42, borderRadius: '50%',
-                      background: '#2d5fd0', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700, fontSize: '0.9rem',
-                      boxShadow: hasPackage ? '0 0 0 2px #fff, 0 0 0 4px #e6b422' : 'none',
-                    }}>
-                      {user.avatarUrl
-                        ? <img src={user.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        : user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
-                    </div>
-                    {hasPackage && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#f0b429" stroke="#b8860b" strokeWidth="0.6"
-                        style={{ position: 'absolute', top: -7, right: -7, transform: 'rotate(28deg)', zIndex: 3 }}>
-                        <path d="M3 7l4 4 5-7 5 7 4-4-1.5 11h-15L3 7z" />
-                        <circle cx="3" cy="7" r="1.4" /><circle cx="21" cy="7" r="1.4" /><circle cx="12" cy="4" r="1.4" />
-                      </svg>
-                    )}
+                  <div style={{
+                    width: 42, height: 42, borderRadius: '50%',
+                    background: '#2d5fd0', color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, fontSize: '0.9rem',
+                    boxShadow: hasPackage ? '0 0 0 2px #fff, 0 0 0 4px #e6b422' : 'none',
+                  }}>
+                    {user.avatarUrl
+                      ? <img src={user.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      : user.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join('').toUpperCase()}
                   </div>
+                  {hasPackage && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#f0b429" stroke="#b8860b" strokeWidth="0.6"
+                      style={{ position: 'absolute', top: -7, right: -7, transform: 'rotate(28deg)', zIndex: 3 }}>
+                      <path d="M3 7l4 4 5-7 5 7 4-4-1.5 11h-15L3 7z" />
+                      <circle cx="3" cy="7" r="1.4" /><circle cx="21" cy="7" r="1.4" /><circle cx="12" cy="4" r="1.4" />
+                    </svg>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.3, gap: 2 }}>
                   <span className={styles.userGreeting} style={{ fontWeight: 600 }}>{user.fullName}</span>
                   {hasPackage && (
@@ -620,7 +620,7 @@ export const WelcomePage: React.FC = () => {
             <div className={styles.modalHeader}>
               <h3 className={styles.modalTitle}>Thêm xe mới</h3>
               <button className={styles.modalClose} onClick={() => setShowAddVehicle(false)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
             <form onSubmit={handleAddVehicle} className={styles.modalForm}>
@@ -653,11 +653,11 @@ export const WelcomePage: React.FC = () => {
                 <label className={styles.formLabel}>Loại xe</label>
                 <div className={styles.typeSelector}>
                   <button type="button" className={`${styles.typeOption} ${newType === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setNewType('CAR')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
                     Ô tô
                   </button>
                   <button type="button" className={`${styles.typeOption} ${newType === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setNewType('MOTORBIKE')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M5 17H3V9h12l3 8h2" /><path d="M15 9h2l2 4-1 4H11" /></svg>
                     Xe máy
                   </button>
                 </div>
@@ -962,11 +962,11 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.75rem' }}>
           <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
             Ô tô
           </button>
           <button type="button" className={`${styles.typeOption} ${vtype === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('MOTORBIKE')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M5 17H3V9h12l3 8h2" /><path d="M15 9h2l2 4-1 4H11" /></svg>
             Xe máy
           </button>
         </div>
@@ -978,9 +978,9 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
           <div className={styles.casualCard}>
             <div className={styles.casualIcon}>
               {vtype === 'CAR' ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
               ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17H3V9h12l3 8h2"/><path d="M15 9h2l2 4-1 4H11"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M5 17H3V9h12l3 8h2" /><path d="M15 9h2l2 4-1 4H11" /></svg>
               )}
             </div>
             <h3 className={styles.casualTitle}>{casual.title} — vãng lai</h3>
@@ -1028,9 +1028,9 @@ function PricingCard({ title, duration, price, perDay, perks, icon, featured, sa
   icon: string; featured?: boolean; saving?: string; onClick: () => void;
 }) {
   const icons: Record<string, React.ReactNode> = {
-    calendar: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-    check: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>,
-    star: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    calendar: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+    check: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>,
+    star: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
   };
   return (
     <div className={`${styles.pricingCard} ${featured ? styles.pricingCardFeatured : ''}`}>
