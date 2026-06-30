@@ -79,4 +79,10 @@ role: user.roleRef!.name,
       },
     });
   }),
+
+  deleteAccount: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { password } = req.body;
+    await authService.deleteAccount(req.user!.id, password);
+    return res.status(200).json({ success: true, message: 'Xóa tài khoản thành công' });
+  }),
 };
