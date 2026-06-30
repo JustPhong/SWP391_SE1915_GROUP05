@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { ParkingSlot } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { getMyVehicles } from '../api/vehicleApi';
+import type { Vehicle } from '../api/vehicleApi';
 
 const C = {
   navy:      '#1E3A5F',
@@ -45,10 +48,20 @@ interface BookingModalProps {
 }
 
 export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
+  const { user } = useAuth();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [plateNumber, setPlateNumber] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (open && user) {
+      getMyVehicles().then(setVehicles);
+    } else {
+      setVehicles([]);
+    }
+  }, [open, user]);
 
   const handleSubmit = async () => {
     const plate = plateNumber.trim();
@@ -191,6 +204,47 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
                 onFocus={(e) => { e.target.style.borderColor = C.navy; e.target.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
                 onBlur={(e) => { e.target.style.borderColor = C.gray200; e.target.style.boxShadow = 'none'; }}
               />
+              {vehicles.length > 0 && (
+                <div style={{ marginTop: '0.6rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: C.gray600, display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                    Chọn từ xe đã đăng ký:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {vehicles.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => {
+                          setPlateNumber(v.plateNumber);
+                          setErrorMsg('');
+                        }}
+                        style={{
+                          background: plateNumber === v.plateNumber ? C.blueBg : C.gray50,
+                          border: `1.5px solid ${plateNumber === v.plateNumber ? C.blue : C.gray200}`,
+                          borderRadius: '8px',
+                          padding: '0.4rem 0.75rem',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          color: plateNumber === v.plateNumber ? C.blue : C.gray800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          transition: 'all 0.15s ease',
+                          boxShadow: plateNumber === v.plateNumber ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none',
+                        }}
+                      >
+                        <span style={{
+                          width: '7px', height: '7px',
+                          borderRadius: '50%',
+                          background: v.type === 'CAR' ? C.red : C.green
+                        }} />
+                        {v.plateNumber}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: '1.25rem' }}>
