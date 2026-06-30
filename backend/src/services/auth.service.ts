@@ -172,4 +172,108 @@ export const authService = {
     });
     return user;
   },
+
+  async deleteAccount(userId: string, password?: string) {
+    if (!password) {
+      throw new AppError(400, 'Vui lòng cung cấp mật khẩu để xác nhận.');
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new AppError(404, 'Không tìm thấy tài khoản.');
+    }
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      throw new AppError(400, 'Mật khẩu xác nhận không chính xác.');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // Find all vehicles owned by this user
+      const vehicles = await tx.vehicle.findMany({
+        where: { ownerId: userId },
+      });
+      const vehicleIds = vehicles.map((v) => v.id);
+
+      if (vehicleIds.length > 0) {
+        // Check if any vehicle is currently parked (status is 'PARKING')
+        const activeCheckIn = await tx.checkInRecord.findFirst({
+          where: {
+            vehicleId: { in: vehicleIds },
+            status: 'PARKING',
+          },
+        });
+        if (activeCheckIn) {
+          throw new AppError(400, 'Không thể xóa tài khoản khi xe của bạn đang đỗ trong bãi.');
+        }
+
+        // 1. Delete Payments that reference CheckInRecords for these vehicles
+        const checkInRecords = await tx.checkInRecord.findMany({
+          where: { vehicleId: { in: vehicleIds } },
+        });
+        const checkInRecordIds = checkInRecords.map((r) => r.id);
+
+        if (checkInRecordIds.length > 0) {
+          await tx.payment.deleteMany({
+            where: { checkInRecordId: { in: checkInRecordIds } },
+          });
+        }
+
+        // 2. Delete MonthlyPackages for these vehicles, then their Payments
+        const packages = await tx.monthlyPackage.findMany({
+          where: { vehicleId: { in: vehicleIds } },
+        });
+        const packageIds = packages.map((p) => p.id);
+
+        if (packageIds.length > 0) {
+          await tx.payment.deleteMany({
+            where: { monthlyPackageId: { in: packageIds } },
+          });
+        }
+        await tx.monthlyPackage.deleteMany({
+          where: { vehicleId: { in: vehicleIds } },
+        });
+
+        // 3. Delete Bookings referencing these vehicles
+        await tx.booking.deleteMany({
+          where: { vehicleId: { in: vehicleIds } },
+        });
+
+        // 4. Delete CheckInRecords referencing these vehicles
+        await tx.checkInRecord.deleteMany({
+          where: { vehicleId: { in: vehicleIds } },
+        });
+
+        // 5. Delete the vehicles
+        await tx.vehicle.deleteMany({
+          where: { ownerId: userId },
+        });
+      }
+
+      // 6. Nullify relations for staff/managers handling records
+      await tx.checkInRecord.updateMany({
+        where: { checkedInById: userId },
+        data: { checkedInById: null },
+      });
+      await tx.checkInRecord.updateMany({
+        where: { checkedOutById: userId },
+        data: { checkedOutById: null },
+      });
+      await tx.payment.updateMany({
+        where: { collectedById: userId },
+        data: { collectedById: null },
+      });
+
+      // 7. Delete bookings created by this user directly
+      await tx.booking.deleteMany({
+        where: { createdById: userId },
+      });
+
+      // 8. Delete MonthlyPackages that reference this user directly
+      await tx.monthlyPackage.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 9. Delete the user
+      await tx.user.delete({ where: { id: userId } });
+    });
+  },
 };
