@@ -17,6 +17,7 @@ import permissionRoutes from './permission.routes';
 import parkingOverviewRoutes from './parking-overview.routes';
 import feeRuleRoutes from './fee-rule.routes';
 import auditLogRoutes from './audit-log.routes';
+import publicRoutes from './public.routes';
 
 const router = Router();
    
@@ -38,5 +39,6 @@ router.use('/admin/permissions', permissionRoutes);
 router.use('/admin/parking', parkingOverviewRoutes);
 router.use('/admin/fee-rules', feeRuleRoutes);
 router.use('/admin/audit-logs', auditLogRoutes);
+router.use('/public', publicRoutes);
 
 export default router;
