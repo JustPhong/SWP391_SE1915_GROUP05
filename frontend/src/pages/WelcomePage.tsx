@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getCurrentSession, getMyPackage, CurrentSession } from '../api/driverDashboardApi';
 import { addVehicle } from '../api/vehicleApi';
+import { getPublicAvailability, type AvailabilityData } from '../api/publicApi';
 import { ProfilePage } from './Profile';
 import { HistoryPage } from './History';
 import { MyVehiclePage } from './MyVehicle';
@@ -53,6 +54,29 @@ export const WelcomePage: React.FC = () => {
       setPkgLoading(false);
     }).catch(() => setPkgLoading(false));
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Live availability for the public StatusStrip ────────────────
+  const [availability, setAvailability] = useState<AvailabilityData | null>(null);
+  const [availLoading, setAvailLoading] = useState(true);
+  const [availError, setAvailError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAvailLoading(true);
+    setAvailError(false);
+    getPublicAvailability()
+      .then((data) => {
+        if (cancelled) return;
+        setAvailability(data);
+        setAvailLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAvailError(true);
+        setAvailLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Tab state (casual users only) ─────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -393,7 +417,11 @@ export const WelcomePage: React.FC = () => {
         </nav>
 
         <HeroSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
-        <StatusStrip />
+        <StatusStrip
+          availability={availability}
+          availLoading={availLoading}
+          availError={availError}
+        />
         <ProcessSection />
         <FeaturesSection />
         <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
@@ -524,7 +552,11 @@ export const WelcomePage: React.FC = () => {
       {activeTab === 'home' ? (
         <>
           <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
-          <StatusStrip />
+          <StatusStrip
+            availability={availability}
+            availLoading={availLoading}
+            availError={availError}
+          />
           <ProcessSection />
           <FeaturesSection />
           <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} onSelectPackage={() => setActiveTab('monthly')} />
@@ -827,12 +859,33 @@ function CtaBand({ navigate, onBooking }: { navigate: (path: string) => void; on
   );
 }
 
-function StatusStrip() {
-  const items = [
-    { emoji: '📍', label: 'Địa điểm', value: '123 Nguyễn Văn Linh, Q.7' },
-    { emoji: '🕐', label: 'Giờ mở cửa', value: 'Hoạt động 24/7' },
-    { emoji: '🛡️', label: 'Tiện ích', value: 'Mái che · Camera 24/7' },
-    { emoji: '🅿️', label: 'Tình trạng', value: 'Còn 47 / 120 chỗ' },
+function StatusStrip({
+  availability,
+  availLoading,
+  availError,
+}: {
+  availability: AvailabilityData | null;
+  availLoading: boolean;
+  availError: boolean;
+}) {
+  const formatZone = (zone: { car: { available: number; total: number }; motorbike: { available: number; total: number } } | undefined) => {
+    if (availLoading) return 'Đang tải...';
+    if (availError || !zone) return '—';
+    return `Ô tô ${zone.car.available}/${zone.car.total} · Xe máy ${zone.motorbike.available}/${zone.motorbike.total}`;
+  };
+
+  const LiveValue = ({ text }: { text: string }) => (
+    <span className={`${styles.statusStripValue} ${styles.liveValue}`}>
+      <span className={styles.liveDot} aria-hidden="true" />
+      {text}
+    </span>
+  );
+
+  const items: { emoji: string; label: string; render: () => React.ReactNode }[] = [
+    { emoji: '🕐', label: 'Giờ mở cửa', render: () => <span className={styles.statusStripValue}>Hoạt động 24/7</span> },
+    { emoji: '🛡️', label: 'Tiện ích', render: () => <span className={styles.statusStripValue}>Mái che · Camera 24/7</span> },
+    { emoji: '🅿️', label: 'Khu vãng lai', render: () => <LiveValue text={formatZone(availability?.casual)} /> },
+    { emoji: '📅', label: 'Khu gói tháng', render: () => <LiveValue text={formatZone(availability?.monthly)} /> },
   ];
   return (
     <div className={styles.statusStrip}>
@@ -842,7 +895,7 @@ function StatusStrip() {
             <span className={styles.statusStripEmoji}>{item.emoji}</span>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className={styles.statusStripLabel}>{item.label}</span>
-              <span className={styles.statusStripValue}>{item.value}</span>
+              {item.render()}
             </div>
           </div>
         ))}

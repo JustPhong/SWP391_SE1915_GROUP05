@@ -2149,3 +2149,33 @@
     min-height: 0;
   }
 }
+
+/* ── Live StatusStrip value: pulsing dot + green text ── */
+@keyframes livePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(31, 157, 107, 0.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(31, 157, 107, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(31, 157, 107, 0); }
+}
+
+.liveDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1f9d6b;
+  flex-shrink: 0;
+  animation: livePulse 1.6s infinite;
+}
+
+.liveValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #1f9d6b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+}
