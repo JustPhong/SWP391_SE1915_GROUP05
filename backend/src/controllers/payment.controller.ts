@@ -2,8 +2,13 @@ import { Response } from 'express';
 import { paymentService } from '../services/payment.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
+import { config } from '../config';
 
 export const paymentController = {
+  getVietQRConfig: asyncHandler(async (req: AuthRequest, res: Response) => {
+    return res.status(200).json({ success: true, data: config.vietqr });
+  }),
+
   recordPayment: asyncHandler(async (req: AuthRequest, res: Response) => {
     const payment = await paymentService.recordPayment(req.body);
     return res.status(201).json({ success: true, data: payment });
@@ -19,6 +24,6 @@ export const paymentController = {
 
     const payments = await paymentService.getAllPayments(startDate, endDate);
     return res.status(200).json({ success: true, data: payments });
-  },
-  ),
+  }),
 };
+

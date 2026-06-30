@@ -17,4 +17,10 @@ export const paymentService = {
     const response = await api.get<{ success: boolean; data: Payment[] }>('/payments', { params });
     return response.data.data;
   },
+
+  getVietQRConfig: async () => {
+    const response = await api.get<{ success: boolean; data: { bankId: string; accountNo: string; accountName: string } }>('/payments/vietqr-config');
+    return response.data.data;
+  },
 };
+

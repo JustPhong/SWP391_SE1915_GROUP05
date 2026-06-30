@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
+import { paymentService } from '../services/payment.service';
 import api from '../services/api';
 import type { Vehicle, ParkingSlot, MonthlyPackage } from '../types';
 import { PACKAGES, type PackagePlan } from '../constants/packages';
@@ -69,46 +69,7 @@ function formatCountdown(secs: number) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// ═══════════════════════════════════════════════════════
-//  VIETQR (EMVCo) PAYLOAD — demo bank account
-// ═══════════════════════════════════════════════════════
-const VIETQR_BANK_BIN = '970422'; // MB Bank (demo)
-const VIETQR_ACCOUNT = '0000000000'; // demo account
 
-function emvField(id: string, value: string): string {
-  const len = value.length.toString().padStart(2, '0');
-  return `${id}${len}${value}`;
-}
-
-function crc16(str: string): string {
-  let crc = 0xFFFF;
-  for (let i = 0; i < str.length; i++) {
-    crc ^= str.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j++) {
-      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
-      crc &= 0xFFFF;
-    }
-  }
-  return crc.toString(16).toUpperCase().padStart(4, '0');
-}
-
-function buildVietQR(amount: number, note: string): string {
-  const acqId = emvField('00', VIETQR_BANK_BIN) + emvField('01', VIETQR_ACCOUNT);
-  const merchantAccount =
-    emvField('00', 'A000000727') +
-    emvField('01', acqId) +
-    emvField('02', 'QRIBFTTA');
-  let payload =
-    emvField('00', '01') +
-    emvField('01', '12') +               // 12 = dynamic (one-time, has amount)
-    emvField('38', merchantAccount) +
-    emvField('53', '704') +              // VND
-    emvField('54', String(Math.round(amount))) +
-    emvField('58', 'VN') +
-    emvField('62', emvField('08', note.slice(0, 25)));
-  payload += '6304';
-  return payload + crc16(payload);
-}
 
 // ═══════════════════════════════════════════════════════
 //  ICONS
@@ -349,6 +310,23 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [countdown, setCountdown] = useState(300);
+  const [transferNote, setTransferNote] = useState<string>('');
+  const [vietqrConfig, setVietqrConfig] = useState<{ bankId: string; accountNo: string; accountName: string } | null>(null);
+
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchConfig = async () => {
+      try {
+        const configData = await paymentService.getVietQRConfig();
+        setVietqrConfig(configData);
+      } catch (err) {
+        console.error('Cannot load VietQR config, using default', err);
+      }
+    };
+    fetchConfig();
+  }, [user]);
+
 
   // Card payment (demo / mock)
   const [showCard, setShowCard] = useState(false);
@@ -449,11 +427,17 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   };
 
   const handleProceedToQR = async () => {
-    const note = `ParkSmart ${selectedPlan.name}`.replace(/[^a-zA-Z0-9 ]/g, '');
-    const payload = buildVietQR(totalAmount, note);
+    const cleanPlate = (selectedVehicle?.plateNumber || '').replace(/[^a-zA-Z0-9]/g, '');
+    const note = `ParkSmart_${cleanPlate}_${selectedPlan.id}`.slice(0, 25);
+    
+    const bankId = vietqrConfig?.bankId || 'MB';
+    const accountNo = vietqrConfig?.accountNo || '0000000000';
+    const accountName = vietqrConfig?.accountName || 'PARKSMART OWNER';
+
     try {
-      const url = await QRCode.toDataURL(payload, { width: 220, margin: 2 });
+      const url = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(note)}&accountName=${encodeURIComponent(accountName)}`;
       setQrDataUrl(url);
+      setTransferNote(note);
       setShowQR(true);
       setCountdown(300);
       setSubmitError('');
@@ -461,6 +445,7 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
       setSubmitError('Không thể tạo mã QR. Vui lòng thử lại.');
     }
   };
+
 
   useEffect(() => {
     if (!showQR || countdown <= 0) return;
@@ -670,11 +655,32 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
 
         {/* QR Code */}
         <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem' }}>
-          <img src={qrDataUrl} alt="QR thanh toán" width={220} height={220} style={{ borderRadius: 8, border: `1px solid ${C.gray200}` }} />
-          <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
-            Mở ứng dụng ngân hàng hoặc ví điện tử và quét mã để thanh toán
+          <img src={qrDataUrl} alt="QR thanh toán" width={240} height={240} style={{ borderRadius: 8, border: `1px solid ${C.gray200}` }} />
+          
+          <div style={{ width: '100%', borderTop: `1px dashed ${C.gray200}`, paddingTop: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.82rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.gray600 }}>Ngân hàng:</span>
+              <span style={{ fontWeight: 700, color: C.gray900 }}>{vietqrConfig?.bankId || 'MB'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.gray600 }}>Số tài khoản:</span>
+              <span style={{ fontWeight: 700, color: C.gray900, fontFamily: "'Consolas', monospace" }}>{vietqrConfig?.accountNo || '0000000000'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.gray600 }}>Chủ tài khoản:</span>
+              <span style={{ fontWeight: 700, color: C.gray900 }}>{vietqrConfig?.accountName || 'PARKSMART OWNER'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.gray600 }}>Nội dung CK:</span>
+              <span style={{ fontWeight: 700, color: C.navy, fontFamily: "'Consolas', monospace" }}>{transferNote}</span>
+            </div>
+          </div>
+
+          <p style={{ margin: 0, fontSize: '0.78rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
+            Mở ứng dụng ngân hàng quét mã để thanh toán tự động, hoặc chuyển khoản theo thông tin chi tiết ở trên.
           </p>
         </div>
+
 
         {/* Countdown */}
         <div style={{ textAlign: 'center' }}>
