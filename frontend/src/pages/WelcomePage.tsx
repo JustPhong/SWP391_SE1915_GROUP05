@@ -953,14 +953,72 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
   const CAR_PERKS = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
   const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
   const perks = vtype === 'CAR' ? CAR_PERKS : MOTO_PERKS;
-  const casual = CASUAL_PRICING[vtype];
+  const moto = CASUAL_PRICING.MOTORBIKE;
+  const car = CASUAL_PRICING.CAR;
   return (
     <section id="pricing" className={styles.section}>
       <div className={styles.sectionInner}>
-        <span className={styles.eyebrow}>Bảng giá</span>
-        <h2 className={styles.sectionTitle}>Đỗ một lần, hay đỗ thường xuyên?</h2>
+        <div style={{ textAlign: 'center' }}>
+          <span className={styles.eyebrow}>Bảng giá</span>
+          <h2 className={styles.sectionTitle}>Đỗ một lần, hay đỗ thường xuyên?</h2>
+          <p className={styles.pricingNote} style={{ marginTop: '0.75rem', maxWidth: 640, marginLeft: 'auto', marginRight: 'auto' }}>
+            Chỉ đỗ một lần? Trả theo lượt, không cần tài khoản — tính phí theo thời gian thực.
+          </p>
+        </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.75rem' }}>
+        {/* ── Unified Casual Pricing Table: Xe máy | Ô tô ── */}
+        <div className={styles.casualTableGrid}>
+          {/* Xe máy column */}
+          <div className={styles.casualTableCol}>
+            <div className={styles.casualTableColHead}>
+              <span className={styles.casualTableEmoji} aria-hidden="true">🛵</span>
+              <span>Xe máy</span>
+            </div>
+            <div className={styles.casualTableRows}>
+              {moto.blocks.map((b) => (
+                <div key={b.label} className={styles.casualTableRow}>
+                  <div className={styles.casualTableRowLeft}>
+                    <div className={styles.casualTableLabel}>{b.label}</div>
+                    <div className={styles.casualTableHours}>{b.hours}</div>
+                  </div>
+                  <div className={styles.casualTableRowRight}>
+                    <span className={styles.casualTablePriceVal}>{b.price}</span>
+                    <span className={styles.casualTablePriceUnit}>{b.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Ô tô column */}
+          <div className={styles.casualTableCol}>
+            <div className={styles.casualTableColHead}>
+              <span className={styles.casualTableEmoji} aria-hidden="true">🚗</span>
+              <span>Ô tô</span>
+            </div>
+            <div className={styles.casualTableRows}>
+              {car.blocks.map((b) => (
+                <div key={b.label} className={`${styles.casualTableRow} ${b.isNight ? styles.casualTableRowNight : ''}`}>
+                  <div className={styles.casualTableRowLeft}>
+                    <div className={styles.casualTableLabel}>{b.label}</div>
+                    <div className={styles.casualTableHours}>{b.hours}</div>
+                  </div>
+                  <div className={styles.casualTableRowRight}>
+                    <span className={styles.casualTablePriceVal}>{b.price}</span>
+                    <span className={styles.casualTablePriceUnit}>{b.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <p className={styles.casualFooterNote}>
+          Vé bị mất: phí 200.000đ
+        </p>
+
+        {/* Monthly toggle kept for perks section */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', margin: '2rem 0 1rem' }}>
           <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
             Ô tô
@@ -970,36 +1028,6 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
             Xe máy
           </button>
         </div>
-
-        <p className={styles.pricingNote} style={{ marginTop: 0 }}>
-          Chỉ đỗ một lần? Trả theo lượt, không cần tài khoản — tính phí theo thời gian thực.
-        </p>
-        <div className={styles.cardGrid2} style={{ maxWidth: 460, margin: '0 auto' }}>
-          <div className={styles.casualCard}>
-            <div className={styles.casualIcon}>
-              {vtype === 'CAR' ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
-              ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d5fd0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M5 17H3V9h12l3 8h2" /><path d="M15 9h2l2 4-1 4H11" /></svg>
-              )}
-            </div>
-            <h3 className={styles.casualTitle}>{casual.title} — vãng lai</h3>
-            <div className={styles.casualTimeBlocks}>
-              {casual.blocks.map(b => (
-                <div key={b.label} className={`${styles.timeBlock} ${b.isNight ? styles.timeBlockNight : ''}`}>
-                  <div className={styles.timeBlockLeft}>
-                    <span className={styles.timeBlockLabel}>{b.label}</span>
-                    <span className={styles.timeBlockHours}>{b.hours}</span>
-                  </div>
-                  <span className={styles.timeBlockPrice}>{b.price}</span>
-                  <span className={styles.timeBlockUnit}>{b.unit}</span>
-                </div>
-              ))}
-            </div>
-            <button className={styles.casualBtn} onClick={onBooking}>Đặt chỗ ngay</button>
-          </div>
-        </div>
-        <p className={styles.casualFootnote}>Quá giờ được tính theo block tiếp theo. Vé bị mất: phí 500.000đ.</p>
 
         <h3 className={styles.sectionSubtitle}>Đỗ thường xuyên? Tiết kiệm với gói tháng</h3>
         <div className={styles.cardGrid3}>

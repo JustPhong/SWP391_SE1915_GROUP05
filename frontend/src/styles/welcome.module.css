@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════════════
    ParkSmart Landing Page — LIGHT THEME
    Palette: navy #16293f, blue #2d5fd0, bg #d6e6f6→#fff
    Fonts: system stack, no external imports
@@ -2195,4 +2195,140 @@
   .liveDot {
     animation: none;
   }
+}
+
+/* ── Unified 2-column comparison table ─────────────── */
+.casualTableGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid #1d4ed8;
+  background: #ffffff;
+  box-shadow: 0 8px 32px rgba(29, 78, 216, 0.18);
+  width: 100%;
+  max-width: 960px;
+  margin: 2rem auto 0;
+}
+.casualTableCol {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+}
+.casualTableCol + .casualTableCol {
+  border-left: 1px solid #e2e8f0;
+}
+.casualTableColHead {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.4rem 1.5rem;
+  background: linear-gradient(135deg, #0f1f33 0%, #16293f 60%, #1e3a5f 100%);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffffff;
+  min-height: 70px;
+}
+.casualTableEmoji {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(126, 179, 245, 0.25), rgba(126, 179, 245, 0.12));
+  box-shadow:
+    0 0 0 2px rgba(126, 179, 245, 0.4),
+    0 6px 20px rgba(126, 179, 245, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  filter: drop-shadow(0 0 8px rgba(126, 179, 245, 0.7));
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+.casualTableColHead:hover .casualTableEmoji {
+  transform: scale(1.15) rotate(-6deg);
+  box-shadow:
+    0 0 0 3px rgba(126, 179, 245, 0.6),
+    0 8px 28px rgba(126, 179, 245, 0.55),
+    inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.casualTableRows {
+  display: flex;
+  flex-direction: column;
+}
+.casualTableRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 1.6rem;
+  gap: 1rem;
+  background: #ffffff;
+  transition: background 0.15s;
+  min-height: 68px;
+}
+.casualTableRow:hover {
+  background: #f8fbff;
+}
+.casualTableRowNight {
+  background: #f7f4ff;
+}
+.casualTableRowNight:hover {
+  background: #f0ecff;
+}
+.casualTableRowLeft {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1;
+}
+.casualTableRowRight {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.casualTableLabel {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #16293f;
+}
+.casualTableHours {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.casualTablePriceVal {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1d6fd8;
+  font-feature-settings: 'tnum' on;
+  line-height: 1;
+}
+.casualTablePriceUnit {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.casualTableRowNight .casualTablePriceVal {
+  color: #7c3aed;
+}
+.casualFooterNote {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.6;
+  text-align: center;
+  letter-spacing: 0.02em;
+  margin: 1.2rem auto 0;
+  max-width: 960px;
 }

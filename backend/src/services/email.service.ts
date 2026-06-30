@@ -1,13 +1,13 @@
 import { Resend } from 'resend';
 import { config } from '../config';
 
-const resend = new Resend(config.resend.apiKey);
-
 export async function sendOtpEmail(to: string, otpCode: string, fullName: string): Promise<void> {
   if (!config.resend.apiKey || config.resend.apiKey.startsWith('re_xxxx')) {
     console.warn('[Email] Resend API Key not configured — OTP would be:', otpCode);
-    return; // Gracefully skip in dev if not configured
+    return;
   }
+
+  const resend = new Resend(config.resend.apiKey);
 
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb;">
