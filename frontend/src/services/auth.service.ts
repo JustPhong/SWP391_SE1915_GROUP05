@@ -13,12 +13,18 @@ export const authService = {
     password: string;
     plateNumber: string;
     vehicleType: 'MOTORBIKE' | 'CAR';
+    otp: string;
   }) => {
     const response = await api.post<{ success: boolean; data: AuthResponse }>('/auth/register', {
       ...data,
       role: 'DRIVER',
     });
     return response.data.data;
+  },
+
+  sendOtp: async (data: { email: string; fullName: string }) => {
+    const response = await api.post<{ success: boolean; message: string }>('/auth/send-otp', data);
+    return response.data;
   },
 
   me: async (): Promise<User> => {

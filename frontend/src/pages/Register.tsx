@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../context/AuthContext';
 import { getRoleHomePath } from '../utils/authRoutes';
 import { validatePlate } from '../utils/plate';
+import { authService } from '../services/auth.service';
 import {
   PersonIcon,
   EmailIcon,
@@ -64,6 +65,28 @@ export function RegisterPage() {
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // ── OTP State ──
+  const [otpStep, setOtpStep] = useState(false); // true = show OTP input
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0); // resend cooldown
+  const [otpExpiry, setOtpExpiry] = useState(0); // 5-min expiry countdown
+  const [otpSuccess, setOtpSuccess] = useState('');
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Countdown timers
+  useEffect(() => {
+    if (otpCountdown <= 0) return;
+    const t = setTimeout(() => setOtpCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [otpCountdown]);
+
+  useEffect(() => {
+    if (otpExpiry <= 0) return;
+    const t = setTimeout(() => setOtpExpiry((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [otpExpiry]);
+
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -116,15 +139,98 @@ export function RegisterPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Step 1: Send OTP
+  const handleSendOtp = async () => {
+    if (!validate()) return;
+    setApiError('');
+    setOtpSending(true);
+    try {
+      await authService.sendOtp({ email: form.email, fullName: form.fullName });
+      setOtpStep(true);
+      setOtpCountdown(60);
+      setOtpExpiry(300);
+      setOtp(['', '', '', '', '', '']);
+      setOtpSuccess('Mã xác nhận đã được gửi đến ' + form.email);
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as Error)?.message ||
+        'Không thể gửi mã xác nhận. Vui lòng thử lại.';
+      setApiError(message);
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (otpCountdown > 0) return;
+    setApiError('');
+    setOtpSending(true);
+    try {
+      await authService.sendOtp({ email: form.email, fullName: form.fullName });
+      setOtpCountdown(60);
+      setOtpExpiry(300);
+      setOtp(['', '', '', '', '', '']);
+      setOtpSuccess('Đã gửi lại mã xác nhận');
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as Error)?.message ||
+        'Không thể gửi lại mã.';
+      setApiError(message);
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // OTP input handler
+  const handleOtpChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value.slice(-1);
+    setOtp(newOtp);
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setOtp(pasted.split(''));
+      otpRefs.current[5]?.focus();
+    }
+  };
+
+  const otpCode = otp.join('');
+
+  // Step 2: Submit with OTP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!otpStep) {
+      handleSendOtp();
+      return;
+    }
+    if (otpCode.length !== 6) {
+      setApiError('Vui lòng nhập đủ 6 số mã xác nhận');
+      return;
+    }
 
     setApiError('');
     setLoading(true);
 
     try {
-      const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType);
+      const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType, otpCode);
       navigate(getRoleHomePath(user.role), { replace: true });
     } catch (err: unknown) {
       const message =
@@ -318,6 +424,78 @@ export function RegisterPage() {
           <p className={styles.inputError}>{errors.agreeTerms}</p>
         )}
 
+        {/* OTP Verification Step */}
+        {otpStep && (
+          <div style={{
+            background: '#F0F9FF', border: '1.5px solid #BAE6FD', borderRadius: 14,
+            padding: '1.25rem', marginTop: '0.25rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0C4A6E' }}>Xác minh email</span>
+            </div>
+
+            {otpSuccess && (
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: '#059669', fontWeight: 600 }}>
+                ✓ {otpSuccess}
+              </p>
+            )}
+
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: '#475569' }}>
+              Nhập mã xác nhận 6 số đã gửi đến <strong>{form.email}</strong>
+            </p>
+
+            {/* OTP Input */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: '0.75rem' }}>
+              {otp.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { otpRefs.current[i] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                  onPaste={i === 0 ? handleOtpPaste : undefined}
+                  style={{
+                    width: 44, height: 52, textAlign: 'center', fontSize: '1.35rem',
+                    fontWeight: 800, fontFamily: "'Consolas', monospace",
+                    border: digit ? '2px solid #1E3A5F' : '1.5px solid #CBD5E1',
+                    borderRadius: 10, outline: 'none', background: '#fff',
+                    color: '#1E3A5F', transition: 'border-color 0.15s',
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#1E3A5F'; e.target.style.boxShadow = '0 0 0 3px rgba(30,58,95,0.1)'; }}
+                  onBlur={(e) => { e.target.style.borderColor = digit ? '#1E3A5F' : '#CBD5E1'; e.target.style.boxShadow = 'none'; }}
+                />
+              ))}
+            </div>
+
+            {/* Expiry + Resend */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+              <span style={{ color: otpExpiry <= 60 ? '#DC2626' : '#6B7280', fontWeight: 600 }}>
+                {otpExpiry > 0
+                  ? `Hết hạn sau ${Math.floor(otpExpiry / 60)}:${String(otpExpiry % 60).padStart(2, '0')}`
+                  : 'Mã đã hết hạn'}
+              </span>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={otpCountdown > 0 || otpSending}
+                style={{
+                  background: 'none', border: 'none', cursor: otpCountdown > 0 ? 'not-allowed' : 'pointer',
+                  color: otpCountdown > 0 ? '#9CA3AF' : '#1E3A5F', fontWeight: 700, fontSize: '0.78rem',
+                  textDecoration: otpCountdown > 0 ? 'none' : 'underline', padding: 0,
+                }}
+              >
+                {otpSending ? 'Đang gửi...' : otpCountdown > 0 ? `Gửi lại (${otpCountdown}s)` : 'Gửi lại mã'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {apiError && (
           <div className={`${styles.alert} ${styles['alert--error']}`}>{apiError}</div>
         )}
@@ -326,10 +504,30 @@ export function RegisterPage() {
         <button
           type="submit"
           className={`${styles.btn} ${styles['btn--primary']}`}
-          disabled={loading || !!plateError}
+          disabled={loading || otpSending || !!plateError || (otpStep && (otpCode.length !== 6 || otpExpiry <= 0))}
         >
-          {loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
+          {loading
+            ? 'Đang tạo tài khoản...'
+            : otpSending
+              ? 'Đang gửi mã...'
+              : otpStep
+                ? 'Xác nhận & Tạo tài khoản'
+                : 'Gửi mã xác nhận'}
         </button>
+
+        {otpStep && (
+          <button
+            type="button"
+            onClick={() => { setOtpStep(false); setApiError(''); setOtpSuccess(''); }}
+            style={{
+              width: '100%', padding: '0.65rem', background: '#fff', border: '1.5px solid #D1D5DB',
+              borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, color: '#6B7280',
+              cursor: 'pointer', marginTop: '0.25rem',
+            }}
+          >
+            ← Quay lại chỉnh sửa thông tin
+          </button>
+        )}
       </form>
     </AuthLayout>
   );
