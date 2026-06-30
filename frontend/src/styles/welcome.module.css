@@ -2174,6 +2174,23 @@
   color: #1f9d6b;
 }
 
+.zoneValueWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.zoneStat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.liveDotFull {
+  background-color: #f59e0b !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .liveDot {
     animation: none;

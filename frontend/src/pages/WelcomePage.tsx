@@ -868,24 +868,32 @@ function StatusStrip({
   availLoading: boolean;
   availError: boolean;
 }) {
-  const formatZone = (zone: { car: { available: number; total: number }; motorbike: { available: number; total: number } } | undefined) => {
-    if (availLoading) return 'Đang tải...';
-    if (availError || !zone) return '—';
-    return `Ô tô ${zone.car.available}/${zone.car.total} · Xe máy ${zone.motorbike.available}/${zone.motorbike.total}`;
+  const ZoneStat = ({ available, total, label }: { available: number; total: number; label: string }) => {
+    const full = available <= 0;
+    return (
+      <span className={styles.zoneStat}>
+        <span className={`${styles.liveDot} ${full ? styles.liveDotFull : ''}`} aria-hidden="true" />
+        {label} {available}/{total}
+      </span>
+    );
   };
 
-  const LiveValue = ({ text }: { text: string }) => (
-    <span className={`${styles.statusStripValue} ${styles.liveValue}`}>
-      <span className={styles.liveDot} aria-hidden="true" />
-      {text}
-    </span>
-  );
+  const ZoneValue = ({ zone }: { zone: { car: { available: number; total: number }; motorbike: { available: number; total: number } } | undefined }) => {
+    if (availLoading) return <span className={styles.statusStripValue}>Đang tải...</span>;
+    if (availError || !zone) return <span className={styles.statusStripValue}>—</span>;
+    return (
+      <span className={`${styles.statusStripValue} ${styles.zoneValueWrap}`}>
+        <ZoneStat available={zone.car.available} total={zone.car.total} label="Ô tô" />
+        <ZoneStat available={zone.motorbike.available} total={zone.motorbike.total} label="Xe máy" />
+      </span>
+    );
+  };
 
   const items: { emoji: string; label: string; render: () => React.ReactNode }[] = [
     { emoji: '🕐', label: 'Giờ mở cửa', render: () => <span className={styles.statusStripValue}>Hoạt động 24/7</span> },
     { emoji: '🛡️', label: 'Tiện ích', render: () => <span className={styles.statusStripValue}>Mái che · Camera 24/7</span> },
-    { emoji: '🅿️', label: 'Khu vãng lai', render: () => <LiveValue text={formatZone(availability?.casual)} /> },
-    { emoji: '📅', label: 'Khu gói tháng', render: () => <LiveValue text={formatZone(availability?.monthly)} /> },
+    { emoji: '🅿️', label: 'Khu vãng lai', render: () => <ZoneValue zone={availability?.casual} /> },
+    { emoji: '📅', label: 'Khu gói tháng', render: () => <ZoneValue zone={availability?.monthly} /> },
   ];
   return (
     <div className={styles.statusStrip}>
