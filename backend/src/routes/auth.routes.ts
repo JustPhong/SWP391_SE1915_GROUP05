@@ -7,6 +7,7 @@ import { uploadAvatar } from '../middleware/upload.middleware';
 
 const router = Router();
 
+router.post('/send-otp', authController.sendOtp);
 router.post('/register', registerSchema, validate, authController.register);
 router.post('/login', loginSchema, validate, authController.login);
 router.get('/me', authenticate, authController.me);
