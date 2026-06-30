@@ -242,6 +242,12 @@ export const authService = {
           where: { vehicleId: { in: vehicleIds } },
         });
 
+        // 4.5. Nullify assignedVehicleId in ParkingSlot referencing these vehicles
+        await tx.parkingSlot.updateMany({
+          where: { assignedVehicleId: { in: vehicleIds } },
+          data: { assignedVehicleId: null },
+        });
+
         // 5. Delete the vehicles
         await tx.vehicle.deleteMany({
           where: { ownerId: userId },
