@@ -39,3 +39,12 @@ export async function removeAvatar(): Promise<User> {
   }
   return response.data.data;
 }
+
+export async function deleteAccount(password: string): Promise<void> {
+  const response = await api.delete<{ success: boolean; message?: string }>('/auth/profile', {
+    data: { password }
+  });
+  if (!response.data.success) {
+    throw new Error(response.data.message || 'Xóa tài khoản thất bại');
+  }
+}

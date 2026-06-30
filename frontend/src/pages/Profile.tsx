@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile, changePassword, uploadAvatar, removeAvatar } from '../api/profileApi';
+import { updateProfile, changePassword, uploadAvatar, removeAvatar, deleteAccount } from '../api/profileApi';
 import { getMyPackage } from '../api/driverDashboardApi';
 
 const C = {
@@ -39,6 +40,14 @@ function getRoleLabel(role: string | undefined): string {
 
 export function ProfilePage() {
   const { user, setUser } = useAuth();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   const [fullName, setFullName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -147,6 +156,24 @@ export function ProfilePage() {
       alert('Xoá ảnh thất bại. Vui lòng thử lại.');
     } finally {
       setUploadingAvatar(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirmPasswordInput) return;
+    setDeletingAccount(true);
+    setDeleteError('');
+    try {
+      await deleteAccount(confirmPasswordInput);
+      setShowDeleteConfirm(false);
+      setConfirmPasswordInput('');
+      setDeleteStep(1);
+      logout();
+      navigate('/');
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.message ?? err.message ?? 'Không thể xóa tài khoản');
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -387,7 +414,213 @@ export function ProfilePage() {
             </form>
           </div>
         </div>
+
+        {/* Danger Zone */}
+        <div style={{
+          background: '#FFF5F5',
+          border: '1.5px solid #FEB2B2',
+          borderRadius: 20,
+          padding: 28,
+          boxShadow: C.shadow,
+          marginTop: 8
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDeleteConfirm(true);
+                setDeleteStep(1);
+                setDeleteError('');
+                setConfirmPasswordInput('');
+              }}
+              style={{
+                padding: '10px 24px',
+                borderRadius: 12,
+                border: 'none',
+                background: C.red,
+                color: C.white,
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(220, 38, 38, 0.2)',
+                transition: 'all 0.15s'
+              }}
+            >
+              Xóa tài khoản
+            </button>
+          </div>
+        </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: C.white,
+            borderRadius: 24,
+            padding: 32,
+            maxWidth: 480,
+            width: '100%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          }}>
+            {deleteStep === 1 ? (
+              <>
+                <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 800, color: C.red, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  Cảnh báo xóa tài khoản
+                </h3>
+                
+                <div style={{
+                  background: '#FFF5F5',
+                  border: '1px solid #FEB2B2',
+                  borderRadius: 12,
+                  padding: '16px',
+                  color: '#C53030',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  marginBottom: 24
+                }}>
+                  <strong>Hành động này không thể hoàn tác!</strong> Một khi bạn xóa tài khoản, tất cả dữ liệu liên quan (xe của bạn, gói tháng, lịch sử đặt chỗ, lịch sử thanh toán) sẽ bị xóa vĩnh viễn và không thể khôi phục.
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: C.gray100,
+                      color: C.gray800,
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteStep(2)}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: C.red,
+                      color: C.white,
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.2)'
+                    }}
+                  >
+                    Tiếp tục xóa
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
+                  Xác nhận mật khẩu
+                </h3>
+                <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: C.gray600, lineHeight: 1.6 }}>
+                  Vui lòng nhập mật khẩu tài khoản của bạn để xác nhận hành động xóa tài khoản:
+                </p>
+
+                <input
+                  type="password"
+                  value={confirmPasswordInput}
+                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                  placeholder="Nhập mật khẩu xác nhận"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: `1.5px solid ${confirmPasswordInput.length >= 6 ? C.green : C.gray200}`,
+                    fontSize: '0.9rem',
+                    color: C.gray800,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    marginBottom: 20
+                  }}
+                />
+
+                {deleteError && (
+                  <div style={{
+                    background: '#FEE2E2',
+                    border: '1.5px solid #FECACA',
+                    borderRadius: 12,
+                    padding: '12px 16px',
+                    color: C.red,
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    marginBottom: 20,
+                    lineHeight: 1.4
+                  }}>
+                    {deleteError}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    disabled={deletingAccount}
+                    onClick={() => {
+                      setDeleteStep(1);
+                      setDeleteError('');
+                      setConfirmPasswordInput('');
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: C.gray100,
+                      color: C.gray800,
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Quay lại
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deletingAccount || !confirmPasswordInput}
+                    onClick={handleDeleteAccount}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: (deletingAccount || !confirmPasswordInput) ? C.gray200 : C.red,
+                      color: C.white,
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      cursor: (deletingAccount || !confirmPasswordInput) ? 'not-allowed' : 'pointer',
+                      boxShadow: (deletingAccount || !confirmPasswordInput) ? 'none' : '0 4px 12px rgba(220, 38, 38, 0.2)'
+                    }}
+                  >
+                    {deletingAccount ? 'Đang xóa...' : 'Xác nhận xóa'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
