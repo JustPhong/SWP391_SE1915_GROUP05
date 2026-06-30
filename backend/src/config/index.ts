@@ -11,5 +11,8 @@ export const config = {
     accountNo: process.env.VIETQR_ACCOUNT_NO || '0000000000',
     accountName: process.env.VIETQR_ACCOUNT_NAME || 'PARKSMART OWNER',
   },
+  resend: {
+    apiKey: process.env.RESEND_API_KEY || '',
+  },
 };
 
