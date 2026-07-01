@@ -722,13 +722,6 @@ function HeroSection({ navigate, onBooking }: { navigate: (path: string) => void
           <div className={styles.showcaseCard}>
             <img src="/parking_hero.png" alt="Mô hình tòa nhà đỗ xe ParkSmart" className={styles.heroImage} />
           </div>
-          <div className={styles.legendCard}>
-            <div className={styles.legendTitle}>Khu vực đỗ</div>
-            <div className={styles.legendItems}>
-              <div className={styles.legendItem}><span className={styles.legendDot} style={{ backgroundColor: '#2d5fd0' }} /><span>Vãng lai</span></div>
-              <div className={styles.legendItem}><span className={styles.legendDot} style={{ backgroundColor: '#f59e0b' }} /><span>Gói tháng</span></div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -798,13 +791,6 @@ function HeroLoggedIn({
         <div className={styles.heroRight}>
           <div className={styles.showcaseCard}>
             <img src="/parking_hero.png" alt="Mô hình tòa nhà đỗ xe ParkSmart" className={styles.heroImage} />
-          </div>
-          <div className={styles.legendCard}>
-            <div className={styles.legendTitle}>Khu vực đỗ</div>
-            <div className={styles.legendItems}>
-              <div className={styles.legendItem}><span className={styles.legendDot} style={{ backgroundColor: '#2d5fd0' }} /><span>Vãng lai</span></div>
-              <div className={styles.legendItem}><span className={styles.legendDot} style={{ backgroundColor: '#f59e0b' }} /><span>Gói tháng</span></div>
-            </div>
           </div>
         </div>
       </div>
