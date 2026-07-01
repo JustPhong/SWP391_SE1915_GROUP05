@@ -897,7 +897,7 @@ function StatusStrip({
   ];
   return (
     <div className={styles.statusStrip}>
-      <div className={`${styles.statusStripInner} ${styles.cardGrid4}`}>
+      <div className={styles.statusStripInner}>
         {items.map(item => (
           <div key={item.label} className={styles.statusStripItem}>
             <span className={styles.statusStripEmoji}>{item.emoji}</span>
