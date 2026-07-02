@@ -306,6 +306,13 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   const [submitError, setSubmitError] = useState('');
   const [createdPkg, setCreatedPkg] = useState<MonthlyPackage | null>(null);
 
+  // Existing package actions
+  const [myPackages, setMyPackages] = useState<MonthlyPackage[]>([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [packageActionLoading, setPackageActionLoading] = useState<string | null>(null);
+  const [packageActionError, setPackageActionError] = useState('');
+  const [packageActionSuccess, setPackageActionSuccess] = useState('');
+
   // QR payment
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -364,10 +371,24 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
     }
   }, []);
 
+  const loadMyPackages = useCallback(async () => {
+    setLoadingPackages(true);
+    setPackageActionError('');
+    try {
+      const data = await monthlyPackageService.getMyPackages();
+      setMyPackages(data ?? []);
+    } catch (e: any) {
+      setPackageActionError(e?.response?.data?.message ?? 'Không thể tải gói tháng hiện tại.');
+    } finally {
+      setLoadingPackages(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading || !user) return;
     loadVehicles();
-  }, [authLoading, user, loadVehicles]);
+    loadMyPackages();
+  }, [authLoading, user, loadVehicles, loadMyPackages]);
 
   // Fetch slots (CAR only)
   const loadSlots = useCallback(async () => {
@@ -414,6 +435,7 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
       });
       setCreatedPkg(created);
       await loadVehicles(); // reflect isMonthly=true
+      await loadMyPackages();
     } catch (e: any) {
       const msg: string = e?.response?.data?.message ?? 'Có lỗi xảy ra';
       // 409 slot race → refetch the map so they can pick another
@@ -463,6 +485,38 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
     setPaymentMethod('EWALLET');
     setCardForm({ number: '', name: '', expiry: '', cvv: '' });
     setSubmitError('');
+    setPackageActionError('');
+    setPackageActionSuccess('');
+  };
+
+  const handleRenewPackage = async (pkg: MonthlyPackage) => {
+    setPackageActionLoading(pkg.id);
+    setPackageActionError('');
+    setPackageActionSuccess('');
+    try {
+      const updated = await monthlyPackageService.renewPackage(pkg.id);
+      setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setPackageActionSuccess('Gia hạn gói thành công. Email xác nhận đã được gửi nếu có cấu hình.');
+    } catch (e: any) {
+      setPackageActionError(e?.response?.data?.message ?? 'Không thể gia hạn gói.');
+    } finally {
+      setPackageActionLoading(null);
+    }
+  };
+
+  const handleToggleAutoRenew = async (pkg: MonthlyPackage) => {
+    setPackageActionLoading(pkg.id);
+    setPackageActionError('');
+    setPackageActionSuccess('');
+    try {
+      const updated = await monthlyPackageService.setAutoRenew(pkg.id, !pkg.autoRenew);
+      setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setPackageActionSuccess(updated.autoRenew ? 'Tự động gia hạn đã được bật.' : 'Tự động gia hạn đã được tắt.');
+    } catch (e: any) {
+      setPackageActionError(e?.response?.data?.message ?? 'Không thể cập nhật chức năng gia hạn.');
+    } finally {
+      setPackageActionLoading(null);
+    }
   };
 
   // ── Auth gates ───────────────────────────────────────
@@ -471,6 +525,77 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   }
   if (!user) {
     return <div style={{ padding: '3rem', textAlign: 'center', color: C.gray600, fontSize: '0.9rem' }}>Vui lòng đăng nhập để mua gói tháng.</div>;
+  }
+
+  const activePackages = myPackages.filter((pkg) => pkg.status === 'ACTIVE');
+
+  // ── Existing package management ─────────────────────
+  if (activePackages.length > 0 && !createdPkg) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div>
+          <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: C.gray900 }}>Gói tháng hiện tại</p>
+          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: C.gray600 }}>Quản lý gia hạn gói tháng và cài đặt gia hạn tự động.</p>
+        </div>
+
+        {packageActionError && (
+          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>
+            {packageActionError}
+          </div>
+        )}
+        {packageActionSuccess && (
+          <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: C.green, fontWeight: 500 }}>
+            {packageActionSuccess}
+          </div>
+        )}
+
+        {loadingPackages ? (
+          <div className={styles.card} style={{ padding: '2rem', textAlign: 'center', color: C.gray400, fontSize: '0.9rem', fontWeight: 600 }}>Đang tải gói tháng...</div>
+        ) : (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {activePackages.map((pkg) => (
+              <div key={pkg.id} className={styles.card} style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.gray900 }}>{pkg.planName ?? 'Gói tháng'}</p>
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: C.gray600 }}>Xe: {pkg.vehicle?.plateNumber ?? pkg.vehicleId}</p>
+                  </div>
+                  <span style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: 999, background: pkg.autoRenew ? C.greenBg : C.gray50, color: pkg.autoRenew ? C.green : C.gray600 }}>
+                    {pkg.autoRenew ? 'Gia hạn tự động' : 'Không tự động'}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: C.gray600 }}>Bắt đầu</span>
+                    <span style={{ fontWeight: 700, color: C.gray900 }}>{formatDDMMYYYY(pkg.startDate)}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: C.gray600 }}>Hết hạn</span>
+                    <span style={{ fontWeight: 700, color: C.navy }}>{formatDDMMYYYY(pkg.expiryDate)}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <button
+                    onClick={() => handleRenewPackage(pkg)}
+                    disabled={packageActionLoading === pkg.id}
+                    style={{ flex: 1, padding: '0.9rem', background: C.navy, color: C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
+                  >
+                    {packageActionLoading === pkg.id ? 'Đang xử lý...' : 'Gia hạn ngay'}
+                  </button>
+                  <button
+                    onClick={() => handleToggleAutoRenew(pkg)}
+                    disabled={packageActionLoading === pkg.id}
+                    style={{ flex: 1, padding: '0.9rem', background: pkg.autoRenew ? C.redBg : C.white, color: pkg.autoRenew ? C.red : C.gray900, border: `1.5px solid ${pkg.autoRenew ? C.redBorder : C.gray200}`, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
+                  >
+                    {pkg.autoRenew ? 'Hủy gia hạn tự động' : 'Bật gia hạn tự động'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // ── Success state ────────────────────────────────────

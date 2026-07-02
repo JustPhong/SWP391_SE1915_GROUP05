@@ -10,6 +10,7 @@ export interface CreateVehicleInput {
   model?: string | null;
   color?: string | null;
   year?: number | null;
+  seats?: number | null;
 }
     
 async function loadOwnedVehicleOrThrow(vehicleId: string, userId: string) {
@@ -41,6 +42,7 @@ export const vehicleService = {
       model: input.model ?? undefined,
       color: input.color ?? undefined,
       year: input.year ?? undefined,
+      seats: input.seats ?? undefined,
     };
     return prisma.vehicle.create({ data });
   },

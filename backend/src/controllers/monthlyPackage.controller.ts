@@ -28,4 +28,14 @@ export const monthlyPackageController = {
     const pkg = await monthlyPackageService.getByVehicle(req.params.vehicleId);
     return res.status(200).json({ success: true, data: pkg });
   }),
+
+  renewPackage: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const pkg = await monthlyPackageService.renewPackage(req.params.packageId, req.user!.id);
+    return res.status(200).json({ success: true, data: pkg });
+  }),
+
+  setAutoRenew: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const pkg = await monthlyPackageService.setAutoRenew(req.params.packageId, req.user!.id, req.body.enabled);
+    return res.status(200).json({ success: true, data: pkg });
+  }),
 };

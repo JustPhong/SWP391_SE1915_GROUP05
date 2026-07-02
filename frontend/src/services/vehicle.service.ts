@@ -2,7 +2,7 @@ import api from './api';
 import type { Vehicle } from '../types';
 
 export const vehicleService = {
-  create: async (data: { plateNumber: string; type: 'MOTORBIKE' | 'CAR'; isMonthly?: boolean; brand?: string; model?: string; color?: string; year?: number }) => {
+  create: async (data: { plateNumber: string; type: 'MOTORBIKE' | 'CAR'; isMonthly?: boolean; brand?: string; model?: string; color?: string; year?: number; seats?: number }) => {
     const response = await api.post<{ success: boolean; data: Vehicle }>('/vehicles', data);
     return response.data.data;
   },

@@ -31,6 +31,10 @@ export const vehicleSchema = [
     .optional()
     .isInt({ min: 1900, max: new Date().getFullYear() })
     .withMessage('Year must be a valid year'),
+  body('seats')
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .withMessage('Seats must be a valid number'),
 ];
    
 export const vehicleUpdateSchema = [

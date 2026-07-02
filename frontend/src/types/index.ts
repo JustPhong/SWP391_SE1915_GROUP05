@@ -26,6 +26,7 @@ export interface Vehicle {
   model?: string | null;
   color?: string | null;
   year?: number | null;
+  seats?: number | null;
   createdAt: string;
 }
 
@@ -57,6 +58,8 @@ export interface MonthlyPackage {
   userId: string;
   vehicleId: string;
   slotId: string | null;
+  planName?: string | null;
+  autoRenew: boolean;
   startDate: string;
   expiryDate: string;
   price: number;

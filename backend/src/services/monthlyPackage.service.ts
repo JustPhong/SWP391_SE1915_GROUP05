@@ -1,5 +1,6 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
+import { sendEmail } from './email.service';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_RESERVED = 'RESERVED';
@@ -14,6 +15,7 @@ export interface CreatePackageInput {
   userId: string;
   vehicleId: string;
   slotId?: string;
+  planId?: string;
   startDate: Date;
   expiryDate: Date;
   price: number;
@@ -91,6 +93,7 @@ export const monthlyPackageService = {
           userId: input.userId,
           vehicleId: input.vehicleId,
           slotId: resolvedSlotId,
+          planName: input.planId ?? null,
           startDate: input.startDate,
           expiryDate: input.expiryDate,
           price: input.price,
@@ -154,5 +157,71 @@ export const monthlyPackageService = {
       include: { user: true, vehicle: true, slot: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
+  },
+
+  async renewPackage(packageId: string, userId: string) {
+    const pkg = await prisma.monthlyPackage.findUnique({
+      where: { id: packageId },
+      include: { user: true },
+    });
+    if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
+    if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền gia hạn gói này');
+
+    const now = new Date();
+    const durationMs = pkg.expiryDate.getTime() - pkg.startDate.getTime();
+    if (durationMs <= 0) {
+      throw new AppError(400, 'Không thể xác định thời hạn gói để gia hạn');
+    }
+
+    const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+    const renewFrom = pkg.expiryDate > now ? pkg.expiryDate : now;
+    const newExpiryDate = new Date(renewFrom);
+    newExpiryDate.setDate(newExpiryDate.getDate() + durationDays);
+    const newStartDate = pkg.expiryDate > now ? pkg.startDate : now;
+
+    const updated = await prisma.monthlyPackage.update({
+      where: { id: packageId },
+      data: {
+        startDate: newStartDate,
+        expiryDate: newExpiryDate,
+        status: PKG_ACTIVE,
+      },
+      include: { user: true, vehicle: true, slot: true, payments: true },
+    });
+
+    if (updated.user?.email) {
+      await sendEmail(
+        updated.user.email,
+        'Xác nhận gia hạn gói tháng',
+        `Chào bạn,<br/><br/>Gói tháng của bạn đã được gia hạn thành công. Ngày hết hạn mới là <strong>${newExpiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
+      );
+    }
+
+    return updated;
+  },
+
+  async setAutoRenew(packageId: string, userId: string, enabled: boolean) {
+    const pkg = await prisma.monthlyPackage.findUnique({
+      where: { id: packageId },
+      include: { user: true },
+    });
+    if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
+    if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền thay đổi cài đặt này');
+
+    const updated = await prisma.monthlyPackage.update({
+      where: { id: packageId },
+      data: { autoRenew: enabled },
+      include: { user: true, vehicle: true, slot: true, payments: true },
+    });
+
+    if (enabled && updated.user?.email) {
+      await sendEmail(
+        updated.user.email,
+        'Gia hạn gói tháng được bật',
+        `Chào bạn,<br/><br/>Bạn đã bật chế độ gia hạn tự động cho gói tháng. Chúng tôi sẽ thông báo khi gói được gia hạn.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
+      );
+    }
+
+    return updated;
   },
 };

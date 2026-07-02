@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { monthlyPackageController } from '../controllers/monthlyPackage.controller';
-import { createMonthlyPackageSchema } from '../dtos/monthly-package.dto';
+import { createMonthlyPackageSchema, setAutoRenewSchema } from '../dtos/monthly-package.dto';
 import { validate } from '../middleware/error.middleware';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -130,5 +130,70 @@ router.post(
   validate,
   monthlyPackageController.create
 );
+
+/**
+ * @swagger
+ * /monthly-packages/{packageId}/renew:
+ *   post:
+ *     summary: Renew an existing monthly package
+ *     tags: [Monthly Package]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the monthly package
+ *     responses:
+ *       '200':
+ *         description: Package renewed successfully
+ *       '401':
+ *         description: Unauthorized
+ *       '403':
+ *         description: Forbidden
+ *       '404':
+ *         description: Package not found
+ */
+router.post('/:packageId/renew', monthlyPackageController.renewPackage);
+
+/**
+ * @swagger
+ * /monthly-packages/{packageId}/auto-renew:
+ *   patch:
+ *     summary: Enable or disable auto-renew for a monthly package
+ *     tags: [Monthly Package]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the monthly package
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               enabled:
+ *                 type: boolean
+ *     responses:
+ *       '200':
+ *         description: Auto-renew updated successfully
+ *       '400':
+ *         description: Validation error
+ *       '401':
+ *         description: Unauthorized
+ *       '403':
+ *         description: Forbidden
+ *       '404':
+ *         description: Package not found
+ */
+router.patch('/:packageId/auto-renew', setAutoRenewSchema, validate, monthlyPackageController.setAutoRenew);
 
 export default router;

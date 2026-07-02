@@ -91,6 +91,30 @@ const TYPE_LABEL: Record<VehicleType, string> = {
   MOTORBIKE: 'Xe máy',
 };
 
+const VEHICLE_PROFILE_OPTIONS: Record<VehicleType, { label: string; models: string[] }[]> = {
+  CAR: [
+    { label: 'Toyota', models: ['Vios', 'Corolla Cross', 'Camry', 'Fortuner', 'Innova', 'Veloz Cross'] },
+    { label: 'Honda', models: ['City', 'Civic', 'CR-V', 'HR-V', 'Accord'] },
+    { label: 'Hyundai', models: ['Accent', 'Elantra', 'Tucson', 'Santa Fe', 'Creta'] },
+    { label: 'Kia', models: ['Morning', 'K3', 'Seltos', 'Sonet', 'Carnival'] },
+    { label: 'Mazda', models: ['Mazda 2', 'Mazda 3', 'CX-5', 'CX-8', 'BT-50'] },
+    { label: 'Ford', models: ['Ranger', 'Everest', 'Territory', 'EcoSport'] },
+    { label: 'VinFast', models: ['VF 3', 'VF 5', 'VF 6', 'VF 7', 'VF 8', 'VF 9'] },
+  ],
+  MOTORBIKE: [
+    { label: 'Honda', models: ['Wave Alpha', 'Vision', 'Air Blade', 'Lead', 'SH Mode', 'SH'] },
+    { label: 'Yamaha', models: ['Sirius', 'Jupiter', 'Grande', 'Janus', 'Exciter', 'NVX'] },
+    { label: 'Suzuki', models: ['Raider', 'Satria', 'Address', 'Burgman Street'] },
+    { label: 'Piaggio', models: ['Vespa Sprint', 'Vespa Primavera', 'Liberty', 'Medley'] },
+    { label: 'SYM', models: ['Attila', 'Galaxy', 'Elite', 'Husky'] },
+    { label: 'VinFast', models: ['Klara', 'Feliz', 'Evo200', 'Vento', 'Theon'] },
+  ],
+};
+
+const VEHICLE_COLORS = ['Trắng', 'Đen', 'Bạc', 'Xám', 'Đỏ', 'Xanh dương', 'Xanh lá', 'Vàng', 'Nâu', 'Cam'];
+const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_, index) => new Date().getFullYear() - index);
+const CAR_SEAT_OPTIONS = [2, 4, 5, 6, 7, 8, 9, 12];
+
 // ═══════════════════════════════════════════════════════
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════
@@ -352,15 +376,37 @@ function AddVehicleForm({
   submitting: boolean;
   error: string;
   onCancel: () => void;
-  onSubmit: (plateNumber: string, type: VehicleType, brand?: string, model?: string, color?: string, year?: number) => Promise<void>;
+  onSubmit: (
+    plateNumber: string,
+    type: VehicleType,
+    brand?: string,
+    model?: string,
+    color?: string,
+    year?: number,
+    seats?: number,
+  ) => Promise<void>;
 }) {
   const [plateNumber, setPlateNumber] = useState('');
   const [type, setType] = useState<VehicleType>('CAR');
-  const [brand, setBrand] = useState('');
-  const [model, setModel] = useState('');
-  const [color, setColor] = useState('');
-  const [year, setYear] = useState<number | ''>('');
+  const [brand, setBrand] = useState(VEHICLE_PROFILE_OPTIONS.CAR[0].label);
+  const [model, setModel] = useState(VEHICLE_PROFILE_OPTIONS.CAR[0].models[0]);
+  const [color, setColor] = useState(VEHICLE_COLORS[0]);
+  const [year, setYear] = useState<number | ''>(VEHICLE_YEARS[0]);
+  const [seats, setSeats] = useState<number | ''>(CAR_SEAT_OPTIONS[2] ?? 5);
   const [localError, setLocalError] = useState('');
+
+  useEffect(() => {
+    const brandEntries = VEHICLE_PROFILE_OPTIONS[type];
+    const currentBrand = brandEntries.find((item) => item.label === brand) ?? brandEntries[0];
+    if (currentBrand.label !== brand) {
+      setBrand(currentBrand.label);
+    }
+    if (!currentBrand.models.includes(model)) {
+      setModel(currentBrand.models[0]);
+    }
+  }, [type, brand]);
+
+  const availableModels = VEHICLE_PROFILE_OPTIONS[type].find((item) => item.label === brand)?.models ?? VEHICLE_PROFILE_OPTIONS[type][0].models;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -369,9 +415,14 @@ function AddVehicleForm({
       setLocalError('Vui lòng nhập biển số xe');
       return;
     }
+    if (type === 'CAR' && seats === '') {
+      setLocalError('Vui lòng chọn số chỗ cho ô tô');
+      return;
+    }
     setLocalError('');
     const yearVal = year === '' ? undefined : Number(year);
-    await onSubmit(trimmed, type, brand?.trim() || undefined, model?.trim() || undefined, color?.trim() || undefined, yearVal);
+    const seatsVal = type === 'CAR' && seats !== '' ? Number(seats) : undefined;
+    await onSubmit(trimmed, type, brand?.trim() || undefined, model?.trim() || undefined, color?.trim() || undefined, yearVal, seatsVal);
   };
 
   const displayError = localError || error;
@@ -494,24 +545,82 @@ function AddVehicleForm({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.9rem' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span>
-          <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Ví dụ: Toyota" disabled={submitting}
-            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} />
+          <select
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            disabled={submitting}
+            style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, background: C.white }}
+          >
+            {VEHICLE_PROFILE_OPTIONS[type].map((brandOption) => (
+              <option key={brandOption.label} value={brandOption.label}>
+                {brandOption.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Mẫu</span>
-          <input type="text" value={model} onChange={e => setModel(e.target.value)} placeholder="Ví dụ: Vios" disabled={submitting}
-            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} />
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            disabled={submitting}
+            style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, background: C.white }}
+          >
+            {availableModels.map((modelOption) => (
+              <option key={modelOption} value={modelOption}>
+                {modelOption}
+              </option>
+            ))}
+          </select>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Màu</span>
-          <input type="text" value={color} onChange={e => setColor(e.target.value)} placeholder="Ví dụ: Trắng" disabled={submitting}
-            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} />
+          <select
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            disabled={submitting}
+            style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, background: C.white }}
+          >
+            {VEHICLE_COLORS.map((colorOption) => (
+              <option key={colorOption} value={colorOption}>
+                {colorOption}
+              </option>
+            ))}
+          </select>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm</span>
-          <input type="number" value={year === '' ? '' : year} onChange={e => setYear(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ví dụ: 2020" disabled={submitting}
-            style={{ padding: '0.5rem', border: `1px solid ${C.gray200}`, borderRadius: 8 }} min={1900} max={new Date().getFullYear()} />
+          <select
+            value={year === '' ? '' : year.toString()}
+            onChange={(e) => setYear(e.target.value === '' ? '' : Number(e.target.value))}
+            disabled={submitting}
+            style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, background: C.white }}
+          >
+            {VEHICLE_YEARS.map((yearOption) => (
+              <option key={yearOption} value={yearOption}>
+                {yearOption}
+              </option>
+            ))}
+          </select>
         </label>
+        {type === 'CAR' && (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số chỗ</span>
+            <select
+              value={seats === '' ? '' : seats.toString()}
+              onChange={(e) => setSeats(e.target.value === '' ? '' : Number(e.target.value))}
+              disabled={submitting}
+              style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, background: C.white }}
+            >
+              <option value="">Chọn số chỗ</option>
+              {CAR_SEAT_OPTIONS.map((seatCount) => (
+                <option key={seatCount} value={seatCount}>
+                  {seatCount} chỗ
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <button
@@ -575,11 +684,19 @@ export function MyVehiclePage() {
     loadVehicles();
   }, [authLoading, user, loadVehicles]);
 
-  const handleAddVehicle = async (plateNumber: string, type: VehicleType, brand?: string, model?: string, color?: string, year?: number) => {
+  const handleAddVehicle = async (
+    plateNumber: string,
+    type: VehicleType,
+    brand?: string,
+    model?: string,
+    color?: string,
+    year?: number,
+    seats?: number,
+  ) => {
     setSubmitting(true);
     setFormError('');
     try {
-      await vehicleService.create({ plateNumber, type, brand, model, color, year });
+      await vehicleService.create({ plateNumber, type, brand, model, color, year, seats });
       setFormOpen(false);
       setFormError('');
       await loadVehicles();

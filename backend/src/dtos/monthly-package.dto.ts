@@ -27,3 +27,9 @@ export const createMonthlyPackageSchema = [
     .isFloat({ gt: 0 })
     .withMessage('Price must be a positive number'),
 ].concat(paymentSchema);
+
+export const setAutoRenewSchema = [
+  body('enabled')
+    .isBoolean()
+    .withMessage('enabled must be a boolean'),
+];

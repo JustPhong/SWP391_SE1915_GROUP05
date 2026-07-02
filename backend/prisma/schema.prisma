@@ -89,6 +89,7 @@ model MonthlyPackage {
   vehicleId  String       @unique
   slotId     String?
   planName   String?      @db.NVarChar(60)
+  autoRenew  Boolean      @default(false)
   startDate  DateTime
   expiryDate DateTime
   price      Decimal      @db.Decimal(10, 2)

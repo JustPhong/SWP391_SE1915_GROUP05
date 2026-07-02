@@ -13,6 +13,7 @@ export const vehicleController = {
       model: req.body.model,
       color: req.body.color,
       year: req.body.year,
+      seats: req.body.seats,
       ownerId: req.user!.id,
     };
     const vehicle = await vehicleService.create(payload);

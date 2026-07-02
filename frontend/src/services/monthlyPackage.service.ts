@@ -31,4 +31,19 @@ export const monthlyPackageService = {
     );
     return response.data.data;
   },
+
+  renewPackage: async (packageId: string) => {
+    const response = await api.post<{ success: boolean; data: MonthlyPackage }>(
+      `/monthly-packages/${packageId}/renew`
+    );
+    return response.data.data;
+  },
+
+  setAutoRenew: async (packageId: string, enabled: boolean) => {
+    const response = await api.patch<{ success: boolean; data: MonthlyPackage }>(
+      `/monthly-packages/${packageId}/auto-renew`,
+      { enabled }
+    );
+    return response.data.data;
+  },
 };
