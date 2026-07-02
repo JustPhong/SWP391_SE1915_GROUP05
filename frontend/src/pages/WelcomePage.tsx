@@ -893,14 +893,25 @@ function FeaturesSection() {
 
 function CtaBand({ navigate, onBooking }: { navigate: (path: string) => void; onBooking: () => void }) {
   return (
-    <section className={styles.ctaBand}>
-      <div className={styles.ctaBandInner}>
-        <h2 className={styles.ctaTitle}>Sẵn sàng đỗ xe?</h2>
-        <p className={styles.ctaSubtitle}>Đặt chỗ ngay — hệ thống tự xếp vị trí tối ưu và giữ chỗ cho bạn trong vài giây.</p>
-        <div className={styles.ctaActions}>
-          <button className={styles.btnWhite} onClick={onBooking}>Đặt chỗ ngay</button>
-          <button className={styles.btnWhiteOutline} onClick={() => navigate('/login')}>Đăng nhập</button>
+    <section className={styles.ctaMiniSection}>
+      <div className={styles.ctaMiniBand}>
+        <div className={styles.ctaMiniText}>
+          <h2>Sẵn sàng đỗ xe?</h2>
+          <p>
+            Đặt chỗ ngay — hệ thống tự xếp vị trí tối ưu và giữ chỗ cho bạn trong vài giây.
+          </p>
         </div>
+
+        <div className={styles.ctaMiniActions}>
+          <button className={styles.ctaMiniPrimary} onClick={onBooking}>
+            Đặt chỗ ngay
+          </button>
+          <button className={styles.ctaMiniSecondary} onClick={() => navigate('/login')}>
+            Đăng nhập
+          </button>
+        </div>
+
+        <div className={styles.ctaMiniCar} aria-hidden="true" />
       </div>
     </section>
   );
