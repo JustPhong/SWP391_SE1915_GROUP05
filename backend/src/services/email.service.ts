@@ -48,3 +48,26 @@ export async function sendOtpEmail(to: string, otpCode: string, fullName: string
     console.error('[Email] Failed to send email via Resend:', err);
   }
 }
+
+export async function sendEmail(to: string, subject: string, htmlBody: string): Promise<void> {
+  if (!config.resend.apiKey || config.resend.apiKey.startsWith('re_xxxx')) {
+    console.warn('[Email] Resend API Key not configured — would send:', subject);
+    return;
+  }
+  const resend = new Resend(config.resend.apiKey);
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'ParkSmart <onboarding@resend.dev>',
+      to: to,
+      subject: subject,
+      html: htmlBody,
+    });
+    if (error) {
+      console.error('[Email] Error sending email via Resend:', error);
+    } else {
+      console.log('[Email] Email sent successfully via Resend:', data);
+    }
+  } catch (err) {
+    console.error('[Email] Failed to send email via Resend:', err);
+  }
+}

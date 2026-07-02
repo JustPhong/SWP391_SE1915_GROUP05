@@ -10,6 +10,11 @@ export interface LookupResult {
   slotCode?: string;
   customerType: 'monthly' | 'casual';
   vehicleType?: 'CAR' | 'MOTORBIKE';
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
+  seats?: number | null;
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
@@ -64,18 +69,30 @@ export const checkinService = {
       include: { slot: true },
     });
 
+    const baseResult = {
+      found: true,
+      vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
+      brand: vehicle.brand ?? null,
+      model: vehicle.model ?? null,
+      color: vehicle.color ?? null,
+      year: vehicle.year ?? null,
+      seats: (vehicle as any).seats ?? null,
+      customerType: vehicle.isMonthly ? 'monthly' : 'casual',
+    } as LookupResult;
+
     if (activeRecord) {
       return {
-        found: true,
+        ...baseResult,
         alreadyParked: true,
         slotCode: activeRecord.slot.code,
-        customerType: 'monthly',
       };
     }
 
-    // Vehicle exists but not monthly → casual
     if (!vehicle.isMonthly || !vehicle.monthlyPackage) {
-      return { found: false, customerType: 'casual' };
+      return {
+        ...baseResult,
+        alreadyParked: false,
+      };
     }
 
     const pkg = vehicle.monthlyPackage;
@@ -83,10 +100,8 @@ export const checkinService = {
       new Date(pkg.expiryDate) < new Date() || pkg.status !== PKG_ACTIVE;
 
     return {
-      found: true,
+      ...baseResult,
       alreadyParked: false,
-      customerType: 'monthly',
-      vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
       fixedSlot: pkg.slot?.code ?? null,
       packageExpiry: pkg.expiryDate.toISOString(),
       isExpired,

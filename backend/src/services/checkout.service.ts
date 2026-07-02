@@ -5,7 +5,10 @@ import { asyncHandler } from '../utils/helpers';
 import { calcFee } from '../utils/fee';
 import { feeRuleService } from './feeRule.service';
 // ── Lookup result shapes ──────────────────────────────────
-const LOST_TICKET_PENALTY = 50000;
+const LOST_TICKET_PENALTY: Record<'CAR' | 'MOTORBIKE', number> = {
+  MOTORBIKE: 80000,
+  CAR: 200000,
+};
 export interface CheckoutLookupResult {
   found: boolean;
   // ── only when found === true ──
@@ -231,7 +234,9 @@ async submitLostTicket(params: {
     config,
   );
 
-  const finalFee = total + LOST_TICKET_PENALTY;
+  const vehicleType = vehicle.type as 'CAR' | 'MOTORBIKE';
+  const penaltyFee = LOST_TICKET_PENALTY[vehicleType];
+  const finalFee = total + penaltyFee;
 
   await prisma.$transaction(async (tx) => {
     await tx.checkInRecord.update({
@@ -269,12 +274,12 @@ async submitLostTicket(params: {
         action:      'checkout.lost_ticket',
         targetType:  'CheckInRecord',
         targetId:    record.id,
-        description: `Xử lý mất thẻ xe ${plate} tại ô ${record.slot.code} — phí phạt ${LOST_TICKET_PENALTY.toLocaleString('vi-VN')}đ`,
+        description: `Xử lý mất thẻ xe ${plate} tại ô ${record.slot.code} — phí phạt ${penaltyFee.toLocaleString('vi-VN')}đ`,
         metadata:    JSON.stringify({
           plate,
           slotCode:    record.slot.code,
           parkingFee:  total,
-          penaltyFee:  LOST_TICKET_PENALTY,
+          penaltyFee,
           totalFee:    finalFee,
           method,
           checkInTime: record.checkInTime,
@@ -289,7 +294,7 @@ async submitLostTicket(params: {
     plate:        vehicle.plateNumber,
     slotCode:     record.slot.code,
     fee:          finalFee,
-    penaltyFee:   LOST_TICKET_PENALTY,
+    penaltyFee,
     isMonthly:    record.isMonthly,
     checkOutTime: now.toISOString(),
     breakdown,

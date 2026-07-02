@@ -17,6 +17,35 @@ import styles from '../styles/welcome.module.css';
 
 type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking' | 'floormap';
 
+type VehicleType = 'CAR' | 'MOTORBIKE';
+
+const VEHICLE_PROFILE_OPTIONS: Record<VehicleType, { brands: { label: string; models: string[] }[] }> = {
+  CAR: {
+    brands: [
+      { label: 'Toyota', models: ['Vios', 'Corolla Cross', 'Camry', 'Fortuner', 'Innova', 'Veloz Cross'] },
+      { label: 'Honda', models: ['City', 'Civic', 'CR-V', 'HR-V', 'Accord'] },
+      { label: 'Hyundai', models: ['Accent', 'Elantra', 'Tucson', 'Santa Fe', 'Creta'] },
+      { label: 'Kia', models: ['Morning', 'K3', 'Seltos', 'Sonet', 'Carnival'] },
+      { label: 'Mazda', models: ['Mazda 2', 'Mazda 3', 'CX-5', 'CX-8', 'BT-50'] },
+      { label: 'Ford', models: ['Ranger', 'Everest', 'Territory', 'EcoSport'] },
+      { label: 'VinFast', models: ['VF 3', 'VF 5', 'VF 6', 'VF 7', 'VF 8', 'VF 9'] },
+    ],
+  },
+  MOTORBIKE: {
+    brands: [
+      { label: 'Honda', models: ['Wave Alpha', 'Vision', 'Air Blade', 'Lead', 'SH Mode', 'SH'] },
+      { label: 'Yamaha', models: ['Sirius', 'Jupiter', 'Grande', 'Janus', 'Exciter', 'NVX'] },
+      { label: 'Suzuki', models: ['Raider', 'Satria', 'Address', 'Burgman Street'] },
+      { label: 'Piaggio', models: ['Vespa Sprint', 'Vespa Primavera', 'Liberty', 'Medley'] },
+      { label: 'SYM', models: ['Attila', 'Galaxy', 'Elite', 'Husky'] },
+      { label: 'VinFast', models: ['Klara', 'Feliz', 'Evo200', 'Vento', 'Theon'] },
+    ],
+  },
+};
+
+const VEHICLE_COLORS = ['Trắng', 'Đen', 'Bạc', 'Xám', 'Đỏ', 'Xanh dương', 'Xanh lá', 'Vàng', 'Nâu', 'Cam'];
+const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_, index) => new Date().getFullYear() - index);
+
 // ── Helpers ─────────────────────────────────────────────────
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -218,7 +247,7 @@ export const WelcomePage: React.FC = () => {
                   },
                   {
                     q: "Nếu tôi làm mất vé giấy/thẻ vãng lai thì phải xử lý thế nào?",
-                    a: "Hãy liên hệ ngay với nhân viên Staff tại bốt trực cổng ra hoặc phòng điều hành tầng B1. Phí đền bù mất thẻ là 500.000đ, cộng thêm phí đỗ xe thực tế tính từ thời điểm xe check-in vào bãi dựa trên lịch sử ghi nhận camera."
+                    a: "Hãy liên hệ ngay với nhân viên Staff tại bốt trực cổng ra hoặc phòng điều hành tầng B1. Phí đền bù mất thẻ là 80.000đ cho xe máy và 200.000đ cho ô tô, cộng thêm phí đỗ xe thực tế tính từ thời điểm xe check-in vào bãi dựa trên lịch sử ghi nhận camera."
                   },
                   {
                     q: "Hệ thống hỗ trợ những phương thức thanh toán nào?",
@@ -334,10 +363,27 @@ export const WelcomePage: React.FC = () => {
   const [newType, setNewType] = useState<'CAR' | 'MOTORBIKE'>('CAR');
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
-  const [newBrand, setNewBrand] = useState('');
-  const [newModel, setNewModel] = useState('');
-  const [newColor, setNewColor] = useState('');
-  const [newYear, setNewYear] = useState<number | null>(null);
+  const [newBrand, setNewBrand] = useState(VEHICLE_PROFILE_OPTIONS.CAR.brands[0].label);
+  const [newModel, setNewModel] = useState(VEHICLE_PROFILE_OPTIONS.CAR.brands[0].models[0]);
+  const [newColor, setNewColor] = useState(VEHICLE_COLORS[0]);
+  const [newYear, setNewYear] = useState<number | null>(VEHICLE_YEARS[0]);
+
+  const availableBrands = VEHICLE_PROFILE_OPTIONS[newType].brands;
+  const availableModels = availableBrands.find((brand) => brand.label === newBrand)?.models ?? availableBrands[0].models;
+
+  useEffect(() => {
+    const selectedBrand = VEHICLE_PROFILE_OPTIONS[newType].brands.find((item) => item.label === newBrand);
+    if (!selectedBrand) {
+      const defaultBrand = VEHICLE_PROFILE_OPTIONS[newType].brands[0];
+      setNewBrand(defaultBrand.label);
+      setNewModel(defaultBrand.models[0]);
+      return;
+    }
+
+    if (!selectedBrand.models.includes(newModel)) {
+      setNewModel(selectedBrand.models[0]);
+    }
+  }, [newType, newBrand]);
 
   // ── Fetch session (casual users only) ────────────────────
   useEffect(() => {
@@ -424,7 +470,7 @@ export const WelcomePage: React.FC = () => {
         />
         <ProcessSection />
         <FeaturesSection />
-        <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
+        <PricingSection navigate={navigate} />
         <CtaBand navigate={navigate} onBooking={() => setBookingOpen(true)} />
         <Footer navigate={navigate} />
 
@@ -559,7 +605,7 @@ export const WelcomePage: React.FC = () => {
           />
           <ProcessSection />
           <FeaturesSection />
-          <PricingSection navigate={navigate} onBooking={() => setBookingOpen(true)} onSelectPackage={() => setActiveTab('monthly')} />
+          <PricingSection navigate={navigate} onSelectPackage={() => setActiveTab('monthly')} />
         </>
       ) : activeTab === 'vehicles' ? (
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
@@ -631,23 +677,35 @@ export const WelcomePage: React.FC = () => {
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Hãng</label>
-                <input className={styles.formInput} type="text" placeholder="Ví dụ: Toyota" value={newBrand}
-                  onChange={e => setNewBrand(e.target.value)} maxLength={60} />
+                <select className={styles.formSelect} value={newBrand} onChange={(e) => setNewBrand(e.target.value)} required>
+                  {availableBrands.map((brand) => (
+                    <option key={brand.label} value={brand.label}>{brand.label}</option>
+                  ))}
+                </select>
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Mẫu</label>
-                <input className={styles.formInput} type="text" placeholder="Ví dụ: Vios" value={newModel}
-                  onChange={e => setNewModel(e.target.value)} maxLength={60} />
+                <select className={styles.formSelect} value={newModel} onChange={(e) => setNewModel(e.target.value)} required>
+                  {availableModels.map((model) => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Màu</label>
-                <input className={styles.formInput} type="text" placeholder="Ví dụ: Trắng" value={newColor}
-                  onChange={e => setNewColor(e.target.value)} maxLength={30} />
+                <select className={styles.formSelect} value={newColor} onChange={(e) => setNewColor(e.target.value)} required>
+                  {VEHICLE_COLORS.map((color) => (
+                    <option key={color} value={color}>{color}</option>
+                  ))}
+                </select>
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Năm</label>
-                <input className={styles.formInput} type="number" placeholder="Ví dụ: 2020" value={newYear ?? ''}
-                  onChange={e => setNewYear(e.target.value === '' ? null : Number(e.target.value))} min={1900} max={new Date().getFullYear()} />
+                <select className={styles.formSelect} value={newYear?.toString() ?? ''} onChange={(e) => setNewYear(Number(e.target.value))} required>
+                  {VEHICLE_YEARS.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Loại xe</label>
@@ -934,7 +992,7 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
   );
 }
 
-function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (path: string) => void; onBooking: () => void; onSelectPackage?: () => void }) {
+function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: () => void }) {
   const [vtype, setVtype] = useState<VType>('CAR');
   const CAR_PERKS = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
   const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
@@ -1000,7 +1058,7 @@ function PricingSection({ navigate, onBooking, onSelectPackage }: { navigate: (p
         </div>
 
         <p className={styles.casualFooterNote}>
-          Vé bị mất: phí 200.000đ
+          Vé bị mất: xe máy 80.000đ · ô tô 200.000đ
         </p>
 
         {/* Monthly toggle kept for perks section */}

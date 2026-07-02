@@ -83,7 +83,7 @@ export function SupportPage() {
             {[
               { q: "Làm thế nào để mua gói vé tháng?", a: "Để đăng ký vé tháng, bạn cần đăng nhập tài khoản của mình, vào mục 'Xe của tôi' để thêm phương tiện đỗ xe, sau đó điều hướng tới mục 'Gói tháng', chọn gói đỗ xe phù hợp và thanh toán bằng mã QR." },
               { q: "Tôi có thể hủy đặt chỗ trước khi vào bãi không?", a: "Có, bạn hoàn toàn có thể hủy đặt chỗ bất kỳ lúc nào trước giờ hẹn tối thiểu 30 phút." },
-              { q: "Nếu tôi làm mất vé giấy/thẻ vãng lai thì phải xử lý thế nào?", a: "Liên hệ nhân viên Staff tại bốt trực cổng ra hoặc phòng điều hành. Phí đền bù mất thẻ là 500.000đ." },
+              { q: "Nếu tôi làm mất vé giấy/thẻ vãng lai thì phải xử lý thế nào?", a: "Liên hệ nhân viên Staff tại bốt trực cổng ra hoặc phòng điều hành. Phí đền bù mất thẻ là 80.000đ cho xe máy và 200.000đ cho ô tô." },
             ].map((item, index) => (
               <div key={index} className={`${styles.faqItem} ${expandedFaq === index ? styles.faqItemOpen : ''}`}>
                 <button className={styles.faqQuestion} onClick={() => toggleFaq(index)}>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { lookupPlate, type LookupResult } from '../api/checkinApi';
 
 const C = {
@@ -43,7 +43,7 @@ function isPlateValid(raw: string): boolean {
   return formatPlate(raw).valid;
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div style={{
       background: C.white,
@@ -156,49 +156,90 @@ export function SearchVehiclePage() {
             )}
 
             {lookupData && (
-              <div style={{ display: 'grid', gap: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 180 }}>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray500 }}>Biển số</p>
-                    <p style={{ margin: '0.35rem 0 0', fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
-                      {plateInput}
-                    </p>
+              lookupData.found ? (
+                <div style={{ display: 'grid', gap: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray500 }}>Biển số</p>
+                      <p style={{ margin: '0.35rem 0 0', fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
+                        {plateInput}
+                      </p>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray500 }}>Loại khách</p>
+                      <p style={{ margin: '0.35rem 0 0', fontSize: '1rem', fontWeight: 700, color: C.gray500 }}>
+                        {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
+                      </p>
+                    </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 180 }}>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray500 }}>Loại khách</p>
-                    <p style={{ margin: '0.35rem 0 0', fontSize: '1rem', fontWeight: 700, color: C.gray500 }}>
-                      {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
-                    </p>
-                  </div>
-                </div>
 
-                <div style={{ display: 'grid', gap: '0.75rem', paddingTop: '0.75rem', borderTop: `1px solid ${C.gray100}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Xe đang trong bãi</span>
-                    <span style={{ fontWeight: 700, color: lookupData.alreadyParked ? C.red : C.green }}>
-                      {lookupData.alreadyParked ? 'Có' : 'Không'}
-                    </span>
+                  <div style={{ paddingTop: '0.75rem', borderTop: `1px solid ${C.gray100}` }}>
+                    <p style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 700, color: C.navy }}>
+                      Thông tin đăng ký xe
+                    </p>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Xe đang trong bãi</span>
+                        <span style={{ fontWeight: 700, color: lookupData.alreadyParked ? C.red : C.green }}>
+                          {lookupData.alreadyParked ? 'Có' : 'Không'}
+                        </span>
+                      </div>
+                    {lookupData.slotCode && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Slot hiện tại</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.slotCode}</span>
+                      </div>
+                    )}
+                    {lookupData.vehicleType && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Loại xe</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'}</span>
+                      </div>
+                    )}
+                    {lookupData.brand && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Hãng</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.brand}</span>
+                      </div>
+                    )}
+                    {lookupData.model && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Mẫu</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.model}</span>
+                      </div>
+                    )}
+                    {lookupData.color && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Màu</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.color}</span>
+                      </div>
+                    )}
+                    {lookupData.year != null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Năm</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.year}</span>
+                      </div>
+                    )}
+                    {lookupData.seats != null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Số chỗ</span>
+                        <span style={{ fontWeight: 700 }}>{lookupData.seats} chỗ</span>
+                      </div>
+                    )}
+                    {lookupData.customerType === 'monthly' && lookupData.packageExpiry && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Hạn gói tháng</span>
+                        <span style={{ fontWeight: 700 }}>{new Date(lookupData.packageExpiry).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                    )}
                   </div>
-                  {lookupData.slotCode && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Slot hiện tại</span>
-                      <span style={{ fontWeight: 700 }}>{lookupData.slotCode}</span>
-                    </div>
-                  )}
-                  {lookupData.vehicleType && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Loại xe</span>
-                      <span style={{ fontWeight: 700 }}>{lookupData.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'}</span>
-                    </div>
-                  )}
-                  {lookupData.customerType === 'monthly' && lookupData.packageExpiry && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: C.gray500, fontSize: '0.85rem' }}>Hạn gói tháng</span>
-                      <span style={{ fontWeight: 700 }}>{new Date(lookupData.packageExpiry).toLocaleDateString('vi-VN')}</span>
-                    </div>
-                  )}
                 </div>
               </div>
+              ) : (
+                <p style={{ margin: 0, color: C.gray500, fontSize: '0.92rem' }}>
+                  Không tìm thấy thông tin xe đã đăng ký.
+                </p>
+              )
             )}
           </Card>
         </div>

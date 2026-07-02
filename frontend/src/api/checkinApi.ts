@@ -6,6 +6,11 @@ export interface LookupResult {
   slotCode?: string;
   customerType: 'monthly' | 'casual';
   vehicleType?: 'CAR' | 'MOTORBIKE';
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
+  seats?: number | null;
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
