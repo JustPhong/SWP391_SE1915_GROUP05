@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════
    ParkSmart Landing Page — LIGHT THEME
    Palette: navy #16293f, blue #2d5fd0, bg #d6e6f6→#fff
    Fonts: system stack, no external imports
@@ -2237,11 +2237,13 @@
   width: 100%;
   max-width: 960px;
   margin: 2rem auto 0;
+  min-height: 278px; /* Stable height to prevent flickering */
 }
 .casualTableCol {
   display: flex;
   flex-direction: column;
   background: #ffffff;
+  min-height: 274px; /* Stretch columns to prevent layout thrashing */
 }
 .casualTableCol + .casualTableCol {
   border-left: 1px solid #e2e8f0;
@@ -2359,3 +2361,38 @@
   margin: 1.2rem auto 0;
   max-width: 960px;
 }
+
+/* Active and Inactive Pricing Columns */
+.casualTableCol {
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.casualTableColActive {
+  background: #ffffff;
+}
+
+.casualTableColActive .casualTableColHead {
+  background: linear-gradient(135deg, #0f1f33 0%, #16293f 60%, #1e3a5f 100%);
+}
+
+.casualTableColInactive .casualTableColHead {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.casualTableColInactive .casualTableEmoji {
+  background: rgba(148, 163, 184, 0.2);
+  box-shadow: none;
+  filter: grayscale(100%) opacity(50%);
+}
+
+.casualTableColInactive .casualTableRows {
+  opacity: 0.55;
+  background: #f8fafc;
+}
+
+.casualTableColInactive .casualTableRow {
+  background: #f8fafc;
+}
+
