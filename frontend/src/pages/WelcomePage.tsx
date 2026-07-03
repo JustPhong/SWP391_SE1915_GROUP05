@@ -1015,7 +1015,10 @@ function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string
         {/* ── Unified Casual Pricing Table: Xe máy | Ô tô ── */}
         <div className={styles.casualTableGrid}>
           {/* Xe máy column */}
-          <div className={styles.casualTableCol}>
+          <div
+            className={`${styles.casualTableCol} ${vtype === 'MOTORBIKE' ? styles.casualTableColActive : styles.casualTableColInactive}`}
+            onClick={() => setVtype('MOTORBIKE')}
+          >
             <div className={styles.casualTableColHead}>
               <span className={styles.casualTableEmoji} aria-hidden="true">🛵</span>
               <span>Xe máy</span>
@@ -1037,7 +1040,10 @@ function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string
           </div>
 
           {/* Ô tô column */}
-          <div className={styles.casualTableCol}>
+          <div
+            className={`${styles.casualTableCol} ${vtype === 'CAR' ? styles.casualTableColActive : styles.casualTableColInactive}`}
+            onClick={() => setVtype('CAR')}
+          >
             <div className={styles.casualTableColHead}>
               <span className={styles.casualTableEmoji} aria-hidden="true">🚗</span>
               <span>Ô tô</span>
