@@ -31,55 +31,14 @@ const C = {
 // ═══════════════════════════════════════════════════════
 //  ICONS
 // ═══════════════════════════════════════════════════════
-function IconCar({ size = 16, color = C.navy }: { size?: number; color?: string }) {
-  const id = Math.random().toString(36).slice(2, 8);
+function IconCar({ size = 16 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id={`carG-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity="1" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.7" />
-        </linearGradient>
-        <linearGradient id={`carGl-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-      <path d="M3 13V17.5C3 18.33 3.67 19 4.5 19H5.5C6.33 19 7 18.33 7 17.5V17H17V17.5C17 18.33 17.67 19 18.5 19H19.5C20.33 19 21 18.33 21 17.5V13" fill={`url(#carGl-${id})`} />
-      <path d="M18.5 7.5H5.5L3 13V17.5C3 18.33 3.67 19 4.5 19H5.5C6.33 19 7 18.33 7 17.5V16H17V17.5C17 18.33 17.67 19 18.5 19H19.5C20.33 19 21 18.33 21 17.5V13L18.5 7.5Z" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3.5 13H20.5" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M7.5 7.5L6.5 13" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M16.5 7.5L17.5 13" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="7" cy="15" r="1.5" fill={`url(#carG-${id})`}/>
-      <circle cx="17" cy="15" r="1.5" fill={`url(#carG-${id})`}/>
-    </svg>
+    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
   );
 }
-function IconBike({ size = 16, color = C.navy }: { size?: number; color?: string }) {
-  const id = Math.random().toString(36).slice(2, 8);
+function IconBike({ size = 16 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id={`bkG-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity="1" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.7" />
-        </linearGradient>
-        <linearGradient id={`bkGl-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-      <circle cx="6.5" cy="16" r="3.5" fill={`url(#bkGl-${id})`}/>
-      <circle cx="17.5" cy="16" r="3.5" fill={`url(#bkGl-${id})`}/>
-      <circle cx="6.5" cy="16" r="3.5" stroke={`url(#bkG-${id})`} strokeWidth="1.8"/>
-      <circle cx="17.5" cy="16" r="3.5" stroke={`url(#bkG-${id})`} strokeWidth="1.8"/>
-      <path d="M15 8H11L8 16" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M10.5 13.5H15L17.5 16" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M15 8L16.5 5H18" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 10H5.5" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="15" cy="8" r="1.5" fill={`url(#bkG-${id})`}/>
-      <path d="M10 13.5L12 9" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round"/>
-    </svg>
+    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>
   );
 }
 function IconPlus({ size = 14, color = C.white }: { size?: number; color?: string }) {
@@ -198,7 +157,7 @@ function VehicleCard({
           flexShrink: 0,
         }}
       >
-        {isCar ? <IconCar size={22} color={C.navy} /> : <IconBike size={22} color={C.navy} />}
+        {isCar ? <IconCar size={22} /> : <IconBike size={22} />}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -360,7 +319,7 @@ function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose
             {/* Vehicle icon + plate */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: C.gray50, borderRadius: 14, padding: '1rem', marginBottom: '1.25rem' }}>
               <div style={{ width: 52, height: 52, background: C.blueBg, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {detail.type === 'CAR' ? <IconCar size={26} color={C.navy} /> : <IconBike size={26} color={C.navy} />}
+                {detail.type === 'CAR' ? <IconCar size={26} /> : <IconBike size={26} />}
               </div>
               <div>
                 <div style={{ fontFamily: "'Consolas', monospace", fontSize: '1.3rem', fontWeight: 900, color: C.gray900, letterSpacing: '0.04em' }}>{detail.plateNumber}</div>
@@ -701,9 +660,9 @@ function AddVehicleForm({
                   }}
                 >
                   {opt.value === 'CAR' ? (
-                    <IconCar size={14} color={selected ? C.white : C.navy} />
+                    <IconCar size={14} color={selected ? C.white : '#3B82F6'} />
                   ) : (
-                    <IconBike size={14} color={selected ? C.white : C.navy} />
+                    <IconBike size={14} color={selected ? C.white : '#F97316'} />
                   )}
                   {opt.label}
                 </button>
