@@ -196,4 +196,32 @@ router.post('/:packageId/renew', monthlyPackageController.renewPackage);
  */
 router.patch('/:packageId/auto-renew', setAutoRenewSchema, validate, monthlyPackageController.setAutoRenew);
 
+/**
+ * @swagger
+ * /monthly-packages/{packageId}/cancel:
+ *   post:
+ *     summary: Cancel/terminate an active monthly package subscription
+ *     tags: [Monthly Package]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the monthly package to cancel
+ *     responses:
+ *       '200':
+ *         description: Package cancelled successfully
+ *       '401':
+ *         description: Unauthorized
+ *       '403':
+ *         description: Forbidden
+ *       '404':
+ *         description: Package not found
+ */
+router.post('/:packageId/cancel', monthlyPackageController.cancelPackage);
+
 export default router;
+

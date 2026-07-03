@@ -224,4 +224,58 @@ export const monthlyPackageService = {
 
     return updated;
   },
+
+  async cancelPackage(packageId: string, userId: string) {
+    const pkg = await prisma.monthlyPackage.findUnique({
+      where: { id: packageId },
+      include: { user: true, vehicle: true },
+    });
+    if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
+    if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền hủy gói này');
+    if (pkg.status !== PKG_ACTIVE) throw new AppError(400, 'Gói tháng không ở trạng thái hoạt động');
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Update package status to CANCELLED and disable auto-renew
+      const updated = await tx.monthlyPackage.update({
+        where: { id: packageId },
+        data: { status: 'CANCELLED', autoRenew: false },
+        include: { user: true, vehicle: true, slot: true, payments: true },
+      });
+
+      // 2. Set vehicle isMonthly = false
+      await tx.vehicle.update({
+        where: { id: pkg.vehicleId },
+        data: { isMonthly: false },
+      });
+
+      // 3. Clean up slot reservation if it exists
+      if (pkg.slotId) {
+        const slot = await tx.parkingSlot.findUnique({
+          where: { id: pkg.slotId },
+        });
+        if (slot) {
+          const newStatus = slot.status === 'RESERVED' ? 'AVAILABLE' : slot.status;
+          await tx.parkingSlot.update({
+            where: { id: pkg.slotId },
+            data: {
+              status: newStatus,
+              isFixed: false,
+              assignedVehicleId: null,
+            },
+          });
+        }
+      }
+
+      if (updated.user?.email) {
+        await sendEmail(
+          updated.user.email,
+          'Xác nhận hủy gói tháng',
+          `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${pkg.vehicle?.plateNumber ?? pkg.vehicleId}</strong> đã được hủy thành công.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
+        );
+      }
+
+      return updated;
+    });
+  },
 };
+
