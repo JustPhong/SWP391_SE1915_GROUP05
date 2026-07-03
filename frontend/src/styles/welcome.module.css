@@ -3802,3 +3802,1264 @@
   }
 }
 
+
+/* FINAL EXACT BOOKING BANNER STYLE */
+.ctaMiniSection {
+  width: 100% !important;
+  background: #ffffff !important;
+  padding: 0 28px !important;
+  margin: 24px 0 0 !important;
+}
+
+.ctaMiniBand {
+  position: relative !important;
+  width: min(1680px, calc(100vw - 56px)) !important;
+  height: 78px !important;
+  margin: 0 auto !important;
+  padding: 0 68px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 32px !important;
+  overflow: hidden !important;
+  border-radius: 12px 12px 0 0 !important;
+  background:
+    radial-gradient(circle at 8% 35%, rgba(59, 130, 246, 0.22), transparent 240px),
+    radial-gradient(circle at 92% 50%, rgba(37, 99, 235, 0.26), transparent 260px),
+    linear-gradient(90deg, #06163a 0%, #0b2360 54%, #061638 100%) !important;
+  box-shadow: 0 -8px 28px rgba(15, 35, 80, 0.14) !important;
+}
+
+.ctaMiniBand::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.042) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.042) 1px, transparent 1px) !important;
+  background-size: 32px 32px !important;
+  opacity: 0.42 !important;
+  pointer-events: none !important;
+}
+
+.ctaMiniBand::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 42px !important;
+  top: 50% !important;
+  width: 270px !important;
+  height: 66px !important;
+  transform: translateY(-50%) !important;
+  opacity: 0.16 !important;
+  pointer-events: none !important;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.35) 35%, rgba(96, 165, 250, 0.12) 70%, transparent 100%),
+    linear-gradient(rgba(96, 165, 250, 0.22), rgba(96, 165, 250, 0.22));
+  background-size: 100% 1px, 100% 1px;
+  background-position: 0 24px, 0 48px;
+  background-repeat: no-repeat;
+}
+
+.ctaMiniText {
+  position: relative !important;
+  z-index: 3 !important;
+  max-width: 620px !important;
+  flex: 1 1 auto !important;
+}
+
+.ctaMiniText h2 {
+  margin: 0 0 5px !important;
+  color: #ffffff !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.ctaMiniText p {
+  margin: 0 !important;
+  color: rgba(226, 235, 255, 0.78) !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.ctaMiniActions {
+  position: relative !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  flex-shrink: 0 !important;
+  margin-right: 260px !important;
+}
+
+.ctaMiniPrimary,
+.ctaMiniSecondary {
+  height: 38px !important;
+  min-width: 132px !important;
+  padding: 0 20px !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+}
+
+.ctaMiniPrimary {
+  border: 0 !important;
+  color: #2457d6 !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(255, 255, 255, 0.2) !important;
+}
+
+.ctaMiniSecondary {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1.4px solid rgba(255, 255, 255, 0.28) !important;
+}
+
+.ctaMiniCar {
+  display: block !important;
+  position: absolute !important;
+  right: 38px !important;
+  bottom: -8px !important;
+  width: 235px !important;
+  height: 78px !important;
+  opacity: 0.34 !important;
+  pointer-events: none !important;
+  filter: drop-shadow(0 0 12px rgba(96, 165, 250, 0.38)) !important;
+  background:
+    url("data:image/svg+xml,%3Csvg width='420' height='150' viewBox='0 0 420 150' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M55 94H333C354 94 371 82 371 67V61C371 51 363 42 350 39L294 27C278 24 264 22 246 22H159C141 22 124 29 113 41L82 75H57C42 75 30 83 30 94V100C30 111 42 120 57 120H67' stroke='%235EA7FF' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M133 45H238C252 45 264 50 273 59L291 77H103L133 45Z' stroke='%235EA7FF' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M162 45L145 77' stroke='%235EA7FF' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M238 45L247 77' stroke='%235EA7FF' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='107' cy='119' r='21' stroke='%235EA7FF' stroke-width='5'/%3E%3Ccircle cx='308' cy='119' r='21' stroke='%235EA7FF' stroke-width='5'/%3E%3Ccircle cx='107' cy='119' r='8' stroke='%235EA7FF' stroke-width='4'/%3E%3Ccircle cx='308' cy='119' r='8' stroke='%235EA7FF' stroke-width='4'/%3E%3Cpath d='M44 102H30' stroke='%235EA7FF' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M372 99H392' stroke='%235EA7FF' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M386 83H408' stroke='%235EA7FF' stroke-width='3' stroke-linecap='round' opacity='0.55'/%3E%3Cpath d='M18 83H44' stroke='%235EA7FF' stroke-width='3' stroke-linecap='round' opacity='0.55'/%3E%3C/svg%3E")
+    center / contain no-repeat !important;
+}
+
+.footer {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .ctaMiniSection {
+    padding: 0 16px !important;
+    margin-top: 22px !important;
+  }
+
+  .ctaMiniBand {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 138px !important;
+    padding: 22px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .ctaMiniActions {
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+
+  .ctaMiniPrimary,
+  .ctaMiniSecondary {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .ctaMiniCar,
+  .ctaMiniBand::after {
+    display: none !important;
+  }
+}
+
+/* FINAL CTA CAR ASSET REPLACEMENT */
+.ctaMiniCar {
+  display: block !important;
+  position: absolute !important;
+  right: 42px !important;
+  bottom: -10px !important;
+  width: 240px !important;
+  height: 82px !important;
+  opacity: 0.26 !important;
+  pointer-events: none !important;
+  background: url("/cta-car-outline.svg") center / contain no-repeat !important;
+  filter: drop-shadow(0 0 12px rgba(96, 165, 250, 0.26)) !important;
+}
+
+.ctaMiniBand::after {
+  display: none !important;
+}
+
+.ctaMiniActions {
+  margin-right: 230px !important;
+}
+
+@media (max-width: 768px) {
+  .ctaMiniCar {
+    display: none !important;
+  }
+
+  .ctaMiniActions {
+    margin-right: 0 !important;
+  }
+}
+
+/* MATCH REFERENCE IMAGE - tall dark CTA, vertical buttons, bright car */
+.ctaMiniSection {
+  width: 100% !important;
+  background: #ffffff !important;
+  padding: 0 28px !important;
+  margin: 24px 0 0 !important;
+}
+
+.ctaMiniBand {
+  position: relative !important;
+  width: min(1680px, calc(100vw - 56px)) !important;
+  height: 132px !important;
+  margin: 0 auto !important;
+  padding: 0 56px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 28px !important;
+  overflow: hidden !important;
+  border-radius: 14px 14px 0 0 !important;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(56, 139, 255, 0.55), transparent 65%),
+    radial-gradient(circle at 8% 30%, rgba(59, 130, 246, 0.20), transparent 280px),
+    radial-gradient(circle at 92% 60%, rgba(37, 99, 235, 0.24), transparent 300px),
+    linear-gradient(90deg, #06163a 0%, #0c2666 50%, #06163a 100%) !important;
+  box-shadow: 0 -10px 30px rgba(15, 35, 80, 0.18) !important;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.35) !important;
+}
+
+.ctaMiniBand::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px) !important;
+  background-size: 34px 34px !important;
+  opacity: 0.4 !important;
+  pointer-events: none !important;
+}
+
+.ctaMiniBand::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: -1px !important;
+  height: 3px !important;
+  pointer-events: none !important;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(96, 165, 250, 0.0) 5%,
+    rgba(96, 165, 250, 0.85) 30%,
+    rgba(125, 211, 252, 1) 50%,
+    rgba(96, 165, 250, 0.85) 70%,
+    rgba(96, 165, 250, 0.0) 95%,
+    transparent 100%) !important;
+  filter: blur(0.4px) !important;
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.55) !important;
+}
+
+.ctaMiniText {
+  position: relative !important;
+  z-index: 3 !important;
+  max-width: 560px !important;
+  flex: 1 1 auto !important;
+}
+
+.ctaMiniText h2 {
+  margin: 0 0 8px !important;
+  color: #ffffff !important;
+  font-size: 30px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.ctaMiniText p {
+  margin: 0 !important;
+  color: rgba(210, 225, 255, 0.82) !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  max-width: 480px !important;
+}
+
+.ctaMiniActions {
+  position: relative !important;
+  z-index: 4 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+  margin-right: 300px !important;
+}
+
+.ctaMiniPrimary,
+.ctaMiniSecondary {
+  height: 38px !important;
+  min-width: 200px !important;
+  padding: 0 20px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  letter-spacing: 0.005em !important;
+}
+
+.ctaMiniPrimary {
+  border: 0 !important;
+  color: #2457d6 !important;
+  background: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(255, 255, 255, 0.22) !important;
+}
+
+.ctaMiniSecondary {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1.4px solid rgba(255, 255, 255, 0.30) !important;
+}
+
+.ctaMiniCar {
+  display: block !important;
+  position: absolute !important;
+  right: 56px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 270px !important;
+  height: 92px !important;
+  opacity: 0.95 !important;
+  pointer-events: none !important;
+  background: url("/cta-car-outline.svg") center / contain no-repeat !important;
+  filter:
+    brightness(0) invert(1)
+    drop-shadow(0 0 10px rgba(125, 211, 252, 0.55))
+    drop-shadow(0 0 22px rgba(59, 130, 246, 0.35)) !important;
+}
+
+.footer {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .ctaMiniSection {
+    padding: 0 16px !important;
+    margin-top: 22px !important;
+  }
+
+  .ctaMiniBand {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 200px !important;
+    padding: 22px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .ctaMiniText h2 {
+    font-size: 22px !important;
+  }
+
+  .ctaMiniText p {
+    font-size: 13px !important;
+  }
+
+  .ctaMiniActions {
+    margin-right: 0 !important;
+    width: 100% !important;
+    flex-direction: row !important;
+  }
+
+  .ctaMiniPrimary,
+  .ctaMiniSecondary {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .ctaMiniCar {
+    display: none !important;
+  }
+}
+
+/* FINAL CTA - exact reference match (overrides all previous ctaMini* blocks) */
+.ctaMiniSection {
+  width: 100% !important;
+  background: #ffffff !important;
+  padding: 0 28px !important;
+  margin: 24px 0 0 !important;
+}
+
+.ctaMiniBand {
+  position: relative !important;
+  width: min(1680px, calc(100vw - 56px)) !important;
+  height: 88px !important;
+  margin: 0 auto !important;
+  padding: 0 56px 0 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border-radius: 14px 14px 0 0 !important;
+  background:
+    radial-gradient(ellipse 80% 100% at 50% 100%, rgba(56, 139, 255, 0.55) 0%, rgba(37, 99, 235, 0.18) 35%, transparent 70%),
+    linear-gradient(180deg, #06163a 0%, #081e54 55%, #06163a 100%) !important;
+  box-shadow: 0 -10px 28px rgba(15, 35, 80, 0.16) !important;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.18) !important;
+}
+
+.ctaMiniBand::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px) !important;
+  background-size: 28px 28px !important;
+  opacity: 0.55 !important;
+  pointer-events: none !important;
+  mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 55%, transparent 100%) !important;
+  -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 55%, transparent 100%) !important;
+}
+
+.ctaMiniBand::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 2px !important;
+  pointer-events: none !important;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(96, 165, 250, 0.0) 4%,
+    rgba(125, 211, 252, 0.95) 30%,
+    rgba(186, 230, 253, 1) 50%,
+    rgba(125, 211, 252, 0.95) 70%,
+    rgba(96, 165, 250, 0.0) 96%,
+    transparent 100%) !important;
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.55) !important;
+}
+
+.ctaMiniText {
+  position: relative !important;
+  z-index: 3 !important;
+  max-width: 520px !important;
+  flex: 0 0 auto !important;
+  margin-right: auto !important;
+}
+
+.ctaMiniText h2 {
+  margin: 0 0 4px !important;
+  color: #ffffff !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.ctaMiniText p {
+  margin: 0 !important;
+  color: rgba(210, 225, 255, 0.78) !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  max-width: 480px !important;
+}
+
+.ctaMiniActions {
+  position: relative !important;
+  z-index: 4 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  margin: 0 188px 0 0 !important;
+}
+
+.ctaMiniPrimary,
+.ctaMiniSecondary {
+  height: 34px !important;
+  width: 178px !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  letter-spacing: 0.005em !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ctaMiniPrimary {
+  border: 0 !important;
+  color: #1e4ed8 !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(255, 255, 255, 0.18) !important;
+}
+
+.ctaMiniSecondary {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1.4px solid rgba(255, 255, 255, 0.30) !important;
+}
+
+.ctaMiniCar {
+  display: block !important;
+  position: absolute !important;
+  right: 36px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 180px !important;
+  height: 70px !important;
+  opacity: 0.92 !important;
+  pointer-events: none !important;
+  background: url("/src/assets/cta-car.svg") center / contain no-repeat !important;
+  filter:
+    drop-shadow(0 0 6px rgba(125, 211, 252, 0.55))
+    drop-shadow(0 0 14px rgba(59, 130, 246, 0.35)) !important;
+}
+
+.footer {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .ctaMiniSection {
+    padding: 0 16px !important;
+    margin-top: 22px !important;
+  }
+
+  .ctaMiniBand {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 196px !important;
+    padding: 22px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
+  .ctaMiniText {
+    margin-right: 0 !important;
+  }
+
+  .ctaMiniText h2 {
+    font-size: 20px !important;
+  }
+
+  .ctaMiniText p {
+    font-size: 13px !important;
+  }
+
+  .ctaMiniActions {
+    margin: 0 !important;
+    width: 100% !important;
+    flex-direction: row !important;
+  }
+
+  .ctaMiniPrimary,
+  .ctaMiniSecondary {
+    flex: 1 !important;
+    width: auto !important;
+  }
+
+  .ctaMiniCar {
+    display: none !important;
+  }
+}
+
+/* FINAL CTA - exact reference match: horizontal buttons, soft glow car */
+.ctaMiniSection {
+  width: 100% !important;
+  background: #ffffff !important;
+  padding: 0 28px !important;
+  margin: 24px 0 0 !important;
+}
+
+.ctaMiniBand {
+  position: relative !important;
+  width: min(1680px, calc(100vw - 56px)) !important;
+  height: 90px !important;
+  margin: 0 auto !important;
+  padding: 0 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border-radius: 14px 14px 0 0 !important;
+  background:
+    radial-gradient(ellipse 70% 100% at 50% 100%, rgba(56, 139, 255, 0.45) 0%, rgba(37, 99, 235, 0.15) 40%, transparent 75%),
+    linear-gradient(180deg, #06163a 0%, #082055 55%, #06163a 100%) !important;
+  box-shadow: 0 -10px 28px rgba(15, 35, 80, 0.16) !important;
+}
+
+.ctaMiniBand::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px) !important;
+  background-size: 28px 28px !important;
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+  mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 50%, transparent 100%) !important;
+  -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 50%, transparent 100%) !important;
+}
+
+.ctaMiniBand::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 8% !important;
+  right: 8% !important;
+  bottom: 0 !important;
+  height: 2px !important;
+  pointer-events: none !important;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(96, 165, 250, 0.0) 4%,
+    rgba(125, 211, 252, 0.95) 30%,
+    rgba(186, 230, 253, 1) 50%,
+    rgba(125, 211, 252, 0.95) 70%,
+    rgba(96, 165, 250, 0.0) 96%,
+    transparent 100%) !important;
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.55) !important;
+}
+
+.ctaMiniText {
+  position: relative !important;
+  z-index: 3 !important;
+  max-width: 540px !important;
+  flex: 0 0 auto !important;
+  margin-right: auto !important;
+}
+
+.ctaMiniText h2 {
+  margin: 0 0 6px !important;
+  color: #ffffff !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.ctaMiniText p {
+  margin: 0 !important;
+  color: rgba(210, 225, 255, 0.78) !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  max-width: 500px !important;
+}
+
+.ctaMiniActions {
+  position: relative !important;
+  z-index: 4 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  flex-shrink: 0 !important;
+  margin: 0 220px 0 0 !important;
+}
+
+.ctaMiniPrimary,
+.ctaMiniSecondary {
+  height: 38px !important;
+  width: 152px !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  letter-spacing: 0.005em !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+
+.ctaMiniPrimary {
+  border: 0 !important;
+  color: #1e4ed8 !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(255, 255, 255, 0.18) !important;
+}
+
+.ctaMiniSecondary {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1.4px solid rgba(255, 255, 255, 0.30) !important;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.08) !important;
+}
+
+.ctaMiniCar {
+  display: block !important;
+  position: absolute !important;
+  right: 36px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 200px !important;
+  height: 72px !important;
+  opacity: 0.92 !important;
+  pointer-events: none !important;
+  background: url("/src/assets/cta-car.svg") center / contain no-repeat !important;
+}
+
+.footer {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .ctaMiniSection {
+    padding: 0 16px !important;
+    margin-top: 22px !important;
+  }
+
+  .ctaMiniBand {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 196px !important;
+    padding: 22px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
+  .ctaMiniText {
+    margin-right: 0 !important;
+  }
+
+  .ctaMiniText h2 {
+    font-size: 20px !important;
+  }
+
+  .ctaMiniText p {
+    font-size: 13px !important;
+  }
+
+  .ctaMiniActions {
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .ctaMiniPrimary,
+  .ctaMiniSecondary {
+    flex: 1 !important;
+    width: auto !important;
+  }
+
+  .ctaMiniCar {
+    display: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PRICING SECTIONS — Motorbike (blue) on top, Car (green) below
+   Each section: large panel wrapping 3 plan cards in a row.
+   Middle card is featured (gradient).
+══════════════════════════════════════════════════════════════ */
+
+/* ── Outer pricing wrapper ─────────────────────────────── */
+.pricingWrapper {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* ── Individual vehicle-type group ─────────────────────── */
+.pricingGroup {
+  margin: 0 0 1.5rem;
+  position: relative;
+}
+
+.pricingGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.1rem;
+  padding: 0 0.15rem;
+}
+
+.pricingGroupIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+.pricingGroupIconBlue {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+}
+
+.pricingGroupIconGreen {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+}
+
+.pricingGroupTitle {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: 0.3px;
+}
+
+.pricingGroupSubtitle {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 2px 0 0;
+  font-weight: 500;
+}
+
+/* ── Panel wrapping 3 cards ─────────────────────────────── */
+.pricingPanel {
+  position: relative;
+  overflow: hidden;
+  padding: 92px 24px 24px;
+  background: linear-gradient(135deg, #f4f8ff 0%, #ffffff 55%, #eef5ff 100%);
+  border: 1px solid #d1e0ff;
+  border-radius: 28px;
+  box-shadow: 0 8px 40px rgba(15, 23, 42, 0.07);
+}
+
+.pricingPanelBlue {
+  background: linear-gradient(135deg, #f4f8ff 0%, #ffffff 55%, #eef5ff 100%);
+  border-color: #d1e0ff;
+}
+
+.pricingPanelGreen {
+  background: linear-gradient(135deg, #f1fbf5 0%, #ffffff 55%, #ecfdf3 100%);
+  border-color: #c3e6cb;
+}
+
+.vehicleWatermark {
+  position: absolute;
+  right: -48px;
+  top: -92px;
+  width: 580px;
+  height: auto;
+  opacity: 0.30;
+  pointer-events: none;
+  user-select: none;
+  object-fit: contain;
+  z-index: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  filter: saturate(1.08) contrast(1.06) brightness(1.02);
+}
+
+.vehicleWatermarkCar {
+  position: absolute;
+  right: -42px;
+  top: -128px;
+  width: 560px;
+  height: auto;
+  opacity: 0.22;
+  pointer-events: none;
+  user-select: none;
+  object-fit: contain;
+  z-index: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  filter: saturate(1.04) contrast(1.03) brightness(1.02);
+}
+
+@media (max-width: 600px) {
+  .vehicleWatermark,
+  .vehicleWatermarkCar {
+    display: none;
+  }
+}
+
+
+.pricingCardsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  position: relative;
+  z-index: 2;
+  align-items: stretch;
+  overflow: visible;
+}
+
+/* ── Individual plan card ─────────────────────────────────── */
+.planCard {
+  position: relative;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e3eaf5;
+  border-radius: 22px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  overflow: visible;
+  min-height: 330px;
+}
+
+.planCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+  border-color: #c8d8f0;
+}
+
+.planCardFeatured {
+  border: none;
+  box-shadow: 0 22px 45px rgba(15, 23, 42, 0.22);
+  color: #ffffff;
+  transform: scale(1.03);
+  min-height: 350px;
+  padding: 24px 22px;
+  z-index: 2;
+}
+
+.planCardFeaturedBlue {
+  background: linear-gradient(160deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+}
+
+.planCardFeaturedGreen {
+  background: linear-gradient(160deg, #166534 0%, #16a34a 55%, #22c55e 100%);
+}
+
+.planCardFeatured:hover {
+  transform: scale(1.035) translateY(-3px);
+  box-shadow: 0 28px 55px rgba(15, 23, 42, 0.28);
+}
+
+/* Radial highlight overlay for featured card depth */
+.planCardFeatured::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+/* â”€â”€ Centered card header block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.planCardHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.planCardHeader .planCardTopRow {
+  justify-content: center;
+  width: 100%;
+}
+
+.planCardHeader .planCardIcon {
+  display: none;
+}
+
+
+
+/* ── Badge (outside, above card) ─────────────────────── */
+.planBadge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #78350f;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  padding: 0.45rem 1.05rem;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+  z-index: 5;
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.planCardTopRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.planCardIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.planCardIconGreen {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.planCardIconFeatured {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.planDuration {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin: 0 0 4px;
+  text-align: center;
+  width: 100%;
+}
+
+.planDurationMuted {
+  color: #6b7280;
+}
+
+.planDurationLight {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.planName {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+  line-height: 1.2;
+  text-align: center;
+  width: 100%;
+}
+
+.planNameLight {
+  color: #ffffff;
+}
+
+.planPrice {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  margin: 0 0 2px;
+}
+
+.planPriceValue {
+  font-size: 1.85rem;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.planPriceValueLight {
+  color: #ffffff;
+}
+
+.planPriceUnit {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.planPriceUnitLight {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.planPerDay {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin: 0 0 6px;
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+}
+
+.planPerDayLight {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.planDivider {
+  height: 1px;
+  background: #e8edf7;
+  margin: 14px 0;
+  border: 0;
+}
+
+.planDividerLight {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.planSaving {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  margin: 0 0 4px;
+}
+
+.planSavingFeatured {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ── Perks checklist ─────────────────────────────────── */
+.planPerks {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.planPerks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+.planPerks li svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.planPerksLight li {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* ── CTA button ─────────────────────────────────────── */
+.planCta {
+  margin-top: auto;
+  width: 100%;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.planCtaOutline {
+  background: transparent;
+  color: #1e40af;
+  border: 1.5px solid #1e40af;
+}
+
+.planCtaOutline:hover {
+  background: #1e40af;
+  color: #ffffff;
+}
+
+.planCtaGold {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #78350f;
+  border: none;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.45);
+}
+
+.planCtaGold:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(245, 158, 11, 0.55);
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 900px) {
+  .pricingCardsRow {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+
+  .planCardFeatured {
+    transform: translateY(-4px) scale(1);
+  }
+
+  .planCardFeatured:hover {
+    transform: translateY(-6px) scale(1);
+  }
+
+  .planCard,
+  .planCardFeatured {
+    border-radius: 16px;
+    padding: 18px;
+  }
+
+  .pricingPanel {
+    border-radius: 22px;
+    padding: 18px;
+  }
+
+  @media (max-width: 600px) {
+  .pricingCardsRow {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .planCardFeatured {
+    transform: translateY(-2px) scale(1);
+  }
+
+  .planCardFeatured:hover {
+    transform: translateY(-3px) scale(1);
+  }
+
+  .planCard,
+  .planCardFeatured {
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .pricingPanel {
+    border-radius: 18px;
+    padding: 14px;
+  }
+  }
+}
+

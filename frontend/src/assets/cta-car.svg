@@ -1,0 +1,86 @@
+<svg width="380" height="130" viewBox="0 0 380 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="1"/>
+    </linearGradient>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g opacity="0.95" filter="url(#softGlow)">
+    <!-- main body silhouette (sedan) -->
+    <path d="M58 88
+             C 58 76 66 70 78 68
+             L 102 50
+             C 114 40 130 36 146 36
+             H 218
+             C 236 36 252 42 264 54
+             L 282 64
+             C 296 66 304 72 304 80
+             V 84
+             C 304 92 298 98 290 98
+             H 274"
+          stroke="#9EC5FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- greenhouse / cabin -->
+    <path d="M114 50
+             C 122 42 134 38 146 38
+             H 208
+             C 224 38 238 44 248 54
+             L 258 64
+             H 122
+             Z"
+          stroke="#9EC5FF" stroke-width="2" stroke-linejoin="round"/>
+
+    <!-- pillar B -->
+    <path d="M174 38L168 64" stroke="#9EC5FF" stroke-width="1.6" stroke-linecap="round"/>
+
+    <!-- belt line -->
+    <path d="M82 70H262" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- door cuts -->
+    <path d="M148 64V92" stroke="#9EC5FF" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M198 64V92" stroke="#9EC5FF" stroke-width="1.4" stroke-linecap="round"/>
+
+    <!-- door handles -->
+    <path d="M156 76H168" stroke="#9EC5FF" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M206 76H218" stroke="#9EC5FF" stroke-width="1.6" stroke-linecap="round"/>
+
+    <!-- mirrors -->
+    <path d="M128 52L124 48" stroke="#9EC5FF" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M242 52L246 48" stroke="#9EC5FF" stroke-width="1.6" stroke-linecap="round"/>
+
+    <!-- headlight + taillight -->
+    <path d="M68 74H78" stroke="#CFE3FF" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M288 74H298" stroke="#FFB1B1" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/>
+
+    <!-- wheels -->
+    <circle cx="96" cy="100" r="18" stroke="#9EC5FF" stroke-width="2"/>
+    <circle cx="232" cy="100" r="18" stroke="#9EC5FF" stroke-width="2"/>
+    <circle cx="96" cy="100" r="8" stroke="#9EC5FF" stroke-width="1.4"/>
+    <circle cx="232" cy="100" r="8" stroke="#9EC5FF" stroke-width="1.4"/>
+    <circle cx="96" cy="100" r="2" fill="#CFE3FF"/>
+    <circle cx="232" cy="100" r="2" fill="#CFE3FF"/>
+
+    <!-- wheel spokes -->
+    <path d="M96 86V92" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M96 108V114" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M82 100H88" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M104 100H110" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M232 86V92" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M232 108V114" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M218 100H224" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <path d="M240 100H246" stroke="#9EC5FF" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- speed lines -->
+    <path d="M14 60H38" stroke="#9EC5FF" stroke-width="1.4" stroke-linecap="round" opacity="0.45"/>
+    <path d="M6 78H30" stroke="#9EC5FF" stroke-width="1.4" stroke-linecap="round" opacity="0.3"/>
+    <path d="M22 90H44" stroke="#9EC5FF" stroke-width="1.4" stroke-linecap="round" opacity="0.4"/>
+  </g>
+</svg>

@@ -7,6 +7,8 @@ import api from '../services/api';
 import type { Vehicle, ParkingSlot, MonthlyPackage } from '../types';
 import { PACKAGES, type PackagePlan } from '../constants/packages';
 import styles from '../styles/driver.module.css';
+import motorbikeWatermark from '../assets/motorbike-watermark.png';
+import carWatermark from '../assets/car-watermark.png';
 
 // ═══════════════════════════════════════════════════════
 //  PALETTE  (matches driver.module.css / DriverLayout)
@@ -125,9 +127,6 @@ function IconBike({ size = 16 }: { size?: number; color?: string }) {
   return (
     <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>
   );
-}
-function IconCalendar({ size = 15, color = C.gray600 }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
 }
 function IconInfo({ size = 15, color = C.gray600 }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>;
@@ -291,34 +290,146 @@ function SlotPicker({ slots, selectedSlotId, onSelect, loading, error, onRetry }
   );
 }
 
-// ── Package card ───────────────────────────────────────
-function PackageCard({ pkg, selected, vehicleType, onSelect }: { pkg: PackagePlan; selected: boolean; vehicleType: VType; onSelect: () => void }) {
+// ── Package card (single vehicle-type plan) ──────────────
+function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg: PackagePlan; selected: boolean; vehicleType: VType; isFeatured: boolean; onSelect: () => void }) {
   const pricing = pkg.prices[vehicleType];
+  const isCar = vehicleType === 'CAR';
+  const perks = isCar ? CAR_PERKS : MOTO_PERKS;
+  const CardIcon = isCar ? (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
+  );
   return (
-    <button onClick={onSelect} style={{ background: selected ? C.blueBg : C.white, border: selected ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`, borderRadius: 14, padding: '1rem', cursor: 'pointer', textAlign: 'left', width: '100%', boxSizing: 'border-box', position: 'relative', transition: 'all 0.15s ease', boxShadow: selected ? '0 4px 16px rgba(30,58,95,0.12)' : 'none' }}>
-      {selected && (
-        <div style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, background: C.navy, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <IconCheck size={12} color={C.white} />
-        </div>
+    <button
+      onClick={onSelect}
+      className={[
+        styles.pkgCard,
+        isFeatured ? styles.pkgCardFeatured : '',
+        isFeatured && isCar ? styles.pkgCardFeaturedGreen : '',
+        isFeatured && !isCar ? styles.pkgCardFeaturedBlue : '',
+        selected && !isFeatured ? styles.pkgCardSelected : '',
+        selected && isFeatured ? styles.pkgCardFeaturedSelected : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {isFeatured && (
+        <span className={styles.pkgBadge}>Tiết kiệm nhất</span>
       )}
-      <div style={{ marginBottom: '0.6rem' }}>
-        <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: C.gray900 }}>{pkg.name}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-          <IconCalendar size={11} color={C.gray400} />
-          <span style={{ fontSize: '0.72rem', color: C.gray400 }}>{pkg.durationDays} ngày</span>
+
+      <div className={styles.pkgCardTopRow}>
+        <div>
+          <p className={`${styles.pkgDuration} ${isFeatured ? styles.pkgDurationLight : styles.pkgDurationMuted}`}>
+            {pkg.durationDays} ngày
+          </p>
+          <p className={`${styles.pkgName} ${isFeatured ? styles.pkgNameLight : ''}`}>
+            {pkg.name}
+          </p>
+        </div>
+        <div className={`${styles.pkgCardIcon} ${isCar ? styles.pkgCardIconGreen : ''} ${isFeatured ? styles.pkgCardIconFeatured : ''}`}>
+          {CardIcon}
         </div>
       </div>
-      <div style={{ marginBottom: '0.7rem' }}>
-        <p style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, color: C.navy, lineHeight: 1 }}>{pricing.priceLabel}</p>
-        <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', color: C.gray400 }}>{pricing.pricePerDay}</p>
+
+      <div>
+        <div className={styles.pkgPrice}>
+          <span className={`${styles.pkgPriceValue} ${isFeatured ? styles.pkgPriceValueLight : ''}`}>
+            {pricing.priceLabel}
+          </span>
+        </div>
+        <p className={`${styles.pkgPerDay} ${isFeatured ? styles.pkgPerDayLight : ''}`}>
+          ~ {pricing.pricePerDay}
+        </p>
       </div>
-      <div style={{ padding: '0.35rem 0.55rem', borderRadius: 7, background: vehicleType === 'CAR' ? '#F0FDF4' : C.blueBg, border: `1px solid ${vehicleType === 'CAR' ? C.greenBorder : C.blue}`, display: 'flex', alignItems: 'center', gap: 5 }}>
-        <IconInfo size={11} color={vehicleType === 'CAR' ? C.green : C.blue} />
-        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: vehicleType === 'CAR' ? C.green : C.blue }}>
-          {vehicleType === 'CAR' ? 'Chỗ đỗ cố định khi đăng ký' : 'Đỗ ở ô trống bất kỳ'}
+
+      <hr className={`${styles.pkgDivider} ${isFeatured ? styles.pkgDividerLight : ''}`} />
+
+      <ul className={`${styles.pkgPerks} ${isFeatured ? styles.pkgPerksLight : ''}`}>
+        {perks.map((p) => (
+          <li key={p}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isFeatured ? '#ffffff' : '#16a34a'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            <span>{p}</span>
+          </li>
+        ))}
+      </ul>
+
+      {isFeatured && (
+        <span className={`${styles.pkgSaving} ${styles.pkgSavingFeatured}`}>
+          Tiết kiệm ~11%
         </span>
-      </div>
+      )}
+      {!isFeatured && pkg.id === '1y' && (
+        <span className={styles.pkgSaving}>
+          Tiết kiệm ~17%
+        </span>
+      )}
+
+      <span className={[
+        styles.pkgCta,
+        isFeatured ? styles.pkgCtaGold : styles.pkgCtaOutline,
+        selected && !isFeatured ? styles.pkgCtaOutlineSelected : '',
+      ].filter(Boolean).join(' ')}>
+        {selected ? (
+          <>
+            <IconCheck size={14} color={isFeatured ? '#78350f' : C.white} />
+            Đã chọn
+          </>
+        ) : isFeatured ? 'Đăng ký ngay' : 'Chọn gói này'}
+      </span>
     </button>
+  );
+}
+
+// ── Pricing group (one vehicle type, 3 cards inside panel) ─
+const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
+const CAR_PERKS  = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
+
+function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selectedPlanId: string; onSelect: (planId: string, vtype: VType) => void }) {
+  const isCar = vtype === 'CAR';
+  const title = isCar ? 'Gói Ô tô' : 'Gói Xe máy';
+  const subtitle = isCar
+    ? 'Chỗ đỗ cố định, ưu tiên khu gói tháng'
+    : 'Đỗ ở ô trống bất kỳ, khu xe máy riêng có mái che';
+  const panelClass = isCar ? styles.pkgPanelGreen : styles.pkgPanelBlue;
+  const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
+  const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
+  const IconSvg = isCar ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
+  );
+  return (
+    <div className={styles.pkgGroup}>
+      <div className={styles.pkgGroupHeader}>
+        <div className={`${styles.pkgGroupIcon} ${isCar ? styles.pkgGroupIconGreen : styles.pkgGroupIconBlue}`}>
+          {IconSvg}
+        </div>
+        <div>
+          <h4 className={styles.pkgGroupTitle}>{title}</h4>
+          <p className={styles.pkgGroupSubtitle}>{subtitle}</p>
+        </div>
+      </div>
+      <div className={`${styles.pkgPanel} ${panelClass}`}>
+        <img
+          src={watermarkSrc}
+          alt=""
+          aria-hidden="true"
+          className={watermarkClass}
+          draggable={false}
+        />
+        <div className={styles.pkgCardsRow}>
+          {PACKAGES.map((pkg, idx) => (
+            <PackageCard
+              key={pkg.id}
+              pkg={pkg}
+              selected={selectedPlanId === pkg.id}
+              vehicleType={vtype}
+              isFeatured={idx === 1}
+              onSelect={() => onSelect(pkg.id, vtype)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -441,6 +552,26 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
       setSelectedSlotId(null);
     }
   }, [vehicleType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pick a plan; if the user picks a plan from a different vehicle-type group
+  // than the currently selected vehicle, try to switch to a matching vehicle
+  // automatically (or surface an inline error so the user picks a vehicle first).
+  const handleSelectPlan = (planId: string, groupVtype: VType) => {
+    setSubmitError('');
+    if (vehicleType && vehicleType !== groupVtype) {
+      const matching = vehicles.find((v) => v.type === groupVtype && !v.isMonthly);
+      if (matching) {
+        setSelectedVehicleId(matching.id);
+        setSelectedSlotId(null);
+      } else {
+        setSubmitError(
+          `Bạn cần thêm xe ${TYPE_LABEL[groupVtype]} trước khi chọn gói này.`
+        );
+        return;
+      }
+    }
+    setSelectedPlanId(planId);
+  };
 
   // Submit
   const handleSubmit = async () => {
@@ -1025,15 +1156,23 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
         </div>
       )}
 
-      {/* SECTION 4: package selection (only after a vehicle is picked) */}
+      {/* SECTION 4: package selection — BOTH vehicle groups shown side-by-side-stacked */}
       {vehicleType && (
         <div className={styles.card}>
-          <p style={{ margin: '0 0 0.85rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn gói</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
-            {PACKAGES.map((pkg) => (
-              <PackageCard key={pkg.id} pkg={pkg} selected={selectedPlanId === pkg.id} vehicleType={vehicleType} onSelect={() => { setSelectedPlanId(pkg.id); setSubmitError(''); }} />
-            ))}
-          </div>
+          <p style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn gói</p>
+          <p style={{ margin: '0 0 0.85rem', fontSize: '0.78rem', color: C.gray600 }}>
+            Gói sẽ được áp dụng cho xe <b style={{ color: C.navy }}>{selectedVehicle?.plateNumber}</b> ({TYPE_LABEL[vehicleType!]}).
+          </p>
+          <PricingGroup
+            vtype="MOTORBIKE"
+            selectedPlanId={selectedPlanId}
+            onSelect={handleSelectPlan}
+          />
+          <PricingGroup
+            vtype="CAR"
+            selectedPlanId={selectedPlanId}
+            onSelect={handleSelectPlan}
+          />
         </div>
       )}
 

@@ -844,3 +844,455 @@
 }
 
 
+/* ══════════════════════════════════════════════════════════════
+   
+/* ══════════════════════════════════════════════════════════════
+   PACKAGE PRICING GRID — Premium marketing cards
+   Compact, production-ready pricing for MonthlyPackage.tsx
+══════════════════════════════════════════════════════════════ */
+
+.pkgGroup {
+  margin: 0 0 1rem;
+  position: relative;
+}
+
+.pkgGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  padding: 0 0.1rem;
+}
+
+.pkgGroupIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pkgGroupIconBlue {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+}
+
+.pkgGroupIconGreen {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+}
+
+.pkgGroupTitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.pkgGroupSubtitle {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin: 1px 0 0;
+  font-weight: 500;
+}
+
+/* ── Panel wrapping 3 cards ──────────────────────── */
+.pkgPanel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f4f8ff 0%, #ffffff 55%, #eef5ff 100%);
+  border: 1px solid #d1e0ff;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 6px 32px rgba(15, 23, 42, 0.06);
+}
+
+.pkgPanelBlue {
+  background: linear-gradient(135deg, #f4f8ff 0%, #ffffff 55%, #eef5ff 100%);
+  border-color: #d1e0ff;
+}
+
+.pkgPanelGreen {
+  background: linear-gradient(135deg, #f1fbf5 0%, #ffffff 55%, #ecfdf3 100%);
+  border-color: #c3e6cb;
+}
+
+.vehicleWatermark {
+  position: absolute;
+  right: 24px;
+  top: -28px;
+  width: 310px;
+  height: auto;
+  opacity: 0.18;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.vehicleWatermarkCar {
+  width: 340px;
+  top: -20px;
+  right: 24px;
+  opacity: 0.16;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+@media (max-width: 520px) {
+  .vehicleWatermark,
+  .vehicleWatermarkCar {
+    display: none;
+  }
+}
+
+
+.pkgCardsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+  align-items: stretch;
+}
+
+/* ── Package card ─────────────────────────────────── */
+.pkgCard {
+  position: relative;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e3eaf5;
+  border-radius: 18px;
+  padding: 22px;
+  min-height: 330px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  overflow: hidden;
+}
+
+.pkgCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.13);
+  border-color: #c8d8f0;
+}
+
+.pkgCardSelected {
+  border: 1.5px solid #1e3a5f;
+  box-shadow: 0 4px 20px rgba(30, 58, 95, 0.18);
+}
+
+.pkgCardFeatured {
+  border: none;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+  color: #ffffff;
+  transform: scale(1.03);
+  min-height: 350px;
+  padding: 24px 22px;
+  z-index: 2;
+}
+
+.pkgCardFeaturedSelected {
+  border: 2px solid #f59e0b;
+}
+
+.pkgCardFeaturedBlue {
+  background: linear-gradient(160deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+}
+
+.pkgCardFeaturedGreen {
+  background: linear-gradient(160deg, #166534 0%, #16a34a 55%, #22c55e 100%);
+}
+
+.pkgCardFeatured:hover {
+  transform: scale(1.03) translateY(-3px);
+  box-shadow: 0 26px 50px rgba(15, 23, 42, 0.26);
+}
+
+/* Radial highlight for featured card */
+.pkgCardFeatured::before {
+  content: '';
+  position: absolute;
+  top: -28px;
+  right: -28px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pkgBadge {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #78350f;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  box-shadow: 0 5px 16px rgba(245, 158, 11, 0.5);
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.pkgCardTopRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.pkgCardIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pkgCardIconGreen {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.pkgCardIconFeatured {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.pkgDuration {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 2px;
+}
+
+.pkgDurationMuted {
+  color: #6b7280;
+}
+
+.pkgDurationLight {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.pkgName {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.pkgNameLight {
+  color: #ffffff;
+}
+
+.pkgPrice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin: 0;
+}
+
+.pkgPriceValue {
+  font-size: 1.38rem;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1;
+  letter-spacing: -0.4px;
+}
+
+.pkgPriceValueLight {
+  color: #ffffff;
+}
+
+.pkgPriceUnit {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.pkgPriceUnitLight {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.pkgPerDay {
+  font-size: 0.68rem;
+  color: #6b7280;
+  margin: 2px 0 0;
+  font-weight: 500;
+}
+
+.pkgPerDayLight {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.pkgDivider {
+  height: 1px;
+  background: #e8edf7;
+  margin: 14px 0;
+  border: 0;
+}
+
+.pkgDividerLight {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Perks checklist ─────────────────────────────────── */
+.pkgPerks {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.pkgPerks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+.pkgPerks li svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pkgPerksLight li {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.pkgSaving {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  align-self: flex-start;
+  margin: 0;
+}
+
+.pkgSavingFeatured {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ── CTA button ─────────────────────────────────────── */
+.pkgCta {
+  margin-top: auto;
+  width: 100%;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.pkgCtaOutline {
+  background: transparent;
+  color: #1e40af;
+  border: 1.5px solid #1e40af;
+}
+
+.pkgCtaOutline:hover {
+  background: #1e40af;
+  color: #ffffff;
+}
+
+.pkgCtaOutlineSelected {
+  background: #1e3a5f;
+  color: #ffffff;
+  border-color: #1e3a5f;
+}
+
+.pkgCtaGold {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #78350f;
+  border: none;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+}
+
+.pkgCtaGold:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 20px rgba(245, 158, 11, 0.55);
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pkgCardsRow {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .pkgCardFeatured {
+    transform: translateY(-3px) scale(1);
+  }
+
+  .pkgCardFeatured:hover {
+    transform: translateY(-5px) scale(1);
+  }
+
+  .pkgCard,
+  .pkgCardFeatured {
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .pkgPanel {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  @media (max-width: 520px) {
+  .pkgCardsRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .pkgCardFeatured {
+    transform: translateY(-2px) scale(1);
+  }
+
+  .pkgCardFeatured:hover {
+    transform: translateY(-3px) scale(1);
+  }
+}
+}
