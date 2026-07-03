@@ -26,6 +26,7 @@ export interface Vehicle {
   model?: string | null;
   color?: string | null;
   year?: number | null;
+  seats?: number | null;
   createdAt: string;
 }
 
