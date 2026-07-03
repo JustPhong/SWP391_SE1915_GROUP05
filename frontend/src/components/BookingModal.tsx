@@ -4,7 +4,7 @@ import type { ParkingSlot } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { getMyVehicles } from '../api/vehicleApi';
 import type { Vehicle } from '../api/vehicleApi';
-import { formatPlateNumber } from '../utils/plate';
+import { PlateInput } from './PlateInput';
 
 const C = {
   navy:      '#1E3A5F',
@@ -188,10 +188,9 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Biển số xe
               </label>
-              <input
-                type="text"
+              <PlateInput
                 value={plateNumber}
-                onChange={(e) => { setPlateNumber(formatPlateNumber(e.target.value, plateNumber)); setErrorMsg(''); }}
+                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); }}
                 placeholder="VD: 30A-123.45"
                 maxLength={15}
                 style={{
@@ -202,8 +201,8 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
                   outline: 'none', fontFamily: 'inherit',
                   background: C.white,
                 }}
-                onFocus={(e) => { e.target.style.borderColor = C.navy; e.target.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
-                onBlur={(e) => { e.target.style.borderColor = C.gray200; e.target.style.boxShadow = 'none'; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = C.navy; e.currentTarget.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; e.currentTarget.style.boxShadow = 'none'; }}
               />
               {vehicles.length > 0 && (
                 <div style={{ marginTop: '0.6rem' }}>

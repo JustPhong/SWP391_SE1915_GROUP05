@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { floorMapService, type FloorWithSlots } from '../services/floorMap.service';
 import type { ParkingSlot, Floor } from '../types';
-import { formatPlateNumber } from '../utils/plate';
+import { PlateInput } from '../components/PlateInput';
 import styles from '../styles/staff.module.css';
 
 // ═══════════════════════════════════════════════════════
@@ -244,10 +244,9 @@ function BookingForm({ slot, floor, onConfirm, onCancel }: BookingFormProps) {
           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: C.gray800, marginBottom: '0.35rem' }}>
             Biển số xe
           </label>
-          <input
-            type="text"
+          <PlateInput
             value={plateNumber}
-            onChange={(e) => setPlateNumber(formatPlateNumber(e.target.value, plateNumber))}
+            onChange={setPlateNumber}
             placeholder="VD: 30A-123.45"
             style={{
               width: '100%',

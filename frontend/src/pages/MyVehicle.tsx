@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle } from '../types';
-import { formatPlateNumber } from '../utils/plate';
+import { PlateInput } from '../components/PlateInput';
 import styles from '../styles/driver.module.css';
 
 // ═══════════════════════════════════════════════════════
@@ -1064,10 +1064,9 @@ function AddVehicleForm({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.9rem' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
-          <input
-            type="text"
+          <PlateInput
             value={plateNumber}
-            onChange={(e) => setPlateNumber(formatPlateNumber(e.target.value, plateNumber))}
+            onChange={setPlateNumber}
             placeholder="VD: 51A-12345"
             disabled={submitting}
             autoFocus

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getStaffDashboard } from '../api/dashboardApi';
 import type { DashboardData } from '../api/dashboardApi';
-import { formatPlateNumber } from '../utils/plate';
+import { PlateInput } from '../components/PlateInput';
 
 type Accent = 'green' | 'orange' | 'gray' | 'blue';
 
@@ -358,11 +358,10 @@ export function StaffDashboardPage() {
               Xử lý nhanh
             </p>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <input
-                type="text"
+              <PlateInput
                 placeholder="VD: 30A-123.45"
                 value={plate}
-                onChange={(e) => setPlate(formatPlateNumber(e.target.value, plate))}
+                onChange={setPlate}
                 onKeyDown={(e) => { if (e.key === 'Enter') navigateWithPlate('/staff/checkin'); }}
                 style={{
                   flex: 1,
