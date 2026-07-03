@@ -69,6 +69,72 @@ function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: st
   );
 }
 
+function IconShieldCheck({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="m9 11 2 2 4-4" />
+    </svg>
+  );
+}
+
+function IconSeat({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 18v-6a5 5 0 0 1 10 0v6" />
+      <path d="M5 18h14" />
+      <path d="M9 18v3" />
+      <path d="M15 18v3" />
+      <path d="M19 10h1a2 2 0 0 1 2 2v1" />
+      <path d="M5 10H4a2 2 0 0 0-2 2v1" />
+    </svg>
+  );
+}
+
+function IconPaintBrush({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35857 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z" />
+      <circle cx="7.5" cy="10.5" r="1.5" fill="currentColor" />
+      <circle cx="11.5" cy="7.5" r="1.5" fill="currentColor" />
+      <circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" />
+      <circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconTag({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  );
+}
+
+function IconBuilding({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+      <line x1="9" y1="22" x2="9" y2="16" />
+      <line x1="15" y1="22" x2="15" y2="16" />
+      <line x1="9" y1="16" x2="15" y2="16" />
+      <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01" />
+    </svg>
+  );
+}
+
+function IconCalendar({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════
@@ -239,15 +305,6 @@ function VehicleCard({
 // ═══════════════════════════════════════════════════════
 //  VEHICLE DETAIL MODAL
 // ═══════════════════════════════════════════════════════
-function DetailRow({ label, value }: { label: string; value?: string | number | null }) {
-  if (!value && value !== 0) return null;
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '0.45rem 0', borderBottom: `1px solid ${C.gray100}` }}>
-      <span style={{ fontSize: '0.8rem', color: C.gray600, fontWeight: 600, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: '0.82rem', color: C.gray900, fontWeight: 700, textAlign: 'right' }}>{value}</span>
-    </div>
-  );
-}
 
 function BookingStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string }> = {
@@ -269,6 +326,7 @@ function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'specs' | 'activity'>('specs');
 
   useEffect(() => {
     let cancelled = false;
@@ -283,119 +341,514 @@ function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose
   const fmt = (d: string) => new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const fmtDatetime = (d: string) => new Date(d).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const COLOR_MAP: Record<string, string> = {
+    'Trắng': '#FFFFFF',
+    'Đen': '#0F172A',
+    'Bạc': '#CBD5E1',
+    'Xám': '#64748B',
+    'Đỏ': '#EF4444',
+    'Xanh dương': '#3B82F6',
+    'Xanh lá': '#10B981',
+    'Vàng': '#F59E0B',
+    'Nâu': '#78350F',
+    'Cam': '#F97316',
+  };
+
+  const specs = detail
+    ? [
+        { label: 'Hãng xe', value: detail.brand, icon: <IconBuilding size={16} color={C.navy} /> },
+        { label: 'Dòng xe', value: detail.model, icon: <IconTag size={16} color={C.navy} /> },
+        { label: 'Màu sắc', value: detail.color, icon: <IconPaintBrush size={16} color={C.navy} />, isColor: true },
+        { label: 'Năm sản xuất', value: detail.year, icon: <IconCalendar size={16} color={C.navy} /> },
+        ...(detail.type === 'CAR' ? [{ label: 'Số chỗ ngồi', value: detail.seats ? `${detail.seats} chỗ` : null, icon: <IconSeat size={16} color={C.navy} /> }] : []),
+        { label: 'Ngày đăng ký', value: detail.createdAt ? fmt(detail.createdAt) : null, icon: <IconShieldCheck size={16} color={C.navy} /> },
+      ].filter((s) => s.value !== undefined && s.value !== null && s.value !== '')
+    : [];
+
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 0 0' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+      }}
       onClick={onClose}
     >
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.25); opacity: 0.5; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
       <div
         style={{
-          background: C.white, borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520,
-          maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem 1.25rem 2rem',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+          background: C.white,
+          borderRadius: '24px',
+          width: '100%',
+          maxWidth: 460,
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle bar */}
-        <div style={{ width: 40, height: 4, background: C.gray200, borderRadius: 4, margin: '0 auto 1.25rem' }} />
-
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: C.navy }}>Chi tiết xe</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', borderRadius: 8 }}>
-            <IconClose size={18} color={C.gray600} />
+        {/* Navy Gradient Header block */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1E3A5F 0%, #0F172A 100%)',
+            padding: '2.25rem 1.5rem 1.75rem',
+            textAlign: 'center',
+            position: 'relative',
+            color: '#FFFFFF',
+          }}
+        >
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              background: 'rgba(255, 255, 255, 0.15)',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '6px',
+              display: 'flex',
+              borderRadius: '50%',
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; }}
+            aria-label="Đóng"
+          >
+            <IconClose size={14} color="#FFFFFF" />
           </button>
+
+          {/* Title */}
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', opacity: 0.8, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+            Thông tin chi tiết
+          </span>
+
+          {detail && !loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              {/* Monospace Plate Number Mockup */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '2px solid #1E293B',
+                  borderRadius: '10px',
+                  boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.2)',
+                  padding: '8px 20px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: "'Consolas', 'Courier New', monospace",
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  fontSize: '1.4rem',
+                  letterSpacing: '2px',
+                  position: 'relative',
+                  minWidth: '160px',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '3px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '5px',
+                    height: '5px',
+                    borderRadius: '50%',
+                    background: '#CBD5E1',
+                    border: '1px solid #94A3B8',
+                  }}
+                />
+                {detail.plateNumber}
+              </div>
+
+              {/* Type Badge */}
+              <span
+                style={{
+                  marginTop: '4px',
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '3px 12px',
+                  borderRadius: '20px',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {detail.type === 'CAR' ? '🚗 Ô TÔ' : '🛵 XE MÁY'}
+              </span>
+            </div>
+          )}
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: '2rem', color: C.gray400, fontSize: '0.9rem' }}>Đang tải...</div>
+          <div style={{ textAlign: 'center', padding: '3.5rem', color: C.gray600, fontSize: '0.9rem', fontWeight: 600 }}>
+            Đang tải dữ liệu...
+          </div>
         )}
         {error && (
-          <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', color: '#B91C1C', fontSize: '0.85rem' }}>{error}</div>
+          <div style={{ padding: '1.5rem' }}>
+            <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 12, padding: '1rem', color: '#B91C1C', fontSize: '0.85rem', fontWeight: 500 }}>
+              {error}
+            </div>
+          </div>
         )}
 
         {detail && !loading && (
           <>
-            {/* Vehicle icon + plate */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: C.gray50, borderRadius: 14, padding: '1rem', marginBottom: '1.25rem' }}>
-              <div style={{ width: 52, height: 52, background: C.blueBg, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {detail.type === 'CAR' ? <IconCar size={26} /> : <IconBike size={26} />}
-              </div>
-              <div>
-                <div style={{ fontFamily: "'Consolas', monospace", fontSize: '1.3rem', fontWeight: 900, color: C.gray900, letterSpacing: '0.04em' }}>{detail.plateNumber}</div>
-                <div style={{ fontSize: '0.82rem', color: C.gray600, fontWeight: 600 }}>{detail.type === 'CAR' ? 'Ô tô' : 'Xe máy'} {detail.isMonthly ? '· Gói tháng' : ''}</div>
-              </div>
+            {/* Sliding Tabs Bar */}
+            <div
+              style={{
+                display: 'flex',
+                background: '#F1F5F9',
+                borderRadius: '12px',
+                padding: '4px',
+                margin: '1.25rem 1.25rem 0.5rem',
+              }}
+            >
+              <button
+                onClick={() => setActiveTab('specs')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: activeTab === 'specs' ? '#FFFFFF' : 'transparent',
+                  color: activeTab === 'specs' ? '#1E3A5F' : '#64748B',
+                  fontWeight: '700',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: activeTab === 'specs' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                Thông số xe
+              </button>
+              <button
+                onClick={() => setActiveTab('activity')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: activeTab === 'activity' ? '#FFFFFF' : 'transparent',
+                  color: activeTab === 'activity' ? '#1E3A5F' : '#64748B',
+                  fontWeight: '700',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: activeTab === 'activity' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                Hoạt động & Gói
+              </button>
             </div>
 
-            {/* Basic info */}
-            <div style={{ marginBottom: '1.25rem' }}>
-              <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Thông tin xe</p>
-              <DetailRow label="Hãng" value={detail.brand} />
-              <DetailRow label="Dòng xe" value={detail.model} />
-              <DetailRow label="Màu sắc" value={detail.color} />
-              <DetailRow label="Năm sản xuất" value={detail.year} />
-              {detail.type === 'CAR' && <DetailRow label="Số chỗ ngồi" value={detail.seats ? `${detail.seats} chỗ` : null} />}
-              <DetailRow label="Ngày đăng ký" value={detail.createdAt ? fmt(detail.createdAt) : null} />
-            </div>
-
-            {/* Bookings */}
-            {detail.bookings?.length > 0 && (
-              <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lịch đặt chỗ gần đây</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {detail.bookings.map((b: any) => (
-                    <div key={b.id} style={{ background: C.gray50, borderRadius: 10, padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray900 }}>Tầng {b.slot?.floor?.name ?? '—'} · Ô {b.slot?.code ?? '—'}</div>
-                        <div style={{ fontSize: '0.75rem', color: C.gray600, marginTop: 2 }}>Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}</div>
+            {/* Scrollable Content Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.25rem 2rem' }}>
+              {activeTab === 'specs' ? (
+                /* Specs Tab (Grid Layout) */
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {specs.map((s, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: '#F8FAFC',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '14px',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '8px',
+                            background: '#EFF6FF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {s.icon}
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>{s.label}</span>
                       </div>
-                      <BookingStatusBadge status={b.status} />
+                      {s.isColor ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
+                          <div
+                            style={{
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              background: COLOR_MAP[s.value] ?? '#94A3B8',
+                              border: s.value === 'Trắng' ? '1px solid #CBD5E1' : 'none',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                            }}
+                          />
+                          <span style={{ fontSize: '0.88rem', color: '#0F172A', fontWeight: 700 }}>{s.value}</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '0.88rem', color: '#0F172A', fontWeight: 700, paddingLeft: '2px' }}>
+                          {s.value}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Monthly package */}
-            {detail.monthlyPackage && (
-              <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gói đỗ xe tháng</p>
-                <div style={{ background: C.gray50, borderRadius: 10, padding: '0.65rem 0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: C.gray900 }}>{detail.monthlyPackage.planName ?? 'Gói tháng'}</span>
-                    <PackageStatusBadge status={detail.monthlyPackage.status} />
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: C.gray600 }}>{fmt(detail.monthlyPackage.startDate)} – {fmt(detail.monthlyPackage.expiryDate)}</div>
-                  {detail.monthlyPackage.slot && <div style={{ fontSize: '0.75rem', color: C.gray600, marginTop: 2 }}>Tầng {detail.monthlyPackage.slot.floor?.name ?? '—'} · Ô {detail.monthlyPackage.slot.code}</div>}
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: C.navy, marginTop: 4 }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
-                </div>
-              </div>
-            )}
-
-            {/* Check-in history */}
-            {detail.checkInRecords?.length > 0 && (
-              <div style={{ marginBottom: '0.5rem' }}>
-                <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lịch sử gửi xe gần đây</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {detail.checkInRecords.map((r: any) => (
-                    <div key={r.id} style={{ background: C.gray50, borderRadius: 10, padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray900 }}>Tầng {r.slot?.floor?.name ?? '—'} · Ô {r.slot?.code ?? '—'}</div>
-                        <div style={{ fontSize: '0.75rem', color: C.gray600, marginTop: 2 }}>Vào: {fmtDatetime(r.checkInTime)}</div>
-                        {r.checkOutTime && <div style={{ fontSize: '0.75rem', color: C.gray600 }}>Ra: {fmtDatetime(r.checkOutTime)}</div>}
+              ) : (
+                /* Activity Tab (Bookings, Monthly Packages, Check-in Timeline) */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Monthly Package VIP Card */}
+                  {detail.monthlyPackage ? (
+                    <div
+                      style={{
+                        background: 'linear-gradient(135deg, #1E3A5F 0%, #3B82F6 100%)',
+                        borderRadius: '16px',
+                        padding: '1.25rem',
+                        color: '#FFFFFF',
+                        boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.25)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: '-20px',
+                          bottom: '-20px',
+                          width: '120px',
+                          height: '120px',
+                          borderRadius: '50%',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                        }}
+                      />
+                      <div style={{ position: 'absolute', right: '16px', top: '16px', opacity: 0.15 }}>
+                        {detail.type === 'CAR' ? <IconCar size={56} /> : <IconBike size={56} />}
                       </div>
-                      <span style={{ background: r.checkOutTime ? C.gray100 : '#DCFCE7', color: r.checkOutTime ? C.gray600 : '#16A34A', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20, flexShrink: 0 }}>
-                        {r.checkOutTime ? 'Đã ra' : 'Đang đỗ'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {detail.bookings?.length === 0 && !detail.monthlyPackage && detail.checkInRecords?.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '1rem', color: C.gray400, fontSize: '0.85rem' }}>Chưa có hoạt động nào</div>
-            )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                        <div>
+                          <span
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.2)',
+                              fontSize: '0.62rem',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '20px',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            GÓI ĐỖ XE THÁNG
+                          </span>
+                          <h3 style={{ margin: '6px 0 0 0', fontSize: '1.1rem', fontWeight: 800 }}>
+                            {detail.monthlyPackage.planName ?? 'Gói VIP'}
+                          </h3>
+                        </div>
+                        <PackageStatusBadge status={detail.monthlyPackage.status} />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
+                        <div>
+                          Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> –{' '}
+                          <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong>
+                        </div>
+                        {detail.monthlyPackage.slot && (
+                          <div>
+                            Vị trí cố định:{' '}
+                            <strong>
+                              Tầng {detail.monthlyPackage.slot.floor?.name ?? '—'} · Ô {detail.monthlyPackage.slot.code}
+                            </strong>
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            marginTop: '8px',
+                            fontSize: '1rem',
+                            fontWeight: 800,
+                            color: '#FCD34D',
+                            borderTop: '1px solid rgba(255,255,255,0.15)',
+                            paddingTop: '8px',
+                          }}
+                        >
+                          {Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        background: '#F8FAFC',
+                        border: '1.5px dashed #E2E8F0',
+                        borderRadius: '16px',
+                        padding: '1.25rem',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '6px' }}>🎫</span>
+                      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: C.navy }}>
+                        Chưa đăng ký gói tháng
+                      </p>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#64748B' }}>
+                        Mua gói tháng giúp tối ưu chi phí đỗ xe.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Bookings */}
+                  {detail.bookings?.length > 0 && (
+                    <div>
+                      <h4
+                        style={{
+                          margin: '0 0 0.6rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          color: C.navy,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        Lịch đặt chỗ gần đây
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {detail.bookings.map((b: any) => (
+                          <div
+                            key={b.id}
+                            style={{
+                              background: '#F8FAFC',
+                              border: '1px solid #E2E8F0',
+                              borderRadius: '12px',
+                              padding: '10px 14px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>
+                                Tầng {b.slot?.floor?.name ?? '—'} · Ô {b.slot?.code ?? '—'}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                                Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}
+                              </div>
+                            </div>
+                            <BookingStatusBadge status={b.status} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Check-in records timeline */}
+                  {detail.checkInRecords?.length > 0 && (
+                    <div>
+                      <h4
+                        style={{
+                          margin: '0 0 0.8rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          color: C.navy,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        Lịch sử gửi xe gần đây
+                      </h4>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          paddingLeft: '10px',
+                          borderLeft: '2px solid #E2E8F0',
+                          gap: '16px',
+                          marginLeft: '6px',
+                          marginTop: '6px',
+                        }}
+                      >
+                        {detail.checkInRecords.map((r: any) => {
+                          const isCurrentlyParked = !r.checkOutTime;
+                          return (
+                            <div key={r.id} style={{ position: 'relative', paddingLeft: '14px' }}>
+                              {/* Pulse indicator dot */}
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  left: '-21px',
+                                  top: '4px',
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  background: isCurrentlyParked ? '#10B981' : '#94A3B8',
+                                  border: '2px solid #FFFFFF',
+                                  boxShadow: `0 0 0 2px ${isCurrentlyParked ? '#A7F3D0' : '#E2E8F0'}`,
+                                  animation: isCurrentlyParked ? 'pulse 2s infinite' : 'none',
+                                }}
+                              />
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>
+                                    Tầng {r.slot?.floor?.name ?? '—'} · Ô {r.slot?.code ?? '—'}
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                                    Vào: {fmtDatetime(r.checkInTime)}
+                                  </div>
+                                  {r.checkOutTime && (
+                                    <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                                      Ra: {fmtDatetime(r.checkOutTime)}
+                                    </div>
+                                  )}
+                                </div>
+                                <span
+                                  style={{
+                                    background: isCurrentlyParked ? '#D1FAE5' : '#F1F5F9',
+                                    color: isCurrentlyParked ? '#065F46' : '#475569',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {isCurrentlyParked ? 'Đang đỗ' : 'Đã ra'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {detail.bookings?.length === 0 && !detail.monthlyPackage && detail.checkInRecords?.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#94A3B8' }}>
+                      <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '8px' }}>📭</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Chưa có hoạt động gửi xe nào gần đây</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
