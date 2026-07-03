@@ -20,8 +20,9 @@ export const PlateInput: React.FC<PlateInputProps> = ({ value, onChange, ...prop
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value;
     if (isComposing.current) {
-      // During IME composition (e.g. typing Telex or VNI tone marks),
-      // we let the browser handle typing natively without modifying the input value.
+      // Update state with raw value to keep it in sync, but do NOT format
+      // the DOM value yet to prevent interrupting the IME.
+      onChange(rawVal);
       return;
     }
     const formatted = formatPlateNumber(rawVal, value);
