@@ -4,6 +4,7 @@ import type { ParkingSlot } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { getMyVehicles } from '../api/vehicleApi';
 import type { Vehicle } from '../api/vehicleApi';
+import { formatPlateNumber } from '../utils/plate';
 
 const C = {
   navy:      '#1E3A5F',
@@ -190,7 +191,7 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
               <input
                 type="text"
                 value={plateNumber}
-                onChange={(e) => { setPlateNumber(e.target.value.toUpperCase()); setErrorMsg(''); }}
+                onChange={(e) => { setPlateNumber(formatPlateNumber(e.target.value, plateNumber)); setErrorMsg(''); }}
                 placeholder="VD: 30A-123.45"
                 maxLength={15}
                 style={{

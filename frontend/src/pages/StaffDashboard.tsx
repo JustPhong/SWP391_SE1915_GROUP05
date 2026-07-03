@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getStaffDashboard } from '../api/dashboardApi';
 import type { DashboardData } from '../api/dashboardApi';
+import { formatPlateNumber } from '../utils/plate';
 
 type Accent = 'green' | 'orange' | 'gray' | 'blue';
 
@@ -361,7 +362,7 @@ export function StaffDashboardPage() {
                 type="text"
                 placeholder="VD: 30A-123.45"
                 value={plate}
-                onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                onChange={(e) => setPlate(formatPlateNumber(e.target.value, plate))}
                 onKeyDown={(e) => { if (e.key === 'Enter') navigateWithPlate('/staff/checkin'); }}
                 style={{
                   flex: 1,

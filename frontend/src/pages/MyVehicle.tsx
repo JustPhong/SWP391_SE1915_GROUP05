@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle } from '../types';
+import { formatPlateNumber } from '../utils/plate';
 import styles from '../styles/driver.module.css';
 
 // ═══════════════════════════════════════════════════════
@@ -1066,7 +1067,7 @@ function AddVehicleForm({
           <input
             type="text"
             value={plateNumber}
-            onChange={(e) => setPlateNumber(e.target.value)}
+            onChange={(e) => setPlateNumber(formatPlateNumber(e.target.value, plateNumber))}
             placeholder="VD: 51A-12345"
             disabled={submitting}
             autoFocus

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { floorMapService, type FloorWithSlots } from '../services/floorMap.service';
 import type { ParkingSlot, Floor } from '../types';
+import { formatPlateNumber } from '../utils/plate';
 import styles from '../styles/staff.module.css';
 
 // ═══════════════════════════════════════════════════════
@@ -246,7 +247,7 @@ function BookingForm({ slot, floor, onConfirm, onCancel }: BookingFormProps) {
           <input
             type="text"
             value={plateNumber}
-            onChange={(e) => setPlateNumber(e.target.value.toUpperCase())}
+            onChange={(e) => setPlateNumber(formatPlateNumber(e.target.value, plateNumber))}
             placeholder="VD: 30A-123.45"
             style={{
               width: '100%',
