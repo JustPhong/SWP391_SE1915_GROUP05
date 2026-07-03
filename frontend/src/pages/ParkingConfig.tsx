@@ -242,12 +242,7 @@ export function ParkingConfigPage() {
           value={loading ? '—' : building.occupied}
           accent={true}
           icon={
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 11l1.5-5h11L19 11"/>
-              <path d="M3 11h18v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7z"/>
-              <circle cx="7" cy="16" r="2"/>
-              <circle cx="17" cy="16" r="2"/>
-            </svg>
+            <span style={{ fontSize: '22px', display: 'flex', alignItems: 'center' }}>🚗</span>
           }
         />
         <KpiCard
