@@ -46,15 +46,17 @@ interface BookingModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (slot: ParkingSlot, bookingId: string) => void;
+  onRedirectToVehicles?: () => void;
 }
 
-export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
+export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }: BookingModalProps) {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [plateNumber, setPlateNumber] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [unregisteredError, setUnregisteredError] = useState(false);
 
   useEffect(() => {
     if (open && user) {
@@ -62,6 +64,7 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
     } else {
       setVehicles([]);
     }
+    setUnregisteredError(false);
   }, [open, user]);
 
   const handleSubmit = async () => {
@@ -69,6 +72,15 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
     if (!plate) { setErrorMsg('Vui lòng nhập biển số xe.'); return; }
     if (plate.length < 4) { setErrorMsg('Biển số xe không hợp lệ.'); return; }
     if (!arrivalTime) { setErrorMsg('Vui lòng chọn thời gian dự kiến tới.'); return; }
+
+    if (user) {
+      const normalizedInput = plate.replace(/[^A-Z0-9]/g, '');
+      const isRegistered = vehicles.some(v => v.plateNumber.replace(/[^A-Z0-9]/g, '') === normalizedInput);
+      if (!isRegistered) {
+        setUnregisteredError(true);
+        return;
+      }
+    }
 
     setSubmitting(true);
     setErrorMsg('');
@@ -94,6 +106,7 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
     setPlateNumber('');
     setArrivalTime('');
     setErrorMsg('');
+    setUnregisteredError(false);
     onClose();
   };
 
@@ -190,7 +203,7 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
               </label>
               <PlateInput
                 value={plateNumber}
-                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); }}
+                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); setUnregisteredError(false); }}
                 placeholder="VD: 30A-123.45"
                 maxLength={15}
                 style={{
@@ -217,6 +230,7 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
                         onClick={() => {
                           setPlateNumber(v.plateNumber);
                           setErrorMsg('');
+                          setUnregisteredError(false);
                         }}
                         style={{
                           background: plateNumber === v.plateNumber ? C.blueBg : C.gray50,
@@ -246,6 +260,53 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
                 </div>
               )}
             </div>
+
+            {unregisteredError && (
+              <div style={{
+                background: C.amberBg,
+                border: `1.5px solid ${C.amberBorder}`,
+                borderRadius: 10,
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                color: '#B45309',
+                fontSize: '0.85rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                lineHeight: 1.4,
+              }}>
+                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚠️ Biển số chưa được đăng ký</span>
+                </div>
+                <div>
+                  Biển số xe <strong>{plateNumber}</strong> chưa được đăng ký trong tài khoản của bạn. Bạn cần đăng ký xe trước khi đặt chỗ.
+                </div>
+                {onRedirectToVehicles && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRedirectToVehicles();
+                      handleClose();
+                    }}
+                    style={{
+                      alignSelf: 'flex-start',
+                      marginTop: '4px',
+                      padding: '5px 10px',
+                      background: C.navy,
+                      color: C.white,
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(30,58,95,0.15)',
+                    }}
+                  >
+                    Đăng ký xe ngay
+                  </button>
+                )}
+              </div>
+            )}
 
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>

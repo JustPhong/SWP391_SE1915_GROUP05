@@ -740,6 +740,7 @@ export const WelcomePage: React.FC = () => {
         open={bookingOpen}
         onClose={() => setBookingOpen(false)}
         onSuccess={handleBookingSuccess}
+        onRedirectToVehicles={() => setActiveTab('vehicles')}
       />
       {bookingSuccess && (
         <BookingSuccess
