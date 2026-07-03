@@ -46,4 +46,11 @@ export const monthlyPackageService = {
     );
     return response.data.data;
   },
+
+  cancelPackage: async (packageId: string) => {
+    const response = await api.post<{ success: boolean; data: MonthlyPackage }>(
+      `/monthly-packages/${packageId}/cancel`
+    );
+    return response.data.data;
+  },
 };

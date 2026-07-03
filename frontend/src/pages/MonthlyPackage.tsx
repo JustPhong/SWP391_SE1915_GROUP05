@@ -355,6 +355,8 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   const [packageActionLoading, setPackageActionLoading] = useState<string | null>(null);
   const [packageActionError, setPackageActionError] = useState('');
   const [packageActionSuccess, setPackageActionSuccess] = useState('');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [pkgToCancel, setPkgToCancel] = useState<MonthlyPackage | null>(null);
 
   // QR payment
   const [showQR, setShowQR] = useState(false);
@@ -538,6 +540,31 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
     }
   };
 
+  const handleCancelPackage = (pkg: MonthlyPackage) => {
+    setPkgToCancel(pkg);
+    setShowCancelConfirm(true);
+  };
+
+  const confirmCancelPackage = async () => {
+    if (!pkgToCancel) return;
+    const pkg = pkgToCancel;
+    setShowCancelConfirm(false);
+    setPackageActionLoading(pkg.id);
+    setPackageActionError('');
+    setPackageActionSuccess('');
+    try {
+      const updated = await monthlyPackageService.cancelPackage(pkg.id);
+      setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setPackageActionSuccess('Hủy gói tháng thành công.');
+    } catch (e: any) {
+      setPackageActionError(e?.response?.data?.message ?? 'Không thể hủy gói tháng.');
+    } finally {
+      setPackageActionLoading(null);
+      setPkgToCancel(null);
+    }
+  };
+
+
   // ── Auth gates ───────────────────────────────────────
   if (authLoading) {
     return <div style={{ padding: '3rem', textAlign: 'center', color: C.gray400, fontSize: '0.9rem', fontWeight: 600 }}>Đang tải...</div>;
@@ -593,24 +620,134 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
                     <span style={{ fontWeight: 700, color: C.navy }}>{formatDDMMYYYY(pkg.expiryDate)}</span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <button
+                      onClick={() => handleRenewPackage(pkg)}
+                      disabled={packageActionLoading === pkg.id}
+                      style={{ flex: 1, padding: '0.9rem', background: C.navy, color: C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
+                    >
+                      {packageActionLoading === pkg.id ? 'Đang xử lý...' : 'Gia hạn ngay'}
+                    </button>
+                    <button
+                      onClick={() => handleToggleAutoRenew(pkg)}
+                      disabled={packageActionLoading === pkg.id}
+                      style={{ flex: 1, padding: '0.9rem', background: pkg.autoRenew ? C.redBg : C.white, color: pkg.autoRenew ? C.red : C.gray900, border: `1.5px solid ${pkg.autoRenew ? C.redBorder : C.gray200}`, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
+                    >
+                      {pkg.autoRenew ? 'Hủy gia hạn tự động' : 'Bật gia hạn tự động'}
+                    </button>
+                  </div>
                   <button
-                    onClick={() => handleRenewPackage(pkg)}
+                    onClick={() => handleCancelPackage(pkg)}
                     disabled={packageActionLoading === pkg.id}
-                    style={{ flex: 1, padding: '0.9rem', background: C.navy, color: C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
+                    style={{
+                      width: '100%',
+                      padding: '0.9rem',
+                      background: 'transparent',
+                      color: '#DC2626',
+                      border: '1.5px solid #FCA5A5',
+                      borderRadius: 12,
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
+                      cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseOver={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2';
+                    }}
+                    onMouseOut={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                    }}
                   >
-                    {packageActionLoading === pkg.id ? 'Đang xử lý...' : 'Gia hạn ngay'}
-                  </button>
-                  <button
-                    onClick={() => handleToggleAutoRenew(pkg)}
-                    disabled={packageActionLoading === pkg.id}
-                    style={{ flex: 1, padding: '0.9rem', background: pkg.autoRenew ? C.redBg : C.white, color: pkg.autoRenew ? C.red : C.gray900, border: `1.5px solid ${pkg.autoRenew ? C.redBorder : C.gray200}`, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
-                  >
-                    {pkg.autoRenew ? 'Hủy gia hạn tự động' : 'Bật gia hạn tự động'}
+                    Hủy gia hạn gói
                   </button>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {showCancelConfirm && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem'
+          }}>
+            <div style={{
+              background: C.white,
+              borderRadius: 24,
+              padding: 32,
+              maxWidth: 480,
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 800, color: C.red, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                Cảnh báo hủy gói tháng
+              </h3>
+              
+              <div style={{
+                background: '#FFF5F5',
+                border: '1px solid #FEB2B2',
+                borderRadius: 12,
+                padding: '16px',
+                color: '#C53030',
+                fontSize: '0.9rem',
+                lineHeight: 1.6,
+                marginBottom: 24
+              }}>
+                <strong>Hành động này không thể hoàn tác!</strong> Bạn có chắc chắn muốn hủy gói tháng này không? Xe của bạn sẽ không còn được nhận diện là xe vé tháng và chỗ đỗ cố định (nếu có) sẽ bị hủy.
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCancelConfirm(false);
+                    setPkgToCancel(null);
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: C.gray100,
+                    color: '#1F2937',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCancelPackage}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: C.red,
+                    color: C.white,
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)',
+                  }}
+                >
+                  Tiếp tục hủy
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
