@@ -14,6 +14,10 @@ const transporter = nodemailer.createTransport({
 export async function sendEmail(to: string, subject: string, html: string) {
   if (!config.emailHost || !config.emailUser || !config.emailPass) {
     console.warn('[Email] SMTP config is missing; skipping email send.');
+    if (html.includes('Mã OTP của bạn là:')) {
+      // Very basic fallback to extract OTP and log it if possible, but actually we can just warn
+      console.warn('[Email] You might need to configure SMTP in .env to test OTP.');
+    }
     return;
   }
 
@@ -26,6 +30,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
 }
 
 export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
+  console.log(`[Email] OTP for ${to} is: ${otp}`);
   const subject = 'Mã xác thực OTP';
   const greeting = fullName ? `Xin chào ${fullName},` : 'Xin chào,';
   const html = `

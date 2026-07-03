@@ -32,19 +32,53 @@ const C = {
 //  ICONS
 // ═══════════════════════════════════════════════════════
 function IconCar({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  const id = Math.random().toString(36).slice(2, 8);
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" />
-      <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`carG-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="1" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.7" />
+        </linearGradient>
+        <linearGradient id={`carGl-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+      <path d="M3 13V17.5C3 18.33 3.67 19 4.5 19H5.5C6.33 19 7 18.33 7 17.5V17H17V17.5C17 18.33 17.67 19 18.5 19H19.5C20.33 19 21 18.33 21 17.5V13" fill={`url(#carGl-${id})`} />
+      <path d="M18.5 7.5H5.5L3 13V17.5C3 18.33 3.67 19 4.5 19H5.5C6.33 19 7 18.33 7 17.5V16H17V17.5C17 18.33 17.67 19 18.5 19H19.5C20.33 19 21 18.33 21 17.5V13L18.5 7.5Z" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3.5 13H20.5" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7.5 7.5L6.5 13" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16.5 7.5L17.5 13" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="7" cy="15" r="1.5" fill={`url(#carG-${id})`}/>
+      <circle cx="17" cy="15" r="1.5" fill={`url(#carG-${id})`}/>
     </svg>
   );
 }
 function IconBike({ size = 16, color = C.navy }: { size?: number; color?: string }) {
+  const id = Math.random().toString(36).slice(2, 8);
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5" cy="17" r="3" />
-      <circle cx="19" cy="17" r="3" />
-      <path d="M12 17V9l4-4M12 5h3l2 4" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`bkG-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="1" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.7" />
+        </linearGradient>
+        <linearGradient id={`bkGl-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+      <circle cx="6.5" cy="16" r="3.5" fill={`url(#bkGl-${id})`}/>
+      <circle cx="17.5" cy="16" r="3.5" fill={`url(#bkGl-${id})`}/>
+      <circle cx="6.5" cy="16" r="3.5" stroke={`url(#bkG-${id})`} strokeWidth="1.8"/>
+      <circle cx="17.5" cy="16" r="3.5" stroke={`url(#bkG-${id})`} strokeWidth="1.8"/>
+      <path d="M15 8H11L8 16" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M10.5 13.5H15L17.5 16" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M15 8L16.5 5H18" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 10H5.5" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="15" cy="8" r="1.5" fill={`url(#bkG-${id})`}/>
+      <path d="M10 13.5L12 9" stroke={`url(#bkG-${id})`} strokeWidth="1.8" strokeLinecap="round"/>
     </svg>
   );
 }
