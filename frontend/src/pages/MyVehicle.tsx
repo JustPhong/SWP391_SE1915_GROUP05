@@ -125,12 +125,14 @@ function VehicleCard({
   onAskDelete,
   onConfirmDelete,
   onCancelDelete,
+  onViewDetail,
 }: {
   vehicle: Vehicle;
   phase: DeletePhase;
   onAskDelete: () => void;
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
+  onViewDetail: () => void;
 }) {
   const isCar = vehicle.type === 'CAR';
   const busy = phase === 'deleting';
@@ -143,7 +145,12 @@ function VehicleCard({
         gap: '0.85rem',
         padding: '0.85rem 1rem',
         opacity: busy ? 0.6 : 1,
+        cursor: phase === 'idle' ? 'pointer' : 'default',
+        transition: 'box-shadow 0.15s',
       }}
+      onClick={() => { if (phase === 'idle') onViewDetail(); }}
+      onMouseEnter={(e) => { if (phase === 'idle') (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 18px rgba(30,58,95,0.1)'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; }}
     >
       <div
         style={{
@@ -196,71 +203,34 @@ function VehicleCard({
 
       {phase === 'confirming' ? (
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            flexShrink: 0,
-          }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <span style={{ fontSize: '0.78rem', color: C.gray900, fontWeight: 600 }}>
-            Xác nhận xoá?
-          </span>
+          <span style={{ fontSize: '0.78rem', color: C.gray900, fontWeight: 600 }}>Xác nhận xoá?</span>
           <button
             type="button"
-            onClick={onConfirmDelete}
+            onClick={(e) => { e.stopPropagation(); onConfirmDelete(); }}
             disabled={busy}
-            style={{
-              padding: '0.35rem 0.7rem',
-              background: C.red,
-              color: C.white,
-              border: 'none',
-              borderRadius: 8,
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: busy ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Xoá
-          </button>
+            style={{ padding: '0.35rem 0.7rem', background: C.red, color: C.white, border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}
+          >Xoá</button>
           <button
             type="button"
-            onClick={onCancelDelete}
+            onClick={(e) => { e.stopPropagation(); onCancelDelete(); }}
             disabled={busy}
-            style={{
-              padding: '0.35rem 0.7rem',
-              background: C.white,
-              color: C.gray600,
-              border: `1px solid ${C.gray200}`,
-              borderRadius: 8,
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: busy ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Huỷ
-          </button>
+            style={{ padding: '0.35rem 0.7rem', background: C.white, color: C.gray600, border: `1px solid ${C.gray200}`, borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}
+          >Huỷ</button>
         </div>
       ) : (
         <button
           type="button"
-          onClick={onAskDelete}
+          onClick={(e) => { e.stopPropagation(); onAskDelete(); }}
           disabled={busy}
           aria-label={`Xoá xe ${vehicle.plateNumber}`}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '0.35rem 0.6rem',
-            background: 'transparent',
-            color: C.gray600,
-            border: 'none',
-            borderRadius: 8,
-            fontSize: '0.78rem',
-            fontWeight: 600,
-            cursor: busy ? 'not-allowed' : 'pointer',
-            opacity: busy ? 0.4 : 1,
-            flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '0.35rem 0.6rem', background: 'transparent', color: C.gray600,
+            border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600,
+            cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.4 : 1, flexShrink: 0,
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
           onMouseLeave={(e) => (e.currentTarget.style.color = C.gray600)}
@@ -269,6 +239,173 @@ function VehicleCard({
           {busy ? 'Đang xoá...' : 'Xoá'}
         </button>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+//  VEHICLE DETAIL MODAL
+// ═══════════════════════════════════════════════════════
+function DetailRow({ label, value }: { label: string; value?: string | number | null }) {
+  if (!value && value !== 0) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, padding: '0.45rem 0', borderBottom: `1px solid ${C.gray100}` }}>
+      <span style={{ fontSize: '0.8rem', color: C.gray600, fontWeight: 600, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: '0.82rem', color: C.gray900, fontWeight: 700, textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+}
+
+function BookingStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; bg: string; color: string }> = {
+    ACTIVE: { label: 'Đang hiệu lực', bg: '#DCFCE7', color: '#16A34A' },
+    FULFILLED: { label: 'Đã hoàn thành', bg: '#EFF6FF', color: '#3B82F6' },
+    NO_SHOW: { label: 'Không đến', bg: '#FEF3C7', color: '#D97706' },
+    CANCELLED: { label: 'Đã hủy', bg: '#FEF2F2', color: '#EF4444' },
+  };
+  const s = map[status] ?? { label: status, bg: C.gray100, color: C.gray600 };
+  return <span style={{ background: s.bg, color: s.color, fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>{s.label}</span>;
+}
+
+function PackageStatusBadge({ status }: { status: string }) {
+  const isActive = status === 'ACTIVE';
+  return <span style={{ background: isActive ? '#DCFCE7' : '#F3F4F6', color: isActive ? '#16A34A' : '#6B7280', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>{isActive ? 'Còn hiệu lực' : 'Hết hạn'}</span>;
+}
+
+function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    vehicleService.getDetail(vehicleId)
+      .then((data) => { if (!cancelled) { setDetail(data); setLoading(false); } })
+      .catch((e: any) => { if (!cancelled) { setError(e?.response?.data?.message ?? 'Không thể tải thông tin xe'); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [vehicleId]);
+
+  const fmt = (d: string) => new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const fmtDatetime = (d: string) => new Date(d).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 0 0' }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: C.white, borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520,
+          maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem 1.25rem 2rem',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle bar */}
+        <div style={{ width: 40, height: 4, background: C.gray200, borderRadius: 4, margin: '0 auto 1.25rem' }} />
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: C.navy }}>Chi tiết xe</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', borderRadius: 8 }}>
+            <IconClose size={18} color={C.gray600} />
+          </button>
+        </div>
+
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '2rem', color: C.gray400, fontSize: '0.9rem' }}>Đang tải...</div>
+        )}
+        {error && (
+          <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', color: '#B91C1C', fontSize: '0.85rem' }}>{error}</div>
+        )}
+
+        {detail && !loading && (
+          <>
+            {/* Vehicle icon + plate */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: C.gray50, borderRadius: 14, padding: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ width: 52, height: 52, background: C.blueBg, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {detail.type === 'CAR' ? <IconCar size={26} color={C.navy} /> : <IconBike size={26} color={C.navy} />}
+              </div>
+              <div>
+                <div style={{ fontFamily: "'Consolas', monospace", fontSize: '1.3rem', fontWeight: 900, color: C.gray900, letterSpacing: '0.04em' }}>{detail.plateNumber}</div>
+                <div style={{ fontSize: '0.82rem', color: C.gray600, fontWeight: 600 }}>{detail.type === 'CAR' ? 'Ô tô' : 'Xe máy'} {detail.isMonthly ? '· Gói tháng' : ''}</div>
+              </div>
+            </div>
+
+            {/* Basic info */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Thông tin xe</p>
+              <DetailRow label="Hãng" value={detail.brand} />
+              <DetailRow label="Dòng xe" value={detail.model} />
+              <DetailRow label="Màu sắc" value={detail.color} />
+              <DetailRow label="Năm sản xuất" value={detail.year} />
+              {detail.type === 'CAR' && <DetailRow label="Số chỗ ngồi" value={detail.seats ? `${detail.seats} chỗ` : null} />}
+              <DetailRow label="Ngày đăng ký" value={detail.createdAt ? fmt(detail.createdAt) : null} />
+            </div>
+
+            {/* Bookings */}
+            {detail.bookings?.length > 0 && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lịch đặt chỗ gần đây</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {detail.bookings.map((b: any) => (
+                    <div key={b.id} style={{ background: C.gray50, borderRadius: 10, padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray900 }}>Tầng {b.slot?.floor?.name ?? '—'} · Ô {b.slot?.code ?? '—'}</div>
+                        <div style={{ fontSize: '0.75rem', color: C.gray600, marginTop: 2 }}>Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}</div>
+                      </div>
+                      <BookingStatusBadge status={b.status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Monthly package */}
+            {detail.monthlyPackage && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gói đỗ xe tháng</p>
+                <div style={{ background: C.gray50, borderRadius: 10, padding: '0.65rem 0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: C.gray900 }}>{detail.monthlyPackage.planName ?? 'Gói tháng'}</span>
+                    <PackageStatusBadge status={detail.monthlyPackage.status} />
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: C.gray600 }}>{fmt(detail.monthlyPackage.startDate)} – {fmt(detail.monthlyPackage.expiryDate)}</div>
+                  {detail.monthlyPackage.slot && <div style={{ fontSize: '0.75rem', color: C.gray600, marginTop: 2 }}>Tầng {detail.monthlyPackage.slot.floor?.name ?? '—'} · Ô {detail.monthlyPackage.slot.code}</div>}
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: C.navy, marginTop: 4 }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
+                </div>
+              </div>
+            )}
+
+            {/* Check-in history */}
+            {detail.checkInRecords?.length > 0 && (
+              <div style={{ marginBottom: '0.5rem' }}>
+                <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lịch sử gửi xe gần đây</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {detail.checkInRecords.map((r: any) => (
+                    <div key={r.id} style={{ background: C.gray50, borderRadius: 10, padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray900 }}>Tầng {r.slot?.floor?.name ?? '—'} · Ô {r.slot?.code ?? '—'}</div>
+                        <div style={{ fontSize: '0.75rem', color: C.gray600, marginTop: 2 }}>Vào: {fmtDatetime(r.checkInTime)}</div>
+                        {r.checkOutTime && <div style={{ fontSize: '0.75rem', color: C.gray600 }}>Ra: {fmtDatetime(r.checkOutTime)}</div>}
+                      </div>
+                      <span style={{ background: r.checkOutTime ? C.gray100 : '#DCFCE7', color: r.checkOutTime ? C.gray600 : '#16A34A', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20, flexShrink: 0 }}>
+                        {r.checkOutTime ? 'Đã ra' : 'Đang đỗ'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {detail.bookings?.length === 0 && !detail.monthlyPackage && detail.checkInRecords?.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '1rem', color: C.gray400, fontSize: '0.85rem' }}>Chưa có hoạt động nào</div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -659,6 +796,7 @@ export function MyVehiclePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
 
   const loadVehicles = useCallback(async () => {
     const epoch = ++loadEpoch.current;
@@ -838,6 +976,7 @@ export function MyVehiclePage() {
                   onAskDelete={() => askDelete(v.id)}
                   onConfirmDelete={() => handleDelete(v.id)}
                   onCancelDelete={() => cancelDelete(v.id)}
+                  onViewDetail={() => setDetailVehicleId(v.id)}
                 />
                 {error && phase !== 'deleting' && (
                   <DeleteErrorBanner message={error} onDismiss={() => clearDeleteError(v.id)} />
@@ -882,6 +1021,10 @@ export function MyVehiclePage() {
           }}
           onSubmit={handleAddVehicle}
         />
+      )}
+
+      {detailVehicleId && (
+        <VehicleDetailModal vehicleId={detailVehicleId} onClose={() => setDetailVehicleId(null)} />
       )}
     </div>
   );

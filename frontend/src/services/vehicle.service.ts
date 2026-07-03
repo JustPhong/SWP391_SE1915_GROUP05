@@ -22,6 +22,11 @@ export const vehicleService = {
     return response.data.data;
   },
 
+  getDetail: async (vehicleId: string) => {
+    const response = await api.get<{ success: boolean; data: any }>(`/vehicles/${vehicleId}/detail`);
+    return response.data.data;
+  },
+
   remove: async (id: string) => {
     await api.delete(`/vehicles/${id}`);
   },

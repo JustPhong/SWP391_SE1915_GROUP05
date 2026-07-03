@@ -69,6 +69,37 @@ export const vehicleService = {
     return prisma.vehicle.findMany({ where: { ownerId } });
   },
 
+  async getDetail(vehicleId: string, userId: string) {
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      include: {
+        owner: { select: { id: true, fullName: true, email: true } },
+        bookings: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: {
+            slot: { include: { floor: true } },
+          },
+        },
+        monthlyPackage: {
+          include: {
+            slot: { include: { floor: true } },
+          },
+        },
+        checkInRecords: {
+          orderBy: { checkInTime: 'desc' },
+          take: 5,
+          include: {
+            slot: { include: { floor: true } },
+          },
+        },
+      },
+    });
+    if (!vehicle) throw new AppError(404, 'Không tìm thấy xe');
+    if (vehicle.ownerId !== userId) throw new AppError(403, 'Bạn không có quyền xem xe này');
+    return vehicle;
+  },
+
   async update(id: string, userId: string, data: Partial<CreateVehicleInput>) {
     const vehicle = await loadOwnedVehicleOrThrow(id, userId);
 
