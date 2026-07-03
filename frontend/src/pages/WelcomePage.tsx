@@ -14,6 +14,7 @@ import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
+import { MotorbikeIcon, CarIconFilled } from '../components/ui/Icons';
 
 type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking' | 'floormap';
 
@@ -710,13 +711,13 @@ export const WelcomePage: React.FC = () => {
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Loại xe</label>
                 <div className={styles.typeSelector}>
-                  <button type="button" className={`${styles.typeOption} ${newType === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setNewType('CAR')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
-                    Ô tô
+                  <button type="button" className={`${styles.typeOption} ${newType === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setNewType('CAR')} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <span style={{ color: '#3B82F6', display: 'flex', alignItems: 'center' }}><CarIconFilled size={18} /></span>
+                    XE HƠI
                   </button>
-                  <button type="button" className={`${styles.typeOption} ${newType === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setNewType('MOTORBIKE')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M5 17H3V9h12l3 8h2" /><path d="M15 9h2l2 4-1 4H11" /></svg>
-                    Xe máy
+                  <button type="button" className={`${styles.typeOption} ${newType === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setNewType('MOTORBIKE')} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <span style={{ color: '#F97316', display: 'flex', alignItems: 'center' }}><MotorbikeIcon size={18} /></span>
+                    XE MÁY
                   </button>
                 </div>
               </div>
@@ -1063,13 +1064,13 @@ function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string
 
         {/* Monthly toggle kept for perks section */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', margin: '2rem 0 1rem' }}>
-          <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
-            Ô tô
+          <button type="button" className={`${styles.typeOption} ${vtype === 'CAR' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('CAR')} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span style={{ color: '#3B82F6', display: 'flex', alignItems: 'center' }}><CarIconFilled size={18} /></span>
+            XE HƠI
           </button>
-          <button type="button" className={`${styles.typeOption} ${vtype === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('MOTORBIKE')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M5 17H3V9h12l3 8h2" /><path d="M15 9h2l2 4-1 4H11" /></svg>
-            Xe máy
+          <button type="button" className={`${styles.typeOption} ${vtype === 'MOTORBIKE' ? styles.typeOptionActive : ''}`} onClick={() => setVtype('MOTORBIKE')} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span style={{ color: '#F97316', display: 'flex', alignItems: 'center' }}><MotorbikeIcon size={18} /></span>
+            XE MÁY
           </button>
         </div>
 
