@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { AppError } from '../utils/helpers';
 import { sendOtpEmail } from './email.service';
-
 export interface RegisterInput {
   fullName: string;
   email: string;
@@ -356,3 +355,5 @@ export const authService = {
     });
   },
 };
+
+

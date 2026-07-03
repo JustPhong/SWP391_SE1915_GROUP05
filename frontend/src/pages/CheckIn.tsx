@@ -52,45 +52,71 @@ function normalizePlate(raw: string): string {
   return raw.replace(/[\s.\-]/g, '').toUpperCase();
 }
 
-/**
- * Returns { valid, formatted }.
- * Rejects if: bad province code, wrong number of digits, or can't parse with regex.
- * On invalid input, formatted is the empty string.
- */
-function formatPlate(raw: string): { valid: boolean; formatted: string } {
-  const s = normalizePlate(raw);
-  if (!s) return { valid: false, formatted: '' };
+type VehicleTypeFmt = 'CAR' | 'MOTORBIKE';
 
-  // group1=province, group2=letter, group3=optional series digit, group4=4-5 trailing digits
-  const match = s.match(/^(\d{2})([A-Z])(\d?)(\d{4,5})$/);
-  if (!match) {
-    return { valid: false, formatted: '' };
+function formatPlate(raw: string, vehicleType: VehicleTypeFmt): { valid: boolean; formatted: string } {
+  const upper = raw.toUpperCase().trim();
+  if (!upper) return { valid: false, formatted: '' };
+
+  const dashIndex = upper.indexOf('-');
+  let prefix: string;
+  let suffix: string;
+
+  if (dashIndex !== -1) {
+    // Respect the dash position the user actually typed.
+    prefix = upper.slice(0, dashIndex).replace(/[\s.]/g, '');
+    suffix = upper.slice(dashIndex + 1).replace(/[\s.\-]/g, '');
+  } else {
+    const s = upper.replace(/[\s.]/g, '');
+    if (vehicleType === 'CAR') {
+      const m = s.match(/^(\d{2}[A-Z])(\d{4,5})$/);
+      if (!m) return { valid: false, formatted: '' };
+      prefix = m[1];
+      suffix = m[2];
+    } else {
+      const m = s.match(/^(\d{2}C[0-9A-Z])(\d{4,5})$/);
+      if (!m) return { valid: false, formatted: '' };
+      prefix = m[1];
+      suffix = m[2];
+    }
   }
 
-  const prov = match[1];
+  if (!/^\d{4,5}$/.test(suffix)) return { valid: false, formatted: '' };
+
+  let prov: string;
+  let letterPart: string;
+
+  if (vehicleType === 'CAR') {
+    const m = prefix.match(/^(\d{2})([A-Z])$/);
+    if (!m) return { valid: false, formatted: '' };
+    prov = m[1];
+    letterPart = m[2];
+  } else {
+    const m = prefix.match(/^(\d{2})C([0-9A-Z])$/);
+    if (!m) return { valid: false, formatted: '' };
+    prov = m[1];
+    letterPart = 'C' + m[2];
+  }
+
   const provNum = parseInt(prov, 10);
   if (!VALID_PROVINCE_CODES.includes(provNum)) {
     return { valid: false, formatted: '' };
   }
 
-  const letter = match[2];
-  const seriesDigit = match[3];  // '' if absent
-  const numbers = match[4];      // 4 or 5 digits
-
+  const numbers = suffix;
   let formatted: string;
   if (numbers.length === 5) {
-    // 5 digits: first 3 + dot + last 2  (e.g. "89A187382" -> "89A1-873.82")
-    formatted = `${prov}${letter}${seriesDigit}-${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    formatted = `${prov}${letterPart}-${numbers.slice(0, 3)}.${numbers.slice(3)}`;
   } else {
-    // 4 digits: no dot (e.g. "38A1234" -> "38A-1234")
-    formatted = `${prov}${letter}${seriesDigit}-${numbers}`;
+    formatted = `${prov}${letterPart}-${numbers}`;
   }
   return { valid: true, formatted };
 }
 
-function isPlateValid(raw: string): boolean {
-  return formatPlate(raw).valid;
+function isPlateValid(raw: string, vehicleType: VehicleTypeFmt): boolean {
+  return formatPlate(raw, vehicleType).valid;
 }
+
 
 type PageState = 'idle' | 'monthly_valid' | 'monthly_expired' | 'casual';
 
@@ -407,8 +433,9 @@ export function CheckInPage() {
 
     const raw = searchParams.get('plate');
     if (!raw) return;
-    const { valid, formatted } = formatPlate(raw);
+    const { valid, formatted } = formatPlate(raw, vehicleType);
     if (!valid) return;
+
 
     setPlateInput(formatted);
 
@@ -437,6 +464,7 @@ export function CheckInPage() {
   }, []); // run once on mount after useSearchParams stabilizes
 
   // ── Load available slots when entering casual state ─
+
   useEffect(() => {
     if (pageState === 'casual' || pageState === 'monthly_expired') {
       getAvailableSlots(vehicleType).then((slots) => {
@@ -457,7 +485,9 @@ export function CheckInPage() {
       setPlateError('');
       return;
     }
-    const { valid, formatted } = formatPlate(plateInput);
+    const { valid, formatted } = formatPlate(plateInput, vehicleType);
+
+
     if (!valid) {
       setPlateError('Biển số không hợp lệ (sai mã tỉnh hoặc định dạng)');
     } else {
@@ -471,7 +501,8 @@ export function CheckInPage() {
     if (!raw) return;
 
     // Normalize + re-validate so the display always shows the correctly formatted value
-    const { valid, formatted } = formatPlate(raw);
+    const { valid, formatted } = formatPlate(raw, vehicleType);
+
     if (!valid) {
       setPlateError('Biển số không hợp lệ (sai mã tỉnh hoặc định dạng)');
       return;
@@ -716,16 +747,19 @@ export function CheckInPage() {
               )}
               <button
                 onClick={handleSearch}
-                disabled={!isPlateValid(plateInput) || searching}
+                disabled={!isPlateValid(plateInput, vehicleType) || searching}
+
                 style={{
+
                   padding: '0.65rem 1rem',
-                  background: isPlateValid(plateInput) && !searching ? C.navy : C.gray200,
-                  color: isPlateValid(plateInput) && !searching ? C.white : C.gray400,
+                  background: isPlateValid(plateInput, vehicleType) && !searching ? C.navy : C.gray200,
+                  color: isPlateValid(plateInput, vehicleType) && !searching ? C.white : C.gray400,
                   border: 'none',
                   borderRadius: 10,
                   fontSize: '0.82rem',
                   fontWeight: 700,
-                  cursor: isPlateValid(plateInput) && !searching ? 'pointer' : 'not-allowed',
+                  cursor: isPlateValid(plateInput, vehicleType) && !searching ? 'pointer' : 'not-allowed',
+
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
