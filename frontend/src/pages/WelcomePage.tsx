@@ -15,6 +15,7 @@ import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 import { MotorbikeIcon, CarIconFilled } from '../components/ui/Icons';
+import { formatPlateNumber } from '../utils/plate';
 
 type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking' | 'floormap';
 
@@ -674,7 +675,7 @@ export const WelcomePage: React.FC = () => {
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Biển số xe</label>
                 <input className={styles.formInput} type="text" placeholder="VD: 30A-123.45" value={newPlate}
-                  onChange={e => setNewPlate(e.target.value.toUpperCase())} maxLength={20} required />
+                  onChange={e => setNewPlate(formatPlateNumber(e.target.value, newPlate))} maxLength={20} required />
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Hãng</label>
