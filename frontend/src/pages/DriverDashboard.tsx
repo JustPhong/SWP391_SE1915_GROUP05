@@ -260,5 +260,6 @@ export function DriverDashboardPage() {
         <button className={styles.promoBtn}>Khám phá ngay</button>
       </div>
     </>
+    
   );
 }

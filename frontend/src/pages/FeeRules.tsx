@@ -249,3 +249,4 @@ function RuleRow({ rule }: { rule: FeeRule }) {
     </tr>
   );
 }
+
