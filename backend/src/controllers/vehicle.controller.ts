@@ -30,6 +30,11 @@ export const vehicleController = {
     return res.status(200).json({ success: true, data: vehicles });
   }),
 
+  getDetail: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const vehicle = await vehicleService.getDetail(req.params.id, req.user!.id);
+    return res.status(200).json({ success: true, data: vehicle });
+  }),
+
   update: asyncHandler(async (req: AuthRequest, res: Response) => {
     const vehicle = await vehicleService.update(req.params.id, req.user!.id, req.body);
     return res.status(200).json({ success: true, data: vehicle });
