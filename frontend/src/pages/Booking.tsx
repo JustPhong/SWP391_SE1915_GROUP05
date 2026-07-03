@@ -32,28 +32,9 @@ type ApiSlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
 function IconPlus({ size = 14, color = C.green }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 }
-function IconCar({ size = 16, color = C.white }: { size?: number; color?: string }) {
-  const id = Math.random().toString(36).slice(2, 8);
+function IconCar({ size = 16 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id={`carG-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity="1" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.7" />
-        </linearGradient>
-        <linearGradient id={`carGl-${id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-      <path d="M3 13V17.5C3 18.33 3.67 19 4.5 19H5.5C6.33 19 7 18.33 7 17.5V17H17V17.5C17 18.33 17.67 19 18.5 19H19.5C20.33 19 21 18.33 21 17.5V13" fill={`url(#carGl-${id})`} />
-      <path d="M18.5 7.5H5.5L3 13V17.5C3 18.33 3.67 19 4.5 19H5.5C6.33 19 7 18.33 7 17.5V16H17V17.5C17 18.33 17.67 19 18.5 19H19.5C20.33 19 21 18.33 21 17.5V13L18.5 7.5Z" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3.5 13H20.5" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M7.5 7.5L6.5 13" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M16.5 7.5L17.5 13" stroke={`url(#carG-${id})`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="7" cy="15" r="1.5" fill={`url(#carG-${id})`}/>
-      <circle cx="17" cy="15" r="1.5" fill={`url(#carG-${id})`}/>
-    </svg>
+    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
   );
 }
 function IconLock({ size = 14, color = C.blue }: { size?: number; color?: string }) {

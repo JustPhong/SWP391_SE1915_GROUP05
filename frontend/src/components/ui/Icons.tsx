@@ -55,11 +55,11 @@ export const EyeOffIcon = ({ size = 16, className }: IconProps) => (
 );
 
 export const CarIcon = ({ size = 16, className }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M5 17h14M5 11l3-7h8l3 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="7" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
-    <circle cx="17" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
-  </svg>
+  <span className={className} style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
+);
+
+export const MotorbikeIcon = ({ size = 16, className }: IconProps) => (
+  <span className={className} style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>
 );
 
 export const LicensePlateIcon = ({ size = 16, className }: IconProps) => (
@@ -132,12 +132,7 @@ export const HelpIcon = ({ size = 16, className }: IconProps) => (
 );
 
 export const CarIconFilled = ({ size = 16, className }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M5 11l1.5-5h11L19 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M3 11h18v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="7" cy="16" r="2" stroke="currentColor" strokeWidth="2" />
-    <circle cx="17" cy="16" r="2" stroke="currentColor" strokeWidth="2" />
-  </svg>
+  <span className={className} style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
 );
 
 export const SupportIcon = ({ size = 16, className }: IconProps) => (
