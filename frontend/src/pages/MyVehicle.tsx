@@ -357,13 +357,13 @@ function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose
 
   const specs = detail
     ? [
-        { label: 'Hãng xe', value: detail.brand, icon: <IconBuilding size={16} color={C.navy} /> },
-        { label: 'Dòng xe', value: detail.model, icon: <IconTag size={16} color={C.navy} /> },
-        { label: 'Màu sắc', value: detail.color, icon: <IconPaintBrush size={16} color={C.navy} />, isColor: true },
-        { label: 'Năm sản xuất', value: detail.year, icon: <IconCalendar size={16} color={C.navy} /> },
-        ...(detail.type === 'CAR' ? [{ label: 'Số chỗ ngồi', value: detail.seats ? `${detail.seats} chỗ` : null, icon: <IconSeat size={16} color={C.navy} /> }] : []),
-        { label: 'Ngày đăng ký', value: detail.createdAt ? fmt(detail.createdAt) : null, icon: <IconShieldCheck size={16} color={C.navy} /> },
-      ].filter((s) => s.value !== undefined && s.value !== null && s.value !== '')
+        { label: 'Hãng xe', value: detail.brand || 'Chưa cập nhật', icon: <IconBuilding size={16} color={C.navy} /> },
+        { label: 'Dòng xe', value: detail.model || 'Chưa cập nhật', icon: <IconTag size={16} color={C.navy} /> },
+        { label: 'Màu sắc', value: detail.color || 'Chưa cập nhật', icon: <IconPaintBrush size={16} color={C.navy} />, isColor: !!detail.color },
+        { label: 'Năm sản xuất', value: detail.year || 'Chưa cập nhật', icon: <IconCalendar size={16} color={C.navy} /> },
+        ...(detail.type === 'CAR' ? [{ label: 'Số chỗ ngồi', value: detail.seats ? `${detail.seats} chỗ` : 'Chưa cập nhật', icon: <IconSeat size={16} color={C.navy} /> }] : []),
+        { label: 'Ngày đăng ký', value: detail.createdAt ? fmt(detail.createdAt) : 'Chưa cập nhật', icon: <IconShieldCheck size={16} color={C.navy} /> },
+      ]
     : [];
 
   return (

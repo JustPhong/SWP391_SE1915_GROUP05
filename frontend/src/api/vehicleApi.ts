@@ -6,6 +6,11 @@ export interface Vehicle {
   type: 'CAR' | 'MOTORBIKE';
   ownerId: string;
   isMonthly: boolean;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
+  seats?: number | null;
   createdAt: string;
 }
 

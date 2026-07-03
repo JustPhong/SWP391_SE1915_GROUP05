@@ -37,6 +37,7 @@ model Vehicle {
   model          String?         @db.NVarChar(60)
   color          String?         @db.NVarChar(30)
   year           Int?
+  seats          Int?
   isMonthly      Boolean         @default(false)
   ownerId        String
   createdAt      DateTime        @default(now())
