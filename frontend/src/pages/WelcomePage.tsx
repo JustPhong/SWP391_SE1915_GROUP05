@@ -14,7 +14,8 @@ import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { ParkingSlot } from '../types';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
-
+import motorbikeWatermark from '../assets/motorbike-watermark.png';
+import carWatermark from '../assets/car-watermark.png';
 
 type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking' | 'floormap';
 
@@ -673,8 +674,14 @@ export const WelcomePage: React.FC = () => {
             <form onSubmit={handleAddVehicle} className={styles.modalForm}>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Biển số xe</label>
-                <PlateInput className={styles.formInput} placeholder="VD: 30A-123.45" value={newPlate}
-                  onChange={setNewPlate} maxLength={20} required />
+                <input
+                  className={styles.formInput}
+                  placeholder="VD: 30A-123.45"
+                  value={newPlate}
+                  onChange={(e) => setNewPlate(e.target.value)}
+                  maxLength={20}
+                  required
+                />
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Hãng</label>
@@ -1006,6 +1013,7 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
 }
 
 function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: () => void }) {
+  const [vtype, setVtype] = useState<VType>('MOTORBIKE');
   const handleSelect = onSelectPackage ?? (() => navigate('/monthly-package'));
   return (
     <section id="pricing" className={styles.section}>
@@ -1278,14 +1286,14 @@ const CAR_TIER_PERKS: TierPerk[][] = [
 ];
 
 const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'CAO CẤP'];
-const CAR_TIER_LABELS  = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
+const CAR_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 
 function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () => void }) {
   const isCar = vtype === 'CAR';
-  const groupClass     = isCar ? styles.pricingGroupIconGreen : styles.pricingGroupIconBlue;
-  const cardFeatured   = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
-  const panelClass     = isCar ? styles.pricingPanelGreen     : styles.pricingPanelBlue;
-  const title    = isCar ? 'Gói ô tô'  : 'Gói xe máy';
+  const groupClass = isCar ? styles.pricingGroupIconGreen : styles.pricingGroupIconBlue;
+  const cardFeatured = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
+  const panelClass = isCar ? styles.pricingPanelGreen : styles.pricingPanelBlue;
+  const title = isCar ? 'Gói ô tô' : 'Gói xe máy';
   const subtitle = isCar ? 'Chỗ đỗ cố định, ưu tiên khu gửi tháng' : 'Đỗ linh hoạt, tiết kiệm cho người gửi xe thường xuyên';
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
@@ -1334,11 +1342,10 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
 
                 <div className={`${styles.planCardHeader}`}>
                   {/* Tier label */}
-                  <span className={`${styles.planTierLabel} ${
-                    isFeatured ? styles.planTierLabelFeatured :
+                  <span className={`${styles.planTierLabel} ${isFeatured ? styles.planTierLabelFeatured :
                     isAnnual ? (isCar ? styles.planTierLabelVip : styles.planTierLabelPremium) :
-                    styles.planTierLabelBasic
-                  }`}>
+                      styles.planTierLabelBasic
+                    }`}>
                     {isAnnual && isCar ? '👑 ' : ''}{tierLabel}
                   </span>
 
@@ -1398,6 +1405,26 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
         </div>
       </div>
     </div>
+  );
+}
+
+function CarIconFilled({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M5.5 11 7 6.8A3 3 0 0 1 9.82 5h4.36A3 3 0 0 1 17 6.8l1.5 4.2H19a2 2 0 0 1 2 2v4.5a1 1 0 0 1-1 1h-1.2a2.3 2.3 0 0 1-4.6 0H9.8a2.3 2.3 0 0 1-4.6 0H4a1 1 0 0 1-1-1V13a2 2 0 0 1 2-2h.5Zm3.4-3.55L7.75 11h8.5L15.1 7.45A1.2 1.2 0 0 0 13.96 6.6H10.04a1.2 1.2 0 0 0-1.14.85ZM7.5 19.2a1.1 1.1 0 1 0 0-2.2 1.1 1.1 0 0 0 0 2.2Zm9 0a1.1 1.1 0 1 0 0-2.2 1.1 1.1 0 0 0 0 2.2Z" />
+    </svg>
+  );
+}
+
+function MotorbikeIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="5" cy="17" r="3" />
+      <circle cx="19" cy="17" r="3" />
+      <path d="M8 17h4l3-6h2" />
+      <path d="M12 17V9l4-4" />
+      <path d="M12 5h3l2 4" />
+    </svg>
   );
 }
 
