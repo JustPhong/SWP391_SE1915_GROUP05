@@ -1096,30 +1096,110 @@ function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string
   );
 }
 
+// ── Perk icon helper ─────────────────────────────────────
+function PerkIcon({ name, color }: { name: string; color: string }) {
+  switch (name) {
+    case 'parking':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>;
+    case 'checklist':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>;
+    case 'infinity':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z"/></svg>;
+    case 'shield':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+    case 'star':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    case 'clock':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>;
+    case 'support':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+    case 'camera':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+    case 'location':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+    case 'zap':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+    case 'crown':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M3 20h18"/></svg>;
+    case 'key':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>;
+    case 'refresh':
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
+    default:
+      return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>;
+  }
+}
+
 // ── Single vehicle-type group (3 plan cards in a row, inside a panel) ─
-const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
-const CAR_PERKS  = ['Chỗ đỗ cố định riêng', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Ưu tiên khu gói tháng'];
+// Each tier has its own perks with icon names
+interface TierPerk { icon: string; text: string; }
+
+const MOTO_TIER_PERKS: TierPerk[][] = [
+  // CƠ BẢN (1 tháng)
+  [
+    { icon: 'parking', text: 'Đỗ ở ô trống bất kỳ' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'support', text: 'Hỗ trợ cơ bản' },
+  ],
+  // PHỔ BIẾN (3 tháng)
+  [
+    { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
+    { icon: 'shield', text: 'Khu xe ưu tiên' },
+    { icon: 'clock', text: 'Giữ chỗ giờ cao điểm' },
+    { icon: 'support', text: 'Hỗ trợ nhanh 24/7' },
+  ],
+  // CAO CẤP (1 năm)
+  [
+    { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
+    { icon: 'shield', text: 'Khu xe có mái che' },
+    { icon: 'zap', text: 'Ưu tiên check-in' },
+    { icon: 'refresh', text: 'Gia hạn giữ chỗ linh hoạt' },
+  ],
+];
+
+const CAR_TIER_PERKS: TierPerk[][] = [
+  // CƠ BẢN (1 tháng)
+  [
+    { icon: 'parking', text: 'Đỗ trong khu ô tô tháng' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'support', text: 'Hỗ trợ cơ bản' },
+  ],
+  // PHỔ BIẾN (3 tháng)
+  [
+    { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
+    { icon: 'location', text: 'Vị trí ưu tiên gần lối ra' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
+    { icon: 'zap', text: 'Hỗ trợ nhanh' },
+  ],
+  // VIP (1 năm)
+  [
+    { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
+    { icon: 'key', text: 'Chỗ đỗ cố định riêng' },
+    { icon: 'zap', text: 'Làn check-in ưu tiên' },
+    { icon: 'crown', text: 'Hỗ trợ VIP' },
+  ],
+];
+
+const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'CAO CẤP'];
+const CAR_TIER_LABELS  = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 
 function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () => void }) {
   const isCar = vtype === 'CAR';
   const groupClass     = isCar ? styles.pricingGroupIconGreen : styles.pricingGroupIconBlue;
   const cardFeatured   = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
   const panelClass     = isCar ? styles.pricingPanelGreen     : styles.pricingPanelBlue;
-  const cardIconClass  = isCar ? styles.planCardIconGreen     : '';
-  const title    = isCar ? 'Gói Ô tô'  : 'Gói Xe máy';
-  const subtitle = isCar ? 'Chỗ đỗ cố định, ưu tiên khu gói tháng' : 'Đỗ ở ô trống bất kỳ, khu xe máy riêng có mái che';
+  const title    = isCar ? 'Gói ô tô'  : 'Gói xe máy';
+  const subtitle = isCar ? 'Chỗ đỗ cố định, ưu tiên khu gửi tháng' : 'Đỗ linh hoạt, tiết kiệm cho người gửi xe thường xuyên';
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
-  const perks = isCar ? CAR_PERKS : MOTO_PERKS;
+  const tierPerks = isCar ? CAR_TIER_PERKS : MOTO_TIER_PERKS;
+  const tierLabels = isCar ? CAR_TIER_LABELS : MOTO_TIER_LABELS;
   const HeaderIcon = isCar ? (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
   ) : (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
-  );
-  const CardIcon = isCar ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
   );
 
   return (
@@ -1144,6 +1224,8 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
             const isFeatured = idx === 1;
             const isAnnual = idx === 2;
             const price = pkg.prices[vtype];
+            const perks = tierPerks[idx];
+            const tierLabel = tierLabels[idx];
             return (
               <button
                 key={pkg.id}
@@ -1152,17 +1234,18 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
                 onClick={onClickCard}
               >
                 {isFeatured && (
-                  <span className={styles.planBadge}>Tiết kiệm nhất</span>
+                  <span className={styles.planBadge}>★ Tiết kiệm nhất</span>
                 )}
 
                 <div className={`${styles.planCardHeader}`}>
-                  {/* Top row: icon hidden on centered layout */}
-                  <div className={styles.planCardTopRow}>
-                    <div />
-                    <div className={`${styles.planCardIcon} ${cardIconClass} ${isFeatured ? styles.planCardIconFeatured : ''}`}>
-                      {CardIcon}
-                    </div>
-                  </div>
+                  {/* Tier label */}
+                  <span className={`${styles.planTierLabel} ${
+                    isFeatured ? styles.planTierLabelFeatured :
+                    isAnnual ? (isCar ? styles.planTierLabelVip : styles.planTierLabelPremium) :
+                    styles.planTierLabelBasic
+                  }`}>
+                    {isAnnual && isCar ? '👑 ' : ''}{tierLabel}
+                  </span>
 
                   {/* Duration + Name */}
                   <p className={`${styles.planDuration} ${isFeatured ? styles.planDurationLight : styles.planDurationMuted}`}>
@@ -1197,18 +1280,22 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
 
                 <hr className={`${styles.planDivider} ${isFeatured ? styles.planDividerLight : ''}`} />
 
-                {/* Checklist — left-aligned for readability */}
+                {/* Checklist with tier-specific icons */}
                 <ul className={`${styles.planPerks} ${isFeatured ? styles.planPerksLight : ''}`}>
                   {perks.map((p) => (
-                    <li key={p}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isFeatured ? '#ffffff' : '#16a34a'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                      <span>{p}</span>
+                    <li key={p.text}>
+                      <span className={`${styles.perkIconWrap} ${isFeatured ? styles.perkIconWrapFeatured : ''}`}>
+                        <PerkIcon name={p.icon} color={isFeatured ? '#ffffff' : (isCar ? '#16a34a' : '#2563eb')} />
+                      </span>
+                      <span>{p.text}</span>
                     </li>
                   ))}
                 </ul>
 
                 <span className={`${styles.planCta} ${isFeatured ? styles.planCtaGold : styles.planCtaOutline}`}>
-                  {isFeatured ? 'Đăng ký ngay' : 'Chọn gói này'}
+                  {isFeatured ? (
+                    <>Đăng ký ngay <span style={{ marginLeft: 6 }}>→</span></>
+                  ) : 'Chọn gói này'}
                 </span>
               </button>
             );
