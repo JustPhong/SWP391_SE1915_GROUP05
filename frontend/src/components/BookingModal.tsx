@@ -30,6 +30,37 @@ const C = {
 
 const BOOKING_DEPOSIT = 15000;
 
+type VehicleType = 'CAR' | 'MOTORBIKE';
+
+const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
+  { value: 'CAR', label: 'Ô tô' },
+  { value: 'MOTORBIKE', label: 'Xe máy' },
+];
+
+const VEHICLE_PROFILE_OPTIONS: Record<VehicleType, { label: string; models: string[] }[]> = {
+  CAR: [
+    { label: 'Toyota', models: ['Vios', 'Corolla Cross', 'Camry', 'Fortuner', 'Innova', 'Veloz Cross'] },
+    { label: 'Honda', models: ['City', 'Civic', 'CR-V', 'HR-V', 'Accord'] },
+    { label: 'Hyundai', models: ['Accent', 'Elantra', 'Tucson', 'Santa Fe', 'Creta'] },
+    { label: 'Kia', models: ['Morning', 'K3', 'Seltos', 'Sonet', 'Carnival'] },
+    { label: 'Mazda', models: ['Mazda 2', 'Mazda 3', 'CX-5', 'CX-8', 'BT-50'] },
+    { label: 'Ford', models: ['Ranger', 'Everest', 'Territory', 'EcoSport'] },
+    { label: 'VinFast', models: ['VF 3', 'VF 5', 'VF 6', 'VF 7', 'VF 8', 'VF 9'] },
+  ],
+  MOTORBIKE: [
+    { label: 'Honda', models: ['Wave Alpha', 'Vision', 'Air Blade', 'Lead', 'SH Mode', 'SH'] },
+    { label: 'Yamaha', models: ['Sirius', 'Jupiter', 'Grande', 'Janus', 'Exciter', 'NVX'] },
+    { label: 'Suzuki', models: ['Raider', 'Satria', 'Address', 'Burgman Street'] },
+    { label: 'Piaggio', models: ['Vespa Sprint', 'Vespa Primavera', 'Liberty', 'Medley'] },
+    { label: 'SYM', models: ['Attila', 'Galaxy', 'Elite', 'Husky'] },
+    { label: 'VinFast', models: ['Klara', 'Feliz', 'Evo200', 'Vento', 'Theon'] },
+  ],
+};
+
+const VEHICLE_COLORS = ['Trắng', 'Đen', 'Bạc', 'Xám', 'Đỏ', 'Xanh dương', 'Xanh lá', 'Vàng', 'Nâu', 'Cam'];
+const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_, index) => new Date().getFullYear() - index);
+const CAR_SEAT_OPTIONS = [2, 4, 5, 6, 7, 8, 9, 12];
+
 // ── Icons ──────────────────────────────────────────────────
 function IconClose({ size = 20, color = C.gray400 }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
@@ -46,17 +77,39 @@ interface BookingModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (slot: ParkingSlot, bookingId: string) => void;
-  onRedirectToVehicles?: () => void;
 }
 
-export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }: BookingModalProps) {
+export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [plateNumber, setPlateNumber] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
+
+  // Owner contact fields (required only when the vehicle is not registered yet)
+  const [ownerFullName, setOwnerFullName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPhone, setOwnerPhone] = useState('');
+
+  // Vehicle profile fields (only when vehicle is new)
+  const [vType, setVType] = useState<VehicleType>('CAR');
+  const [vBrand, setVBrand] = useState(VEHICLE_PROFILE_OPTIONS.CAR[0].label);
+  const [vModel, setVModel] = useState(VEHICLE_PROFILE_OPTIONS.CAR[0].models[0]);
+  const [vColor, setVColor] = useState(VEHICLE_COLORS[0]);
+  const [vYear, setVYear] = useState<number | ''>(VEHICLE_YEARS[0]);
+  const [vSeats, setVSeats] = useState<number | ''>(5);
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [unregisteredError, setUnregisteredError] = useState(false);
+
+  const availableModels = VEHICLE_PROFILE_OPTIONS[vType].find((b) => b.label === vBrand)?.models
+    ?? VEHICLE_PROFILE_OPTIONS[vType][0].models;
+
+  useEffect(() => {
+    const brandEntries = VEHICLE_PROFILE_OPTIONS[vType];
+    const currentBrand = brandEntries.find((b) => b.label === vBrand) ?? brandEntries[0];
+    if (currentBrand.label !== vBrand) setVBrand(currentBrand.label);
+    if (!currentBrand.models.includes(vModel)) setVModel(currentBrand.models[0]);
+  }, [vType, vBrand]);
 
   useEffect(() => {
     if (open && user) {
@@ -64,23 +117,39 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
     } else {
       setVehicles([]);
     }
-    setUnregisteredError(false);
   }, [open, user]);
+
+  const normalizedInput = plateNumber.trim().replace(/[^A-Z0-9]/g, '');
+  const selectedVehicle = vehicles.find(
+    (v) => v.plateNumber.replace(/[^A-Z0-9]/g, '') === normalizedInput
+  );
+  const isNewVehicle = plateNumber.trim() !== '' && !selectedVehicle;
+  const isMonthly = selectedVehicle ? selectedVehicle.isMonthly : false;
+
+  const resetVehicleProfile = () => {
+    setVType('CAR');
+    setVBrand(VEHICLE_PROFILE_OPTIONS.CAR[0].label);
+    setVModel(VEHICLE_PROFILE_OPTIONS.CAR[0].models[0]);
+    setVColor(VEHICLE_COLORS[0]);
+    setVYear(VEHICLE_YEARS[0]);
+    setVSeats(5);
+  };
+
+  const canSubmit =
+    !submitting &&
+    plateNumber.trim().length >= 4 &&
+    arrivalTime.trim().length > 0 &&
+    (!isNewVehicle || (
+      ownerFullName.trim().length > 0 &&
+      ownerPhone.trim().length > 0 &&
+      (vType !== 'CAR' || vSeats !== '')
+    ));
 
   const handleSubmit = async () => {
     const plate = plateNumber.trim();
     if (!plate) { setErrorMsg('Vui lòng nhập biển số xe.'); return; }
     if (plate.length < 4) { setErrorMsg('Biển số xe không hợp lệ.'); return; }
     if (!arrivalTime) { setErrorMsg('Vui lòng chọn thời gian dự kiến tới.'); return; }
-
-    if (user) {
-      const normalizedInput = plate.replace(/[^A-Z0-9]/g, '');
-      const isRegistered = vehicles.some(v => v.plateNumber.replace(/[^A-Z0-9]/g, '') === normalizedInput);
-      if (!isRegistered) {
-        setUnregisteredError(true);
-        return;
-      }
-    }
 
     setSubmitting(true);
     setErrorMsg('');
@@ -89,12 +158,29 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
       const res = await api.post<{ success: boolean; data: { id: string; slot: ParkingSlot } }>('/bookings', {
         plateNumber: plate,
         expectedArrival,
+        ...(isNewVehicle && {
+          ownerFullName,
+          ownerEmail,
+          ownerPhone,
+          type: vType,
+          brand: vBrand,
+          model: vModel,
+          color: vColor,
+          year: vYear === '' ? undefined : Number(vYear),
+          seats: vType === 'CAR' && vSeats !== '' ? Number(vSeats) : undefined,
+        }),
       });
+
       const slot = res.data.data.slot;
       const bid = `PKS-${String(res.data.data.id).slice(0, 8).toUpperCase()}`;
       onSuccess(slot, bid);
+
       setPlateNumber('');
       setArrivalTime('');
+      setOwnerFullName('');
+      setOwnerEmail('');
+      setOwnerPhone('');
+      resetVehicleProfile();
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.message || 'Đặt chỗ thất bại. Vui lòng thử lại.');
     } finally {
@@ -105,23 +191,15 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
   const handleClose = () => {
     setPlateNumber('');
     setArrivalTime('');
+    setOwnerFullName('');
+    setOwnerEmail('');
+    setOwnerPhone('');
+    resetVehicleProfile();
     setErrorMsg('');
-    setUnregisteredError(false);
     onClose();
   };
 
   if (!open) return null;
-
-  const canSubmit =
-    !submitting &&
-    plateNumber.trim().length >= 4 &&
-    arrivalTime.trim().length > 0;
-
-  const selectedVehicle = vehicles.find(
-    (v) => v.plateNumber.replace(/[^A-Z0-9]/g, '') === plateNumber.trim().replace(/[^A-Z0-9]/g, '')
-  );
-  const isMonthly = selectedVehicle ? selectedVehicle.isMonthly : false;
-  const currentDeposit = isMonthly ? 0 : BOOKING_DEPOSIT;
 
   const now = new Date();
   now.setMinutes(now.getMinutes() + 15);
@@ -156,6 +234,9 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
           boxShadow: '0 24px 64px rgba(10, 25, 60, 0.20)',
           overflow: 'hidden',
           margin: '0 1rem',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
         }}>
           {/* Header */}
           <div style={{
@@ -165,6 +246,7 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
             alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: '1rem',
+            flexShrink: 0,
           }}>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: C.white }}>
@@ -190,7 +272,7 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
           </div>
 
           {/* Body */}
-          <div style={{ padding: '1.5rem' }}>
+          <div style={{ padding: '1.5rem', overflowY: 'auto' }}>
             {errorMsg && (
               <div style={{
                 background: C.redBg, border: '1.5px solid #FECACA',
@@ -209,7 +291,7 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
               </label>
               <PlateInput
                 value={plateNumber}
-                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); setUnregisteredError(false); }}
+                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); }}
                 placeholder="VD: 30A-123.45"
                 maxLength={15}
                 style={{
@@ -236,7 +318,6 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
                         onClick={() => {
                           setPlateNumber(v.plateNumber);
                           setErrorMsg('');
-                          setUnregisteredError(false);
                         }}
                         style={{
                           background: plateNumber === v.plateNumber ? C.blueBg : C.gray50,
@@ -267,51 +348,190 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
               )}
             </div>
 
-            {unregisteredError && (
-              <div style={{
-                background: C.amberBg,
-                border: `1.5px solid ${C.amberBorder}`,
-                borderRadius: 10,
-                padding: '0.75rem 1rem',
-                marginBottom: '1.25rem',
-                color: '#B45309',
-                fontSize: '0.85rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                lineHeight: 1.4,
-              }}>
-                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>⚠️ Biển số chưa được đăng ký</span>
+            {/* Vehicle profile + owner info — only when the plate is new */}
+            {isNewVehicle && (
+              <>
+                <div style={{
+                  background: C.amberBg, border: `1.5px solid ${C.amberBorder}`,
+                  borderRadius: 10, padding: '0.65rem 0.85rem',
+                  marginBottom: '1rem', fontSize: '0.8rem', color: '#B45309', fontWeight: 600,
+                }}>
+                  Biển số này chưa được đăng ký. Vui lòng nhập thêm thông tin xe và chủ xe bên dưới.
                 </div>
-                <div>
-                  Biển số xe <strong>{plateNumber}</strong> chưa được đăng ký trong tài khoản của bạn. Bạn cần đăng ký xe trước khi đặt chỗ.
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <span style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Loại xe
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {VEHICLE_TYPES.map((opt) => {
+                      const selected = vType === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setVType(opt.value)}
+                          style={{
+                            flex: 1, padding: '0.6rem 0.85rem', borderRadius: 10,
+                            border: `1.5px solid ${selected ? C.navy : C.gray200}`,
+                            background: selected ? C.navy : C.white,
+                            color: selected ? C.white : C.navy,
+                            fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                {onRedirectToVehicles && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onRedirectToVehicles();
-                      handleClose();
-                    }}
+
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Hãng
+                    </label>
+                    <select
+                      value={vBrand}
+                      onChange={(e) => setVBrand(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem 0.9rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.9rem', color: C.gray800, background: C.white, boxSizing: 'border-box' }}
+                    >
+                      {VEHICLE_PROFILE_OPTIONS[vType].map((b) => (
+                        <option key={b.label} value={b.label}>{b.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Mẫu
+                    </label>
+                    <select
+                      value={vModel}
+                      onChange={(e) => setVModel(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem 0.9rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.9rem', color: C.gray800, background: C.white, boxSizing: 'border-box' }}
+                    >
+                      {availableModels.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Màu
+                    </label>
+                    <select
+                      value={vColor}
+                      onChange={(e) => setVColor(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem 0.9rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.9rem', color: C.gray800, background: C.white, boxSizing: 'border-box' }}
+                    >
+                      {VEHICLE_COLORS.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Năm
+                    </label>
+                    <select
+                      value={vYear === '' ? '' : vYear.toString()}
+                      onChange={(e) => setVYear(e.target.value === '' ? '' : Number(e.target.value))}
+                      style={{ width: '100%', padding: '0.75rem 0.9rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.9rem', color: C.gray800, background: C.white, boxSizing: 'border-box' }}
+                    >
+                      {VEHICLE_YEARS.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {vType === 'CAR' && (
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Số chỗ
+                      </label>
+                      <select
+                        value={vSeats === '' ? '' : vSeats.toString()}
+                        onChange={(e) => setVSeats(e.target.value === '' ? '' : Number(e.target.value))}
+                        style={{ width: '100%', padding: '0.75rem 0.9rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.9rem', color: C.gray800, background: C.white, boxSizing: 'border-box' }}
+                      >
+                        <option value="">Chọn</option>
+                        {CAR_SEAT_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{s} chỗ</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Họ tên chủ xe
+                  </label>
+                  <input
+                    type="text"
+                    value={ownerFullName}
+                    onChange={(e) => { setOwnerFullName(e.target.value); setErrorMsg(''); }}
+                    placeholder="Nguyễn Văn A"
                     style={{
-                      alignSelf: 'flex-start',
-                      marginTop: '4px',
-                      padding: '5px 10px',
-                      background: C.navy,
-                      color: C.white,
-                      border: 'none',
-                      borderRadius: 6,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(30,58,95,0.15)',
+                      width: '100%', padding: '0.75rem 0.9rem',
+                      border: `1.5px solid ${C.gray200}`,
+                      borderRadius: 10, fontSize: '0.95rem',
+                      color: C.gray800, boxSizing: 'border-box',
+                      outline: 'none', fontFamily: 'inherit',
+                      background: C.white,
                     }}
-                  >
-                    Đăng ký xe ngay
-                  </button>
-                )}
-              </div>
+                    onFocus={(e) => { e.target.style.borderColor = C.navy; e.target.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
+                    onBlur={(e) => { e.target.style.borderColor = C.gray200; e.target.style.boxShadow = 'none'; }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Số điện thoại
+                    </label>
+                    <input
+                      type="tel"
+                      value={ownerPhone}
+                      onChange={(e) => { setOwnerPhone(e.target.value); setErrorMsg(''); }}
+                      placeholder="09xxxxxxxx"
+                      style={{
+                        width: '100%', padding: '0.75rem 0.9rem',
+                        border: `1.5px solid ${C.gray200}`,
+                        borderRadius: 10, fontSize: '0.95rem',
+                        color: C.gray800, boxSizing: 'border-box',
+                        outline: 'none', fontFamily: 'inherit',
+                        background: C.white,
+                      }}
+                      onFocus={(e) => { e.target.style.borderColor = C.navy; e.target.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
+                      onBlur={(e) => { e.target.style.borderColor = C.gray200; e.target.style.boxShadow = 'none'; }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={ownerEmail}
+                      onChange={(e) => { setOwnerEmail(e.target.value); setErrorMsg(''); }}
+                      placeholder="email@vidu.com"
+                      style={{
+                        width: '100%', padding: '0.75rem 0.9rem',
+                        border: `1.5px solid ${C.gray200}`,
+                        borderRadius: 10, fontSize: '0.95rem',
+                        color: C.gray800, boxSizing: 'border-box',
+                        outline: 'none', fontFamily: 'inherit',
+                        background: C.white,
+                      }}
+                      onFocus={(e) => { e.target.style.borderColor = C.navy; e.target.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
+                      onBlur={(e) => { e.target.style.borderColor = C.gray200; e.target.style.boxShadow = 'none'; }}
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div style={{ marginBottom: '1.25rem' }}>
@@ -359,7 +579,7 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
             }}>
               <span style={{ fontSize: '0.9rem', flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
               <p style={{ margin: 0, fontSize: '0.78rem', color: '#991B1B', lineHeight: 1.5 }}>
-                {isMonthly 
+                {isMonthly
                   ? 'Đặt chỗ sẽ tự động bị hủy nếu xe không vào bãi trong 30 phút sau thời gian dự kiến.'
                   : 'Đặt chỗ sẽ bị hủy và mất cọc nếu xe không vào bãi trong 30 phút.'}
               </p>

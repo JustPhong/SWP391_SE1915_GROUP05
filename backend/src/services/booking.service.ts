@@ -19,6 +19,12 @@ export interface CreateBookingInput {
   ownerFullName?: string;
   ownerEmail?: string;
   ownerPhone?: string;
+  type?: 'CAR' | 'MOTORBIKE';
+  brand?: string;
+  model?: string;
+  color?: string;
+  year?: number;
+  seats?: number;
 }
 
 
@@ -40,22 +46,29 @@ export const bookingService = {
       const ownerEmail = input.ownerEmail?.trim();
       const ownerPhone = input.ownerPhone?.trim();
 
-      if (!ownerFullName || !ownerEmail || !ownerPhone) {
+      if (!ownerFullName || !ownerPhone) {
         throw new AppError(
           400,
-          'Biển số chưa được đăng ký. Vui lòng nhập họ tên, email và số điện thoại chủ xe.'
+          'Biển số chưa được đăng ký. Vui lòng nhập họ tên và số điện thoại chủ xe.'
         );
       }
+
+      const vehicleType = input.type === 'MOTORBIKE' ? 'MOTORBIKE' : 'CAR';
 
       vehicle = await prisma.vehicle.create({
         data: {
           plateNumber: input.plateNumber,
-          type: 'CAR',
+          type: vehicleType,
           ownerId: input.createdById,
           isMonthly: false,
           ownerFullName,
-          ownerEmail: ownerEmail.toLowerCase(),
+          ownerEmail: ownerEmail ? ownerEmail.toLowerCase() : undefined,
           ownerPhone,
+          brand: input.brand?.trim() || undefined,
+          model: input.model?.trim() || undefined,
+          color: input.color?.trim() || undefined,
+          year: input.year,
+          seats: vehicleType === 'CAR' ? input.seats : undefined,
         },
         include: { monthlyPackage: true }
       });
