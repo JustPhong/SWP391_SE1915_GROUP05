@@ -119,6 +119,90 @@ export const checkInService = {
       },
     });
   },
+
+  async getHistoryRecords(plateNumber?: string, limit = 100) {
+    const [checkIns, bookings] = await Promise.all([
+      prisma.checkInRecord.findMany({
+        where: plateNumber ? {
+          vehicle: {
+            plateNumber: {
+              contains: plateNumber,
+            },
+          },
+        } : undefined,
+        take: limit,
+        orderBy: { checkInTime: 'desc' },
+        include: {
+          slot: true,
+          vehicle: { include: { owner: true } },
+          payments: true,
+        },
+      }),
+      prisma.booking.findMany({
+        where: {
+          status: { in: ['ACTIVE', 'CANCELLED', 'NO_SHOW'] },
+          ...(plateNumber ? {
+            vehicle: {
+              plateNumber: {
+                contains: plateNumber,
+              },
+            },
+          } : {}),
+        },
+        take: limit,
+        orderBy: { expectedArrival: 'desc' },
+        include: {
+          slot: true,
+          vehicle: { include: { owner: true } },
+        },
+      }),
+    ]);
+
+    const mappedCheckIns = checkIns.map((r) => ({
+      id: r.id,
+      recordType: 'CHECKIN',
+      plateNumber: r.vehicle.plateNumber,
+      vehicleType: r.vehicle.type,
+      slotCode: r.slot.code,
+      timeIn: r.checkInTime.toISOString(),
+      timeOut: r.checkOutTime ? r.checkOutTime.toISOString() : null,
+      status: r.checkOutTime ? 'COMPLETED' : 'PARKING',
+      isMonthly: r.isMonthly || r.vehicle.isMonthly,
+      amount: r.payments?.reduce((sum, p) => sum + (p.status === 'SUCCESS' ? parseFloat(String(p.amount)) : 0), 0) ?? 0,
+      isLostTicket: r.isLostTicket,
+      expectedArrival: null,
+      bookingTime: null,
+      driverName: r.vehicle.owner?.fullName || null,
+      driverEmail: r.vehicle.owner?.email || null,
+    }));
+
+    const mappedBookings = bookings.map((b) => ({
+      id: b.id,
+      recordType: 'BOOKING',
+      plateNumber: b.vehicle.plateNumber,
+      vehicleType: b.vehicle.type,
+      slotCode: b.slot.code,
+      timeIn: null,
+      timeOut: null,
+      status: b.status,
+      isMonthly: b.vehicle.isMonthly,
+      amount: b.depositStatus === 'PAID' ? parseFloat(String(b.depositAmount)) : 0,
+      isLostTicket: false,
+      expectedArrival: b.expectedArrival.toISOString(),
+      bookingTime: b.bookingTime.toISOString(),
+      driverName: b.vehicle.owner?.fullName || null,
+      driverEmail: b.vehicle.owner?.email || null,
+    }));
+
+    const combined = [...mappedCheckIns, ...mappedBookings];
+    combined.sort((a, b) => {
+      const timeA = new Date(a.timeIn || a.expectedArrival || 0).getTime();
+      const timeB = new Date(b.timeIn || b.expectedArrival || 0).getTime();
+      return timeB - timeA;
+    });
+
+    return combined.slice(0, limit);
+  },
 };
 
 export const checkOutService = {
