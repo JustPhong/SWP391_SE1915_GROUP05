@@ -1,0 +1,17 @@
+- [ ] Read current BookingModal.tsx and related backend booking DTO/service/controller
+- [ ] Update frontend BookingModal.tsx:
+  - [ ] Add constants + Vehicle fields state
+  - [ ] Add effect to sync brand/model when vehicle type changes
+  - [ ] Update isNewVehicle/canSubmit logic to require seats when new CAR
+  - [ ] Conditionally render vehicle profile fields when biển số không khớp xe đã đăng ký
+  - [ ] Send vehicle profile fields to POST /bookings when isNewVehicle
+  - [ ] Reset new vehicle fields on close/success
+- [ ] Update backend booking pipeline to accept vehicle metadata on vehicle creation:
+  - [ ] Update booking dto/schema/controller/service types to validate/forward type/brand/model/color/year/seats
+  - [ ] Update Prisma create for Vehicle with these fields
+- [ ] Update any frontend api types if needed
+- [ ] Run TypeScript build / backend tests / lint if available
+- [ ] Verify behavior:
+  - [ ] Existing plate: show only owner contact + arrival time
+  - [ ] New plate: show owner contact + vehicle profile fields, and require required fields
+

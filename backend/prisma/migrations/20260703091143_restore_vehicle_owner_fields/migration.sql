@@ -1,0 +1,22 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+-- AlterTable
+ALTER TABLE [dbo].[Vehicle] ADD [ownerEmail] NVARCHAR(150),
+[ownerFullName] NVARCHAR(100),
+[ownerPhone] NVARCHAR(20),
+[seats] INT;
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRAN;
+END;
+THROW
+
+END CATCH
