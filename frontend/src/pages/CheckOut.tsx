@@ -112,6 +112,13 @@ function now(): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function formatDateTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function FeeBreakdownCard({
   fee,
   breakdown,
@@ -440,7 +447,7 @@ export function CheckOutPage() {
                 {' · '}
                 Vị trí: <strong>{foundRecord.slot!.code}</strong>
                 {' · '}
-                Giờ vào: {new Date(foundRecord.checkInTime).toLocaleString('vi-VN')}
+                Giờ vào: {formatDateTime(foundRecord.checkInTime)}
                 {' · '}
                 {foundRecord.isMonthly ? (
                   <span style={{ color: C.green, fontWeight: 700 }}>Khách tháng</span>
@@ -505,7 +512,7 @@ export function CheckOutPage() {
             {[
               { label: 'Biển số', value: foundRecord.vehicle!.plateNumber },
               { label: 'Vị trí', value: foundRecord.slot!.code },
-              { label: 'Giờ vào', value: new Date(foundRecord.checkInTime).toLocaleString('vi-VN') },
+              { label: 'Giờ vào', value: formatDateTime(foundRecord.checkInTime) },
               { label: 'Giờ ra', value: now() },
             ].map((r) => (
               <div key={r.label} style={{
@@ -585,7 +592,7 @@ export function CheckOutPage() {
             {[
               { label: 'Biển số', value: foundRecord.vehicle!.plateNumber },
               { label: 'Vị trí', value: foundRecord.slot!.code },
-              { label: 'Giờ vào', value: new Date(foundRecord.checkInTime).toLocaleString('vi-VN') },
+              { label: 'Giờ vào', value: formatDateTime(foundRecord.checkInTime) },
               { label: 'Giờ ra', value: now() },
             ].map((r) => (
               <div key={r.label} style={{
@@ -787,7 +794,7 @@ export function CheckOutPage() {
                       {r.slot!.code}
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
-                      {new Date(r.checkInTime).toLocaleString('vi-VN')}
+                      {formatDateTime(r.checkInTime)}
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>
                       <span style={{
@@ -892,7 +899,7 @@ export function CheckOutPage() {
               {[
                 { label: 'Biển số', value: confirmState.record.vehicle!.plateNumber, mono: true },
                 { label: 'Vị trí', value: confirmState.record.slot!.code },
-                { label: 'Giờ vào', value: new Date(confirmState.record.checkInTime).toLocaleString('vi-VN') },
+                { label: 'Giờ vào', value: formatDateTime(confirmState.record.checkInTime) },
                 { label: 'Loại xe', value: confirmState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
                 { label: 'Khách', value: confirmState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: confirmState.record.isMonthly ? C.green : undefined },
               ].map((r) => (

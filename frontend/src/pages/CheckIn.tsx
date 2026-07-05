@@ -125,6 +125,13 @@ const now = (): string => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+const formatDateTime = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 // ═══════════════════════════════════════════════════════
 //  ICONS
 // ═══════════════════════════════════════════════════════
@@ -678,7 +685,7 @@ export function CheckInPage() {
                 Check-in thành công!
               </p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Biển số <strong>{successData.plate}</strong> · Vị trí <strong>{successData.slotCode}</strong> · {new Date(successData.checkInTime).toLocaleString('vi-VN')}
+                Biển số <strong>{successData.plate}</strong> · Vị trí <strong>{successData.slotCode}</strong> · {formatDateTime(successData.checkInTime)}
               </p>
             </div>
             <button
