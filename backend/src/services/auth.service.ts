@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { AppError } from '../utils/helpers';
 import { sendOtpEmail } from './email.service';
+
 export interface RegisterInput {
   fullName: string;
   email: string;
@@ -35,7 +36,8 @@ interface OtpEntry {
   expiresAt: number; // timestamp ms
   fullName: string;
 }
-const otpStore = new Map<string, OtpEntry>();
+const otpStore = new Map<string, OtpEntry>();          // used for registration
+const resetOtpStore = new Map<string, OtpEntry>();     // used for forgot-password
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const OTP_COOLDOWN_MS = 60 * 1000; // 1 minute between sends
 
@@ -53,13 +55,11 @@ export const authService = {
       throw new AppError(400, 'Email và họ tên không được để trống');
     }
 
-    // Check if email already registered
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new AppError(409, 'Email đã được sử dụng');
     }
 
-    // Rate-limit: check cooldown
     const prev = otpStore.get(email);
     if (prev && prev.expiresAt - OTP_TTL_MS + OTP_COOLDOWN_MS > Date.now()) {
       throw new AppError(429, 'Vui lòng đợi 60 giây trước khi gửi lại mã');
@@ -68,7 +68,6 @@ export const authService = {
     const code = generateOtp();
     otpStore.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS, fullName });
 
-    // Auto-cleanup after TTL
     setTimeout(() => {
       const entry = otpStore.get(email);
       if (entry && entry.code === code) {
@@ -78,6 +77,68 @@ export const authService = {
 
     await sendOtpEmail(email, code, fullName);
     console.log(`[OTP] Sent to ${email}: ${code}`);
+  },
+
+  async forgotPasswordSendOtp(input: { email: string }): Promise<void> {
+    const email = input.email.trim().toLowerCase();
+    if (!email) {
+      throw new AppError(400, 'Vui lòng nhập email');
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new AppError(404, 'Email này chưa được đăng ký trong hệ thống');
+    }
+
+    const prev = resetOtpStore.get(email);
+    if (prev && prev.expiresAt - OTP_TTL_MS + OTP_COOLDOWN_MS > Date.now()) {
+      throw new AppError(429, 'Vui lòng đợi 60 giây trước khi gửi lại mã');
+    }
+
+    const code = generateOtp();
+    resetOtpStore.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS, fullName: user.fullName });
+
+    setTimeout(() => {
+      const entry = resetOtpStore.get(email);
+      if (entry && entry.code === code) {
+        resetOtpStore.delete(email);
+      }
+    }, OTP_TTL_MS + 1000);
+
+    await sendOtpEmail(email, code, user.fullName);
+    console.log(`[Reset-OTP] Sent to ${email}: ${code}`);
+  },
+
+  async resetPassword(input: { email: string; otp: string; newPassword: string }): Promise<void> {
+    const email = input.email.trim().toLowerCase();
+
+    if (!input.otp) {
+      throw new AppError(400, 'Vui lòng nhập mã xác nhận OTP');
+    }
+    if (!input.newPassword || input.newPassword.length < 6) {
+      throw new AppError(400, 'Mật khẩu mới phải có ít nhất 6 ký tự');
+    }
+
+    const entry = resetOtpStore.get(email);
+    if (!entry) {
+      throw new AppError(400, 'Mã xác nhận không tồn tại hoặc đã hết hạn. Vui lòng gửi lại mã.');
+    }
+    if (Date.now() > entry.expiresAt) {
+      resetOtpStore.delete(email);
+      throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
+    }
+    if (entry.code !== input.otp.trim()) {
+      throw new AppError(400, 'Mã xác nhận không chính xác');
+    }
+    resetOtpStore.delete(email);
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new AppError(404, 'Không tìm thấy tài khoản');
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 12);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
   },
 
   async register(input: RegisterInput): Promise<AuthResult> {
@@ -117,7 +178,7 @@ export const authService = {
     const roleName = input.role ?? 'DRIVER';
     const role = await prisma.role.findUnique({ where: { name: roleName } });
     if (!role) throw new AppError(400, 'Invalid role');
-   
+
     const user = await prisma.user.create({
       data: {
         fullName: input.fullName,
@@ -259,14 +320,12 @@ export const authService = {
     }
 
     return await prisma.$transaction(async (tx) => {
-      // Find all vehicles owned by this user
       const vehicles = await tx.vehicle.findMany({
         where: { ownerId: userId },
       });
       const vehicleIds = vehicles.map((v) => v.id);
 
       if (vehicleIds.length > 0) {
-        // Check if any vehicle is currently parked (status is 'PARKING')
         const activeCheckIn = await tx.checkInRecord.findFirst({
           where: {
             vehicleId: { in: vehicleIds },
@@ -277,7 +336,6 @@ export const authService = {
           throw new AppError(400, 'Không thể xóa tài khoản khi xe của bạn đang đỗ trong bãi.');
         }
 
-        // 1. Delete Payments that reference CheckInRecords for these vehicles
         const checkInRecords = await tx.checkInRecord.findMany({
           where: { vehicleId: { in: vehicleIds } },
         });
@@ -289,7 +347,6 @@ export const authService = {
           });
         }
 
-        // 2. Delete MonthlyPackages for these vehicles, then their Payments
         const packages = await tx.monthlyPackage.findMany({
           where: { vehicleId: { in: vehicleIds } },
         });
@@ -304,29 +361,24 @@ export const authService = {
           where: { vehicleId: { in: vehicleIds } },
         });
 
-        // 3. Delete Bookings referencing these vehicles
         await tx.booking.deleteMany({
           where: { vehicleId: { in: vehicleIds } },
         });
 
-        // 4. Delete CheckInRecords referencing these vehicles
         await tx.checkInRecord.deleteMany({
           where: { vehicleId: { in: vehicleIds } },
         });
 
-        // 4.5. Nullify assignedVehicleId in ParkingSlot referencing these vehicles
         await tx.parkingSlot.updateMany({
           where: { assignedVehicleId: { in: vehicleIds } },
           data: { assignedVehicleId: null },
         });
 
-        // 5. Delete the vehicles
         await tx.vehicle.deleteMany({
           where: { ownerId: userId },
         });
       }
 
-      // 6. Nullify relations for staff/managers handling records
       await tx.checkInRecord.updateMany({
         where: { checkedInById: userId },
         data: { checkedInById: null },
@@ -340,20 +392,15 @@ export const authService = {
         data: { collectedById: null },
       });
 
-      // 7. Delete bookings created by this user directly
       await tx.booking.deleteMany({
         where: { createdById: userId },
       });
 
-      // 8. Delete MonthlyPackages that reference this user directly
       await tx.monthlyPackage.deleteMany({
         where: { userId: userId },
       });
 
-      // 9. Delete the user
       await tx.user.delete({ where: { id: userId } });
     });
   },
 };
-
-

@@ -11,9 +11,13 @@ export interface CreateVehicleInput {
   color?: string | null;
   year?: number | null;
   seats?: number | null;
+  ownerFullName?: string | null;
+  ownerEmail?: string | null;
+  ownerPhone?: string | null;
 }
     
 async function loadOwnedVehicleOrThrow(vehicleId: string, userId: string) {
+
   const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
   if (!vehicle) {
     throw new AppError(404, 'Không tìm thấy xe');
@@ -43,8 +47,12 @@ export const vehicleService = {
       color: input.color ?? undefined,
       year: input.year ?? undefined,
       seats: input.seats ?? undefined,
+      ownerFullName: input.ownerFullName ?? undefined,
+      ownerEmail: input.ownerEmail ? input.ownerEmail.toLowerCase() : undefined,
+      ownerPhone: input.ownerPhone ?? undefined,
     };
     return prisma.vehicle.create({ data });
+
   },
 
   async getByPlate(plateNumber: string) {

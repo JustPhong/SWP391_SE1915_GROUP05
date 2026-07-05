@@ -10,7 +10,11 @@ export const bookingController = {
       plateNumber: req.body.plateNumber,
       expectedArrival: new Date(req.body.expectedArrival),
       createdById: req.user.id,
+      ownerFullName: req.body.ownerFullName,
+      ownerEmail: req.body.ownerEmail,
+      ownerPhone: req.body.ownerPhone,
     });
+
     return res.status(201).json({ success: true, data: booking });
   }),     
 

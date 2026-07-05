@@ -16,6 +16,9 @@ router.patch('/password', authenticate, authController.changePassword);
 router.post('/avatar', authenticate, uploadAvatar.single('avatar'), authController.uploadAvatar);
 router.delete('/avatar', authenticate, authController.removeAvatar);
 router.delete('/profile', authenticate, authController.deleteAccount);
+router.post('/forgot-password/send-otp', authController.forgotPasswordSendOtp);
+router.post('/forgot-password/reset', authController.resetPassword);
+
 
 export default router;
    

@@ -968,6 +968,9 @@ function AddVehicleForm({
     color?: string,
     year?: number,
     seats?: number,
+    ownerFullName?: string,
+    ownerEmail?: string,
+    ownerPhone?: string,
   ) => Promise<void>;
 }) {
   const [plateNumber, setPlateNumber] = useState('');
@@ -977,7 +980,11 @@ function AddVehicleForm({
   const [color, setColor] = useState(VEHICLE_COLORS[0]);
   const [year, setYear] = useState<number | ''>(VEHICLE_YEARS[0]);
   const [seats, setSeats] = useState<number | ''>(CAR_SEAT_OPTIONS[2] ?? 5);
+  const [ownerFullName, setOwnerFullName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPhone, setOwnerPhone] = useState('');
   const [localError, setLocalError] = useState('');
+
 
   useEffect(() => {
     const brandEntries = VEHICLE_PROFILE_OPTIONS[type];
@@ -995,8 +1002,10 @@ function AddVehicleForm({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = plateNumber.trim();
+
     if (!trimmed) {
       setLocalError('Vui lòng nhập biển số xe');
+
       return;
     }
     if (type === 'CAR' && seats === '') {
@@ -1006,7 +1015,16 @@ function AddVehicleForm({
     setLocalError('');
     const yearVal = year === '' ? undefined : Number(year);
     const seatsVal = type === 'CAR' && seats !== '' ? Number(seats) : undefined;
-    await onSubmit(trimmed, type, brand?.trim() || undefined, model?.trim() || undefined, color?.trim() || undefined, yearVal, seatsVal);
+    await onSubmit(
+  trimmed, type,
+  brand?.trim() || undefined,
+  model?.trim() || undefined,
+  color?.trim() || undefined,
+  yearVal, seatsVal,
+  ownerFullName?.trim() || undefined,
+  ownerEmail?.trim() || undefined,
+  ownerPhone?.trim() || undefined,
+);
   };
 
   const displayError = localError || error;
@@ -1125,6 +1143,65 @@ function AddVehicleForm({
         </div>
       </div>
 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.9rem' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Họ tên chủ xe</span>
+  <input
+    type="text"
+    value={ownerFullName}
+    onChange={(e) => setOwnerFullName(e.target.value)}
+    placeholder="Nguyễn Văn A"
+    disabled={submitting}
+    style={{
+      padding: '0.65rem 0.85rem',
+      border: `1.5px solid ${C.gray200}`,
+      borderRadius: 10,
+      fontSize: '0.9rem',
+      color: C.gray900,
+      background: C.white,
+      outline: 'none',
+    }}
+  />
+</label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số điện thoại</span>
+  <input
+    type="tel"
+    value={ownerPhone}
+    onChange={(e) => setOwnerPhone(e.target.value)}
+    placeholder="09xxxxxxxx"
+    disabled={submitting}
+    style={{
+      padding: '0.65rem 0.85rem',
+      border: `1.5px solid ${C.gray200}`,
+      borderRadius: 10,
+      fontSize: '0.9rem',
+      color: C.gray900,
+      background: C.white,
+      outline: 'none',
+    }}
+  />
+</label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Email</span>
+  <input
+    type="email"
+    value={ownerEmail}
+    onChange={(e) => setOwnerEmail(e.target.value)}
+    placeholder="email@vidu.com"
+    disabled={submitting}
+    style={{
+      padding: '0.65rem 0.85rem',
+      border: `1.5px solid ${C.gray200}`,
+      borderRadius: 10,
+      fontSize: '0.9rem',
+      color: C.gray900,
+      background: C.white,
+      outline: 'none',
+    }}
+  />
+</label>
+</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.9rem' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span>
@@ -1276,11 +1353,27 @@ export function MyVehiclePage() {
     color?: string,
     year?: number,
     seats?: number,
+    ownerFullName?: string,
+    ownerEmail?: string,
+    ownerPhone?: string,
   ) => {
+
     setSubmitting(true);
     setFormError('');
     try {
-      await vehicleService.create({ plateNumber, type, brand, model, color, year, seats });
+      await vehicleService.create({
+        plateNumber,
+        type,
+        brand,
+        model,
+        color,
+        year,
+        seats,
+        ownerFullName,
+        ownerEmail,
+        ownerPhone,
+      });
+
       setFormOpen(false);
       setFormError('');
       await loadVehicles();

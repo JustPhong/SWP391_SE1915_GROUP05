@@ -16,7 +16,11 @@ export interface CreateBookingInput {
   plateNumber: string;
   expectedArrival: Date;
   createdById: string;
+  ownerFullName?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
 }
+
 
 export interface FulfillBookingInput {
   bookingId: string;
@@ -31,12 +35,27 @@ export const bookingService = {
       include: { monthlyPackage: true }
     });
     if (!vehicle) {
+      // Xe chưa từng đăng ký → bắt buộc thông tin liên hệ chủ xe
+      const ownerFullName = input.ownerFullName?.trim();
+      const ownerEmail = input.ownerEmail?.trim();
+      const ownerPhone = input.ownerPhone?.trim();
+
+      if (!ownerFullName || !ownerEmail || !ownerPhone) {
+        throw new AppError(
+          400,
+          'Biển số chưa được đăng ký. Vui lòng nhập họ tên, email và số điện thoại chủ xe.'
+        );
+      }
+
       vehicle = await prisma.vehicle.create({
         data: {
           plateNumber: input.plateNumber,
           type: 'CAR',
           ownerId: input.createdById,
           isMonthly: false,
+          ownerFullName,
+          ownerEmail: ownerEmail.toLowerCase(),
+          ownerPhone,
         },
         include: { monthlyPackage: true }
       });

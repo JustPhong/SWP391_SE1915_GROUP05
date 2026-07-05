@@ -35,8 +35,24 @@ export const vehicleSchema = [
     .optional()
     .isInt({ min: 1, max: 20 })
     .withMessage('Seats must be a valid number'),
+
+  body('ownerFullName')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Tên chủ xe tối đa 100 ký tự'),
+  body('ownerEmail')
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage('Email chủ xe không hợp lệ'),
+  body('ownerPhone')
+    .optional()
+    .trim()
+    .matches(/^0\d{9,10}$/)
+    .withMessage('Số điện thoại không hợp lệ'),
 ];
-   
+
 export const vehicleUpdateSchema = [
   body('plateNumber')
     .optional()
@@ -66,4 +82,21 @@ export const vehicleUpdateSchema = [
     .optional()
     .isInt({ min: 1900, max: new Date().getFullYear() })
     .withMessage('Year must be a valid year'),
+
+  body('ownerFullName')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Tên chủ xe tối đa 100 ký tự'),
+  body('ownerEmail')
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage('Email chủ xe không hợp lệ'),
+  body('ownerPhone')
+    .optional()
+    .trim()
+    .matches(/^0\d{9,10}$/)
+    .withMessage('Số điện thoại không hợp lệ'),
 ];
+

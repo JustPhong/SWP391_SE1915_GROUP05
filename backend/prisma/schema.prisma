@@ -12,12 +12,12 @@ model User {
   fullName          String           @db.NVarChar(100)
   email             String           @unique @db.NVarChar(150)
   phoneNumber       String?          @db.NVarChar(20)
-  avatarUrl         String?          @db.NVarChar(500)
   passwordHash      String           @db.NVarChar(255)
-  isActive          Boolean          @default(true)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+  isActive          Boolean          @default(true)
   roleId            Int
+  avatarUrl         String?          @db.NVarChar(500)
   bookings          Booking[]
   checkInsHandled   CheckInRecord[]  @relation("CheckedInBy")
   checkOutsHandled  CheckInRecord[]  @relation("CheckedOutBy")
@@ -27,28 +27,6 @@ model User {
   vehicles          Vehicle[]
 
   @@index([roleId])
-}
-
-model Vehicle {
-  id             String          @id @default(uuid())
-  plateNumber    String          @unique @db.NVarChar(15)
-  type           String          @db.NVarChar(30)
-  brand          String?         @db.NVarChar(60)
-  model          String?         @db.NVarChar(60)
-  color          String?         @db.NVarChar(30)
-  year           Int?
-  seats          Int?
-  isMonthly      Boolean         @default(false)
-  ownerId        String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  bookings       Booking[]
-  checkInRecords CheckInRecord[]
-  monthlyPackage MonthlyPackage?
-  fixedSlots     ParkingSlot[]
-  owner          User            @relation(fields: [ownerId], references: [id], onUpdate: NoAction)
-
-  @@index([ownerId])
 }
 
 model Floor {
@@ -90,13 +68,13 @@ model MonthlyPackage {
   vehicleId  String       @unique
   slotId     String?
   planName   String?      @db.NVarChar(60)
-  autoRenew  Boolean      @default(false)
   startDate  DateTime
   expiryDate DateTime
   price      Decimal      @db.Decimal(10, 2)
   status     String       @default("ACTIVE") @db.NVarChar(30)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
+  autoRenew  Boolean      @default(false)
   slot       ParkingSlot? @relation(fields: [slotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   user       User         @relation(fields: [userId], references: [id], onUpdate: NoAction)
   vehicle    Vehicle      @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
@@ -113,11 +91,11 @@ model Booking {
   bookingTime     DateTime    @default(now())
   expectedArrival DateTime
   status          String      @default("ACTIVE") @db.NVarChar(30)
-  depositAmount   Decimal     @default(0) @db.Decimal(10, 2)
-  depositStatus   String      @default("PENDING") @db.NVarChar(30)
   createdById     String
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+  depositAmount   Decimal     @default(0) @db.Decimal(10, 2)
+  depositStatus   String      @default("PENDING") @db.NVarChar(30)
   createdBy       User        @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   slot            ParkingSlot @relation(fields: [slotId], references: [id], onUpdate: NoAction)
   vehicle         Vehicle     @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
@@ -132,12 +110,12 @@ model CheckInRecord {
   checkInTime    DateTime    @default(now())
   checkOutTime   DateTime?
   isMonthly      Boolean     @default(false)
-  status         String      @default("PARKING") @db.NVarChar(30)
-  isLostTicket   Boolean     @default(false)
-  checkedInById  String?
-  checkedOutById String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  checkedInById  String?
+  checkedOutById String?
+  isLostTicket   Boolean     @default(false)
+  status         String      @default("PARKING") @db.NVarChar(30)
   checkedInBy    User?       @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   checkedOutBy   User?       @relation("CheckedOutBy", fields: [checkedOutById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   slot           ParkingSlot @relation(fields: [slotId], references: [id], onUpdate: NoAction)
@@ -157,11 +135,11 @@ model Payment {
   method           String          @db.NVarChar(30)
   paidAt           DateTime        @default(now())
   type             String          @db.NVarChar(30)
-  status           String          @default("SUCCESS") @db.NVarChar(30)
-  collectedById    String?
-  transactionCode  String?         @db.NVarChar(50)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+  collectedById    String?
+  status           String          @default("SUCCESS") @db.NVarChar(30)
+  transactionCode  String?         @db.NVarChar(50)
   checkInRecord    CheckInRecord?  @relation(fields: [checkInRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   collectedBy      User?           @relation(fields: [collectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   monthlyPackage   MonthlyPackage? @relation(fields: [monthlyPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -186,8 +164,8 @@ model RolePermission {
   permissionKey String     @db.NVarChar(30)
   allowed       Boolean    @default(true)
   createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @default(now()) @updatedAt
   roleId        Int
+  updatedAt     DateTime   @default(now()) @updatedAt
   permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
   roleRef       Role       @relation(fields: [roleId], references: [id], onUpdate: NoAction)
 
@@ -218,6 +196,31 @@ model FeeRule {
   updatedAt    DateTime @updatedAt
 }
 
+model Vehicle {
+  id             String          @id @default(uuid())
+  plateNumber    String          @unique @db.NVarChar(15)
+  type           String          @db.NVarChar(30)
+  brand          String?         @db.NVarChar(60)
+  model          String?         @db.NVarChar(60)
+  color          String?         @db.NVarChar(30)
+  year           Int?
+  seats          Int?
+  isMonthly      Boolean         @default(false)
+  ownerFullName  String?         @db.NVarChar(100)
+  ownerEmail     String?         @db.NVarChar(150)
+  ownerPhone     String?         @db.NVarChar(20)
+  ownerId        String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  bookings       Booking[]
+  checkInRecords CheckInRecord[]
+  monthlyPackage MonthlyPackage?
+  fixedSlots     ParkingSlot[]
+  owner          User            @relation(fields: [ownerId], references: [id], onUpdate: NoAction)
+
+  @@index([ownerId])
+}
+
 model AuditLog {
   id          String   @id @default(uuid())
   actorId     String?  @db.NVarChar(36)
@@ -231,7 +234,7 @@ model AuditLog {
   ipAddress   String?  @db.NVarChar(45)
   createdAt   DateTime @default(now())
 
-  @@index([actorId])
-  @@index([action])
   @@index([createdAt])
+  @@index([action])
+  @@index([actorId])
 }
