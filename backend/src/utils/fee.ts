@@ -60,6 +60,12 @@ function ceilLots(minutes: number, lotMinutes: number): number {
   return Math.ceil(minutes / lotMinutes);
 }
 
+function ceilLotsCar(minutes: number, lotMinutes: number): number {
+  if (minutes <= 0) return 0;
+  if (minutes <= 61) return 1;
+  return Math.ceil((minutes - 61) / lotMinutes) + 1;
+}
+
 /** Which block index is active at a given local-clock minute-of-day [0,1440)? */
 function getBlockIndex(minuteOfDay: number, blocks: BlockDef[]): number {
   for (let i = 0; i < blocks.length; i++) {
@@ -218,8 +224,8 @@ export function calcCarFee(
     minutesInBlock: s.minutes,
     rate:           s.rate,
     lotHours:       s.lotMinutes / 60,
-    lots:           ceilLots(s.minutes, s.lotMinutes),
-    amount:         ceilLots(s.minutes, s.lotMinutes) * s.rate,
+    lots:           ceilLotsCar(s.minutes, s.lotMinutes),
+    amount:         ceilLotsCar(s.minutes, s.lotMinutes) * s.rate,
   }));
 
   if (hasNightFlat && nightStart && nightEnd) {
