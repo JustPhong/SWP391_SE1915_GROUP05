@@ -606,40 +606,57 @@ export function RegisterPage() {
                 textAlign: 'left',
               }}>
                 <p style={{ marginTop: 0, fontWeight: 700, color: '#1E3A5F' }}>
-                  Chào mừng bạn đến với Hệ thống quản lý đỗ xe thông minh ParkSmart. Bằng việc đăng ký tài khoản lái xe, bạn đồng ý tuân thủ các quy định dưới đây:
+                  Hệ thống quản lý đỗ xe thông minh ParkSmart là một sản phẩm phần mềm bản quyền chính thức được nghiên cứu và phát triển bởi Nhóm 05 (SWP391 SE1915 FPT University). Mọi quyền sở hữu trí tuệ, thương hiệu, và tài liệu liên quan đều được bảo hộ nghiêm ngặt.
+                </p>
+                <p style={{ color: '#4B5563', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+                  Bằng việc đăng ký tài khoản thành viên hoặc sử dụng bất kỳ dịch vụ nào của hệ thống ParkSmart, quý khách (sau đây gọi là "Lái xe" hoặc "Khách hàng") cam kết đã đọc, hiểu và đồng ý vô điều kiện với toàn bộ các điều khoản sử dụng dưới đây:
                 </p>
 
                 <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
                   1. Quy định chung về đỗ xe
                 </h4>
                 <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-                  <li>Tài xế phải đỗ đúng vị trí ô (slot) được chỉ định bởi hệ thống hoặc hướng dẫn của nhân viên bãi xe.</li>
-                  <li>Tuyệt đối không đỗ chiếm dụng ô đỗ cố định của cư dân khác (các slot có đăng ký gói cước tháng).</li>
-                  <li>Tuân thủ tốc độ giới hạn (tối đa 10km/h) và các biển chỉ dẫn an toàn trong khu vực hầm xe.</li>
+                  <li>Tài xế phải đỗ đúng vị trí ô (slot) được chỉ định bởi thuật toán tối ưu của hệ thống hoặc theo hướng dẫn trực tiếp từ nhân viên trực ca trực bãi xe.</li>
+                  <li>Tuyệt đối không đỗ chiếm dụng ô đỗ cố định của cư dân khác (các slot có đăng ký gói cước tháng đặc quyền).</li>
+                  <li>Tuân thủ tốc độ giới hạn (tối đa 10km/h) và các biển chỉ dẫn an toàn, biển cảnh báo giao thông trong khu vực hầm đỗ xe.</li>
                 </ul>
 
                 <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                  2. Quy định đặt chỗ trước (Booking)
+                  2. Quy định đặt chỗ trước (Booking) và phí đặt cọc
                 </h4>
                 <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-                  <li>Khách vãng lai khi đặt chỗ trước phải nộp khoản tiền đặt cọc là <strong>15.000đ</strong>. Khoản cọc này sẽ được khấu trừ vào phí gửi xe thực tế khi thanh toán.</li>
-                  <li>Nếu quá giờ hẹn dự kiến <strong>30 phút</strong> mà xe chưa vào bãi (No-show), lượt đặt chỗ sẽ bị hủy tự động và tiền đặt cọc sẽ bị tịch thu.</li>
-                  <li>Cư dân đã đăng ký gói tháng được miễn phí tiền đặt cọc đặt chỗ, nhưng lượt đặt chỗ cũng sẽ tự động hủy sau 30 phút quá hạn.</li>
+                  <li>Khách vãng lai khi đặt chỗ trước qua ứng dụng phải nộp khoản tiền đặt cọc là <strong>15.000đ</strong>. Khoản cọc này sẽ được khấu trừ vào phí gửi xe thực tế khi khách hàng check-out.</li>
+                  <li>Nếu quá giờ hẹn dự kiến <strong>30 phút</strong> mà xe chưa vào bãi (No-show), lượt đặt chỗ sẽ bị hủy tự động và tiền đặt cọc sẽ bị tịch thu phục vụ phí giữ slot ảo.</li>
+                  <li>Cư dân đã đăng ký gói tháng được miễn phí tiền đặt cọc đặt chỗ, nhưng lượt đặt chỗ cũng sẽ tự động hủy sau 30 phút quá hạn để bảo đảm tối ưu hóa công suất khai thác bãi đỗ.</li>
                 </ul>
 
                 <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
                   3. Thẻ xe và Đền bù mất mát
                 </h4>
                 <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-                  <li>Tài xế có trách nhiệm tự bảo quản thẻ/vé gửi xe (đối với khách sử dụng vé lượt giấy).</li>
-                  <li>Trong trường hợp làm mất thẻ xe, tài xế phải đền bù chi phí cấp lại thẻ: <strong>80.000đ đối với xe máy</strong> và <strong>200.000đ đối với ô tô</strong>, đồng thời thanh toán phí gửi xe tính từ thời điểm xe check-in thực tế dựa trên dữ liệu camera bãi xe.</li>
+                  <li>Tài xế có trách nhiệm tự bảo quản thẻ/vé gửi xe (đối với khách sử dụng vé lượt giấy hoặc thẻ RFID).</li>
+                  <li>Trong trường hợp làm mất thẻ xe, tài xế phải đền bù chi phí phát hành lại thẻ: <strong>80.000đ đối với xe máy</strong> và <strong>200.000đ đối với ô tô</strong>, đồng thời thanh toán phí gửi xe tính từ thời điểm xe check-in thực tế dựa trên dữ liệu đối soát camera bãi xe.</li>
                 </ul>
 
                 <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
                   4. Miễn trừ trách nhiệm về tài sản cá nhân
                 </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Ban quản lý và đơn vị vận hành hệ thống đỗ xe không chịu trách nhiệm bảo quản hay bồi thường đối với các tài sản cá nhân có giá trị (tiền mặt, trang sức, điện thoại, máy tính...) để lại bên trong xe của quý khách.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  5. Quyền sở hữu trí tuệ và Bản quyền phát triển
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Toàn bộ mã nguồn, cấu trúc phần mềm, cơ sở dữ liệu, giao diện người dùng (UI/UX), nhãn hiệu thương mại "ParkSmart" đều thuộc sở hữu độc quyền của ParkSmart DevTeam. Mọi hành vi sao chép, đảo ngược mã nguồn (reverse engineering), phân phối trái phép đều bị nghiêm cấm theo luật Sở hữu trí tuệ hiện hành.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  6. Chính sách bảo mật dữ liệu khách hàng
+                </h4>
                 <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', marginBottom: 0 }}>
-                  <li>Ban quản lý và hệ thống đỗ xe không chịu trách nhiệm bảo quản hay bồi thường đối với các tài sản cá nhân có giá trị (tiền mặt, điện thoại, máy tính...) để lại bên trong xe của quý khách.</li>
+                  <li>Dữ liệu cá nhân (Họ tên, số điện thoại, biển số xe) và hình ảnh biển số ghi nhận từ camera tại cổng ra/vào chỉ được dùng cho mục đích quản lý đỗ xe, đối soát tài chính, bảo đảm an ninh bãi đỗ và hỗ trợ cơ quan điều tra khi được yêu cầu. Chúng tôi cam kết không bán hoặc chia sẻ thông tin cho các bên thứ ba vì mục đích thương mại ngoài luồng.</li>
                 </ul>
               </div>
 
