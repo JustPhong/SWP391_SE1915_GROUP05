@@ -29,6 +29,7 @@ import { SupportPage } from './pages/Support';
 import { NotificationsPage } from './pages/Notifications';
 import { BookingPage } from './pages/Booking';
 import { MonthlyPackagePage } from './pages/MonthlyPackage';
+import { StaffHistoryPage } from './pages/StaffHistory';
 
 function LoadingScreen() {
   return (
@@ -207,6 +208,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/staff/history"
+        element={
+          <StaffRoute>
+            <StaffHistoryPage />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/reports"
         element={
           <StaffRoute>
@@ -261,6 +270,14 @@ function AppRoutes() {
         element={
           <ManagerRoute>
             <TrafficPage />
+          </ManagerRoute>
+        }
+      />
+      <Route
+        path="/manager/history"
+        element={
+          <ManagerRoute>
+            <StaffHistoryPage />
           </ManagerRoute>
         }
       />
