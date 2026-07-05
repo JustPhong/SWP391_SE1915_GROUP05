@@ -117,6 +117,12 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
     plateNumber.trim().length >= 4 &&
     arrivalTime.trim().length > 0;
 
+  const selectedVehicle = vehicles.find(
+    (v) => v.plateNumber.replace(/[^A-Z0-9]/g, '') === plateNumber.trim().replace(/[^A-Z0-9]/g, '')
+  );
+  const isMonthly = selectedVehicle ? selectedVehicle.isMonthly : false;
+  const currentDeposit = isMonthly ? 0 : BOOKING_DEPOSIT;
+
   const now = new Date();
   now.setMinutes(now.getMinutes() + 15);
   now.setSeconds(0);
@@ -340,8 +346,8 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 <span style={{ fontSize: '0.82rem', color: '#1D4ED8' }}>Phí đặt cọc</span>
               </div>
-              <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.blue }}>
-                {BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ
+              <span style={{ fontSize: '0.95rem', fontWeight: 800, color: isMonthly ? C.green : C.blue }}>
+                {isMonthly ? '0đ (Cư dân - Miễn phí)' : `${BOOKING_DEPOSIT.toLocaleString('vi-VN')}đ`}
               </span>
             </div>
 
@@ -353,7 +359,9 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
             }}>
               <span style={{ fontSize: '0.9rem', flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
               <p style={{ margin: 0, fontSize: '0.78rem', color: '#991B1B', lineHeight: 1.5 }}>
-                Đặt chỗ sẽ bị hủy và mất cọc nếu xe không vào bãi trong <strong>30 phút</strong>.
+                {isMonthly 
+                  ? 'Đặt chỗ sẽ tự động bị hủy nếu xe không vào bãi trong 30 phút sau thời gian dự kiến.'
+                  : 'Đặt chỗ sẽ bị hủy và mất cọc nếu xe không vào bãi trong 30 phút.'}
               </p>
             </div>
 

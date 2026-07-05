@@ -28,6 +28,7 @@ export const bookingService = {
     // 1. Find or create vehicle (casual bookings are allowed)
     let vehicle = await prisma.vehicle.findUnique({
       where: { plateNumber: input.plateNumber },
+      include: { monthlyPackage: true }
     });
     if (!vehicle) {
       vehicle = await prisma.vehicle.create({
@@ -37,24 +38,30 @@ export const bookingService = {
           ownerId: input.createdById,
           isMonthly: false,
         },
+        include: { monthlyPackage: true }
       });
     }
 
+    const isVehicleMonthly = vehicle.isMonthly || !!vehicle.monthlyPackage;
+    const vType = vehicle.type;
+    const zone = isVehicleMonthly ? 'MONTHLY' : 'CASUAL';
+
     // 2. Auto-assign best slot using the existing Greedy algorithm
-    const suggestion = await slotSuggestionService.suggestSlot('CAR', 'CASUAL');
+    const suggestion = await slotSuggestionService.suggestSlot(vType, zone);
     if (!suggestion) {
-      throw new AppError(409, 'Hiện không còn chỗ trống cho khách vãng lai (ô tô). Vui lòng thử lại sau.');
+      throw new AppError(409, `Hiện không còn chỗ trống cho ${isVehicleMonthly ? 'cư dân' : 'khách vãng lai'} (${vType === 'CAR' ? 'ô tô' : 'xe máy'}). Vui lòng thử lại sau.`);
     }
 
     // 3. Transaction: tạo booking + payment cọc + reserve slot
     const booking = await prisma.$transaction(async (tx) => {
+      const depositAmt = isVehicleMonthly ? 0 : BOOKING_DEPOSIT;
       const newBooking = await tx.booking.create({
         data: {
           vehicleId:       vehicle.id,
           slotId:          suggestion.slotId,
           expectedArrival: input.expectedArrival,
           status:          BOOKING_ACTIVE,
-          depositAmount:   BOOKING_DEPOSIT,
+          depositAmount:   depositAmt,
           depositStatus:   'PAID',
           createdById:     input.createdById,
         },
@@ -65,18 +72,20 @@ export const bookingService = {
         },
       });
 
-      // Ghi nhận thu cọc 15.000đ (BR-BK-01)
-      await tx.payment.create({
-        data: {
-          amount:          BOOKING_DEPOSIT,
-          method:          'CASH',
-          type:            'SESSION',
-          status:          'SUCCESS',
-          paidAt:          new Date(),
-          collectedById:   input.createdById,
-          transactionCode: `DEP-${newBooking.id}`,
-        },
-      });
+      // Chỉ ghi nhận thu cọc 15.000đ nếu không phải cư dân (BR-BK-01)
+      if (!isVehicleMonthly) {
+        await tx.payment.create({
+          data: {
+            amount:          BOOKING_DEPOSIT,
+            method:          'CASH',
+            type:            'SESSION',
+            status:          'SUCCESS',
+            paidAt:          new Date(),
+            collectedById:   input.createdById,
+            transactionCode: `DEP-${newBooking.id}`,
+          },
+        });
+      }
 
       // Giữ slot
       await tx.parkingSlot.update({
