@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  HomeIcon,
+  CalendarIcon,
+  LayoutIcon,
+  HistoryIcon,
+} from '../components/ui/Icons';
 import { getCurrentSession, getMyPackage, CurrentSession } from '../api/driverDashboardApi';
 import { addVehicle } from '../api/vehicleApi';
 import { getPublicAvailability, type AvailabilityData } from '../api/publicApi';
@@ -508,24 +514,85 @@ export const WelcomePage: React.FC = () => {
 
           {/* Tab switcher */}
           <div className={styles.tabSwitcher}>
-            <button className={`${styles.tabBtn} ${activeTab === 'home' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('home')}>
-              Trang chủ
-            </button>
-            <button className={`${styles.tabBtn} ${activeTab === 'vehicles' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('vehicles')}>
-              Xe của bạn
-            </button>
-            <button className={`${styles.tabBtn} ${activeTab === 'history' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('history')}>
-              Lịch sử
-            </button>
-            <button className={`${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('monthly')}>
-              Gói tháng
-            </button>
-            <button className={`${styles.tabBtn} ${activeTab === 'booking' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('booking')}>
-              Đặt chỗ
-            </button>
-            <button className={`${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`} onClick={() => setActiveTab('floormap')}>
-              Sơ đồ tầng
-            </button>
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `${styles.tabBtn} ${(isActive && activeTab === 'home') ? styles.tabBtnActive : ''}`
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('home');
+              }}
+            >
+              <HomeIcon size={16} />
+              <span>Trang chủ</span>
+            </NavLink>
+            <NavLink
+              to="/my-vehicle"
+              className={() =>
+                `${styles.tabBtn} ${activeTab === 'vehicles' ? styles.tabBtnActive : ''}`
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('vehicles');
+              }}
+            >
+              <CarIconFilled size={18} />
+              <span>Xe của bạn</span>
+            </NavLink>
+            <NavLink
+              to="/history"
+              className={() =>
+                `${styles.tabBtn} ${activeTab === 'history' ? styles.tabBtnActive : ''}`
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('history');
+              }}
+            >
+              <HistoryIcon size={16} />
+              <span>Lịch sử</span>
+            </NavLink>
+            <NavLink
+              to="/monthly-package"
+              className={() =>
+                `${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('monthly');
+              }}
+            >
+              <CarIconFilled size={18} />
+              <span>Gói tháng</span>
+            </NavLink>
+            <NavLink
+              to="/booking"
+              className={() =>
+                `${styles.tabBtn} ${activeTab === 'booking' ? styles.tabBtnActive : ''}`
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('booking');
+              }}
+            >
+              <CalendarIcon size={16} />
+              <span>Đặt chỗ</span>
+            </NavLink>
+            <NavLink
+              to="/floor-map"
+              className={() =>
+                `${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('floormap');
+              }}
+            >
+              <LayoutIcon size={16} />
+              <span>Sơ đồ tầng</span>
+            </NavLink>
           </div>
 
           <div className={styles.navRight}>
@@ -546,6 +613,10 @@ export const WelcomePage: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Vertical Divider */}
+            <div className={styles.navDivider}></div>
+
             <div className={styles.supportDropdownContainer}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
                 <div style={{ position: 'relative', flexShrink: 0, display: 'flex', overflow: 'visible' }}>

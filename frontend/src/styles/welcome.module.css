@@ -167,15 +167,13 @@
   position: sticky;
   top: 0;
   z-index: 200;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid #dae9f5;
-  box-shadow: 0 1px 6px rgba(22, 41, 63, 0.06);
+  background: #ffffff;
+  border-bottom: 1px solid #eef2f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .navInner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0.85rem 2rem;
+  width: 100%;
+  padding: 0.6rem 3.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -187,6 +185,7 @@
   gap: 0.6rem;
   cursor: pointer;
   user-select: none;
+  flex: 0 0 auto;
 }
 .logoBox {
   width: 2rem;
@@ -230,6 +229,7 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  flex: 0 0 auto;
 }
 .navSupport {
   font-size: 0.9rem;
@@ -1504,30 +1504,54 @@
 /* Tab switcher */
 .tabSwitcher {
   display: flex;
-  gap: 0.25rem;
-  background: #d6e6f6;
-  border-radius: 10px;
-  padding: 4px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  flex: 1;
 }
 .tabBtn {
   background: transparent;
   border: none;
-  padding: 0.4rem 1rem;
-  border-radius: 7px;
-  font-size: 0.85rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #5a7a96;
   cursor: pointer;
-  transition: all 0.18s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  transition: all 0.15s ease;
+  text-decoration: none;
 }
 .tabBtn:hover {
-  color: #16293f;
-  background: rgba(255,255,255,0.5);
+  color: #2d5fd0;
+  background: #eff6ff;
 }
 .tabBtnActive {
-  background: #ffffff;
-  color: #2d5fd0;
-  box-shadow: 0 1px 4px rgba(22,41,63,0.1);
+  background: #eff6ff !important;
+  color: #2d5fd0 !important;
+}
+.tabBtnActive::after {
+  content: '';
+  position: absolute;
+  bottom: 0px;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background-color: #2d5fd0;
+  border-radius: 2px;
+}
+.navDivider {
+  width: 1px;
+  height: 24px;
+  background-color: #e2e8f0;
+  margin: 0 0.5rem;
+  align-self: center;
 }
 
 /* User greeting */
