@@ -271,10 +271,10 @@ async function main() {
   });
 
   const vehicleA = await prisma.vehicle.upsert({
-    where: { plateNumber: '51A-11111' },
+    where: { plateNumber: '51A11111' },
     update: {},
     create: {
-      plateNumber: '51A-11111',
+      plateNumber: '51A11111',
       type: 'CAR',
       isMonthly: true,
       ownerId: driverA.id,
@@ -304,9 +304,9 @@ async function main() {
       status: 'ACTIVE',
     },
   });
-  console.log('Monthly customer seeded: Nguyen Van A / 51A-11111 / G-01 (VALID, expires', validExpiry.toLocaleDateString('vi-VN'), ')');
+  console.log('Monthly customer seeded: Nguyen Van A / 51A11111 / G-01 (VALID, expires', validExpiry.toLocaleDateString('vi-VN'), ')');
 
-  // ── Monthly customer: Tran Thi B / 51B-22222 (EXPIRED) ─────────────────
+  // ── Monthly customer: Tran Thi B / 51B22222 (EXPIRED) ─────────────────
   const driverBEmail = 'tranthib@test.com';
   const hashB = await bcrypt.hash('test123', 12);
   const driverB = await prisma.user.upsert({
@@ -321,10 +321,10 @@ async function main() {
   });
 
   const vehicleB = await prisma.vehicle.upsert({
-    where: { plateNumber: '51B-22222' },
+    where: { plateNumber: '51B22222' },
     update: {},
     create: {
-      plateNumber: '51B-22222',
+      plateNumber: '51B22222',
       type: 'CAR',
       isMonthly: true,
       ownerId: driverB.id,
@@ -354,7 +354,7 @@ async function main() {
       status: 'EXPIRED',
     },
   });
-  console.log('Monthly customer seeded: Tran Thi B / 51B-22222 / G-02 (EXPIRED since', expiredExpiry.toLocaleDateString('vi-VN'), ')');
+  console.log('Monthly customer seeded: Tran Thi B / 51B22222 / G-02 (EXPIRED since', expiredExpiry.toLocaleDateString('vi-VN'), ')');
 
   console.log('Seed complete —', 2, 'sample monthly customer(s) seeded.');
 }

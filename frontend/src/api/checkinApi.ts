@@ -16,6 +16,11 @@ export interface LookupResult {
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
+  // Owner / customer info
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  ownerEmail?: string | null;
+  note?: string | null;
 }
 
 export interface AvailableSlot {

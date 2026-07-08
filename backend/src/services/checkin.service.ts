@@ -18,6 +18,11 @@ export interface LookupResult {
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
+  // Owner / customer info
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  ownerEmail?: string | null;
+  note?: string | null;
 }
 
 export interface AvailableSlotResult {
@@ -56,6 +61,7 @@ export const checkinService = {
         monthlyPackage: {
           include: { slot: true },
         },
+        owner: true,
       },
     });
 
@@ -80,6 +86,11 @@ export const checkinService = {
       year: vehicle.year ?? null,
       seats: (vehicle as any).seats ?? null,
       customerType: vehicle.isMonthly ? 'monthly' : 'casual',
+      // Owner info from Vehicle direct fields, fallback to User relation
+      ownerName: vehicle.ownerFullName ?? vehicle.owner?.fullName ?? null,
+      ownerPhone: vehicle.ownerPhone ?? vehicle.owner?.phoneNumber ?? null,
+      ownerEmail: vehicle.ownerEmail ?? vehicle.owner?.email ?? null,
+      note: null,
     } as LookupResult;
 
     if (activeRecord) {
