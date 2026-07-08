@@ -574,39 +574,51 @@ export function CheckOutPage() {
             ))}
           </div>
 
-          <div style={{
-            background: C.gray50,
-            border: `1px solid ${C.gray200}`,
-            borderRadius: 10,
-            padding: '0.85rem 1rem',
-            marginBottom: '1rem',
-          }}>
-            <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Thông tin xe
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand || '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model || '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color || '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year ?? '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats != null ? `${foundRecord.vehicle!.seats} chỗ` : '—'}</div>
+          {(foundRecord.vehicle!.brand || foundRecord.vehicle!.model || foundRecord.vehicle!.color || foundRecord.vehicle!.year || foundRecord.vehicle!.seats) && (
+            <div style={{
+              background: C.gray50,
+              border: `1px solid ${C.gray200}`,
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem',
+            }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin xe
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
+                {foundRecord.vehicle!.brand && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.model && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.color && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.year && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.seats != null && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
           <div style={{
             background: C.greenBg,
@@ -688,39 +700,51 @@ export function CheckOutPage() {
             ))}
           </div>
 
-          <div style={{
-            background: C.gray50,
-            border: `1px solid ${C.gray200}`,
-            borderRadius: 10,
-            padding: '0.85rem 1rem',
-            marginBottom: '1rem',
-          }}>
-            <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Thông tin xe
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand || '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model || '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color || '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year ?? '—'}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats != null ? `${foundRecord.vehicle!.seats} chỗ` : '—'}</div>
+          {(foundRecord.vehicle!.brand || foundRecord.vehicle!.model || foundRecord.vehicle!.color || foundRecord.vehicle!.year || foundRecord.vehicle!.seats) && (
+            <div style={{
+              background: C.gray50,
+              border: `1px solid ${C.gray200}`,
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem',
+            }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin xe
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
+                {foundRecord.vehicle!.brand && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.model && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.color && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.year && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.seats != null && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Fee breakdown from API */}
           {feePreview && (

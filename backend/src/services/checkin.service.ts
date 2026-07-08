@@ -65,7 +65,6 @@ export const checkinService = {
       },
     });
 
-
     // No vehicle at all → casual
     if (!vehicle) {
       return { found: false, customerType: 'casual' };
@@ -80,16 +79,15 @@ export const checkinService = {
     const baseResult = {
       found: true,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
-      brand: vehicle.brand ?? null,
-      model: vehicle.model ?? null,
-      color: vehicle.color ?? null,
-      year: vehicle.year ?? null,
-      seats: (vehicle as any).seats ?? null,
+      brand: vehicle.brand ?? undefined,
+      model: vehicle.model ?? undefined,
+      color: vehicle.color ?? undefined,
+      year: vehicle.year ?? undefined,
+      seats: (vehicle as any).seats ?? undefined,
       customerType: vehicle.isMonthly ? 'monthly' : 'casual',
-      // Owner info from Vehicle direct fields, fallback to User relation
-      ownerName: vehicle.ownerFullName ?? vehicle.owner?.fullName ?? null,
-      ownerPhone: vehicle.ownerPhone ?? vehicle.owner?.phoneNumber ?? null,
-      ownerEmail: vehicle.ownerEmail ?? vehicle.owner?.email ?? null,
+      ownerName: vehicle.ownerFullName ?? vehicle.owner?.fullName ?? undefined,
+      ownerPhone: vehicle.ownerPhone ?? vehicle.owner?.phoneNumber ?? undefined,
+      ownerEmail: vehicle.ownerEmail ?? vehicle.owner?.email ?? undefined,
       note: null,
     } as LookupResult;
 
