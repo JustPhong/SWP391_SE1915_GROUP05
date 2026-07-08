@@ -839,6 +839,53 @@ export function CheckInPage() {
                     {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ'}
                     {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
                   </p>
+                  {/* Show vehicle details for found customers */}
+                  {(lookupData.brand || lookupData.model || lookupData.color || lookupData.year || lookupData.seats) && (
+                    <div style={{
+                      background: '#F0F4F8',
+                      border: '1px solid #D1D9E6',
+                      borderRadius: 10,
+                      padding: '0.7rem 0.85rem',
+                      marginTop: '0.6rem',
+                    }}>
+                      <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Thông tin xe
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
+                        {lookupData.brand && (
+                          <div>
+                            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.brand}</div>
+                          </div>
+                        )}
+                        {lookupData.model && (
+                          <div>
+                            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.model}</div>
+                          </div>
+                        )}
+                        {lookupData.color && (
+                          <div>
+                            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.color}</div>
+                          </div>
+                        )}
+                        {lookupData.year && (
+                          <div>
+                            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.year}</div>
+                          </div>
+                        )}
+                        {lookupData.seats != null && (
+                          <div>
+                            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.seats} chỗ</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Show owner info card for found customers */}
                   <div style={{ width: '100%', marginTop: '0.75rem' }}>
                     <OwnerInfoCard data={lookupData} />

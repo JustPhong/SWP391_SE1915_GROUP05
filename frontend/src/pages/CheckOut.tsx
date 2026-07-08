@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
+import { checkoutLookupPlate } from '../api/checkoutApi';
 import type { CheckInRecord } from '../types';
 
 // ── Types ────────────────────────────────────────────────
@@ -11,7 +12,15 @@ interface ActiveRecord {
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
-  vehicle?: { plateNumber: string; type?: 'CAR' | 'MOTORBIKE' };
+  vehicle?: { 
+    plateNumber: string; 
+    type?: 'CAR' | 'MOTORBIKE';
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    seats?: number | null;
+  };
   slot?: { code: string; floor: number };
 }
 
@@ -198,7 +207,15 @@ export function CheckOutPage() {
         checkInTime: r.checkInTime,
         checkOutTime: r.checkOutTime,
         isMonthly: r.isMonthly ?? false,
-        vehicle: r.vehicle ? { plateNumber: r.vehicle.plateNumber, type: r.vehicle.type } : undefined,
+        vehicle: r.vehicle ? { 
+          plateNumber: r.vehicle.plateNumber, 
+          type: r.vehicle.type,
+          brand: r.vehicle.brand,
+          model: r.vehicle.model,
+          color: r.vehicle.color,
+          year: r.vehicle.year,
+          seats: r.vehicle.seats,
+        } : undefined,
         slot: r.slot ? { code: r.slot.code, floor: r.slot.floorId } : undefined,
       }));
       setAllRecords(mapped);
@@ -251,6 +268,7 @@ export function CheckOutPage() {
         setSearching(false);
         return;
       }
+      const matchedVehicle = matched.vehicle as ActiveRecord['vehicle'] | undefined;
       const mapped: ActiveRecord = {
         id: matched.id,
         vehicleId: matched.vehicleId,
@@ -258,10 +276,38 @@ export function CheckOutPage() {
         checkInTime: matched.checkInTime,
         checkOutTime: matched.checkOutTime,
         isMonthly: matched.isMonthly ?? false,
-        vehicle: matched.vehicle ? { plateNumber: matched.vehicle.plateNumber, type: matched.vehicle.type } : undefined,
+        vehicle: matchedVehicle ? { 
+          plateNumber: matchedVehicle.plateNumber, 
+          type: matchedVehicle.type,
+          brand: matchedVehicle.brand,
+          model: matchedVehicle.model,
+          color: matchedVehicle.color,
+          year: matchedVehicle.year,
+          seats: matchedVehicle.seats,
+        } : undefined,
         slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : undefined,
       };
       setFoundRecord(mapped);
+
+      // Fetch full vehicle and owner details via checkout lookup
+      try {
+        const lookup = await checkoutLookupPlate(plate);
+        if (lookup.found) {
+          setFoundRecord((prev) => prev ? {
+            ...prev,
+            vehicle: prev.vehicle ? {
+              ...prev.vehicle,
+              brand: lookup.brand ?? prev.vehicle.brand,
+              model: lookup.model ?? prev.vehicle.model,
+              color: lookup.color ?? prev.vehicle.color,
+              year: lookup.year ?? prev.vehicle.year,
+              seats: lookup.seats ?? prev.vehicle.seats,
+            } : prev.vehicle,
+          } : prev);
+        }
+      } catch {
+        // ignore lookup errors, fee preview is the primary data
+      }
 
       // Fetch fee preview from backend
       const preview = await fetchFeePreview(mapped.id);
@@ -529,6 +575,40 @@ export function CheckOutPage() {
           </div>
 
           <div style={{
+            background: C.gray50,
+            border: `1px solid ${C.gray200}`,
+            borderRadius: 10,
+            padding: '0.85rem 1rem',
+            marginBottom: '1rem',
+          }}>
+            <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Thông tin xe
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year ?? '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats != null ? `${foundRecord.vehicle!.seats} chỗ` : '—'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
             background: C.greenBg,
             border: `1.5px solid ${C.greenBorder}`,
             borderRadius: 10,
@@ -606,6 +686,40 @@ export function CheckOutPage() {
                 <span style={{ fontSize: '0.88rem', fontWeight: 700, color: C.gray800 }}>{r.value}</span>
               </div>
             ))}
+          </div>
+
+          <div style={{
+            background: C.gray50,
+            border: `1px solid ${C.gray200}`,
+            borderRadius: 10,
+            padding: '0.85rem 1rem',
+            marginBottom: '1rem',
+          }}>
+            <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Thông tin xe
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year ?? '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats != null ? `${foundRecord.vehicle!.seats} chỗ` : '—'}</div>
+              </div>
+            </div>
           </div>
 
           {/* Fee breakdown from API */}
