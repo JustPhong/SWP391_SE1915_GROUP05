@@ -3,7 +3,7 @@ import { AppError } from '../utils/helpers';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const PKG_ACTIVE = 'ACTIVE';
-  
+
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;
@@ -49,14 +49,16 @@ export interface SubmitCheckinResult {
 export const checkinService = {
   // ── GET /api/checkin/lookup/:plate ─────────────────────────────────────
   async lookupPlate(plate: string): Promise<LookupResult> {
+    const normalizedPlate = normalizePlate(plate);
     const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: plate },
+      where: { plateNumber: normalizedPlate },
       include: {
         monthlyPackage: {
           include: { slot: true },
         },
       },
     });
+
 
     // No vehicle at all → casual
     if (!vehicle) {
@@ -157,6 +159,8 @@ export const checkinService = {
   // ── POST /api/checkin ─────────────────────────────────────────────────
   async submit(input: SubmitCheckinInput): Promise<SubmitCheckinResult> {
     const { plate, vehicleType, slotCode, isMonthly } = input;
+    const normalizedPlate = normalizePlate(plate);
+
 
     // Resolve slot by code
     const slot = await prisma.parkingSlot.findUnique({ where: { code: slotCode } });
@@ -164,7 +168,7 @@ export const checkinService = {
     if (slot.status !== SLOT_AVAILABLE) throw new AppError(409, 'Slot không còn trống');
 
     // Resolve vehicle by plate; create walk-in vehicle if casual and not found
-    let vehicle = await prisma.vehicle.findUnique({ where: { plateNumber: plate } });
+    let vehicle = await prisma.vehicle.findUnique({ where: { plateNumber: normalizedPlate } });
 
     if (!vehicle) {
       if (isMonthly) {
@@ -175,12 +179,13 @@ export const checkinService = {
       const walkinUser = await findOrCreateWalkinUser();
       vehicle = await prisma.vehicle.create({
         data: {
-          plateNumber: plate,
+          plateNumber: normalizedPlate,
           type: vehicleType,
           isMonthly: false,
           ownerId: walkinUser.id,
         },
       });
+
     }
 
     // Create check-in record + mark slot occupied in a transaction
@@ -203,15 +208,26 @@ export const checkinService = {
 
     return {
       ok: true,
-      plate,
+      plate: normalizedPlate,
       slotCode,
       checkInTime: checkInTime.toISOString(),
     };
+
   },
 };
 
+function normalizePlate(input: string): string {
+  // Normalize so client can send with/without separators.
+  // Examples: 79C-76767, 79C.76767, 79C 76767, 79C76767 => 79C76767
+  return (input ?? '')
+    .replace(/[-.\s]/g, '')
+    .toUpperCase()
+    .trim();
+}
+
 // ── Internal helper ────────────────────────────────────────────────────────
 async function findOrCreateWalkinUser() {
+
   const email = 'walkin@system.local';
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {

@@ -396,18 +396,33 @@ export const WelcomePage: React.FC = () => {
   // ── Add vehicle ──────────────────────────────────────────
   const handleAddVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPlate.trim()) return;
+    const plate = newPlate.trim().toUpperCase();
+    if (!plate) return;
+
+    // Ensure required fields are not empty strings (some APIs treat "" as invalid)
+    const payload = {
+      plateNumber: plate,
+      type: newType,
+      brand: newBrand || undefined,
+      model: newModel || undefined,
+      color: newColor || undefined,
+      year: newYear ?? undefined,
+    };
+
     setAddLoading(true);
     setAddError('');
     try {
-      await addVehicle({ plateNumber: newPlate.trim().toUpperCase(), type: newType, brand: newBrand || undefined, model: newModel || undefined, color: newColor || undefined, year: newYear ?? undefined });
+      await addVehicle(payload);
       setShowAddVehicle(false);
       setNewPlate('');
       setNewType('CAR');
-      setNewBrand('');
-      setNewModel('');
-      setNewColor('');
-      setNewYear(null);
+
+      // Reset using a valid default (avoid empty-string state that can break select rendering)
+      const defaultCarBrand = VEHICLE_PROFILE_OPTIONS.CAR.brands[0];
+      setNewBrand(defaultCarBrand.label);
+      setNewModel(defaultCarBrand.models[0]);
+      setNewColor(VEHICLE_COLORS[0]);
+      setNewYear(VEHICLE_YEARS[0]);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Thêm xe thất bại.');
     } finally {

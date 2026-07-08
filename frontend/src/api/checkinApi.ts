@@ -1,4 +1,6 @@
 import api from '../services/api';
+import { formatPlateNumber } from '../utils/plate';
+
 
 export interface LookupResult {
   found: boolean;
@@ -57,11 +59,13 @@ function unwrapList<T>(response: { data: { success: boolean; data: T[]; message?
 
 export async function lookupPlate(plate: string): Promise<LookupResult> {
   try {
+    const normalizedPlate = formatPlateNumber(plate);
     const response = await api.get<{ success: boolean; data: LookupResult }>(
-      `/checkin/lookup/${encodeURIComponent(plate)}`
+      `/checkin/lookup/${encodeURIComponent(normalizedPlate)}`
     );
     return unwrap(response);
   } catch (err: unknown) {
+
     const msg =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
       'Không thể tra cứu biển số. Vui lòng thử lại.';

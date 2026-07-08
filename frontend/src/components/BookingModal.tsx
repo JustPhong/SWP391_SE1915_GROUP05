@@ -77,6 +77,10 @@ interface BookingModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (slot: ParkingSlot, bookingId: string) => void;
+
+
+  // Optional: allow parent to redirect user to vehicle tab after closing/success.
+  2e935e8 (fix: cap nhat checkin logic, booking modal va plate input)
   onRedirectToVehicles?: () => void;
 }
 
