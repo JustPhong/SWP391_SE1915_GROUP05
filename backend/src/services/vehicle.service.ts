@@ -58,11 +58,57 @@ export const vehicleService = {
   async getByPlate(plateNumber: string) {
     const vehicle = await prisma.vehicle.findUnique({
       where: { plateNumber },
-      include: { owner: true },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        monthlyPackage: {
+          select: {
+            id: true,
+            status: true,
+            expiryDate: true,
+          },
+        },
+        checkInRecords: {
+          orderBy: {
+            checkInTime: 'desc',
+          },
+          take: 1,
+          select: {
+            checkInTime: true,
+          },
+        },
+      },
     });
-    if (!vehicle) throw new AppError(404, 'Vehicle not found');
-    return vehicle;
+
+    if (!vehicle) {
+      throw new AppError(404, 'Không tìm thấy xe');
+    }
+
+    return {
+      id: vehicle.id,
+      plateNumber: vehicle.plateNumber,
+      type: vehicle.type,
+      brand: vehicle.brand,
+      model: vehicle.model,
+      color: vehicle.color,
+
+      owner: vehicle.owner,
+
+      isMonthly: vehicle.isMonthly || (vehicle.monthlyPackage?.status === 'ACTIVE'),
+
+      monthlyPackage: vehicle.monthlyPackage,
+
+      lastParking:
+        vehicle.checkInRecords.length > 0 ? vehicle.checkInRecords[0].checkInTime : null,
+    };
   },
+
 
   async getById(id: string) {
     const vehicle = await prisma.vehicle.findUnique({

@@ -11,7 +11,9 @@ router.use(authenticate);
 router.post('/', vehicleSchema, validate, vehicleController.create);
 router.get('/my', vehicleController.getMyVehicles);
 router.get('/:id/detail', vehicleController.getDetail);
+router.get('/lookup/:plateNumber', vehicleController.getByPlate);
 router.get('/:plateNumber', vehicleController.getByPlate);
+
 router.patch('/:id', vehicleController.update);
 router.delete('/:id', vehicleController.remove);
    

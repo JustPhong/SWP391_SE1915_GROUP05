@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { ParkingSlot } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { getMyVehicles } from '../api/vehicleApi';
+import { getMyVehicles, lookupVehicleByPlate } from '../api/vehicleApi';
 import type { Vehicle } from '../api/vehicleApi';
 import { PlateInput } from './PlateInput';
+import VehicleInfoCard from './VehicleInfoCard';
+
 
 const C = {
   navy:      '#1E3A5F',
@@ -78,17 +80,20 @@ interface BookingModalProps {
   onClose: () => void;
   onSuccess: (slot: ParkingSlot, bookingId: string) => void;
 
-
   // Optional: allow parent to redirect user to vehicle tab after closing/success.
-  2e935e8 (fix: cap nhat checkin logic, booking modal va plate input)
   onRedirectToVehicles?: () => void;
 }
+
 
 export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }: BookingModalProps) {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [plateNumber, setPlateNumber] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
+
+  const [vehicleInfo, setVehicleInfo] = useState<any>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
 
   // Owner contact fields (required only when the vehicle is not registered yet)
   const [ownerFullName, setOwnerFullName] = useState('');
@@ -139,6 +144,24 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
     setVYear(VEHICLE_YEARS[0]);
     setVSeats(5);
   };
+
+  const handleLookup = async () => {
+    const plate = plateNumber.trim();
+    if (plate.length < 4) return;
+
+    try {
+      setLookupLoading(true);
+      setErrorMsg('');
+
+      const res = await lookupVehicleByPlate(plate);
+      setVehicleInfo(res);
+    } catch {
+      setVehicleInfo(null);
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
 
   const canSubmit =
     !submitting &&
@@ -319,7 +342,7 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
               </div>
               <PlateInput
                 value={plateNumber}
-                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); }}
+                onChange={(val) => { setPlateNumber(val); setErrorMsg(''); setVehicleInfo(null); }}
                 placeholder="VD: 30A-123.45"
                 maxLength={15}
                 style={{
@@ -333,7 +356,33 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
                 onFocus={(e) => { e.currentTarget.style.borderColor = C.navy; e.currentTarget.style.boxShadow = `0 0 0 3px rgba(30,58,95,0.10)`; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; e.currentTarget.style.boxShadow = 'none'; }}
               />
+
+              <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleLookup}
+                  disabled={lookupLoading || plateNumber.trim().length < 4}
+                  style={{
+                    flex: 1,
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: 10,
+                    border: `1.5px solid ${lookupLoading ? C.gray200 : C.blue}`,
+                    background: C.blueBg,
+                    color: C.blue,
+                    fontSize: '0.82rem',
+                    fontWeight: 900,
+                    cursor: lookupLoading || plateNumber.trim().length < 4 ? 'not-allowed' : 'pointer',
+                    opacity: lookupLoading || plateNumber.trim().length < 4 ? 0.7 : 1,
+                  }}
+                >
+                  {lookupLoading ? 'Đang tra cứu...' : 'Tra cứu'}
+                </button>
+              </div>
+
+              {vehicleInfo && <VehicleInfoCard vehicle={vehicleInfo} />}
+
               {vehicles.length > 0 && (
+
                 <div style={{ marginTop: '0.6rem' }}>
                   <span style={{ fontSize: '0.75rem', color: C.gray600, display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
                     Chọn từ xe đã đăng ký:

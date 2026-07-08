@@ -1,8 +1,10 @@
-# TODO
+- [x] Backend: Update vehicleService.getByPlate() to return owner/monthlyPackage/lastParking fields for card.
+- [x] Backend: Add new route GET /vehicles/lookup/:plateNumber (keep old /vehicles/:plateNumber for backward compatibility).
+- [x] Frontend: Add API function lookupVehicleByPlate in frontend/src/api/vehicleApi.ts.
+- [x] Frontend: Update BookingModal with vehicleInfo state, lookupLoading, Tra cứu handler and card placeholder.
 
-## License plate normalization in Search API
-- [x] Update `frontend/src/api/checkinApi.ts` to normalize plate before calling backend.
-- [x] Use existing util `formatPlateNumber` from `frontend/src/utils/plate.ts`.
-- [ ] Run frontend typecheck/build to ensure no TS errors.
+- [x] Frontend: Create VehicleInfoCard component to render vehicle/owner info + badge + lastParking.
+- [x] Build/test: compile backend + frontend and manually test the lookup/card flow.
+
 
 
