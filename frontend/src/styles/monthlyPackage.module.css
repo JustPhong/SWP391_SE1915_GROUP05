@@ -1,0 +1,768 @@
+/* Scope CSS for Monthly Package Dashboard Page */
+
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #F8FAFC; /* Light gray-blue dashboard background */
+  min-height: 100%;
+}
+
+/* Page Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #1E3A5F; /* ParkSmart Navy */
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #64748B; /* Muted gray-blue */
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.registerBtnHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.65rem 1.25rem;
+  background-color: #3B82F6; /* Blue Accent */
+  color: #ffffff;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2);
+  transition: all 0.2s ease;
+}
+
+.registerBtnHeader:hover {
+  background-color: #2563EB;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(59, 130, 246, 0.3);
+}
+
+/* Summary Cards Grid */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.summaryCard {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.03), 0 2px 4px -1px rgba(15, 23, 42, 0.02);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.summaryCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -2px rgba(15, 23, 42, 0.03);
+}
+
+.iconCircle {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iconBlue {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3B82F6;
+}
+
+.iconOrange {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #F97316;
+}
+
+.iconGreen {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #22C55E;
+}
+
+.summaryInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.summaryLabel {
+  font-size: 0.85rem;
+  color: #64748B;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.summaryValue {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* Package List / Stack */
+.packagesStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.packageCard {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.packageCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px -3px rgba(15, 23, 42, 0.04), 0 4px 6px -2px rgba(15, 23, 42, 0.02);
+}
+
+/* Package Card Top Row */
+.cardTopRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cardTopLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.avatarIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.cardTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.cardMainTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.cardSubtitle {
+  margin: 0;
+  font-size: 0.825rem;
+  color: #64748B;
+  font-weight: 500;
+}
+
+.badgeGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Badges */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.statusActive {
+  background-color: #ECFDF5;
+  color: #059669;
+}
+.statusActive .dot {
+  background-color: #10B981;
+}
+
+.statusExpiring {
+  background-color: #FFF7ED;
+  color: #D97706;
+}
+.statusExpiring .dot {
+  background-color: #F59E0B;
+}
+
+.statusExpired {
+  background-color: #FEF2F2;
+  color: #DC2626;
+}
+.statusExpired .dot {
+  background-color: #EF4444;
+}
+
+.renewBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.renewOn {
+  background-color: #EFF6FF;
+  color: #2563EB;
+}
+
+.renewOff {
+  background-color: #F1F5F9;
+  color: #64748B;
+}
+
+/* Details Row */
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  border-top: 1px solid #F1F5F9;
+  border-bottom: 1px solid #F1F5F9;
+  padding: 1.25rem 0;
+  width: 100%;
+}
+
+.detailBlock {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.detailBlock:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -0.625rem;
+  top: 10%;
+  height: 80%;
+  width: 1px;
+  background-color: #E2E8F0;
+}
+
+.detailIcon {
+  color: #94A3B8;
+  display: flex;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.detailInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detailLabel {
+  font-size: 0.775rem;
+  color: #94A3B8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detailValue {
+  font-size: 0.925rem;
+  font-weight: 700;
+  color: #1E293B;
+  word-break: break-word;
+}
+
+/* Progress Area */
+.progressContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.progressLabelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progressText {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1E3A5F;
+}
+
+.progressBarTrack {
+  height: 8px;
+  background-color: #E2E8F0;
+  border-radius: 9999px;
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+}
+
+.progressBarFill {
+  height: 100%;
+  background-color: #3B82F6;
+  border-radius: 9999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progressBarFillExpiring {
+  background-color: #F97316;
+}
+
+.progressBarFillExpired {
+  background-color: #EF4444;
+}
+
+/* Action Rows */
+.actionsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.leftActionGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background-color: #E2E8F0;
+  align-self: center;
+}
+
+/* Button Styles */
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.65rem 1.25rem;
+  background-color: #1E3A5F; /* ParkSmart Navy */
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnPrimary:hover {
+  background-color: #112237;
+  transform: translateY(-1px);
+}
+
+.btnPrimary:disabled {
+  background-color: #CBD5E1;
+  color: #94A3B8;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.65rem 1.25rem;
+  background-color: #ffffff;
+  color: #475569;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnSecondary:hover {
+  background-color: #F8FAFC;
+  color: #1e293b;
+  border-color: #94A3B8;
+}
+
+.btnSecondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.65rem 1.25rem;
+  background-color: #ffffff;
+  color: #DC2626;
+  border: 1.5px solid #FCA5A5;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnDanger:hover {
+  background-color: #FEF2F2;
+  border-color: #EF4444;
+}
+
+.btnDanger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Empty State Card */
+.emptyStateCard {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1.5px dashed #CBD5E1;
+  padding: 3.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  max-width: 600px;
+  margin: 2rem auto;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.01);
+}
+
+.emptyStateIcon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background-color: #EFF6FF;
+  color: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #1E3A5F;
+}
+
+.emptyDescription {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #64748B;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+.emptyCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1.5rem;
+  background-color: #3B82F6;
+  color: #ffffff;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  transition: all 0.2s ease;
+}
+
+.emptyCta:hover {
+  background-color: #2563EB;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+}
+
+/* Modals */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modalContent {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 2rem;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  animation: scaleUp 0.2s ease-out;
+  position: relative;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modalIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modalIconDanger {
+  background-color: #FEF2F2;
+  color: #DC2626;
+}
+
+.modalIconInfo {
+  background-color: #EFF6FF;
+  color: #3B82F6;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1E293B;
+}
+
+.warningBox {
+  background-color: #FFF5F5;
+  border: 1px solid #FEB2B2;
+  border-radius: 12px;
+  padding: 1rem;
+  color: #C53030;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.modalActions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* Detail View Modal Specifics */
+.detailModalContent {
+  max-width: 520px;
+}
+
+.ticketGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background-color: #F8FAFC;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  padding: 1.25rem;
+}
+
+.ticketRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ticketLabel {
+  font-size: 0.85rem;
+  color: #64748B;
+  font-weight: 500;
+}
+
+.ticketValue {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1E293B;
+}
+
+.ticketValueHighlight {
+  color: #1E3A5F;
+  font-weight: 800;
+}
+
+.ticketValuePrice {
+  color: #10B981;
+  font-weight: 800;
+}
+
+.qrContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-top: 1.5px dashed #CBD5E1;
+  margin-top: 0.5rem;
+}
+
+.qrImage {
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 6px;
+  background: white;
+}
+
+.closeModalBtn {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.closeModalBtn:hover {
+  background-color: #F1F5F9;
+  color: #475569;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Responsive Rules */
+@media (max-width: 1024px) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+  .detailsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .detailBlock::after {
+    display: none !important;
+  }
+  .actionsRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .leftActionGroup {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btnPrimary, .btnSecondary, .btnDanger {
+    width: 100%;
+  }
+  .divider {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .detailsGrid {
+    grid-template-columns: 1fr;
+  }
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .registerBtnHeader {
+    width: 100%;
+    justify-content: center;
+  }
+}
