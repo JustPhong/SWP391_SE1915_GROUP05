@@ -77,6 +77,7 @@ function getTitle(time: Date): string {
 export const WelcomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const isLoggedIn = Boolean(user);
 
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
@@ -470,7 +471,7 @@ export const WelcomePage: React.FC = () => {
           </div>
         </nav>
 
-        <HeroSection navigate={navigate} onBooking={() => setBookingOpen(true)} />
+        <HeroSection navigate={navigate} onBooking={() => setBookingOpen(true)} onViewFloorMap={() => navigate('/login')} />
         <StatusStrip
           availability={availability}
           availLoading={availLoading}
@@ -670,7 +671,7 @@ export const WelcomePage: React.FC = () => {
       {/* ── TAB CONTENT ─────────────────────────────────── */}
       {activeTab === 'home' ? (
         <>
-          <HeroLoggedIn user={user} session={session} navigate={navigate} onBooking={() => setBookingOpen(true)} />
+          <HeroLoggedIn user={user} session={session} hasPackage={hasPackage} navigate={navigate} onBooking={() => setBookingOpen(true)} onViewFloorMap={() => setActiveTab('floormap')} />
           <StatusStrip
             availability={availability}
             availLoading={availLoading}
@@ -681,31 +682,31 @@ export const WelcomePage: React.FC = () => {
           <PricingSection navigate={navigate} onSelectPackage={() => setActiveTab('monthly')} />
         </>
       ) : activeTab === 'vehicles' ? (
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
           <MyVehiclePage />
         </div>
       ) : null}
 
       {activeTab === 'profile' && (
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
           <ProfilePage />
         </div>
       )}
 
       {activeTab === 'history' && (
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
           <HistoryPage />
         </div>
       )}
 
       {activeTab === 'monthly' && (
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
           <MonthlyPackagePage onAddVehicle={() => setActiveTab('vehicles')} />
         </div>
       )}
 
       {activeTab === 'booking' && (
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
           {hasPackage ? (
             <BookingPage />
           ) : (
@@ -719,7 +720,7 @@ export const WelcomePage: React.FC = () => {
       )}
 
       {activeTab === 'floormap' && (
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
           {hasPackage ? (
             <FloorMapPage />
           ) : (
@@ -834,31 +835,57 @@ export const WelcomePage: React.FC = () => {
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════════
 
-function HeroSection({ navigate, onBooking }: { navigate: (path: string) => void; onBooking: () => void }) {
-  const scrollToPricing = () => {
-    const el = document.getElementById('pricing');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      window.history.replaceState(null, '', '#pricing');
-    } else {
-      navigate('/#pricing');
-    }
-  };
+function HeroSection({ navigate, onBooking, onViewFloorMap }: { navigate: (path: string) => void; onBooking: () => void; onViewFloorMap: () => void }) {
   return (
-    <section className={`${styles.hero} ${styles.heroDark}`}>
+    <section className={styles.hero}>
+      {/* Decorative Circles */}
+      <div className={styles.circleDeco1} aria-hidden="true" />
+      <div className={styles.circleDeco2} aria-hidden="true" />
+      <div className={styles.circleDeco3} aria-hidden="true" />
+      {/* Hero background image — absolute layer */}
+      <div className={styles.heroImageLayer} aria-hidden="true">
+        <img src="/Parking.png" alt="" className={styles.heroImage} />
+      </div>
       <div className={styles.heroInner}>
         <div className={styles.heroLeft}>
-          <span className={styles.eyebrow}>Bãi đỗ thông minh</span>
-          <h1 className={styles.heroTitle}>Luôn có chỗ.<br /><span className={styles.titleAccent}>Không vòng vòng tìm.</span></h1>
-          <p className={styles.heroSubtitle}>Đặt chỗ trước, check-in/out bằng QR, tính phí theo thời gian thực. Bãi nhiều tầng có mái che, camera, khu riêng cho ô tô &amp; xe máy.</p>
-          <div className={styles.heroCtas}>
-            <button className={styles.btnPrimary} onClick={onBooking}>Đặt chỗ ngay</button>
-            <button className={styles.btnOutlineDark} onClick={scrollToPricing}>Xem bảng giá</button>
+          <h1 className={styles.heroTitle}>
+            ParkSmart – Đỗ xe thông minh, cuộc sống thuận tiện
+          </h1>
+          <p className={styles.heroSubtitle}>
+            Quản lý xe, đặt chỗ nhanh chóng và theo dõi lịch sử chỉ với vài thao tác. Tất cả trong một nền tảng duy nhất.
+          </p>
+          <div className={styles.heroHighlights}>
+            <div className={styles.heroHighlightBlock}>
+              <div className={styles.heroHighlightIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+              </div>
+              <div className={styles.heroHighlightContent}>
+                <h3 className={styles.heroHighlightTitle}>Quản lý xe</h3>
+                <p className={styles.heroHighlightDesc}>Thêm và quản lý phương tiện</p>
+              </div>
+            </div>
+            <div className={styles.heroHighlightBlock}>
+              <div className={styles.heroHighlightIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div className={styles.heroHighlightContent}>
+                <h3 className={styles.heroHighlightTitle}>Đặt chỗ nhanh</h3>
+                <p className={styles.heroHighlightDesc}>Chọn vị trí và đặt chỗ dễ dàng</p>
+              </div>
+            </div>
+            <div className={styles.heroHighlightBlock}>
+              <div className={styles.heroHighlightIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div className={styles.heroHighlightContent}>
+                <h3 className={styles.heroHighlightTitle}>An toàn & tin cậy</h3>
+                <p className={styles.heroHighlightDesc}>Bảo mật thông tin, yên tâm sử dụng</p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className={styles.heroRight}>
-          <div className={styles.showcaseCard}>
-            <img src="/parking_hero.png" alt="Mô hình tòa nhà đỗ xe ParkSmart" className={styles.heroImage} />
+          <div className={styles.heroCtas}>
+            <button className={styles.btnPrimaryHero} onClick={onBooking}>Đặt chỗ ngay</button>
+            <button className={styles.btnOutlineHero} onClick={onViewFloorMap}>Xem sơ đồ tầng</button>
           </div>
         </div>
       </div>
@@ -866,69 +893,110 @@ function HeroSection({ navigate, onBooking }: { navigate: (path: string) => void
   );
 }
 
-// ── Personalised hero for logged-in casual users ──────────
+// ── Personalised hero for logged-in users ──────────
 function HeroLoggedIn({
   user,
   session,
+  hasPackage,
   navigate,
   onBooking,
+  onViewFloorMap,
 }: {
   user: { fullName: string; email: string };
   session: CurrentSession | null;
+  hasPackage: boolean;
   navigate: (path: string) => void;
   onBooking: () => void;
+  onViewFloorMap: () => void;
 }) {
-  const firstName = user.fullName.trim().split(/\s+/)[0] ?? user.email;
-  const greeting = getGreeting();
-  const title = getTitle(new Date());
-  const scrollToPricing = () => {
-    const el = document.getElementById('pricing');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      window.history.replaceState(null, '', '#pricing');
-    } else {
-      navigate('/#pricing');
-    }
+  const isLoggedIn = Boolean(user);
+  const userName = user?.fullName || user?.email;
+  const currentHour = new Date().getHours();
+  const isMorning = currentHour >= 5 && currentHour < 12;
+  const isAfternoon = currentHour >= 12 && currentHour < 18;
+
+  const greetingTitle =
+    isMorning
+      ? 'Chào buổi sáng'
+      : isAfternoon
+        ? 'Chào buổi chiều'
+        : 'Chào buổi tối';
+
+  const heroContent = {
+    title: isLoggedIn && userName ? `${greetingTitle}, ${userName}` : greetingTitle,
+    description: isMorning
+      ? 'Chúc bạn khởi đầu ngày mới thuận lợi và di chuyển an toàn cùng ParkSmart.'
+      : isAfternoon
+        ? 'ParkSmart luôn sẵn sàng hỗ trợ bạn quản lý xe và đặt chỗ nhanh chóng.'
+        : 'Chúc bạn lái xe an toàn và có một hành trình về nhà thật thuận lợi.',
   };
 
+  const hasActiveMonthlyPackage = hasPackage;
+
   return (
-    <section className={`${styles.hero} ${styles.heroDark}`}>
+    <section className={styles.hero}>
+      {/* Decorative Circles */}
+      <div className={styles.circleDeco1} aria-hidden="true" />
+      <div className={styles.circleDeco2} aria-hidden="true" />
+      <div className={styles.circleDeco3} aria-hidden="true" />
+      {/* Hero background image — absolute layer */}
+      <div className={styles.heroImageLayer} aria-hidden="true">
+        <img src="/Parking.png" alt="" className={styles.heroImage} />
+      </div>
       <div className={styles.heroInner}>
         <div className={styles.heroLeft}>
-          <span className={styles.eyebrow}>
-            {greeting === 'Buổi sáng' ? '🌤️' : greeting === 'Buổi chiều' ? '☀️' : '🌙'}
-            {' '}{greeting}, {firstName}
-          </span>
-          <h1 className={styles.heroTitle}>{title}</h1>
+          {(hasActiveMonthlyPackage || session) && (
+            <div className={styles.welcomePillContainer}>
+              {hasActiveMonthlyPackage && (
+                <span className={styles.heroStatusBadge} style={{ background: 'rgba(234, 179, 8, 0.18)', border: '1px solid rgba(234, 179, 8, 0.3)', color: '#fef08a' }}>
+                  🏠 Cư dân ParkSmart
+                </span>
+              )}
+              {session && (
+                <span className={styles.heroStatusBadge}>🚗 Đang đỗ: {session.slotCode}</span>
+              )}
+            </div>
+          )}
+          <h1 className={styles.heroTitle}>
+            {heroContent.title}
+          </h1>
           <p className={styles.heroSubtitle}>
             {session
               ? `Xe ${session.plateNumber} đang đỗ tại ${session.slotCode} · ${session.floor}. Phí ước tính: ${formatCurrencyInline(session.estimatedAmount ?? 0)}.`
-              : 'Chưa có xe nào đang đỗ. Đặt chỗ ngay để giữ chỗ vào bãi!'}
+              : heroContent.description}
           </p>
-          <div className={styles.chips}>
-            <span className={styles.chip}>{session ? `Đang đỗ: ${session.slotCode}` : 'Chưa đỗ xe'}</span>
-            {session?.isMonthly
-              ? <span className={`${styles.chip} ${styles.chipGreen}`}>Gói tháng</span>
-              : <span className={styles.chip}>Khách vãng lai</span>}
+          <div className={styles.heroHighlights}>
+            <div className={styles.heroHighlightBlock}>
+              <div className={styles.heroHighlightIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+              </div>
+              <div className={styles.heroHighlightContent}>
+                <h3 className={styles.heroHighlightTitle}>Quản lý xe</h3>
+                <p className={styles.heroHighlightDesc}>Thêm và quản lý phương tiện</p>
+              </div>
+            </div>
+            <div className={styles.heroHighlightBlock}>
+              <div className={styles.heroHighlightIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div className={styles.heroHighlightContent}>
+                <h3 className={styles.heroHighlightTitle}>Đặt chỗ nhanh</h3>
+                <p className={styles.heroHighlightDesc}>Chọn vị trí và đặt chỗ dễ dàng</p>
+              </div>
+            </div>
+            <div className={styles.heroHighlightBlock}>
+              <div className={styles.heroHighlightIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div className={styles.heroHighlightContent}>
+                <h3 className={styles.heroHighlightTitle}>An toàn & tin cậy</h3>
+                <p className={styles.heroHighlightDesc}>Bảo mật thông tin, yên tâm sử dụng</p>
+              </div>
+            </div>
           </div>
           <div className={styles.heroCtas}>
-            <button
-              className={styles.btnPrimary}
-              onClick={() => session ? navigate('/driver-dashboard') : onBooking()}
-            >
-              {session ? 'Xem chi tiết' : 'Đặt chỗ ngay'}
-            </button>
-            <button
-              className={styles.btnOutlineDark}
-              onClick={session ? () => navigate('/driver-dashboard') : scrollToPricing}
-            >
-              {session ? 'Thanh toán' : 'Xem bảng giá'}
-            </button>
-          </div>
-        </div>
-        <div className={styles.heroRight}>
-          <div className={styles.showcaseCard}>
-            <img src="/parking_hero.png" alt="Mô hình tòa nhà đỗ xe ParkSmart" className={styles.heroImage} />
+            <button className={styles.btnPrimaryHero} onClick={onBooking}>Đặt chỗ ngay</button>
+            <button className={styles.btnOutlineHero} onClick={onViewFloorMap}>Xem sơ đồ tầng</button>
           </div>
         </div>
       </div>

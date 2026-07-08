@@ -7,6 +7,7 @@ import api from '../services/api';
 import type { Vehicle, ParkingSlot, MonthlyPackage } from '../types';
 import { PACKAGES, type PackagePlan } from '../constants/packages';
 import styles from '../styles/driver.module.css';
+import newStyles from '../styles/monthlyPackage.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
 import carWatermark from '../assets/car-watermark.png';
 
@@ -37,13 +38,6 @@ const C = {
   amberBorder: '#FDE68A',
 };
 
-// ═══════════════════════════════════════════════════════
-//  CONSTANTS — package plans (prices are BUSINESS RULES)
-//  Confirmed prices (Quyết định 35/2018 TP.HCM, phương án A):
-//    1 tháng:  CAR 1.500.000đ | MOTORBIKE 300.000đ
-//    3 tháng:  CAR 4.000.000đ | MOTORBIKE 800.000đ
-//    1 năm:    CAR 15.000.000đ | MOTORBIKE 3.000.000đ
-// ═══════════════════════════════════════════════════════
 type VType = 'CAR' | 'MOTORBIKE';
 
 const TYPE_LABEL: Record<VType, string> = { CAR: 'Ô tô', MOTORBIKE: 'Xe máy' };
@@ -57,19 +51,49 @@ const PAYMENT_LABEL: Record<'CASH' | 'CARD' | 'EWALLET', string> = {
 function formatVND(n: number) {
   return new Intl.NumberFormat('vi-VN').format(n) + ' đ';
 }
-function formatDDMMYYYY(iso: string) {
-  return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
+
+const formatDate = (value?: string | Date) => {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
+};
+
 function computeExpiry(start: Date, days: number): string {
   const d = new Date(start);
   d.setDate(d.getDate() + days);
   return d.toISOString();
 }
+
 function formatCountdown(secs: number) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+const getRemainingDays = (expiryDateStr: string) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiryDateStr);
+  expiry.setHours(0, 0, 0, 0);
+  
+  const diffTime = expiry.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays < 0 ? 0 : diffDays;
+};
+
+const getTotalDays = (startDateStr: string, expiryDateStr: string) => {
+  const start = new Date(startDateStr);
+  start.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiryDateStr);
+  expiry.setHours(0, 0, 0, 0);
+  
+  const diffTime = expiry.getTime() - start.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays <= 0 ? 30 : diffDays;
+};
 
 // ═══════════════════════════════════════════════════════
 //  VIETQR (EMVCo) PAYLOAD — demo bank account
@@ -113,23 +137,49 @@ function buildVietQR(amount: number, note: string): string {
 }
 
 // ═══════════════════════════════════════════════════════
-//  ICONS
+//  INLINE SVG ICONS (uniform visual language)
 // ═══════════════════════════════════════════════════════
-function IconCheck({ size = 14, color = C.green }: { size?: number; color?: string }) {
+function IconCheck({ size = 14, color = '#16A34A' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>;
 }
-function IconCar({ size = 16 }: { size?: number; color?: string }) {
-  return (
-    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
-  );
+function IconCar({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="22" height="13" rx="2" /><path d="M5 16v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-4m6 0v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-4M4 8h16M2 12h20" /></svg>;
 }
-function IconBike({ size = 16 }: { size?: number; color?: string }) {
-  return (
-    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>
-  );
+function IconBike({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="18" r="3" /><circle cx="19" cy="18" r="3" /><path d="M12 18V10H9m3 0 4-4H9" /></svg>;
 }
-function IconInfo({ size = 15, color = C.gray600 }: { size?: number; color?: string }) {
+function IconInfo({ size = 15, color = '#6B7280' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>;
+}
+function IconPlus({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
+}
+function IconChevronLeft({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>;
+}
+function IconCalendar({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
+}
+function IconClock({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
+}
+function IconRefresh({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38" /></svg>;
+}
+function IconPin({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>;
+}
+function IconList({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+}
+function IconEye({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
+}
+function IconTrash({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>;
+}
+function IconClose({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -161,7 +211,7 @@ function VehiclePickerCard({ vehicle, selected, onSelect }: { vehicle: Vehicle; 
         </div>
       )}
       <div style={{ width: 40, height: 40, background: isCar ? C.blueBg : C.gray100, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {isCar ? <IconCar size={20} /> : <IconBike size={20} />}
+        {isCar ? <IconCar size={20} color={C.navy} /> : <IconBike size={20} color={C.navy} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -295,11 +345,7 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
   const pricing = pkg.prices[vehicleType];
   const isCar = vehicleType === 'CAR';
   const perks = isCar ? CAR_PERKS : MOTO_PERKS;
-  const CardIcon = isCar ? (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
-  ) : (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
-  );
+  const CardIcon = isCar ? <IconCar size={16} /> : <IconBike size={16} />;
   return (
     <button
       onClick={onSelect}
@@ -346,7 +392,7 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
       <ul className={`${styles.pkgPerks} ${isFeatured ? styles.pkgPerksLight : ''}`}>
         {perks.map((p) => (
           <li key={p}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isFeatured ? '#ffffff' : '#16a34a'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            <IconCheck size={14} color={isFeatured ? '#ffffff' : '#16a34a'} />
             <span>{p}</span>
           </li>
         ))}
@@ -392,11 +438,7 @@ function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selec
   const panelClass = isCar ? styles.pkgPanelGreen : styles.pkgPanelBlue;
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
-  const IconSvg = isCar ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
-  );
+  const IconSvg = isCar ? <IconCar size={18} /> : <IconBike size={18} />;
   return (
     <div className={styles.pkgGroup}>
       <div className={styles.pkgGroupHeader}>
@@ -439,6 +481,9 @@ function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selec
 export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void } = {}) {
   const { user, isLoading: authLoading } = useAuth();
 
+  // Navigation / View state
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
   // Vehicles
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
@@ -469,6 +514,10 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [pkgToCancel, setPkgToCancel] = useState<MonthlyPackage | null>(null);
 
+  // Detail Modal
+  const [selectedDetailPkg, setSelectedDetailPkg] = useState<MonthlyPackage | null>(null);
+  const [detailQrUrl, setDetailQrUrl] = useState<string>('');
+
   // QR payment
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -484,7 +533,7 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
   const selectedPlan = PACKAGES.find((p) => p.id === selectedPlanId)!;
   const today = new Date();
   const expiryDate = computeExpiry(today, selectedPlan.durationDays);
-  const expiryLabel = formatDDMMYYYY(expiryDate);
+  const expiryLabel = formatDate(expiryDate);
   const selectedPrice = vehicleType ? selectedPlan.prices[vehicleType] : null;
   const totalAmount = selectedPrice?.price ?? 0;
 
@@ -552,6 +601,24 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
       setSelectedSlotId(null);
     }
   }, [vehicleType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detail Modal QR Code generation
+  useEffect(() => {
+    if (selectedDetailPkg) {
+      const qrPayload = JSON.stringify({
+        ticketType: 'MONTHLY_PASS',
+        packageId: selectedDetailPkg.id,
+        vehicleId: selectedDetailPkg.vehicleId,
+        plateNumber: selectedDetailPkg.vehicle?.plateNumber || selectedDetailPkg.vehicleId,
+        expiryDate: selectedDetailPkg.expiryDate,
+      });
+      QRCode.toDataURL(qrPayload, { width: 180, margin: 1 })
+        .then(url => setDetailQrUrl(url))
+        .catch(() => setDetailQrUrl(''));
+    } else {
+      setDetailQrUrl('');
+    }
+  }, [selectedDetailPkg]);
 
   // Pick a plan; if the user picks a plan from a different vehicle-type group
   // than the currently selected vehicle, try to switch to a matching vehicle
@@ -639,6 +706,7 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
     setSubmitError('');
     setPackageActionError('');
     setPackageActionSuccess('');
+    setIsPurchasing(false);
   };
 
   const handleRenewPackage = async (pkg: MonthlyPackage) => {
@@ -695,557 +763,796 @@ export function MonthlyPackagePage({ onAddVehicle }: { onAddVehicle?: () => void
     }
   };
 
-
   // ── Auth gates ───────────────────────────────────────
   if (authLoading) {
-    return <div style={{ padding: '3rem', textAlign: 'center', color: C.gray400, fontSize: '0.9rem', fontWeight: 600 }}>Đang tải...</div>;
+    return <div style={{ padding: '3rem', textAlign: 'center', color: C.navy, fontSize: '0.9rem', fontWeight: 600 }}>Đang tải...</div>;
   }
   if (!user) {
-    return <div style={{ padding: '3rem', textAlign: 'center', color: C.gray600, fontSize: '0.9rem' }}>Vui lòng đăng nhập để mua gói tháng.</div>;
+    return <div style={{ padding: '3rem', textAlign: 'center', color: C.navy, fontSize: '0.9rem' }}>Vui lòng đăng nhập để mua gói tháng.</div>;
   }
 
-  const activePackages = myPackages.filter((pkg) => pkg.status === 'ACTIVE');
+  // Derived counts for Summary Cards
+  const activePackagesCount = myPackages.filter((pkg) => pkg.status === 'ACTIVE').length;
+  const expiringSoonCount = myPackages.filter((pkg) => {
+    if (pkg.status !== 'ACTIVE') return false;
+    const days = getRemainingDays(pkg.expiryDate);
+    return days <= 7 && days > 0;
+  }).length;
+  const autoRenewCount = myPackages.filter((pkg) => pkg.status === 'ACTIVE' && pkg.autoRenew).length;
 
-  // ── Existing package management ─────────────────────
-  if (activePackages.length > 0 && !createdPkg) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div>
-          <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: C.gray900 }}>Gói tháng hiện tại</p>
-          <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: C.gray600 }}>Quản lý gia hạn gói tháng và cài đặt gia hạn tự động.</p>
-        </div>
-
-        {packageActionError && (
-          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>
-            {packageActionError}
+  // ── PURCHASE FLOW RENDERING ──────────────────────────
+  const renderPurchaseFlow = () => {
+    // ── Success state ────────────────────────────────────
+    if (createdPkg) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center', paddingTop: '1.5rem' }}>
+          <div style={{ width: 72, height: 72, background: C.greenBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `3px solid ${C.green}` }}>
+            <IconCheck size={36} color={C.green} />
           </div>
-        )}
-        {packageActionSuccess && (
-          <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: C.green, fontWeight: 500 }}>
-            {packageActionSuccess}
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: C.gray900 }}>Thanh toán thành công!</p>
+            <p style={{ margin: '0.3rem 0 0', fontSize: '0.875rem', color: C.gray600 }}>Bạn đã đăng ký gói tháng thành công.</p>
           </div>
-        )}
-
-        {loadingPackages ? (
-          <div className={styles.card} style={{ padding: '2rem', textAlign: 'center', color: C.gray400, fontSize: '0.9rem', fontWeight: 600 }}>Đang tải gói tháng...</div>
-        ) : (
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            {activePackages.map((pkg) => (
-              <div key={pkg.id} className={styles.card} style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.gray900 }}>{pkg.planName ?? 'Gói tháng'}</p>
-                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: C.gray600 }}>Xe: {pkg.vehicle?.plateNumber ?? pkg.vehicleId}</p>
-                  </div>
-                  <span style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: 999, background: pkg.autoRenew ? C.greenBg : C.gray50, color: pkg.autoRenew ? C.green : C.gray600 }}>
-                    {pkg.autoRenew ? 'Gia hạn tự động' : 'Không tự động'}
-                  </span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.78rem', color: C.gray600 }}>Bắt đầu</span>
-                    <span style={{ fontWeight: 700, color: C.gray900 }}>{formatDDMMYYYY(pkg.startDate)}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.78rem', color: C.gray600 }}>Hết hạn</span>
-                    <span style={{ fontWeight: 700, color: C.navy }}>{formatDDMMYYYY(pkg.expiryDate)}</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <button
-                      onClick={() => handleRenewPackage(pkg)}
-                      disabled={packageActionLoading === pkg.id}
-                      style={{ flex: 1, padding: '0.9rem', background: C.navy, color: C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
-                    >
-                      {packageActionLoading === pkg.id ? 'Đang xử lý...' : 'Gia hạn ngay'}
-                    </button>
-                    <button
-                      onClick={() => handleToggleAutoRenew(pkg)}
-                      disabled={packageActionLoading === pkg.id}
-                      style={{ flex: 1, padding: '0.9rem', background: pkg.autoRenew ? C.redBg : C.white, color: pkg.autoRenew ? C.red : C.gray900, border: `1.5px solid ${pkg.autoRenew ? C.redBorder : C.gray200}`, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer' }}
-                    >
-                      {pkg.autoRenew ? 'Hủy gia hạn tự động' : 'Bật gia hạn tự động'}
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => handleCancelPackage(pkg)}
-                    disabled={packageActionLoading === pkg.id}
-                    style={{
-                      width: '100%',
-                      padding: '0.9rem',
-                      background: 'transparent',
-                      color: '#DC2626',
-                      border: '1.5px solid #FCA5A5',
-                      borderRadius: 12,
-                      fontSize: '0.95rem',
-                      fontWeight: 700,
-                      cursor: packageActionLoading === pkg.id ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseOver={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2';
-                    }}
-                    onMouseOut={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                    }}
-                  >
-                    Hủy gia hạn gói
-                  </button>
-                </div>
+          <div className={styles.card} style={{ width: '100%', maxWidth: 480, background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Gói</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>{selectedPlan.name}</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        {showCancelConfirm && (
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '1rem'
-          }}>
-            <div style={{
-              background: C.white,
-              borderRadius: 24,
-              padding: 32,
-              maxWidth: 480,
-              width: '100%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', fontWeight: 800, color: C.red, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                Cảnh báo hủy gói tháng
-              </h3>
-              
-              <div style={{
-                background: '#FFF5F5',
-                border: '1px solid #FEB2B2',
-                borderRadius: 12,
-                padding: '16px',
-                color: '#C53030',
-                fontSize: '0.9rem',
-                lineHeight: 1.6,
-                marginBottom: 24
-              }}>
-                <strong>Hành động này không thể hoàn tác!</strong> Bạn có chắc chắn muốn hủy gói tháng này không? Xe của bạn sẽ không còn được nhận diện là xe vé tháng và chỗ đỗ cố định (nếu có) sẽ bị hủy.
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Thanh toán</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>{PAYMENT_LABEL[paymentMethod]}</span>
               </div>
-
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCancelConfirm(false);
-                    setPkgToCancel(null);
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: 12,
-                    border: 'none',
-                    background: C.gray100,
-                    color: '#1F2937',
-                    fontWeight: 700,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmCancelPackage}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: 12,
-                    border: 'none',
-                    background: C.red,
-                    color: C.white,
-                    fontWeight: 700,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)',
-                  }}
-                >
-                  Tiếp tục hủy
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Số tiền</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 800, color: C.navy }}>{formatVND(createdPkg.price)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.6rem', borderTop: `1px solid ${C.gray100}` }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>Ngày hết hạn</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 800, color: C.navy }}>{formatDate(createdPkg.expiryDate)}</span>
               </div>
             </div>
           </div>
-        )}
-      </div>
-    );
-  }
+          <button onClick={handleReset} className={newStyles.btnPrimary} style={{ padding: '0.75rem 2rem' }}>
+            Quay lại trang chủ
+          </button>
+        </div>
+      );
+    }
 
-  // ── Success state ────────────────────────────────────
-  if (createdPkg) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center', paddingTop: '2rem' }}>
-        <div style={{ width: 72, height: 72, background: C.greenBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `3px solid ${C.green}` }}>
-          <IconCheck size={36} color={C.green} />
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: C.gray900 }}>Thanh toán thành công!</p>
-          <p style={{ margin: '0.3rem 0 0', fontSize: '0.875rem', color: C.gray600 }}>Bạn đã đăng ký gói tháng thành công.</p>
-        </div>
-        <div className={styles.card} style={{ width: '100%', maxWidth: 480 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Gói</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>{selectedPlan.name}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Thanh toán</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>{PAYMENT_LABEL[paymentMethod]}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Số tiền</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 800, color: C.navy }}>{formatVND(createdPkg.price)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.6rem', borderTop: `1px solid ${C.gray100}` }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: C.gray900 }}>Ngày hết hạn</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 800, color: C.navy }}>{formatDDMMYYYY(createdPkg.expiryDate)}</span>
+    // ── Card Payment Screen (demo / mock) ──────────────────
+    if (showCard) {
+      const inputStyle: React.CSSProperties = {
+        width: '100%',
+        padding: '0.65rem 0.75rem',
+        fontSize: '0.9rem',
+        border: `1.5px solid ${C.gray200}`,
+        borderRadius: 10,
+        background: C.white,
+        color: C.gray900,
+        boxSizing: 'border-box',
+        outline: 'none',
+      };
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: 480, margin: '0 auto', width: '100%' }}>
+          {/* Bill summary */}
+          <div className={styles.card} style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: C.gray900 }}>Tổng thanh toán</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
             </div>
           </div>
-        </div>
-        <button onClick={handleReset} style={{ padding: '0.6rem 1.5rem', background: C.navy, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
-          Mua thêm gói khác
-        </button>
-      </div>
-    );
-  }
 
-  // ── Card Payment Screen (demo / mock) ──────────────────
-  if (showCard) {
-    const inputStyle: React.CSSProperties = {
-      width: '100%',
-      padding: '0.65rem 0.75rem',
-      fontSize: '0.9rem',
-      border: `1.5px solid ${C.gray200}`,
-      borderRadius: 10,
-      background: C.white,
-      color: C.gray900,
-      boxSizing: 'border-box',
-      outline: 'none',
-    };
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-        <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.gray900, textAlign: 'center' }}>Thanh toán bằng thẻ</p>
-
-        {/* Bill summary */}
-        <div className={styles.card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0' }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
-            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
-          </div>
-        </div>
-
-        {/* Card form */}
-        <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Số thẻ</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="cc-number"
-              placeholder="0000 0000 0000 0000"
-              value={cardForm.number}
-              onChange={(e) => setCardForm((f) => ({ ...f, number: e.target.value }))}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Tên chủ thẻ</label>
-            <input
-              type="text"
-              autoComplete="cc-name"
-              placeholder="NGUYEN VAN A"
-              value={cardForm.name}
-              onChange={(e) => setCardForm((f) => ({ ...f, name: e.target.value }))}
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          {/* Card form */}
+          <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#ffffff', padding: '1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Ngày hết hạn</label>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Số thẻ</label>
               <input
                 type="text"
                 inputMode="numeric"
-                autoComplete="cc-exp"
-                placeholder="MM/YY"
-                value={cardForm.expiry}
-                onChange={(e) => setCardForm((f) => ({ ...f, expiry: e.target.value }))}
+                autoComplete="cc-number"
+                placeholder="0000 0000 0000 0000"
+                value={cardForm.number}
+                onChange={(e) => setCardForm((f) => ({ ...f, number: e.target.value }))}
                 style={inputStyle}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>CVV</label>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Tên chủ thẻ</label>
               <input
                 type="text"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-                placeholder="•••"
-                value={cardForm.cvv}
-                onChange={(e) => setCardForm((f) => ({ ...f, cvv: e.target.value }))}
+                autoComplete="cc-name"
+                placeholder="NGUYEN VAN A"
+                value={cardForm.name}
+                onChange={(e) => setCardForm((f) => ({ ...f, name: e.target.value }))}
                 style={inputStyle}
               />
             </div>
-          </div>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: C.gray400, textAlign: 'center', lineHeight: 1.5 }}>
-            Đây là cổng thanh toán mô phỏng cho mục đích demo.
-          </p>
-        </div>
-
-        {/* Error */}
-        {submitError && (
-          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
-        )}
-
-        {/* CTA */}
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{ width: '100%', padding: '0.9rem', background: submitting ? C.gray300 : C.navy, color: submitting ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: submitting ? 'none' : '0 4px 14px rgba(30,58,95,0.25)', transition: 'all 0.2s ease' }}
-        >
-          {submitting ? 'Đang xử lý...' : `Thanh toán ${formatVND(totalAmount)}`}
-        </button>
-
-        {/* Back */}
-        <button
-          onClick={() => setShowCard(false)}
-          style={{ width: '100%', padding: '0.7rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 12, fontSize: '0.875rem', fontWeight: 700, color: C.gray600, cursor: 'pointer', transition: 'all 0.2s ease' }}
-        >
-          Quay lại
-        </button>
-
-      </div>
-    );
-  }
-
-  // ── QR Payment Screen ─────────────────────────────────
-  if (showQR) {
-    const selectedSlot = allSlots.find((s) => s.id === selectedSlotId);
-    const billRows: { label: string; value: string }[] = [
-      { label: 'Gói', value: selectedPlan.name },
-      { label: 'Xe', value: selectedVehicle!.plateNumber },
-      { label: 'Loại', value: TYPE_LABEL[vehicleType!] },
-      ...(vehicleType === 'CAR' && selectedSlot ? [{ label: 'Chỗ đỗ', value: selectedSlot.code }] : []),
-      { label: 'Ngày bắt đầu', value: formatDDMMYYYY(today.toISOString()) },
-      { label: 'Ngày hết hạn', value: expiryLabel },
-      { label: 'Thời hạn', value: `${selectedPlan.durationDays} ngày` },
-    ];
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-        <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.gray900, textAlign: 'center' }}>Thanh toán gói tháng</p>
-
-        {/* Bill */}
-        <div className={styles.card}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-            {billRows.map((r) => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>{r.label}</span>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{r.value}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>Ngày hết hạn</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="cc-exp"
+                  placeholder="MM/YY"
+                  value={cardForm.expiry}
+                  onChange={(e) => setCardForm((f) => ({ ...f, expiry: e.target.value }))}
+                  style={inputStyle}
+                />
               </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.5rem' }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
-            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
-          </div>
-        </div>
-
-        {/* QR Code */}
-        <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem' }}>
-          <img src={qrDataUrl} alt="QR thanh toán" width={220} height={220} style={{ borderRadius: 8, border: `1px solid ${C.gray200}` }} />
-          <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
-            Mở ứng dụng ngân hàng hoặc ví điện tử và quét mã để thanh toán
-          </p>
-        </div>
-
-        {/* Countdown */}
-        <div style={{ textAlign: 'center' }}>
-          {countdown > 0 ? (
-            <p style={{ margin: 0, fontSize: '0.875rem', color: countdown <= 60 ? C.red : C.amber, fontWeight: 600 }}>
-              Mã QR hết hạn sau {formatCountdown(countdown)}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: C.gray600, marginBottom: 4 }}>CVV</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  placeholder="•••"
+                  value={cardForm.cvv}
+                  onChange={(e) => setCardForm((f) => ({ ...f, cvv: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: C.gray400, textAlign: 'center', lineHeight: 1.5 }}>
+              Đây là cổng thanh toán mô phỏng cho mục đích demo.
             </p>
+          </div>
+
+          {/* Error */}
+          {submitError && (
+            <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
+          )}
+
+          {/* CTA */}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className={newStyles.btnPrimary}
+            style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', background: C.navy }}
+          >
+            {submitting ? 'Đang xử lý...' : `Thanh toán ${formatVND(totalAmount)}`}
+          </button>
+        </div>
+      );
+    }
+
+    // ── QR Payment Screen ─────────────────────────────────
+    if (showQR) {
+      const selectedSlot = allSlots.find((s) => s.id === selectedSlotId);
+      const billRows: { label: string; value: string }[] = [
+        { label: 'Gói', value: selectedPlan.name },
+        { label: 'Xe', value: selectedVehicle!.plateNumber },
+        { label: 'Loại', value: TYPE_LABEL[vehicleType!] },
+        ...(vehicleType === 'CAR' && selectedSlot ? [{ label: 'Chỗ đỗ', value: selectedSlot.code }] : []),
+        { label: 'Ngày bắt đầu', value: formatDate(today.toISOString()) },
+        { label: 'Ngày hết hạn', value: expiryLabel },
+        { label: 'Thời hạn', value: `${selectedPlan.durationDays} ngày` },
+      ];
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: 480, margin: '0 auto', width: '100%' }}>
+          {/* Bill */}
+          <div className={styles.card} style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              {billRows.map((r) => (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: C.gray600 }}>{r.label}</span>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{r.value}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.5rem' }}>
+              <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
+              <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{formatVND(totalAmount)}</span>
+            </div>
+          </div>
+
+          {/* QR Code */}
+          <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem', background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <img src={qrDataUrl} alt="QR thanh toán" width={220} height={220} style={{ borderRadius: 8, border: `1px solid ${C.gray200}` }} />
+            <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
+              Mở ứng dụng ngân hàng hoặc ví điện tử và quét mã để thanh toán
+            </p>
+          </div>
+
+          {/* Countdown */}
+          <div style={{ textAlign: 'center' }}>
+            {countdown > 0 ? (
+              <p style={{ margin: 0, fontSize: '0.875rem', color: countdown <= 60 ? C.red : C.amber, fontWeight: 600 }}>
+                Mã QR hết hạn sau {formatCountdown(countdown)}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: C.red, fontWeight: 700 }}>Mã QR đã hết hạn</p>
+                <button onClick={handleProceedToQR} className={newStyles.btnSecondary} style={{ padding: '0.45rem 1.25rem' }}>
+                  Tạo lại mã
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Error */}
+          {submitError && (
+            <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
+          )}
+
+          {/* CTA */}
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || countdown === 0}
+            className={newStyles.btnPrimary}
+            style={{ width: '100%', padding: '0.85rem' }}
+          >
+            {submitting ? 'Đang xử lý...' : 'Tôi đã thanh toán'}
+          </button>
+        </div>
+      );
+    }
+
+    // ── Main purchase form ─────────────────────────────────────────
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+        {/* SECTION 1: Vehicle picker */}
+        <div className={styles.card} style={{ background: '#ffffff', padding: '1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          <p style={{ margin: '0 0 0.85rem', fontSize: '1rem', fontWeight: 800, color: C.gray900 }}>Chọn xe đăng ký</p>
+          {vehicleError && (
+            <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.65rem 0.85rem', fontSize: '0.82rem', color: '#B91C1C', fontWeight: 500, marginBottom: '0.75rem' }}>{vehicleError}</div>
+          )}
+          {loadingVehicles ? (
+            <div style={{ padding: '1.5rem', textAlign: 'center', color: C.gray400, fontSize: '0.875rem', fontWeight: 600 }}>Đang tải danh sách xe...</div>
+          ) : vehicles.length === 0 ? (
+            <NoVehiclesState onAddVehicle={onAddVehicle} />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: C.red, fontWeight: 700 }}>Mã QR đã hết hạn</p>
-              <button onClick={handleProceedToQR} style={{ padding: '0.5rem 1.25rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 8, fontSize: '0.82rem', fontWeight: 700, color: C.navy, cursor: 'pointer' }}>
-                Tạo lại mã
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {vehicles.map((v) => (
+                <VehiclePickerCard key={v.id} vehicle={v} selected={v.id === selectedVehicleId} onSelect={() => { setSelectedVehicleId(v.id); setSubmitError(''); }} />
+              ))}
             </div>
           )}
         </div>
 
-        {/* Error */}
+        {/* SECTION 2: vehicle-type hint */}
+        {selectedVehicle && (
+          <div style={{ padding: '0.75rem 1rem', background: C.blueBg, border: '1px solid #BFDBFE', borderRadius: 12, fontSize: '0.85rem', color: '#1D4ED8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <IconInfo size={16} color={C.blue} />
+            {vehicleType === 'MOTORBIKE'
+              ? 'Xe máy — Đỗ ở ô trống bất kỳ, không cần chọn vị trí cố định.'
+              : 'Ô tô — Vui lòng chọn một chỗ đỗ cố định dưới đây.'}
+          </div>
+        )}
+
+        {/* SECTION 3: slot picker (CAR only) */}
+        {vehicleType === 'CAR' && selectedVehicle && (
+          <div className={styles.card} style={{ background: '#ffffff', padding: '1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 800, color: C.gray900 }}>Chọn chỗ đỗ cố định</p>
+            <SlotPicker slots={availableCarSlots} selectedSlotId={selectedSlotId} onSelect={(id) => { setSelectedSlotId(id); setSubmitError(''); }} loading={loadingSlots} error={slotError} onRetry={loadSlots} />
+          </div>
+        )}
+
+        {/* SECTION 4: package selection — BOTH vehicle groups shown side-by-side-stacked */}
+        {vehicleType && (
+          <div className={styles.card} style={{ background: '#ffffff', padding: '1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 800, color: C.gray900 }}>Chọn gói đăng ký</p>
+            <p style={{ margin: '0 0 0.85rem', fontSize: '0.82rem', color: C.gray600 }}>
+              Gói sẽ được áp dụng cho xe <b style={{ color: C.navy }}>{selectedVehicle?.plateNumber}</b> ({TYPE_LABEL[vehicleType!]}).
+            </p>
+            <PricingGroup
+              vtype="MOTORBIKE"
+              selectedPlanId={selectedPlanId}
+              onSelect={handleSelectPlan}
+            />
+            <PricingGroup
+              vtype="CAR"
+              selectedPlanId={selectedPlanId}
+              onSelect={handleSelectPlan}
+            />
+          </div>
+        )}
+
+        {/* SECTION 5: payment summary */}
+        {selectedVehicle && vehicleType && (
+          <div className={styles.card} style={{ background: '#ffffff', padding: '1.5rem', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <p style={{ margin: '0 0 0.85rem', fontSize: '1rem', fontWeight: 800, color: C.gray900 }}>Tóm tắt thanh toán</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Ngày bắt đầu</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{formatDate(today.toISOString())}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Ngày kết thúc</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.navy }}>{expiryLabel}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Thời hạn</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{selectedPlan.durationDays} ngày</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.25rem' }}>
+              <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: C.navy }}>{selectedPrice ? formatVND(totalAmount) : '—'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Error banner */}
         {submitError && (
           <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
         )}
 
+        {/* Payment method picker */}
+        <div className={styles.card} style={{ padding: '1rem', background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+          <p style={{ margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 700, color: C.gray900 }}>Phương thức thanh toán</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            {([
+              { id: 'EWALLET', label: 'Quét mã QR' },
+              { id: 'CARD', label: 'Thẻ ngân hàng' },
+            ] as const).map((opt) => {
+              const active = paymentMethod === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setPaymentMethod(opt.id)}
+                  style={{
+                    padding: '0.65rem 0.5rem',
+                    background: active ? C.blueBg : C.white,
+                    border: active ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
+                    borderRadius: 10,
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: active ? C.navy : C.gray600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* CTA */}
         <button
-          onClick={handleSubmit}
-          disabled={!canSubmit || countdown === 0}
-          style={{ width: '100%', padding: '0.9rem', background: canSubmit && countdown > 0 ? C.navy : C.gray300, color: canSubmit && countdown > 0 ? C.white : C.gray400, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: canSubmit && countdown > 0 ? 'pointer' : 'not-allowed', boxShadow: canSubmit && countdown > 0 ? '0 4px 14px rgba(30,58,95,0.25)' : 'none', transition: 'all 0.2s ease' }}
+          onClick={() => { if (paymentMethod === 'CARD') setShowCard(true); else handleProceedToQR(); }}
+          disabled={!canSubmit}
+          className={newStyles.btnPrimary}
+          style={{ width: '100%', padding: '0.9rem', fontSize: '1rem' }}
         >
-          {submitting ? 'Đang xử lý...' : 'Tôi đã thanh toán'}
-        </button>
-
-        {/* Cancel */}
-        <button
-          onClick={() => setShowQR(false)}
-          style={{ width: '100%', padding: '0.7rem', background: C.white, border: `1.5px solid ${C.gray300}`, borderRadius: 12, fontSize: '0.875rem', fontWeight: 700, color: C.gray600, cursor: 'pointer', transition: 'all 0.2s ease' }}
-        >
-          Hủy
+          Tiến hành thanh toán
         </button>
 
       </div>
     );
-  }
+  };
 
-  // ── Main form ─────────────────────────────────────────
+  // ── DASHBOARD RENDERING ──────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-      {/* SECTION 1: Vehicle picker */}
-      <div className={styles.card}>
-        <p style={{ margin: '0 0 0.85rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn xe</p>
-        {vehicleError && (
-          <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.65rem 0.85rem', fontSize: '0.82rem', color: '#B91C1C', fontWeight: 500, marginBottom: '0.75rem' }}>{vehicleError}</div>
-        )}
-        {loadingVehicles ? (
-          <div style={{ padding: '1.5rem', textAlign: 'center', color: C.gray400, fontSize: '0.875rem', fontWeight: 600 }}>Đang tải danh sách xe...</div>
-        ) : vehicles.length === 0 ? (
-          <NoVehiclesState onAddVehicle={onAddVehicle} />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {vehicles.map((v) => (
-              <VehiclePickerCard key={v.id} vehicle={v} selected={v.id === selectedVehicleId} onSelect={() => { setSelectedVehicleId(v.id); setSubmitError(''); }} />
-            ))}
-          </div>
+    <div className={newStyles.pageContainer}>
+      
+      {/* 1. Page Header */}
+      <div className={newStyles.header}>
+        <div className={newStyles.headerInfo}>
+          <h2 className={newStyles.title}>Gói tháng hiện tại</h2>
+          <p className={newStyles.subtitle}>Quản lý gia hạn gói tháng và cài đặt gia hạn tự động.</p>
+        </div>
+        {/* Only show register button if they are not purchasing and have packages already */}
+        {!isPurchasing && myPackages.length > 0 && (
+          <button className={newStyles.registerBtnHeader} onClick={() => setIsPurchasing(true)}>
+            <IconPlus size={16} /> Đăng ký gói mới
+          </button>
         )}
       </div>
 
-      {/* SECTION 2: vehicle-type hint */}
-      {selectedVehicle && (
-        <div style={{ padding: '0.5rem 0.85rem', background: C.blueBg, border: '1px solid #BFDBFE', borderRadius: 8, fontSize: '0.8rem', color: '#1D4ED8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <IconInfo size={13} color={C.blue} />
-          {vehicleType === 'MOTORBIKE'
-            ? 'Xe máy — đỗ ở ô trống bất kỳ, không cần chọn chỗ cố định'
-            : 'Ô tô — vui lòng chọn chỗ đỗ cố định trên tầng G'}
+      {/* Action Notification Banners */}
+      {packageActionError && (
+        <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 600 }}>
+          {packageActionError}
+        </div>
+      )}
+      {packageActionSuccess && (
+        <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: C.green, fontWeight: 600 }}>
+          {packageActionSuccess}
         </div>
       )}
 
-      {/* SECTION 3: slot picker (CAR only) */}
-      {vehicleType === 'CAR' && selectedVehicle && (
-        <div className={styles.card}>
-          <p style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn chỗ đỗ cố định</p>
-          <SlotPicker slots={availableCarSlots} selectedSlotId={selectedSlotId} onSelect={(id) => { setSelectedSlotId(id); setSubmitError(''); }} loading={loadingSlots} error={slotError} onRetry={loadSlots} />
-        </div>
-      )}
-
-      {/* SECTION 4: package selection — BOTH vehicle groups shown side-by-side-stacked */}
-      {vehicleType && (
-        <div className={styles.card}>
-          <p style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn gói</p>
-          <p style={{ margin: '0 0 0.85rem', fontSize: '0.78rem', color: C.gray600 }}>
-            Gói sẽ được áp dụng cho xe <b style={{ color: C.navy }}>{selectedVehicle?.plateNumber}</b> ({TYPE_LABEL[vehicleType!]}).
-          </p>
-          <PricingGroup
-            vtype="MOTORBIKE"
-            selectedPlanId={selectedPlanId}
-            onSelect={handleSelectPlan}
-          />
-          <PricingGroup
-            vtype="CAR"
-            selectedPlanId={selectedPlanId}
-            onSelect={handleSelectPlan}
-          />
-        </div>
-      )}
-
-      {/* SECTION 5: payment summary */}
-      {selectedVehicle && vehicleType && (
-        <div className={styles.card}>
-          <p style={{ margin: '0 0 0.85rem', fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tóm tắt thanh toán</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Ngày bắt đầu</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{formatDDMMYYYY(today.toISOString())}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Ngày kết thúc</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.navy }}>{expiryLabel}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: C.gray600 }}>Thời hạn</span>
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: C.gray900 }}>{selectedPlan.durationDays} ngày</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.25rem' }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Tổng thanh toán</span>
-            <span style={{ fontSize: '1.15rem', fontWeight: 900, color: C.navy }}>{selectedPrice ? formatVND(totalAmount) : '—'}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Error banner */}
-      {submitError && (
-        <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{submitError}</div>
-      )}
-
-      {/* Payment method picker */}
-      <div className={styles.card} style={{ padding: '0.85rem' }}>
-        <p style={{ margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 700, color: C.gray900 }}>Phương thức thanh toán</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          {([
-            { id: 'EWALLET', label: 'Quét mã QR' },
-            { id: 'CARD', label: 'Thẻ ngân hàng' },
-          ] as const).map((opt) => {
-            const active = paymentMethod === opt.id;
-            return (
+      {/* Render purchase flow if active, else normal dashboard */}
+      {isPurchasing ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Purchase Back header */}
+          {!createdPkg && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
               <button
-                key={opt.id}
-                onClick={() => setPaymentMethod(opt.id)}
-                style={{
-                  padding: '0.65rem 0.5rem',
-                  background: active ? C.blueBg : C.white,
-                  border: active ? `2px solid ${C.navy}` : `1.5px solid ${C.gray200}`,
-                  borderRadius: 10,
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  color: active ? C.navy : C.gray600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                className={newStyles.btnSecondary}
+                onClick={() => {
+                  if (showCard) setShowCard(false);
+                  else if (showQR) setShowQR(false);
+                  else setIsPurchasing(false);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.5rem 1rem' }}
+              >
+                <IconChevronLeft size={16} /> Quay lại
+              </button>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
+                {showCard ? 'Thanh toán bằng thẻ' : showQR ? 'Thanh toán bằng QR' : 'Đăng ký gói mới'}
+              </h3>
+            </div>
+          )}
+          {renderPurchaseFlow()}
+        </div>
+      ) : (
+        <>
+          {/* 2. Summary Cards Row */}
+          <div className={newStyles.summaryGrid}>
+            {/* Card 1: Active Packages */}
+            <div className={newStyles.summaryCard}>
+              <div className={`${newStyles.iconCircle} ${newStyles.iconBlue}`}>
+                <IconCalendar size={20} />
+              </div>
+              <div className={newStyles.summaryInfo}>
+                <span className={newStyles.summaryLabel}>Gói đang hoạt động</span>
+                <h3 className={newStyles.summaryValue}>{activePackagesCount}</h3>
+              </div>
+            </div>
+
+            {/* Card 2: Expiring Soon */}
+            <div className={newStyles.summaryCard}>
+              <div className={`${newStyles.iconCircle} ${newStyles.iconOrange}`}>
+                <IconClock size={20} />
+              </div>
+              <div className={newStyles.summaryInfo}>
+                <span className={newStyles.summaryLabel}>Sắp hết hạn</span>
+                <h3 className={newStyles.summaryValue}>{expiringSoonCount}</h3>
+              </div>
+            </div>
+
+            {/* Card 3: Auto Renewing */}
+            <div className={newStyles.summaryCard}>
+              <div className={`${newStyles.iconCircle} ${newStyles.iconGreen}`}>
+                <IconRefresh size={20} />
+              </div>
+              <div className={newStyles.summaryInfo}>
+                <span className={newStyles.summaryLabel}>Tự động gia hạn</span>
+                <h3 className={newStyles.summaryValue}>{autoRenewCount}</h3>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Package List Section or Empty State */}
+          {loadingPackages ? (
+            <div style={{ background: '#ffffff', borderRadius: 20, border: '1px solid #E2E8F0', padding: '3rem', textAlign: 'center', color: C.gray400, fontSize: '0.95rem', fontWeight: 600 }}>
+              Đang tải danh sách gói tháng...
+            </div>
+          ) : myPackages.length === 0 ? (
+            /* 6. Empty State */
+            <div className={newStyles.emptyStateCard}>
+              <div className={newStyles.emptyStateIcon}>
+                <IconCalendar size={32} />
+              </div>
+              <h4 className={newStyles.emptyTitle}>Chưa có gói tháng</h4>
+              <p className={newStyles.emptyDescription}>
+                Bạn chưa đăng ký gói tháng nào. Hãy chọn gói phù hợp để bắt đầu sử dụng dịch vụ.
+              </p>
+              <button className={newStyles.emptyCta} onClick={() => setIsPurchasing(true)}>
+                Đăng ký gói tháng ngay
+              </button>
+            </div>
+          ) : (
+            /* Vertical list of package cards */
+            <div className={newStyles.packagesStack}>
+              {myPackages.map((pkg) => {
+                const remainingDays = getRemainingDays(pkg.expiryDate);
+                const totalDays = getTotalDays(pkg.startDate, pkg.expiryDate);
+                
+                // Status mapping
+                const isExpired = pkg.status === 'EXPIRED' || remainingDays <= 0;
+                const isExpiring = !isExpired && remainingDays <= 7;
+                
+                // Ratio calculation
+                const ratio = isExpired ? 0 : (totalDays > 0 ? Math.min(1, Math.max(0, remainingDays / totalDays)) : 0);
+
+                // Icons dynamic to vehicle
+                const isMotorbike = pkg.vehicle?.type === 'MOTORBIKE';
+                
+                return (
+                  <div key={pkg.id} className={newStyles.packageCard}>
+                    {/* A. Card top row */}
+                    <div className={newStyles.cardTopRow}>
+                      <div className={newStyles.cardTopLeft}>
+                        <div className={newStyles.avatarIcon}>
+                          {isMotorbike ? <IconBike size={20} /> : <IconCar size={20} />}
+                        </div>
+                        <div className={newStyles.cardTitleBlock}>
+                          <h4 className={newStyles.cardMainTitle}>
+                            {pkg.planName || (isMotorbike ? 'Gói Xe máy tháng' : 'Gói Ô tô tháng')}
+                          </h4>
+                          <p className={newStyles.cardSubtitle}>
+                            Xe: {pkg.vehicle?.plateNumber || pkg.vehicleId || '-'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className={newStyles.badgeGroup}>
+                        {/* Status Badge 1 */}
+                        {isExpired ? (
+                          <span className={`${newStyles.statusBadge} ${newStyles.statusExpired}`}>
+                            <span className={newStyles.dot} /> Hết hạn
+                          </span>
+                        ) : isExpiring ? (
+                          <span className={`${newStyles.statusBadge} ${newStyles.statusExpiring}`}>
+                            <span className={newStyles.dot} /> Sắp hết hạn
+                          </span>
+                        ) : (
+                          <span className={`${newStyles.statusBadge} ${newStyles.statusActive}`}>
+                            <span className={newStyles.dot} /> Đang hoạt động
+                          </span>
+                        )}
+
+                        {/* Status Badge 2 */}
+                        {pkg.autoRenew ? (
+                          <span className={`${newStyles.renewBadge} ${newStyles.renewOn}`}>
+                            Tự động gia hạn
+                          </span>
+                        ) : (
+                          <span className={`${newStyles.renewBadge} ${newStyles.renewOff}`}>
+                            Không tự động
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* B. Details row */}
+                    <div className={newStyles.detailsGrid}>
+                      {/* Block 1 */}
+                      <div className={newStyles.detailBlock}>
+                        <div className={newStyles.detailIcon}>
+                          <IconCalendar size={18} />
+                        </div>
+                        <div className={newStyles.detailInfo}>
+                          <span className={newStyles.detailLabel}>Bắt đầu</span>
+                          <span className={newStyles.detailValue}>{formatDate(pkg.startDate)}</span>
+                        </div>
+                      </div>
+
+                      {/* Block 2 */}
+                      <div className={newStyles.detailBlock}>
+                        <div className={newStyles.detailIcon}>
+                          <IconCalendar size={18} />
+                        </div>
+                        <div className={newStyles.detailInfo}>
+                          <span className={newStyles.detailLabel}>Hết hạn</span>
+                          <span className={newStyles.detailValue}>{formatDate(pkg.expiryDate)}</span>
+                        </div>
+                      </div>
+
+                      {/* Block 3 */}
+                      <div className={newStyles.detailBlock}>
+                        <div className={newStyles.detailIcon}>
+                          <IconPin size={18} />
+                        </div>
+                        <div className={newStyles.detailInfo}>
+                          <span className={newStyles.detailLabel}>Vị trí</span>
+                          <span className={newStyles.detailValue}>
+                            {pkg.slot?.floor?.name && pkg.slot?.code
+                              ? `Tầng ${pkg.slot.floor.name} · Ô ${pkg.slot.code}`
+                              : (isMotorbike ? 'Khu tự do (Xe máy)' : 'Chưa phân vị trí')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Block 4 */}
+                      <div className={newStyles.detailBlock}>
+                        <div className={newStyles.detailIcon}>
+                          <IconList size={18} />
+                        </div>
+                        <div className={newStyles.detailInfo}>
+                          <span className={newStyles.detailLabel}>Gói</span>
+                          <span className={newStyles.detailValue}>
+                            {isMotorbike ? 'Xe máy tháng' : 'Ô tô tháng'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. Remaining days + progress bar */}
+                    <div className={newStyles.progressContainer}>
+                      <div className={newStyles.progressLabelRow}>
+                        <span className={newStyles.progressText}>
+                          {isExpired ? 'Đã hết hạn sử dụng' : `Còn lại ${remainingDays} ngày`}
+                        </span>
+                        <span className={newStyles.progressText}>
+                          {Math.round(ratio * 100)}%
+                        </span>
+                      </div>
+                      <div className={newStyles.progressBarTrack}>
+                        <div
+                          className={[
+                            newStyles.progressBarFill,
+                            isExpired ? newStyles.progressBarFillExpired : '',
+                            isExpiring ? newStyles.progressBarFillExpiring : '',
+                          ].filter(Boolean).join(' ')}
+                          style={{ width: `${ratio * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 5. Action buttons row */}
+                    <div className={newStyles.actionsRow}>
+                      <div className={newStyles.leftActionGroup}>
+                        {/* 1. Primary button */}
+                        <button
+                          onClick={() => handleRenewPackage(pkg)}
+                          disabled={packageActionLoading === pkg.id}
+                          className={newStyles.btnPrimary}
+                        >
+                          <IconCalendar size={16} /> Gia hạn ngay
+                        </button>
+
+                        {/* 2. Secondary button */}
+                        {!isExpired && (
+                          <button
+                            onClick={() => handleToggleAutoRenew(pkg)}
+                            disabled={packageActionLoading === pkg.id}
+                            className={newStyles.btnSecondary}
+                          >
+                            <IconRefresh size={16} />
+                            {pkg.autoRenew ? 'Tắt gia hạn tự động' : 'Bật gia hạn tự động'}
+                          </button>
+                        )}
+
+                        {/* 3. Neutral button */}
+                        <button
+                          onClick={() => setSelectedDetailPkg(pkg)}
+                          className={newStyles.btnSecondary}
+                        >
+                          <IconEye size={16} /> Xem chi tiết
+                        </button>
+                      </div>
+
+                      {/* Right Danger Action */}
+                      {!isExpired && (
+                        <>
+                          <div className={newStyles.divider} />
+                          <button
+                            onClick={() => handleCancelPackage(pkg)}
+                            disabled={packageActionLoading === pkg.id}
+                            className={newStyles.btnDanger}
+                          >
+                            <IconTrash size={16} /> Hủy gia hạn gói
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Confirmation Modal */}
+      {showCancelConfirm && pkgToCancel && (
+        <div className={newStyles.modalOverlay}>
+          <div className={newStyles.modalContent}>
+            <div className={newStyles.modalHeader}>
+              <div className={`${newStyles.modalIcon} ${newStyles.modalIconDanger}`}>
+                <IconTrash size={22} color="#DC2626" />
+              </div>
+              <h3 className={newStyles.modalTitle}>Xác nhận hủy gia hạn</h3>
+            </div>
+
+            <div className={newStyles.warningBox}>
+              <strong>Hành động này không thể hoàn tác!</strong> Bạn có chắc chắn muốn hủy gia hạn gói này không? Xe của bạn sẽ không còn được nhận diện là xe vé tháng và chỗ đỗ cố định (nếu có) sẽ bị giải phóng.
+            </div>
+
+            <div className={newStyles.modalActions}>
+              <button
+                type="button"
+                className={newStyles.btnSecondary}
+                onClick={() => {
+                  setShowCancelConfirm(false);
+                  setPkgToCancel(null);
                 }}
               >
-                {opt.label}
+                Quay lại
               </button>
-            );
-          })}
+              <button
+                type="button"
+                className={newStyles.btnPrimary}
+                style={{ background: '#DC2626' }}
+                onClick={confirmCancelPackage}
+              >
+                Xác nhận hủy
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* CTA */}
-      <button
-        onClick={() => { if (paymentMethod === 'CARD') setShowCard(true); else handleProceedToQR(); }}
-        disabled={!canSubmit}
-        style={{ width: '100%', padding: '0.9rem', background: canSubmit ? C.navy : C.gray300, color: canSubmit ? C.white : C.gray400, border: 'none', borderRadius: 12, fontSize: '1rem', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed', boxShadow: canSubmit ? '0 4px 14px rgba(30,58,95,0.25)' : 'none', transition: 'all 0.2s ease' }}
-      >
-        Tiến hành thanh toán
-      </button>
+      {/* Detail View Ticket Modal */}
+      {selectedDetailPkg && (
+        <div className={newStyles.modalOverlay} onClick={() => setSelectedDetailPkg(null)}>
+          <div className={[newStyles.modalContent, newStyles.detailModalContent].join(' ')} onClick={(e) => e.stopPropagation()}>
+            <button className={newStyles.closeModalBtn} onClick={() => setSelectedDetailPkg(null)}>
+              <IconClose size={20} />
+            </button>
+
+            <div className={newStyles.modalHeader}>
+              <div className={`${newStyles.modalIcon} ${newStyles.modalIconInfo}`}>
+                {selectedDetailPkg.vehicle?.type === 'MOTORBIKE' ? <IconBike size={22} color="#3B82F6" /> : <IconCar size={22} color="#3B82F6" />}
+              </div>
+              <h3 className={newStyles.modalTitle}>Vé Đỗ Xe Vé Tháng</h3>
+            </div>
+
+            <div className={newStyles.ticketGrid}>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Mã gói tháng</span>
+                <span className={newStyles.ticketValue}>{selectedDetailPkg.id}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Biển số xe</span>
+                <span className={newStyles.ticketValueHighlight}>{selectedDetailPkg.vehicle?.plateNumber || selectedDetailPkg.vehicleId}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Loại xe</span>
+                <span className={newStyles.ticketValue}>{selectedDetailPkg.vehicle?.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Vị trí cố định</span>
+                <span className={newStyles.ticketValue}>
+                  {selectedDetailPkg.slot?.floor?.name && selectedDetailPkg.slot?.code
+                    ? `Tầng ${selectedDetailPkg.slot.floor.name} · Ô ${selectedDetailPkg.slot.code}`
+                    : (selectedDetailPkg.vehicle?.type === 'MOTORBIKE' ? 'Khu tự do (Xe máy)' : 'Chưa phân vị trí')}
+                </span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Giá trị gói</span>
+                <span className={newStyles.ticketValuePrice}>{formatVND(selectedDetailPkg.price)}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Ngày bắt đầu</span>
+                <span className={newStyles.ticketValue}>{formatDate(selectedDetailPkg.startDate)}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Ngày hết hạn</span>
+                <span className={newStyles.ticketValueHighlight}>{formatDate(selectedDetailPkg.expiryDate)}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Gia hạn tự động</span>
+                <span className={newStyles.ticketValue}>{selectedDetailPkg.autoRenew ? 'Đang bật' : 'Đang tắt'}</span>
+              </div>
+              <div className={newStyles.ticketRow}>
+                <span className={newStyles.ticketLabel}>Trạng thái</span>
+                <span style={{ fontWeight: 800, color: selectedDetailPkg.status === 'ACTIVE' ? '#10B981' : '#EF4444' }}>
+                  {selectedDetailPkg.status === 'ACTIVE' ? 'ĐANG HOẠT ĐỘNG' : 'HẾT HẠN'}
+                </span>
+              </div>
+            </div>
+
+            {/* Check-in QR code */}
+            {detailQrUrl && (
+              <div className={newStyles.qrContainer}>
+                <img src={detailQrUrl} alt="Check-in QR" width={180} height={180} className={newStyles.qrImage} />
+                <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
+                  Quét mã này tại cổng kiểm soát để tự động ra vào
+                </p>
+              </div>
+            )}
+
+            <div className={newStyles.modalActions} style={{ marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className={newStyles.btnPrimary}
+                onClick={() => setSelectedDetailPkg(null)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

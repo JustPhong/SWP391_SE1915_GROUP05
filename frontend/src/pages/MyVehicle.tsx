@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
@@ -16,10 +16,10 @@ const C = {
   blueLight: '#DBEAFE', blueDark: '#1D4ED8',
 };
 
-function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!(vehicle as any).isMonthly; }
+function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 function getPackageExpiryText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return ''; const d = new Date(pkg.expiryDate); if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; } }
-function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.slot?.floor?.name) return `Tầng ${pkg.slot.floor.name}`; return 'Khu tháng A'; } catch { return 'Khu tháng A'; } }
+function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; const floorName = pkg?.slot?.floor?.name; const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 type VehicleType = 'CAR' | 'MOTORBIKE';
@@ -35,9 +35,9 @@ const CAR_SEAT_OPTIONS = [2, 4, 5, 6, 7, 8, 9, 12];
 const RESPONSIVE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   .mv-page { font-family: 'Inter', 'Segoe UI', sans-serif; }
-  .mv-header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
-  .mv-summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; }
-  .mv-vehicle-inner { display:grid; grid-template-columns:1fr auto auto; gap:1.25rem; align-items:center; }
+  .mv-header-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+  .mv-summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1.25rem; }
+  .mv-vehicle-inner { display:grid; grid-template-columns:1fr auto auto; gap:1.5rem; align-items:center; }
   .mv-vehicle-left { display:flex; align-items:center; gap:1rem; min-width:0; }
   .mv-vehicle-mid { display:flex; flex-direction:column; gap:0.35rem; min-width:160px; }
   .mv-vehicle-actions { display:flex; align-items:center; gap:0.5rem; flex-shrink:0; }
@@ -76,9 +76,9 @@ function SummaryCard({ label, value, icon, accentColor, accentBg }: {
   label: string; value: number; icon: React.ReactNode; accentColor: string; accentBg: string;
 }) {
   return (
-    <div style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'box-shadow 0.2s, transform 0.2s', cursor: 'default' }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 24px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}>
+    <div style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'all 0.2s ease', cursor: 'default' }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(30,58,95,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.borderColor = C.gray200; }}>
       <div style={{ width: 48, height: 48, borderRadius: '50%', background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: accentColor }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '1.75rem', fontWeight: 800, color: C.gray900, lineHeight: 1 }}>{value}</div>
@@ -110,9 +110,17 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
   }, []);
 
   return (
-    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 2px 12px rgba(0,0,0,0.05)', padding: '1.25rem 1.5rem', opacity: busy ? 0.6 : 1, transition: 'box-shadow 0.2s', position: 'relative' }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 28px rgba(30,58,95,0.1)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)'; }}>
+    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02)', padding: '1.25rem 1.5rem', opacity: busy ? 0.6 : 1, transition: 'all 0.2s ease', position: 'relative' }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 30px rgba(30, 58, 95, 0.06), 0 2px 6px rgba(30, 58, 95, 0.02)';
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+        (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 18px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02)';
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+        (e.currentTarget as HTMLDivElement).style.borderColor = C.gray200;
+      }}>
       {phase === 'confirming' && (
         <div style={{ position: 'absolute', inset: 0, borderRadius: 20, background: 'rgba(254,242,242,0.97)', border: `2px solid ${C.redBorder}`, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '1rem' }}>
           <IconTrash size={18} color={C.red} />
@@ -338,15 +346,15 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 function TipBanner({ onClose }: { onClose: () => void }) {
   return (
-    <div className="mv-anim" style={{ background: 'linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%)', border: '1px solid #BFDBFE', borderRadius: 16, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-      <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #93C5FD' }}>
-        <IconLightBulb size={18} color="#2563EB" />
+    <div className="mv-anim" style={{ background: '#eef6ff', border: '1px solid #bfdbfe', borderRadius: 16, padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+      <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #bfdbfe' }}>
+        <IconLightBulb size={18} color="#2563eb" />
       </div>
-      <p style={{ flex: 1, margin: 0, fontSize: '0.83rem', color: '#1D4ED8', fontWeight: 600, lineHeight: 1.5 }}>
+      <p style={{ flex: 1, margin: 0, fontSize: '0.83rem', color: '#1e40af', fontWeight: 600, lineHeight: 1.5 }}>
         <span style={{ fontWeight: 800 }}>Mẹo:</span> Gia hạn gói tháng trước ngày hết hạn để giữ ưu tiên chỗ đỗ và tránh mất suất ưu đãi.
       </p>
-      <button type="button" onClick={onClose} aria-label="Đóng gợi ý" style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-        <IconClose size={14} color="#93C5FD" />
+      <button type="button" onClick={onClose} aria-label="Đóng gợi ý" style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', flexShrink: 0, opacity: 0.7 }} onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }} onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}>
+        <IconClose size={14} color="#3b82f6" />
       </button>
     </div>
   );
@@ -498,7 +506,7 @@ export function MyVehiclePage() {
   if (!user) return <div style={{ padding: '3rem', textAlign: 'center', color: C.gray600, fontSize: '0.9rem' }}>Vui lòng đăng nhập để xem danh sách xe của bạn.</div>;
 
   return (
-    <div className="mv-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minHeight: '100%' }}>
+    <div className="mv-page" style={{ display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '100%' }}>
       <style>{RESPONSIVE_CSS}</style>
 
       <div className="mv-header-row">
@@ -507,9 +515,9 @@ export function MyVehiclePage() {
           <p style={{ margin: '0.3rem 0 0', fontSize: '0.875rem', color: C.gray600, fontWeight: 500 }}>Quản lý phương tiện, gói tháng và lịch sử sử dụng của từng xe.</p>
         </div>
         {!formOpen && (
-          <button onClick={() => setFormOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.65rem 1.35rem', background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(30,58,95,0.28)', transition: 'transform 0.15s,box-shadow 0.15s', whiteSpace: 'nowrap', flexShrink: 0 }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 8px 20px rgba(30,58,95,0.35)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(30,58,95,0.28)'; }}>
+          <button onClick={() => setFormOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.65rem 1.35rem', background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)', transition: 'all 0.2s ease', whiteSpace: 'nowrap', flexShrink: 0 }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1.5px)'; e.currentTarget.style.boxShadow='0 8px 25px rgba(30, 58, 95, 0.25)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(30, 58, 95, 0.15)'; }}>
             <IconPlus size={14} color={C.white} /> Thêm xe
           </button>
         )}
@@ -530,8 +538,8 @@ export function MyVehiclePage() {
 
       {loadError && <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 12, padding: '0.85rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 500 }}>{loadError}</div>}
 
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+      <div style={{ marginTop: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.navy, letterSpacing: '-0.01em' }}>Danh sách phương tiện</h2>
           {!loading && vehicles.length > 0 && <span style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 600, background: C.gray100, padding: '0.25rem 0.75rem', borderRadius: 20 }}>{vehicles.length} xe</span>}
         </div>
@@ -542,7 +550,7 @@ export function MyVehiclePage() {
         ) : vehicles.length === 0 ? (
           <EmptyState onAdd={() => setFormOpen(true)} />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {vehicles.map((v) => {
               const cardState = deleteState[v.id];
               const phase: DeletePhase = cardState?.phase ?? 'idle';
