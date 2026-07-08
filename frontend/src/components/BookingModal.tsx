@@ -77,9 +77,10 @@ interface BookingModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (slot: ParkingSlot, bookingId: string) => void;
+  onRedirectToVehicles?: () => void;
 }
 
-export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
+export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }: BookingModalProps) {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [plateNumber, setPlateNumber] = useState('');
@@ -286,9 +287,32 @@ export function BookingModal({ open, onClose, onSuccess }: BookingModalProps) {
             )}
 
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Biển số xe
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Biển số xe
+                </label>
+                {onRedirectToVehicles && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleClose();
+                      onRedirectToVehicles();
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: C.blue,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Quản lý xe
+                  </button>
+                )}
+              </div>
               <PlateInput
                 value={plateNumber}
                 onChange={(val) => { setPlateNumber(val); setErrorMsg(''); }}
