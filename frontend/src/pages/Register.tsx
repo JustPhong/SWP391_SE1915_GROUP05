@@ -479,7 +479,7 @@ export function RegisterPage() {
             </div>
 
             {/* Expiry + Resend */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', marginBottom: '0.5rem' }}>
               <span style={{ color: otpExpiry <= 60 ? '#DC2626' : '#6B7280', fontWeight: 600 }}>
                 {otpExpiry > 0
                   ? `Hết hạn sau ${Math.floor(otpExpiry / 60)}:${String(otpExpiry % 60).padStart(2, '0')}`
