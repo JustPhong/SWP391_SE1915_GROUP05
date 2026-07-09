@@ -7,14 +7,13 @@ interface AuthLayoutProps {
   subtitle: string;
   footerText: string;
   footerLink: { text: string; to: string };
-  isLoginPage?: boolean;
 }
 
-export function AuthLayout({ children, subtitle, footerText, footerLink, isLoginPage }: AuthLayoutProps) {
+export function AuthLayout({ children, subtitle, footerText, footerLink }: AuthLayoutProps) {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <div className={`${styles.logoWrapper} ${isLoginPage ? styles.loginLogoWrapper : ''}`}>
+        <div className={styles.logoWrapper}>
           <img src="/logo.png" alt="ParkSmart Logo" className={styles.logoImg} />
         </div>
 

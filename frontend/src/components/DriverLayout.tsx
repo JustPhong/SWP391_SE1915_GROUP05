@@ -12,6 +12,7 @@ import {
   SettingsIcon,
   SupportIcon,
   LayoutIcon,
+  ShoppingBagIcon,
 } from './ui/Icons';
 import styles from '../styles/driver.module.css';
 
@@ -24,7 +25,7 @@ const driverNavItems = [
   { label: 'Trang chủ', path: '/', icon: HomeIcon },
   { label: 'Đặt chỗ', path: '/booking', icon: CalendarIcon },
   { label: 'Sơ đồ tầng', path: '/floor-map', icon: LayoutIcon },
-  { label: 'Gói tháng', path: '/monthly-package', icon: CarIconFilled },
+  { label: 'Gói tháng', path: '/monthly-package', icon: ShoppingBagIcon },
   { label: 'Xe của tôi', path: '/my-vehicle', icon: CarIconFilled },
   { label: 'Lịch sử', path: '/history', icon: HistoryIcon },
 ];
