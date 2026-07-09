@@ -1,0 +1,654 @@
+/* booking.module.css */
+
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 3rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  background-color: #F8FAFC; /* slate-50 background for clean premium feel */
+  min-height: 100%;
+}
+
+.headerSection {
+  margin-bottom: 0.5rem;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #1E3A5F;
+  letter-spacing: -0.03em;
+}
+
+.pageSubtitle {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  color: #475569;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Info Banner */
+.infoBanner {
+  background: linear-gradient(135deg, #E0F2FE 0%, #EFF6FF 100%);
+  border: 1px solid #BAE6FD;
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 104px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(186, 230, 253, 0.15);
+}
+
+.bannerLeft {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex: 1;
+}
+
+.infoIconCircle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+  border: 1.5px solid #93C5FD;
+}
+
+.bannerText {
+  flex: 1;
+}
+
+.bannerTitle {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1E3A5F;
+}
+
+.bannerDesc {
+  margin: 4px 0 0;
+  font-size: 0.925rem;
+  color: #2C4F78;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.bannerDecor {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 1.5rem;
+}
+
+.bannerCarImage {
+  width: 280px;
+  max-height: 120px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  display: block;
+  transition: all 0.2s ease;
+}
+
+@media (max-width: 1024px) {
+  .bannerCarImage {
+    width: 200px;
+    max-height: 90px;
+  }
+}
+
+@media (max-width: 768px) {
+  .infoBanner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+    gap: 1rem;
+  }
+  .bannerDecor {
+    display: none;
+  }
+}
+
+/* Two Column Layout */
+.layoutGrid {
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  gap: 32px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .layoutGrid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+/* Base Card Style */
+.card {
+  background: #FFFFFF;
+  border-radius: 18px;
+  border: 1px solid #E2E8F0;
+  padding: 28px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.015);
+  box-sizing: border-box;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardSubtitle {
+  margin: 6px 0 20px;
+  font-size: 0.875rem;
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* Vehicle Grid */
+.vehicleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+/* Vehicle Button Card */
+.vehicleCard {
+  width: 100%;
+  min-height: 118px;
+  border-radius: 14px;
+  padding: 22px 26px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  text-align: left;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+}
+
+.vehicleCard:hover {
+  border-color: #93C5FD;
+  background: #F8FAFC;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.04);
+  transform: translateY(-1px);
+}
+
+.vehicleCardSelected {
+  background: #EFF6FF;
+  border: 2px solid #2563EB;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
+}
+
+/* Radio circle indicator */
+.radioIndicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #CBD5E1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.vehicleCardSelected .radioIndicator {
+  border-color: #2563EB;
+}
+
+.radioDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2563EB;
+}
+
+/* Vehicle Icon Box */
+.vehicleIconBox {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.vehicleCardSelected .vehicleIconBox {
+  background: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
+}
+
+.vehicleCarImage {
+  width: 130px;
+  height: 78px;
+  object-fit: contain;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+
+@media (max-width: 480px) {
+  .vehicleCarImage {
+    width: 110px;
+    height: 66px;
+  }
+}
+
+.vehicleInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.plateNumber {
+  font-family: 'JetBrains Mono', monospace, 'Courier New';
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.vehicleDesc {
+  font-size: 0.8rem;
+  color: #64748B;
+  margin-top: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Active Badge */
+.activeBadge {
+  background: #ECFDF5;
+  color: #10B981;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-top: 6px;
+  align-self: flex-start;
+}
+
+/* 4-column booking info summary box */
+.infoSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .infoSummaryGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .infoSummaryGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.summaryCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.summaryColCircle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  flex-shrink: 0;
+}
+
+.summaryColText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.summaryColLabel {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748B;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.summaryColValue {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.4;
+}
+
+.summaryColValueGreen {
+  color: #10B981;
+  font-weight: 800;
+}
+
+.summaryColValueLong {
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+/* disclaimer text */
+.disclaimerText {
+  margin-top: 1.25rem;
+  padding: 12px 16px;
+  background: #F1F5F9;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  font-size: 0.825rem;
+  color: #475569;
+  text-align: center;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+/* Warning block */
+.warningBlock {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.warningHeader {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #92400E;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.warningList {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+  color: #92400E;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+.warningList li {
+  margin-bottom: 4px;
+}
+
+.warningList li:last-child {
+  margin-bottom: 0;
+}
+
+/* Error message block */
+.errorBlock {
+  background: #FEF2F2;
+  border: 1.5px solid #FCA5A5;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 0.875rem;
+  color: #EF4444;
+  font-weight: 600;
+}
+
+/* Confirm Button */
+.confirmBtn {
+  width: 100%;
+  height: 56px;
+  background: linear-gradient(135deg, #2563EB 0%, #1E3A5F 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(30, 58, 95, 0.2);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.confirmBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1D4ED8 0%, #15253F 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(30, 58, 95, 0.3);
+}
+
+.confirmBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.confirmBtn:disabled {
+  background: #CBD5E1;
+  color: #94A3B8;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Right Sidebar Sidebar Containers */
+.sidebarWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: sticky;
+  top: 1.5rem;
+  width: 100%;
+}
+
+.sidebarCard {
+  background: #FFFFFF;
+  border-radius: 18px;
+  border: 1px solid #E2E8F0;
+  padding: 28px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.015);
+  box-sizing: border-box;
+}
+
+.sidebarTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  border-bottom: 1.5px solid #F1F5F9;
+  padding-bottom: 16px;
+}
+
+.titleIconCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #EFF6FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebarTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1E293B;
+}
+
+/* Rows styling */
+.summaryRows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.rowLabel {
+  font-size: 0.8rem;
+  color: #64748B;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+.rowValue {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0F172A;
+  text-align: right;
+}
+
+.rowValueGreen {
+  color: #10B981;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.rowDivider {
+  height: 1px;
+  background: #F1F5F9;
+  margin: 4px 0;
+}
+
+.summaryVehicleInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.summaryVehicleImage {
+  width: 72px;
+  height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.rowCarPlate {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #1E293B;
+}
+
+.rowCarName {
+  font-size: 0.72rem;
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* blue note bottom */
+.blueNote {
+  background: #EFF6FF;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  color: #1E3A5F;
+  line-height: 1.45;
+  text-align: center;
+  font-weight: 600;
+  border: 1px solid #DBEAFE;
+}
+
+/* Regulations rules list */
+.rulesList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ruleItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.ruleCheck {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ECFDF5;
+  color: #10B981;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.ruleIcon {
+  display: inline-flex;
+}

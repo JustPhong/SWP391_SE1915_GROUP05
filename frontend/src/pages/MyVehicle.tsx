@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle } from '../types';
 import { PlateInput } from '../components/PlateInput';
+import { BookingModal } from '../components/BookingModal';
 
 const C = {
   navy: '#1E3A5F', bg: '#EEF2F7', white: '#FFFFFF',
@@ -40,13 +41,70 @@ const RESPONSIVE_CSS = `
   .mv-vehicle-inner { display:grid; grid-template-columns:1fr auto auto; gap:1.5rem; align-items:center; }
   .mv-vehicle-left { display:flex; align-items:center; gap:1rem; min-width:0; }
   .mv-vehicle-mid { display:flex; flex-direction:column; gap:0.35rem; min-width:160px; }
-  .mv-vehicle-actions { display:flex; align-items:center; gap:0.5rem; flex-shrink:0; }
+  
+  /* Stable 3-Slot Action Area */
+  .mv-vehicle-actions {
+    display: grid;
+    grid-template-columns: 112px 112px 44px;
+    align-items: center;
+    justify-content: end;
+    column-gap: 12px;
+    flex-shrink: 0;
+    min-width: 292px;
+  }
+  .mv-action-opt {
+    width: 112px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .mv-action-detail {
+    width: 112px;
+  }
+  .mv-action-placeholder {
+    display: block;
+    width: 112px;
+    height: 44px;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .mv-delete-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: #ffffff;
+    color: #94a3b8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s ease;
+    cursor: pointer;
+    box-sizing: border-box;
+    padding: 0;
+  }
+  .mv-delete-btn:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #ef4444;
+  }
+
   @media(max-width:1100px){ .mv-summary-grid{ grid-template-columns:repeat(2,1fr); } }
   @media(max-width:768px){
     .mv-summary-grid{ grid-template-columns:1fr; }
     .mv-vehicle-inner{ grid-template-columns:1fr; }
     .mv-vehicle-mid{ min-width:unset; }
-    .mv-vehicle-actions{ flex-wrap:wrap; }
+    .mv-vehicle-actions{
+      grid-template-columns: 1fr 1fr auto;
+      width: 100%;
+      box-sizing: border-box;
+      min-width: unset;
+    }
+    .mv-action-opt, .mv-action-detail {
+      width: 100%;
+    }
+    .mv-action-placeholder {
+      display: none;
+    }
     .mv-header-row{ flex-direction:column; align-items:stretch; }
   }
   @keyframes mv-pulse{ 0%{transform:scale(1);opacity:1;} 50%{transform:scale(1.3);opacity:0.5;} 100%{transform:scale(1);opacity:1;} }
@@ -64,7 +122,6 @@ function IconCalendar({ size = 14, color = C.gray600 }: { size?: number; color?:
 function IconMapPin({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>; }
 function IconInfo({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>; }
 function IconTicket({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>; }
-function IconDots({ size = 16, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke="none"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>; }
 function IconLightBulb({ size = 18, color = '#2563EB' }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21h6"/><path d="M12 3a6 6 0 0 1 6 6c0 3-2 5-3 6H9c-1-1-3-3-3-6a6 6 0 0 1 6-6z"/></svg>; }
 function IconShieldCheck({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 11 2 2 4-4"/></svg>; }
 function IconSeat({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 18h14"/><path d="M9 18v3"/><path d="M15 18v3"/><path d="M19 10h1a2 2 0 0 1 2 2v1"/><path d="M5 10H4a2 2 0 0 0-2 2v1"/></svg>; }
@@ -91,23 +148,16 @@ function SummaryCard({ label, value, icon, accentColor, accentBg }: {
 
 type DeletePhase = 'idle' | 'confirming' | 'deleting';
 
-function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCancelDelete, onViewDetail }: {
+function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCancelDelete, onViewDetail, onStartBooking }: {
   vehicle: Vehicle; phase: DeletePhase;
   onAskDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onViewDetail: () => void;
+  onStartBooking: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const isCar = vehicle.type === 'CAR';
   const isMonthly = hasMonthlyPackage(vehicle);
   const busy = phase === 'deleting';
   const expiryText = getPackageExpiryText(vehicle);
   const areaText = getParkingAreaText(vehicle);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
 
   return (
     <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02)', padding: '1.25rem 1.5rem', opacity: busy ? 0.6 : 1, transition: 'all 0.2s ease', position: 'relative' }}
@@ -160,29 +210,74 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
           )}
         </div>
         <div className="mv-vehicle-actions">
-          {isMonthly ? (
-            <>
-              <button type="button" onClick={onViewDetail} style={{ padding: '0.5rem 1rem', background: C.gray100, color: C.gray900, border: `1px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.15s' }} onMouseEnter={(e) => { e.currentTarget.style.background = C.gray200; }} onMouseLeave={(e) => { e.currentTarget.style.background = C.gray100; }}>Chi tiết</button>
-              <button type="button" style={{ padding: '0.5rem 1rem', background: C.white, color: C.blue, border: `1.5px solid ${C.blue}`, borderRadius: 10, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.15s' }} onMouseEnter={(e) => { e.currentTarget.style.background = C.blueBg; }} onMouseLeave={(e) => { e.currentTarget.style.background = C.white; }}>Gia hạn</button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={onViewDetail} style={{ padding: '0.5rem 1rem', background: C.blue, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(59,130,246,0.3)', transition: 'background 0.15s' }} onMouseEnter={(e) => { e.currentTarget.style.background = C.blueDark; }} onMouseLeave={(e) => { e.currentTarget.style.background = C.blue; }}>Đặt chỗ</button>
-              <button type="button" style={{ padding: '0.5rem 1rem', background: C.white, color: C.gray900, border: `1px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.15s' }} onMouseEnter={(e) => { e.currentTarget.style.background = C.gray100; }} onMouseLeave={(e) => { e.currentTarget.style.background = C.white; }}>Mua gói</button>
-            </>
-          )}
-          <div style={{ position: 'relative' }} ref={menuRef}>
-            <button type="button" onClick={() => setMenuOpen(o => !o)} aria-label="Thêm tùy chọn" style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: menuOpen ? C.gray100 : C.white, border: `1px solid ${C.gray200}`, borderRadius: 10, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={(e) => { e.currentTarget.style.background = C.gray100; }} onMouseLeave={(e) => { if (!menuOpen) e.currentTarget.style.background = C.white; }}>
-              <IconDots size={16} color={C.gray600} />
-            </button>
-            {menuOpen && (
-              <div style={{ position: 'absolute', right: 0, top: 42, background: C.white, border: `1px solid ${C.gray200}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: '0.35rem', zIndex: 50, minWidth: 160, animation: 'mv-fadein 0.15s ease both' }}>
-                <button type="button" onClick={() => { setMenuOpen(false); onViewDetail(); }} style={{ width: '100%', padding: '0.55rem 0.85rem', background: 'transparent', border: 'none', borderRadius: 8, textAlign: 'left', fontSize: '0.82rem', fontWeight: 600, color: C.gray900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }} onMouseEnter={(e) => { e.currentTarget.style.background = C.gray50; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}><IconInfo size={14} color={C.gray600} /> Xem chi tiết</button>
-                <div style={{ height: 1, background: C.gray100, margin: '0.2rem 0.5rem' }} />
-                <button type="button" onClick={() => { setMenuOpen(false); onAskDelete(); }} disabled={busy} style={{ width: '100%', padding: '0.55rem 0.85rem', background: 'transparent', border: 'none', borderRadius: 8, textAlign: 'left', fontSize: '0.82rem', fontWeight: 600, color: C.red, cursor: busy ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: busy ? 0.5 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.background = C.redBg; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}><IconTrash size={14} color={C.red} /> {busy ? 'Đang xoá...' : 'Xoá xe'}</button>
-              </div>
+          {/* Slot 1: Optional Action (Đặt chỗ) */}
+          <div className="mv-action-opt">
+            {(!isMonthly && isCar) ? (
+              <button
+                type="button"
+                onClick={onStartBooking}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0',
+                  background: C.blue,
+                  color: C.white,
+                  border: 'none',
+                  borderRadius: 10,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
+                  transition: 'background 0.15s',
+                  textAlign: 'center'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = C.blueDark; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = C.blue; }}
+              >
+                Đặt chỗ
+              </button>
+            ) : (
+              <div className="mv-action-placeholder" aria-hidden="true" />
             )}
           </div>
+
+          {/* Slot 2: Detail Button (Chi tiết) */}
+          <div className="mv-action-detail">
+            <button
+              type="button"
+              onClick={onViewDetail}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0',
+                background: C.gray100,
+                color: C.gray900,
+                border: `1px solid ${C.gray200}`,
+                borderRadius: 10,
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s',
+                textAlign: 'center'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = C.gray200; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = C.gray100; }}
+            >
+              Chi tiết
+            </button>
+          </div>
+
+          {/* Slot 3: Delete Button */}
+          <button
+            type="button"
+            onClick={onAskDelete}
+            disabled={busy}
+            className="mv-delete-btn"
+            aria-label="Xóa xe"
+            title="Xóa xe"
+          >
+            <IconTrash size={16} color="currentColor" />
+          </button>
         </div>
       </div>
     </div>
@@ -199,19 +294,97 @@ function PackageStatusBadge({ status }: { status: string }) {
   return <span style={{ background: isActive ? '#DCFCE7' : '#F3F4F6', color: isActive ? '#16A34A' : '#6B7280', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>{isActive ? 'Còn hiệu lực' : 'Hết hạn'}</span>;
 }
 
-function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose: () => void }) {
+function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: string; onClose: () => void; onUpdate?: () => void }) {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'specs' | 'activity'>('specs');
+
+  // Edit Mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
+  const [color, setColor] = useState('');
+  const [year, setYear] = useState<string | number>('');
+  const [seats, setSeats] = useState<string | number>('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
   useEffect(() => {
     let cancelled = false; setLoading(true); setError('');
-    vehicleService.getDetail(vehicleId).then((data) => { if (!cancelled) { setDetail(data); setLoading(false); } }).catch((e: any) => { if (!cancelled) { setError(e?.response?.data?.message ?? 'Không thể tải thông tin xe'); setLoading(false); } });
+    vehicleService.getDetail(vehicleId).then((data) => {
+      if (!cancelled) {
+        setDetail(data);
+        setLoading(false);
+        // Pre-populate fields
+        setBrand(data.brand || '');
+        setModel(data.model || '');
+        setColor(data.color || '');
+        setYear(data.year || '');
+        setSeats(data.seats || '');
+      }
+    }).catch((e: any) => {
+      if (!cancelled) {
+        setError(e?.response?.data?.message ?? 'Không thể tải thông tin xe');
+        setLoading(false);
+      }
+    });
     return () => { cancelled = true; };
   }, [vehicleId]);
+
   const fmt = (d: string) => new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const fmtDatetime = (d: string) => new Date(d).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const COLOR_MAP: Record<string, string> = { 'Trắng': '#FFFFFF', 'Đen': '#0F172A', 'Bạc': '#CBD5E1', 'Xám': '#64748B', 'Đỏ': '#EF4444', 'Xanh dương': '#3B82F6', 'Xanh lá': '#10B981', 'Vàng': '#F59E0B', 'Nâu': '#78350F', 'Cam': '#F97316' };
+
+  const handleSave = async () => {
+    setSaveError('');
+    const yearNum = year !== '' ? parseInt(year.toString(), 10) : null;
+    const seatsNum = seats !== '' ? parseInt(seats.toString(), 10) : null;
+
+    if (yearNum !== null && !isNaN(yearNum)) {
+      const currentYear = new Date().getFullYear();
+      if (yearNum < 1990 || yearNum > currentYear + 1) {
+        setSaveError(`Năm sản xuất phải từ 1990 đến ${currentYear + 1}`);
+        return;
+      }
+    }
+
+    if (seatsNum !== null && !isNaN(seatsNum)) {
+      if (seatsNum <= 0) {
+        setSaveError('Số chỗ ngồi phải lớn hơn 0');
+        return;
+      }
+    }
+
+    try {
+      setSaving(true);
+      const updated = await vehicleService.update(vehicleId, {
+        brand: brand || null,
+        model: model || null,
+        color: color || null,
+        year: yearNum,
+        seats: seatsNum,
+      } as any);
+
+      setDetail((prev: any) => ({
+        ...prev,
+        brand: updated.brand,
+        model: updated.model,
+        color: updated.color,
+        year: updated.year,
+        seats: updated.seats,
+      }));
+      setIsEditing(false);
+      if (onUpdate) {
+        onUpdate();
+      }
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.message ?? 'Lỗi cập nhật thông tin xe');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const specs = detail ? [
     { label: 'Hãng xe', value: detail.brand || 'Chưa cập nhật', icon: <IconBuilding size={16} color={C.navy} /> },
     { label: 'Dòng xe', value: detail.model || 'Chưa cập nhật', icon: <IconTag size={16} color={C.navy} /> },
@@ -220,6 +393,7 @@ function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose
     ...(detail.type === 'CAR' ? [{ label: 'Số chỗ ngồi', value: detail.seats ? `${detail.seats} chỗ` : 'Chưa cập nhật', icon: <IconSeat size={16} color={C.navy} /> }] : []),
     { label: 'Ngày đăng ký', value: detail.createdAt ? fmt(detail.createdAt) : 'Chưa cập nhật', icon: <IconShieldCheck size={16} color={C.navy} /> },
   ] : [];
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={onClose}>
       <style>{`@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.25);opacity:0.5;}100%{transform:scale(1);opacity:1;}}`}</style>
@@ -241,33 +415,191 @@ function VehicleDetailModal({ vehicleId, onClose }: { vehicleId: string; onClose
         {error && <div style={{ padding: '1.5rem' }}><div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 12, padding: '1rem', color: '#B91C1C', fontSize: '0.85rem', fontWeight: 500 }}>{error}</div></div>}
         {detail && !loading && (
           <>
-            <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '12px', padding: '4px', margin: '1.25rem 1.25rem 0.5rem' }}>
-              {(['specs', 'activity'] as const).map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeTab === tab ? '#FFFFFF' : 'transparent', color: activeTab === tab ? '#1E3A5F' : '#64748B', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: activeTab === tab ? '0 2px 4px rgba(0,0,0,0.06)' : 'none' }}>
-                  {tab === 'specs' ? 'Thông số xe' : 'Hoạt động & Gói'}
-                </button>
-              ))}
-            </div>
+            {/* Hide tabs when in edit mode */}
+            {!isEditing && (
+              <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '12px', padding: '4px', margin: '1.25rem 1.25rem 0.5rem' }}>
+                {(['specs', 'activity'] as const).map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeTab === tab ? '#FFFFFF' : 'transparent', color: activeTab === tab ? '#1E3A5F' : '#64748B', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: activeTab === tab ? '0 2px 4px rgba(0,0,0,0.06)' : 'none' }}>
+                    {tab === 'specs' ? 'Thông số xe' : 'Hoạt động & Gói'}
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.25rem 2rem' }}>
-              {activeTab === 'specs' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  {specs.map((s, idx) => (
-                    <div key={idx} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
-                        <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>{s.label}</span>
-                      </div>
-                      {(s as any).isColor ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
-                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: COLOR_MAP[s.value as string] ?? '#94A3B8', border: s.value === 'Trắng' ? '1px solid #CBD5E1' : 'none' }} />
-                          <span style={{ fontSize: '0.88rem', color: '#0F172A', fontWeight: 700 }}>{s.value}</span>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '0.88rem', color: '#0F172A', fontWeight: 700, paddingLeft: '2px' }}>{s.value}</span>
-                      )}
+              {isEditing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cập nhật thông số xe</h4>
+                  {saveError && <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', color: '#B91C1C', fontSize: '0.8rem', fontWeight: 600 }}>{saveError}</div>}
+                  
+                  {/* Hãng xe */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: C.gray600 }}>Hãng xe</label>
+                    <input
+                      type="text"
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      placeholder="Nhập hãng xe (VD: Toyota, Honda...)"
+                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                    />
+                  </div>
+
+                  {/* Dòng xe */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: C.gray600 }}>Dòng xe</label>
+                    <input
+                      type="text"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="Nhập dòng xe (VD: Camry, City...)"
+                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                    />
+                  </div>
+
+                  {/* Màu sắc */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: C.gray600 }}>Màu sắc</label>
+                    <select
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s', background: '#FFFFFF', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236B7280\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                    >
+                      <option value="">Chưa chọn màu</option>
+                      {VEHICLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Năm sản xuất */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: C.gray600 }}>Năm sản xuất</label>
+                    <input
+                      type="number"
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      placeholder="Nhập năm sản xuất"
+                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                    />
+                  </div>
+
+                  {/* Số chỗ ngồi (chỉ cho CAR) */}
+                  {detail.type === 'CAR' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: C.gray600 }}>Số chỗ ngồi</label>
+                      <input
+                        type="number"
+                        value={seats}
+                        onChange={(e) => setSeats(e.target.value)}
+                        placeholder="Nhập số chỗ ngồi"
+                        style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                      />
                     </div>
-                  ))}
+                  )}
+
+                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setIsEditing(false); setSaveError(''); }}
+                      disabled={saving}
+                      style={{
+                        padding: '0.55rem 1.25rem',
+                        background: C.white,
+                        color: C.gray600,
+                        border: `1px solid ${C.gray200}`,
+                        borderRadius: 10,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = C.gray50; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = C.white; }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{
+                        padding: '0.55rem 1.5rem',
+                        background: 'linear-gradient(135deg,#16A34A 0%,#15803D 100%)',
+                        color: C.white,
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(22, 163, 74, 0.15)',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 6px 15px rgba(22, 163, 74, 0.2)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(22, 163, 74, 0.15)'; }}
+                    >
+                      {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                    </button>
+                  </div>
                 </div>
+              ) : activeTab === 'specs' ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {specs.map((s, idx) => (
+                      <div key={idx} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>{s.label}</span>
+                        </div>
+                        {(s as any).isColor ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: COLOR_MAP[s.value as string] ?? '#94A3B8', border: s.value === 'Trắng' ? '1px solid #CBD5E1' : 'none' }} />
+                            <span style={{ fontSize: '0.88rem', color: '#0F172A', fontWeight: 700 }}>{s.value}</span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.88rem', color: '#0F172A', fontWeight: 700, paddingLeft: '2px' }}>{s.value}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setBrand(detail.brand || '');
+                        setModel(detail.model || '');
+                        setColor(detail.color || '');
+                        setYear(detail.year || '');
+                        setSeats(detail.seats || '');
+                        setSaveError('');
+                      }}
+                      style={{
+                        padding: '0.6rem 1.5rem',
+                        background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: 12,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 6px 15px rgba(30, 58, 95, 0.2)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(30, 58, 95, 0.15)'; }}
+                    >
+                      Cập nhật thông tin
+                    </button>
+                  </div>
+                </>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {detail.monthlyPackage ? (
@@ -451,6 +783,7 @@ export function MyVehiclePage() {
   const [formError, setFormError] = useState('');
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
   const [tipVisible, setTipVisible] = useState(true);
+  const [bookingVehicle, setBookingVehicle] = useState<Vehicle | null>(null);
 
   const loadVehicles = useCallback(async () => {
     const epoch = ++loadEpoch.current;
@@ -557,7 +890,7 @@ export function MyVehiclePage() {
               const err = cardState?.error ?? '';
               return (
                 <div key={v.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <RichVehicleCard vehicle={v} phase={phase} onAskDelete={() => askDelete(v.id)} onConfirmDelete={() => handleDelete(v.id)} onCancelDelete={() => cancelDelete(v.id)} onViewDetail={() => setDetailVehicleId(v.id)} />
+                  <RichVehicleCard vehicle={v} phase={phase} onAskDelete={() => askDelete(v.id)} onConfirmDelete={() => handleDelete(v.id)} onCancelDelete={() => cancelDelete(v.id)} onViewDetail={() => setDetailVehicleId(v.id)} onStartBooking={() => setBookingVehicle(v)} />
                   {err && phase !== 'deleting' && <DeleteErrorBanner message={err} onDismiss={() => clearDeleteError(v.id)} />}
                 </div>
               );
@@ -570,7 +903,19 @@ export function MyVehiclePage() {
 
       {tipVisible && !loading && <TipBanner onClose={() => setTipVisible(false)} />}
 
-      {detailVehicleId && <VehicleDetailModal vehicleId={detailVehicleId} onClose={() => setDetailVehicleId(null)} />}
+      {detailVehicleId && <VehicleDetailModal vehicleId={detailVehicleId} onClose={() => setDetailVehicleId(null)} onUpdate={loadVehicles} />}
+
+      {bookingVehicle && (
+        <BookingModal
+          open={!!bookingVehicle}
+          initialPlate={bookingVehicle.plateNumber}
+          onClose={() => setBookingVehicle(null)}
+          onSuccess={() => {
+            setBookingVehicle(null);
+            loadVehicles();
+          }}
+        />
+      )}
     </div>
   );
 }

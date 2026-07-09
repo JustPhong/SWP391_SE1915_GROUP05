@@ -1,366 +1,488 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import type { ParkingSlot } from '../types';
-import { BookingModal, BookingSuccess } from '../components/BookingModal';
-
-const C = {
-  navy:      '#1E3A5F',
-  navyLight:  '#2C4F78',
-  bg:        '#F0F4F8',
-  white:     '#FFFFFF',
-  blue:      '#3B82F6',
-  blueBg:    '#EFF6FF',
-  green:     '#22C55E',
-  greenBg:   '#DCFCE7',
-  red:       '#DC2626',
-  redBg:     '#FEE2E2',
-  amber:     '#D97706',
-  amberBg:   '#FEF3C7',
-  amberBorder:'#F59E0B',
-  gray50:    '#F9FAFB',
-  gray100:   '#F3F5F7',
-  gray200:   '#E2E8F0',
-  gray400:   '#9BA8B4',
-  gray600:   '#5C6B7A',
-  gray800:   '#2D3A45',
-  shadow:    '0 8px 32px rgba(30, 58, 95, 0.10)',
-} as const;
-
-type ApiSlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
+import { vehicleService } from '../services/vehicle.service';
+import type { Vehicle } from '../types';
+import styles from '../styles/booking.module.css';
 
 // ── Icons ──────────────────────────────────────────────────
-function IconPlus({ size = 14, color = C.green }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-}
-function IconCar({ size = 16 }: { size?: number; color?: string }) {
-  return (
-    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
-  );
-}
-function IconLock({ size = 14, color = C.blue }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>;
-}
-function IconStar({ size = 12, color = C.blue }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
-}
-function IconInfo({ size = 16, color = C.navy }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+function IconInfo({ size = 18, color = '#2563EB' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
 }
 
-// ── Slot Card ─────────────────────────────────────────────
-interface SlotCardProps {
-  slot: ParkingSlot;
-  isAssigned: boolean;
+function IconTicket({ size = 20, color = '#1E3A5F' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>;
+}
+function IconDollar({ size = 20, color = '#10B981' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+}
+function IconClock({ size = 20, color = '#D97706' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+}
+function IconLayers({ size = 20, color = '#8B5CF6' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>;
+}
+function IconShield({ size = 16, color = '#64748B' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
 }
 
-function SlotCard({ slot, isAssigned }: SlotCardProps) {
-  const status = slot.status as ApiSlotStatus;
-  const isAvailable = status === 'AVAILABLE';
-
-  let icon: JSX.Element;
-  let bgColor: string;
-  let borderColor: string;
-  let textColor: string;
-  let ring = false;
-
-  switch (status) {
-    case 'OCCUPIED':
-      icon = <IconCar size={15} color={C.white} />;
-      bgColor = C.gray600;
-      borderColor = C.gray600;
-      textColor = C.white;
-      break;
-    case 'RESERVED':
-      icon = <IconLock size={13} color={C.amberBorder} />;
-      bgColor = C.amberBg;
-      borderColor = C.amberBorder;
-      textColor = '#92400E';
-      break;
-    default:
-      icon = isAssigned ? <IconStar size={13} color={C.blue} /> : <IconPlus size={14} color={C.green} />;
-      bgColor = C.greenBg;
-      borderColor = isAssigned ? C.blue : C.green;
-      textColor = isAssigned ? C.blue : C.green;
-      if (isAssigned) ring = true;
-  }
-
-  return (
-    <div
-      title={isAvailable ? `Vị trí ${slot.code} – trống` : `Vị trí ${slot.code}: ${status}`}
-      style={{
-        width: 64, height: 56,
-        background: bgColor,
-        border: ring ? `2px solid ${C.navy}` : `1.5px solid ${borderColor}`,
-        borderRadius: 10,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: 2,
-        cursor: 'default',
-        boxShadow: isAssigned ? `0 0 0 3px ${C.navy}40` : 'none',
-        padding: 0,
-        position: 'relative',
-        boxSizing: 'border-box',
-        transition: 'all 0.15s ease',
-      }}
-    >
-      <span style={{ color: textColor, fontSize: '0.75rem', fontWeight: 700 }}>{slot.code}</span>
-      {icon}
-      {isAssigned && (
-        <span style={{
-          position: 'absolute', top: -7, right: -4,
-          background: C.blue, color: C.white,
-          fontSize: '0.58rem', fontWeight: 700,
-          padding: '1px 5px', borderRadius: 6, lineHeight: 1.4,
-        }}>
-          Đã xếp
-        </span>
-      )}
-    </div>
-  );
+function IconCheck({ size = 14, color = '#FFFFFF' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>;
 }
 
 // ── Main Page ──────────────────────────────────────────────
-interface FloorInfo {
-  floorCode: string;
-  name: string;
-}
-
 export function BookingPage() {
-  const [floor, setFloor] = useState<FloorInfo | null>(null);
-  const [slots, setSlots] = useState<ParkingSlot[]>([]);
-  const [assignedSlot, setAssignedSlot] = useState<ParkingSlot | null>(null);
-  const [bookingId, setBookingId] = useState('');
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState<any | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const loadSlots = useCallback(async () => {
+  // Fetch cars on mount
+  const loadCars = useCallback(async () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await api.get<{ success: boolean; data: any[] }>('/floors');
-      const casualCar = res.data.data.find(
-        (f: any) => f.vehicleType === 'CAR' && f.customerType === 'CASUAL'
-      );
-      if (!casualCar) {
-        setErrorMsg('Không tìm thấy tầng đỗ xe ô tô cho khách vãng lai.');
-        setLoading(false);
-        return;
+      const data = await vehicleService.getMyVehicles();
+      // Only CAR vehicles can use booking
+      const cars = (data ?? []).filter((v) => v.type === 'CAR');
+      setVehicles(cars);
+      if (cars.length > 0) {
+        setSelectedVehicleId(cars[0].id);
       }
-      setFloor({ floorCode: casualCar.floorCode, name: casualCar.name });
-      const slotRes = await api.get<{ success: boolean; data: any }>(
-        `/floors/${casualCar.floorCode}/slots`
-      );
-      setSlots(slotRes.data.data.slots ?? []);
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.message || 'Không thể tải sơ đồ bãi đỗ.');
+    } catch {
+      setErrorMsg('Không thể tải danh sách xe. Vui lòng tải lại trang.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadSlots();
-  }, [loadSlots]);
+    loadCars();
+  }, [loadCars]);
 
-  const handleModalSuccess = (slot: ParkingSlot, bid: string) => {
-    setAssignedSlot(slot);
-    setBookingId(bid);
-    setModalOpen(false);
-    loadSlots();
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? null;
+
+  const handleBooking = async () => {
+    if (!selectedVehicle) return;
+    setSubmitting(true);
+    setErrorMsg('');
+    try {
+      const arrival = new Date();
+      arrival.setMinutes(arrival.getMinutes() + 30); // 30 mins hold window
+      
+      const res = await api.post<{ success: boolean; data: any }>('/bookings', {
+        plateNumber: selectedVehicle.plateNumber,
+        expectedArrival: arrival.toISOString(),
+      });
+      
+      setBookingSuccess({
+        booking: res.data.data,
+        vehicle: selectedVehicle,
+      });
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.message || 'Đặt chỗ thất bại. Vui lòng thử lại.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReset = () => {
-    setAssignedSlot(null);
-    setBookingId('');
+    setBookingSuccess(null);
+    setSelectedVehicleId(vehicles[0]?.id ?? null);
+    setErrorMsg('');
   };
 
-  const half = Math.ceil(slots.length / 2);
-  const rowASlots = slots.slice(0, half);
-  const rowBSlots = slots.slice(half);
-  const assignedSlotId = assignedSlot?.id ?? null;
-  const floorLabel = floor ? `${floor.name} – Ô tô (Khách vãng lai)` : 'Đang tải…';
+  // ── Success screen ───────────────────────────────────────
+  if (bookingSuccess) {
+    const { booking, vehicle } = bookingSuccess;
+    const floorName = booking.slot?.floor?.name || '';
+    const slotCode = booking.slot?.code || '';
 
-  return (
-    <div style={{
-      minHeight: '100%',
-      background: C.bg,
-      fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-      padding: '1.5rem',
-      boxSizing: 'border-box',
-    }}>
-      <BookingModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSuccess={handleModalSuccess}
-      />
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: assignedSlot ? '1fr 400px' : '3fr 2fr',
-        gap: '1.25rem',
-        alignItems: 'start',
-        transition: 'grid-template-columns 0.3s ease',
-      }}>
-
-        {/* LEFT ─ Slot Map */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          {/* Info banner */}
+    return (
+      <div className={styles.container} style={{ minHeight: 'auto', paddingBottom: '5rem' }}>
+        <div style={{
+          maxWidth: 600,
+          margin: '2rem auto',
+          background: '#FFFFFF',
+          borderRadius: 20,
+          boxShadow: '0 10px 25px -5px rgba(15,23,42,0.08), 0 8px 16px -6px rgba(15,23,42,0.04)',
+          border: '1px solid #E2E8F0',
+          overflow: 'hidden',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          {/* Success Header */}
           <div style={{
-            background: C.white, borderRadius: 16, boxShadow: C.shadow, padding: '1.1rem 1.25rem',
-            display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+            background: 'linear-gradient(135deg, #1E3A5F 0%, #2C4F78 100%)',
+            padding: '3rem 2rem',
+            textAlign: 'center',
+            color: '#FFFFFF',
           }}>
             <div style={{
-              background: '#DBEAFE', border: '1px solid #BFDBFE',
-              borderRadius: 10, padding: '0.55rem 0.85rem',
-              display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1,
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 1.5rem',
+              border: '2.5px solid rgba(255, 255, 255, 0.4)',
             }}>
-              <IconInfo size={14} color={C.navy} />
-              <p style={{ margin: 0, fontSize: '0.8rem', color: C.navy, lineHeight: 1.4 }}>
-                Đặt chỗ trước chỉ dành cho <strong>Ô TÔ</strong>. Xe máy đỗ ở ô trống bất kỳ, không cần đặt chỗ.
-              </p>
+              <IconCheck size={32} color="#FFFFFF" />
             </div>
-
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {([
-                { bg: C.greenBg, border: C.green, label: 'Trống', dotColor: C.green },
-                { bg: C.amberBg, border: C.amberBorder, label: 'Đặt trước', dotColor: C.amberBorder },
-                { bg: C.gray600, border: C.gray600, label: 'Sử dụng', dotColor: C.gray600 },
-                { bg: '#DBEAFE', border: C.blue, label: 'Đã xếp', dotColor: C.blue },
-              ] as const).map(({ bg, border, label, dotColor }) => (
-                <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.76rem', color: dotColor }}>
-                  <span style={{ width: 11, height: 11, borderRadius: 3, background: bg, border: `1.5px solid ${border}`, display: 'inline-block', flexShrink: 0 }} />
-                  {label}
-                </span>
-              ))}
-            </div>
+            <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 900, letterSpacing: '-0.02em' }}>
+              Đặt chỗ thành công
+            </h2>
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.95rem', color: 'rgba(255,255,255,0.8)' }}>
+              Hệ thống đã giữ một suất đỗ cho phương tiện của bạn
+            </p>
           </div>
 
-          {/* Slot map */}
-          <div style={{ background: C.white, borderRadius: 16, boxShadow: C.shadow, padding: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.gray800 }}>
-                  Sơ đồ {floorLabel}
-                </h2>
-                <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: C.gray400 }}>
-                  {loading ? 'Đang tải...' : `${slots.filter(s => s.status === 'AVAILABLE').length}/${slots.length} chỗ trống`}
+          {/* Success Content */}
+          <div style={{ padding: '2.5rem' }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem',
+              background: '#F8FAFC',
+              borderRadius: 16,
+              border: '1px solid #E2E8F0',
+              padding: '1.5rem 1.75rem',
+              marginBottom: '2rem',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>PHƯƠNG TIỆN</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
+                  {vehicle.plateNumber} ({vehicle.brand} {vehicle.model})
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>PHÍ ĐẶT CỌC</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#10B981' }}>15.000đ (Đã thanh toán)</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>THỜI GIAN GIỮ CHỖ</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#D97706' }}>30 phút</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>TRẠNG THÁI</span>
+                <span style={{
+                  background: '#ECFDF5', color: '#10B981', fontSize: '0.75rem', fontWeight: 800,
+                  padding: '4px 10px', borderRadius: 20, letterSpacing: '0.05em'
+                }}>ĐANG HIỆU LỰC</span>
+              </div>
+              
+              <div style={{ height: 1, background: '#E2E8F0', margin: '0.5rem 0' }} />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'center', padding: '0.5rem 0' }}>
+                <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 600 }}>
+                  {floorName && slotCode ? (
+                    <>
+                      Vị trí được bố trí: <strong style={{ color: '#1E3A5F', fontWeight: 800 }}>Tầng {floorName} · Ô {slotCode}</strong>
+                    </>
+                  ) : (
+                    'Vị trí cụ thể sẽ được bố trí khi bạn đến bãi.'
+                  )}
+                </span>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5, fontWeight: 500 }}>
+                  Vui lòng đưa xe đến cổng soát vé trong vòng 30 phút để nhận diện biển số và đỗ xe.
                 </p>
               </div>
             </div>
 
-            {errorMsg && !assignedSlot && (
-              <div style={{ background: C.redBg, border: '1.5px solid #FECACA', borderRadius: 10, padding: '0.7rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: C.red }}>{errorMsg}</p>
+            <button
+              onClick={handleReset}
+              className={styles.confirmBtn}
+              style={{ height: '52px' }}
+            >
+              Quay lại trang đặt chỗ
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Main Booking Screen ──────────────────────────────────
+  return (
+    <div className={styles.container}>
+      {/* 1. Page Title Section */}
+      <div className={styles.headerSection}>
+        <h2 className={styles.pageTitle}>Đặt chỗ trước</h2>
+        <p className={styles.pageSubtitle}>
+          Đặt chỗ trước giúp bạn tiết kiệm thời gian và đảm bảo luôn có chỗ khi đến bãi.
+        </p>
+      </div>
+
+      {/* 2. Info Banner */}
+      <div className={styles.infoBanner}>
+        <div className={styles.bannerLeft}>
+          <div className={styles.infoIconCircle}>
+            <IconInfo size={26} color="#2563EB" />
+          </div>
+          <div className={styles.bannerText}>
+            <h4 className={styles.bannerTitle}>Đảm bảo có chỗ khi bạn đến bãi</h4>
+            <p className={styles.bannerDesc}>
+              Bạn chỉ cần chọn xe và xác nhận đặt chỗ. Hệ thống sẽ giữ một suất đỗ và bố trí vị trí trống phù hợp khi bạn đến bãi.
+            </p>
+          </div>
+        </div>
+        <div className={styles.bannerDecor}>
+          <img src="/carr-clean.png" alt="" className={styles.bannerCarImage} />
+        </div>
+      </div>
+
+      {/* 3. Two Column Layout */}
+      <div className={styles.layoutGrid}>
+        
+        {/* LEFT COLUMN: Booking Form Options (70%) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
+          
+          {/* Section 1: Choose Car */}
+          <div className={styles.card}>
+            <h3 className={styles.cardTitle}>
+              1. Chọn xe ô tô
+            </h3>
+            <p className={styles.cardSubtitle}>
+              Chỉ áp dụng cho xe ô tô
+            </p>
+
+            {loading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#64748B', fontSize: '0.9rem', fontWeight: 600 }}>
+                Đang tải danh sách xe...
+              </div>
+            ) : vehicles.length === 0 ? (
+              <div style={{
+                background: '#F8FAFC',
+                border: '2px dashed #CBD5E1',
+                borderRadius: 16,
+                padding: '2.5rem 1.5rem',
+                textAlign: 'center',
+              }}>
+                <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.75rem' }}>🚗</span>
+                <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1E3A5F' }}>
+                  Bạn cần thêm xe ô tô để sử dụng tính năng đặt chỗ trước.
+                </p>
+              </div>
+            ) : (
+              <div className={styles.vehicleGrid}>
+                {vehicles.map((v) => {
+                  const isSelected = v.id === selectedVehicleId;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => { setSelectedVehicleId(v.id); setErrorMsg(''); }}
+                      className={`${styles.vehicleCard} ${isSelected ? styles.vehicleCardSelected : ''}`}
+                    >
+                      {/* Radio indicator */}
+                      <div className={styles.radioIndicator}>
+                        {isSelected && <div className={styles.radioDot} />}
+                      </div>
+
+                      {/* Real Car Image */}
+                      <img src="/Car.png" alt="" className={styles.vehicleCarImage} />
+
+                      {/* Vehicle Details */}
+                      <div className={styles.vehicleInfo}>
+                        <span className={styles.plateNumber}>
+                          {v.plateNumber}
+                        </span>
+                        <span className={styles.vehicleDesc}>
+                          {v.brand || 'Ô tô'} {v.model || ''}
+                        </span>
+                        {isSelected && (
+                          <span className={styles.activeBadge}>Đang chọn</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
+          </div>
 
-            {/* Slot grid */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <div style={{ width: 28, height: 28, background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: C.navy }}>A</span>
+          {/* Section 2: Booking details */}
+          <div className={styles.card}>
+            <h3 className={styles.cardTitle}>
+              2. Thông tin đặt chỗ
+            </h3>
+            <p className={styles.cardSubtitle}>
+              Thông tin chi tiết về lượt đặt đỗ xe của phương tiện.
+            </p>
+
+            {/* 4 Item horizontal summary row */}
+            <div className={styles.infoSummaryGrid}>
+              
+              {/* Item 1 */}
+              <div className={styles.summaryCol}>
+                <div className={styles.summaryColCircle} style={{ background: '#EFF6FF', color: '#2563EB' }}>
+                  <IconTicket size={22} color="#2563EB" />
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {rowASlots.map((slot) => <SlotCard key={slot.id} slot={slot} isAssigned={assignedSlotId === slot.id} />)}
+                <div className={styles.summaryColText}>
+                  <p className={styles.summaryColLabel}>Loại đặt chỗ</p>
+                  <p className={styles.summaryColValue}>Ô tô khách vãng lai</p>
                 </div>
               </div>
-              {rowBSlots.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <div style={{ width: 28, height: 28, background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: C.navy }}>B</span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {rowBSlots.map((slot) => <SlotCard key={slot.id} slot={slot} isAssigned={assignedSlotId === slot.id} />)}
-                  </div>
+
+              {/* Item 2 */}
+              <div className={styles.summaryCol}>
+                <div className={styles.summaryColCircle} style={{ background: '#ECFDF5', color: '#10B981' }}>
+                  <IconDollar size={22} color="#10B981" />
                 </div>
-              )}
+                <div className={styles.summaryColText}>
+                  <p className={styles.summaryColLabel}>Phí đặt cọc</p>
+                  <p className={`${styles.summaryColValue} ${styles.summaryColValueGreen}`}>15.000đ</p>
+                </div>
+              </div>
+
+              {/* Item 3 */}
+              <div className={styles.summaryCol}>
+                <div className={styles.summaryColCircle} style={{ background: '#FFFBEB', color: '#D97706' }}>
+                  <IconClock size={22} color="#D97706" />
+                </div>
+                <div className={styles.summaryColText}>
+                  <p className={styles.summaryColLabel}>Thời gian giữ chỗ</p>
+                  <p className={styles.summaryColValue} style={{ color: '#D97706', fontWeight: 800 }}>30 phút</p>
+                </div>
+              </div>
+
+              {/* Item 4 */}
+              <div className={styles.summaryCol}>
+                <div className={styles.summaryColCircle} style={{ background: '#F5F3FF', color: '#8B5CF6' }}>
+                  <IconLayers size={22} color="#8B5CF6" />
+                </div>
+                <div className={styles.summaryColText}>
+                  <p className={styles.summaryColLabel}>Bố trí khi khách đến bãi</p>
+                  <p className={`${styles.summaryColValue} ${styles.summaryColValueLong}`}>
+                    Vị trí cụ thể sẽ được sắp xếp theo tình trạng chỗ trống thực tế.
+                  </p>
+                </div>
+              </div>
             </div>
+
+            {/* arrangement disclaimer note */}
+            <div className={styles.disclaimerText}>
+              Vị trí cụ thể sẽ được sắp xếp theo tình trạng chỗ trống thực tế tại thời điểm xe của bạn đến bãi.
+            </div>
+          </div>
+
+          {/* Warning box */}
+          <div className={styles.warningBlock}>
+            <h4 className={styles.warningHeader}>
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⚠️</span> Lưu ý quan trọng
+            </h4>
+            <ul className={styles.warningList}>
+              <li>Vui lòng có mặt tại bãi trong thời gian giữ chỗ.</li>
+              <li>Quá thời gian giữ chỗ, suất đỗ sẽ được hủy tự động.</li>
+              <li>Phí đặt cọc có thể không được hoàn lại nếu không đến đúng thời gian.</li>
+            </ul>
+          </div>
+
+          {/* API Errors */}
+          {errorMsg && (
+            <div className={styles.errorBlock}>{errorMsg}</div>
+          )}
+
+          {/* Confirm Button */}
+          <button
+            onClick={handleBooking}
+            disabled={submitting || !selectedVehicleId}
+            className={styles.confirmBtn}
+          >
+            {submitting ? (
+              'Đang xử lý...'
+            ) : (
+              <>
+                <IconCheck size={18} color="#FFFFFF" />
+                Xác nhận đặt chỗ
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* RIGHT COLUMN: Sidebar Summary (30%) */}
+        <div className={styles.sidebarWrapper}>
+          
+          {/* Card 1: Booking Summary */}
+          <div className={styles.sidebarCard}>
+            <div className={styles.sidebarTitleRow}>
+              <div className={styles.titleIconCircle}>
+                <IconTicket size={18} color="#2563EB" />
+              </div>
+              <h3 className={styles.sidebarTitle}>Tóm tắt đặt chỗ</h3>
+            </div>
+            
+            <div className={styles.summaryRows}>
+              <div className={styles.summaryRow}>
+                <span className={styles.rowLabel}>Xe đã chọn</span>
+                {selectedVehicle ? (
+                  <div className={styles.summaryVehicleInfo}>
+                    <img src="/Car.png" alt="" className={styles.summaryVehicleImage} />
+                    <div>
+                      <div className={styles.rowCarPlate}>{selectedVehicle.plateNumber}</div>
+                      <div className={styles.rowCarName}>{selectedVehicle.brand || 'Ô tô'} {selectedVehicle.model || ''}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <span className={styles.rowValue}>—</span>
+                )}
+              </div>
+              
+              <div className={styles.rowDivider} />
+
+              <div className={styles.summaryRow}>
+                <span className={styles.rowLabel}>Loại đặt chỗ</span>
+                <span className={styles.rowValue}>Ô tô khách vãng lai</span>
+              </div>
+              
+              <div className={styles.rowDivider} />
+
+              <div className={styles.summaryRow}>
+                <span className={styles.rowLabel}>Phí đặt cọc</span>
+                <span className={styles.rowValueGreen}>15.000đ</span>
+              </div>
+              
+              <div className={styles.rowDivider} />
+
+              <div className={styles.summaryRow}>
+                <span className={styles.rowLabel}>Thời gian giữ chỗ</span>
+                <span className={styles.rowValue} style={{ color: '#D97706' }}>30 phút</span>
+              </div>
+              
+              <div className={styles.rowDivider} />
+              
+              <div className={styles.blueNote}>
+                Vị trí đỗ cụ thể sẽ được bố trí khi bạn đến bãi.
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Regulations */}
+          <div className={styles.sidebarCard}>
+            <div className={styles.sidebarTitleRow}>
+              <div className={styles.titleIconCircle} style={{ background: '#ECFDF5' }}>
+                <IconShield size={18} color="#10B981" />
+              </div>
+              <h3 className={styles.sidebarTitle}>Quy định sử dụng</h3>
+            </div>
+
+            <ul className={styles.rulesList}>
+              {[
+                'Chỉ áp dụng cho xe ô tô.',
+                'Một lượt đặt chỗ chỉ áp dụng cho 1 xe.',
+                'Không được chuyển nhượng lượt đặt chỗ.',
+                'Hệ thống có quyền hủy chỗ nếu phát hiện hành vi gian lận.'
+              ].map((rule, index) => (
+                <li key={index} className={styles.ruleItem}>
+                  <span className={styles.ruleCheck}>
+                    <IconCheck size={10} color="#10B981" />
+                  </span>
+                  <span className={styles.ruleIcon}>{rule}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
-        {/* RIGHT */}
-        {assignedSlot ? (
-          <div style={{ position: 'sticky', top: '1.5rem' }}>
-            <BookingSuccess
-              bookingId={bookingId}
-              slotCode={assignedSlot.code}
-              onClose={handleReset}
-            />
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: '1.5rem' }}>
-
-            {/* CTA card */}
-            <div style={{ background: C.white, borderRadius: 16, boxShadow: C.shadow, padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: 16,
-                background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyLight} 100%)`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 1rem', boxShadow: '0 6px 20px rgba(30,58,95,0.25)',
-              }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="3"/>
-                  <path d="M3 9h18M9 21V9"/>
-                </svg>
-              </div>
-              <h2 style={{ margin: '0 0 0.4rem', fontSize: '1.1rem', fontWeight: 800, color: C.gray800 }}>
-                Đặt chỗ ngay
-              </h2>
-              <p style={{ margin: '0 0 1.25rem', fontSize: '0.82rem', color: C.gray600, lineHeight: 1.5 }}>
-                Đặt trước vị trí đỗ xe ô tô.<br />
-                Hệ thống tự chọn vị trí tối ưu cho bạn.
-              </p>
-              <button
-                onClick={() => setModalOpen(true)}
-                style={{
-                  width: '100%', padding: '0.85rem',
-                  background: C.navy, color: C.white,
-                  border: 'none', borderRadius: 12,
-                  fontSize: '0.95rem', fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(30,58,95,0.25)',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Bắt đầu đặt chỗ
-              </button>
-            </div>
-
-            {/* Deposit summary */}
-            <div style={{ background: C.white, borderRadius: 16, boxShadow: C.shadow, padding: '1.25rem' }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: '0.875rem', fontWeight: 700, color: C.gray800 }}>
-                Thông tin đặt cọc
-              </h3>
-              {([
-                { label: 'Phí đặt cọc', value: '15.000đ', color: C.green, icon: 'đ' },
-                { label: 'Thời gian giữ chỗ', value: '30 phút', color: C.gray800, icon: '⏱' },
-              ] as const).map(({ label, value, color, icon }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{ width: 32, height: 32, background: C.gray50, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: C.navy }}>{icon}</span>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: C.gray400 }}>{label}</p>
-                    <p style={{ margin: '0.1rem 0 0', fontSize: '0.9rem', fontWeight: 700, color }}>{value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Warning */}
-            <div style={{ background: C.redBg, border: '1px solid #FECACA', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.9rem', flexShrink: 0, lineHeight: 1.5 }}>⚠</span>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#991B1B', lineHeight: 1.5 }}>
-                Đặt chỗ sẽ bị hủy và mất cọc nếu xe không vào bãi trong 30 phút.
-              </p>
-            </div>
-          </div>
-        )}
       </div>
+
     </div>
   );
 }

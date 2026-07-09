@@ -69,6 +69,7 @@ export function LoginPage() {
       subtitle="Hệ thống quản lý bãi đỗ xe thông minh"
       footerText="Chưa có tài khoản?"
       footerLink={{ text: 'Đăng ký ngay', to: '/register' }}
+      isLoginPage={true}
     >
       <h2 className={styles.heading}>Đăng nhập</h2>
       <p className={styles.description}>Quản lý chỗ đỗ xe của bạn một cách dễ dàng.</p>

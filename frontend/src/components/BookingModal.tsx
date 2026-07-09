@@ -47,9 +47,10 @@ interface BookingModalProps {
   onClose: () => void;
   onSuccess: (slot: ParkingSlot, bookingId: string) => void;
   onRedirectToVehicles?: () => void;
+  initialPlate?: string;
 }
 
-export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }: BookingModalProps) {
+export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles, initialPlate }: BookingModalProps) {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [plateNumber, setPlateNumber] = useState('');
@@ -61,11 +62,15 @@ export function BookingModal({ open, onClose, onSuccess, onRedirectToVehicles }:
   useEffect(() => {
     if (open && user) {
       getMyVehicles().then(setVehicles);
+      if (initialPlate) {
+        setPlateNumber(initialPlate);
+      }
     } else {
       setVehicles([]);
+      setPlateNumber('');
     }
     setUnregisteredError(false);
-  }, [open, user]);
+  }, [open, user, initialPlate]);
 
   const handleSubmit = async () => {
     const plate = plateNumber.trim();

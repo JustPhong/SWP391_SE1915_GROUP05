@@ -17,7 +17,7 @@ export const vehicleService = {
     return response.data.data;
   },
 
-  update: async (id: string, data: Partial<{ plateNumber: string; type: string; brand?: string; model?: string; color?: string; year?: number }>) => {
+  update: async (id: string, data: Partial<{ plateNumber: string; type: string; brand?: string; model?: string; color?: string; year?: number; seats?: number }>) => {
     const response = await api.patch<{ success: boolean; data: Vehicle }>(`/vehicles/${id}`, data);
     return response.data.data;
   },
