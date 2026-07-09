@@ -1,183 +1,183 @@
-import prisma from '../config/db';
-import { AppError } from '../utils/helpers';
-import { DEFAULT_FEE_CONFIG, FeeConfig, BlockDef } from '../utils/fee';
-import type { Prisma } from '@prisma/client';
+  import prisma from '../config/db';
+  import { AppError } from '../utils/helpers';
+  import { DEFAULT_FEE_CONFIG, FeeConfig, BlockDef } from '../utils/fee';
+  import type { Prisma } from '@prisma/client';
 
-const CACHE_TTL_MS = 60_000;
+  const CACHE_TTL_MS = 60_000;
 
-interface CacheEntry {
-  config: FeeConfig;
-  expiresAt: number;
-}
-
-let configCache: CacheEntry | null = null;
-
-function buildConfigFromRows(
-  rows: Array<{
-    vehicleType: string;
-    ruleType: string;
-    label: string;
-    startHour: number;
-    endHour: number;
-    blockMinutes: number | null;
-    amount: Prisma.Decimal | number;
-  }>,
-): FeeConfig {
-  const motorbikeBlocks: BlockDef[] = [];
-  const carDayBlocks: BlockDef[] = [];
-  let carNightFlat = DEFAULT_FEE_CONFIG.carNightFlat;
-
-  for (const r of rows) {
-    const blockDef: BlockDef = {
-      label:        r.label,
-      startHour:    r.startHour,
-      endHour:      r.endHour,
-      rate:         Number(r.amount),
-      lotMinutes:   r.blockMinutes ?? 0,
-    };
-
-    if (r.vehicleType === 'MOTORBIKE' && r.ruleType === 'TIME_BLOCK') {
-      motorbikeBlocks.push(blockDef);
-    } else if (r.vehicleType === 'CAR' && r.ruleType === 'TIME_BLOCK') {
-      carDayBlocks.push(blockDef);
-    } else if (r.vehicleType === 'CAR' && r.ruleType === 'FLAT_OVERNIGHT') {
-      carNightFlat = Number(r.amount);
-    }
+  interface CacheEntry {
+    config: FeeConfig;
+    expiresAt: number;
   }
 
-  // Sort by startHour so block evaluation order is stable
-  motorbikeBlocks.sort((a, b) => a.startHour - b.startHour);
-  carDayBlocks.sort((a, b) => a.startHour - b.startHour);
+  let configCache: CacheEntry | null = null;
 
-  return { motorbikeBlocks, carDayBlocks, carNightFlat };
-}
+  function buildConfigFromRows(
+    rows: Array<{
+      vehicleType: string;
+      ruleType: string;
+      label: string;
+      startHour: number;
+      endHour: number;
+      blockMinutes: number | null;
+      amount: Prisma.Decimal | number;
+    }>,
+  ): FeeConfig {
+    const motorbikeBlocks: BlockDef[] = [];
+    const carDayBlocks: BlockDef[] = [];
+    let carNightFlat = DEFAULT_FEE_CONFIG.carNightFlat;
 
-function invalidateCache() {
-  configCache = null;
-}
+    for (const r of rows) {
+      const blockDef: BlockDef = {
+        label:        r.label,
+        startHour:    r.startHour,
+        endHour:      r.endHour,
+        rate:         Number(r.amount),
+        lotMinutes:   r.blockMinutes ?? 0,
+      };
 
-function isCacheValid(): boolean {
-  return configCache !== null && Date.now() < configCache.expiresAt;
-}
-
-export const feeRuleService = {
-  /**
-   * Returns the mapped FeeConfig, using a 60-second in-memory cache.
-   * Falls back to DEFAULT_FEE_CONFIG if the table is empty or query fails.
-   */
-  async getFeeConfig(): Promise<FeeConfig> {
-    if (isCacheValid()) {
-      return configCache!.config;
+      if (r.vehicleType === 'MOTORBIKE' && r.ruleType === 'TIME_BLOCK') {
+        motorbikeBlocks.push(blockDef);
+      } else if (r.vehicleType === 'CAR' && r.ruleType === 'TIME_BLOCK') {
+        carDayBlocks.push(blockDef);
+      } else if (r.vehicleType === 'CAR' && r.ruleType === 'FLAT_OVERNIGHT') {
+        carNightFlat = Number(r.amount);
+      }
     }
 
-    try {
-      const rows = await prisma.feeRule.findMany({
-        where: { isActive: true },
-        orderBy: [{ vehicleType: 'asc' }, { startHour: 'asc' }],
-      });
+    // Sort by startHour so block evaluation order is stable
+    motorbikeBlocks.sort((a, b) => a.startHour - b.startHour);
+    carDayBlocks.sort((a, b) => a.startHour - b.startHour);
 
-      if (rows.length === 0) {
-        // No rules seeded yet — use defaults
-        configCache = { config: DEFAULT_FEE_CONFIG, expiresAt: Date.now() + CACHE_TTL_MS };
-        return DEFAULT_FEE_CONFIG;
+    return { motorbikeBlocks, carDayBlocks, carNightFlat };
+  }
+
+  function invalidateCache() {
+    configCache = null;
+  }
+
+  function isCacheValid(): boolean {
+    return configCache !== null && Date.now() < configCache.expiresAt;
+  }
+
+  export const feeRuleService = {
+    /**
+     * Returns the mapped FeeConfig, using a 60-second in-memory cache.
+     * Falls back to DEFAULT_FEE_CONFIG if the table is empty or query fails.
+     */
+    async getFeeConfig(): Promise<FeeConfig> {
+      if (isCacheValid()) {
+        return configCache!.config;
       }
 
-      const config = buildConfigFromRows(rows);
-      configCache = { config, expiresAt: Date.now() + CACHE_TTL_MS };
-      return config;
-    } catch {
-      return DEFAULT_FEE_CONFIG;
-    }
-  },
+      try {
+        const rows = await prisma.feeRule.findMany({
+          where: { isActive: true },
+          orderBy: [{ vehicleType: 'asc' }, { startHour: 'asc' }],
+        });
 
-  /**
-   * Invalidate the cache — call after any write operation.
-   */
-  invalidateCache,
+        if (rows.length === 0) {
+          // No rules seeded yet — use defaults
+          configCache = { config: DEFAULT_FEE_CONFIG, expiresAt: Date.now() + CACHE_TTL_MS };
+          return DEFAULT_FEE_CONFIG;
+        }
 
-  /**
-   * List all fee rules for the admin UI.
-   */
-  async listRules() {
-    return prisma.feeRule.findMany({
-      orderBy: [{ vehicleType: 'asc' }, { startHour: 'asc' }],
-    });
-  },
+        const config = buildConfigFromRows(rows);
+        configCache = { config, expiresAt: Date.now() + CACHE_TTL_MS };
+        return config;
+      } catch {
+        return DEFAULT_FEE_CONFIG;
+      }
+    },
 
-  /**
-   * Update ONLY the amount of a rule. Invalidates the cache.
-   */
-  async updateRuleAmount(id: number, amount: number) {
-    const existing = await prisma.feeRule.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+    /**
+     * Invalidate the cache — call after any write operation.
+     */
+    invalidateCache,
 
-    const updated = await prisma.feeRule.update({
-      where: { id },
-      data: { amount },
-    });
+    /**
+     * List all fee rules for the admin UI.
+     */
+    async listRules() {
+      return prisma.feeRule.findMany({
+        orderBy: [{ vehicleType: 'asc' }, { startHour: 'asc' }],
+      });
+    },
 
-    invalidateCache();
-    return updated;
-  },
+    /**
+     * Update ONLY the amount of a rule. Invalidates the cache.
+     */
+    async updateRuleAmount(id: number, amount: number) {
+      const existing = await prisma.feeRule.findUnique({ where: { id } });
+      if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
 
-  /**
-   * Create a new fee rule.
-   */
-  async createRule(input: {
-    vehicleType: string;
-    ruleType: string;
-    label: string;
-    startHour: number;
-    endHour: number;
-    blockMinutes?: number;
-    amount: number;
-  }) {
-    const rule = await prisma.feeRule.create({ data: input });
-    invalidateCache();
-    return rule;
-  },
+      const updated = await prisma.feeRule.update({
+        where: { id },
+        data: { amount },
+      });
 
-  /**
-   * Full update a rule (all fields).
-   */
-  async updateRule(id: number, input: {
-    vehicleType?: string;
-    ruleType?: string;
-    label?: string;
-    startHour?: number;
-    endHour?: number;
-    blockMinutes?: number;
-    amount?: number;
-  }) {
-    const existing = await prisma.feeRule.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+      invalidateCache();
+      return updated;
+    },
 
-    const updated = await prisma.feeRule.update({ where: { id }, data: input });
-    invalidateCache();
-    return updated;
-  },
+    /**
+     * Create a new fee rule.
+     */
+    async createRule(input: {
+      vehicleType: string;
+      ruleType: string;
+      label: string;
+      startHour: number;
+      endHour: number;
+      blockMinutes?: number;
+      amount: number;
+    }) {
+      const rule = await prisma.feeRule.create({ data: input });
+      invalidateCache();
+      return rule;
+    },
 
-  /**
-   * Toggle isActive.
-   */
-  async toggleActive(id: number, isActive: boolean) {
-    const existing = await prisma.feeRule.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+    /**
+     * Full update a rule (all fields).
+     */
+    async updateRule(id: number, input: {
+      vehicleType?: string;
+      ruleType?: string;
+      label?: string;
+      startHour?: number;
+      endHour?: number;
+      blockMinutes?: number;
+      amount?: number;
+    }) {
+      const existing = await prisma.feeRule.findUnique({ where: { id } });
+      if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
 
-    const updated = await prisma.feeRule.update({ where: { id }, data: { isActive } });
-    invalidateCache();
-    return updated;
-  },
+      const updated = await prisma.feeRule.update({ where: { id }, data: input });
+      invalidateCache();
+      return updated;
+    },
 
-  /**
-   * Delete a rule.
-   */
-  async deleteRule(id: number) {
-    const existing = await prisma.feeRule.findUnique({ where: { id } });
-    if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+    /**
+     * Toggle isActive.
+     */
+    async toggleActive(id: number, isActive: boolean) {
+      const existing = await prisma.feeRule.findUnique({ where: { id } });
+      if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
 
-    await prisma.feeRule.delete({ where: { id } });
-    invalidateCache();
-  },
-};
-   
+      const updated = await prisma.feeRule.update({ where: { id }, data: { isActive } });
+      invalidateCache();
+      return updated;
+    },
+
+    /**
+     * Delete a rule.
+     */
+    async deleteRule(id: number) {
+      const existing = await prisma.feeRule.findUnique({ where: { id } });
+      if (!existing) throw new AppError(404, 'Quy tắc phí không tồn tại.');
+
+      await prisma.feeRule.delete({ where: { id } });
+      invalidateCache();
+    },
+  };
+    

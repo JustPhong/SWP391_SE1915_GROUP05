@@ -52,3 +52,36 @@ export async function removeVehicle(id: string): Promise<void> {
     throw new Error(msg);
   }
 }
+
+export interface VehicleLookupResponse {
+  id: string;
+  plateNumber: string;
+  type: 'CAR' | 'MOTORBIKE' | string;
+  brand: string | null;
+  model: string | null;
+  color: string | null;
+
+  owner: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    phoneNumber: string | null;
+  };
+
+  isMonthly: boolean;
+  monthlyPackage: {
+    id: string;
+    status: string;
+    expiryDate: string | null;
+  } | null;
+
+  lastParking: string | null;
+}
+
+export async function lookupVehicleByPlate(plateNumber: string): Promise<VehicleLookupResponse> {
+  const response = await api.get<{ success: boolean; data: VehicleLookupResponse }>(
+    `/vehicles/lookup/${plateNumber}`
+  );
+  return unwrap(response);
+}
+

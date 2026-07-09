@@ -11,6 +11,7 @@ import {
   BellIcon,
   HelpIcon,
   CalendarIcon,
+  HistoryIcon,
 } from './ui/Icons';
 import styles from '../styles/staff.module.css';
 
@@ -28,6 +29,7 @@ const staffNavItems = [
   { label: 'Sơ đồ tầng', path: '/staff/floor-map', icon: LayoutIcon },
   { label: 'Đặt chỗ', path: '/staff/bookings', icon: CalendarIcon },
   { label: 'Báo cáo ca', path: '/staff/reports', icon: BellIcon },
+  { label: 'Lịch sử', path: '/staff/history', icon: HistoryIcon },
 ];
 
 function getInitials(name: string) {

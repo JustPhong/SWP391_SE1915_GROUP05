@@ -18,6 +18,12 @@ export const checkInController = {
     const records = await checkInService.getActiveRecords();
     return res.status(200).json({ success: true, data: records });
   }),
+
+  getHistory: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const plate = req.query.plate as string | undefined;
+    const records = await checkInService.getHistoryRecords(plate);
+    return res.status(200).json({ success: true, data: records });
+  }),
 };
 
 export const checkOutController = {

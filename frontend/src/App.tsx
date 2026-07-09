@@ -29,6 +29,8 @@ import { SupportPage } from './pages/Support';
 import { NotificationsPage } from './pages/Notifications';
 import { BookingPage } from './pages/Booking';
 import { MonthlyPackagePage } from './pages/MonthlyPackage';
+import { StaffHistoryPage } from './pages/StaffHistory';
+import { ForgotPasswordPage } from './pages/ForgotPassword';
 
 function LoadingScreen() {
   return (
@@ -123,6 +125,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <RedirectToRoleHome /> : <LoginPage />} />
       <Route path="/register" element={user ? <RedirectToRoleHome /> : <RegisterPage />} />
+      <Route path="/forgot-password" element={user ? <RedirectToRoleHome /> : <ForgotPasswordPage />} />
       <Route
         path="/"
         element={
@@ -207,6 +210,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/staff/history"
+        element={
+          <StaffRoute>
+            <StaffHistoryPage />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/reports"
         element={
           <StaffRoute>
@@ -261,6 +272,14 @@ function AppRoutes() {
         element={
           <ManagerRoute>
             <TrafficPage />
+          </ManagerRoute>
+        }
+      />
+      <Route
+        path="/manager/history"
+        element={
+          <ManagerRoute>
+            <StaffHistoryPage />
           </ManagerRoute>
         }
       />

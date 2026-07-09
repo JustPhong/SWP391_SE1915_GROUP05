@@ -10,6 +10,7 @@ import {
   LogoutIcon,
   BellIcon,
   HelpIcon,
+  HistoryIcon,
 } from './ui/Icons';
 import styles from '../styles/manager.module.css';
 
@@ -22,6 +23,7 @@ const managerNavItems = [
   { label: 'Doanh thu', path: '/manager/revenue', icon: BarChartIcon },
   { label: 'Tỉ lệ lấp đầy', path: '/manager/occupancy', icon: TrendUpIcon },
   { label: 'Lưu lượng xe', path: '/manager/traffic', icon: CarIcon },
+  { label: 'Lịch sử', path: '/manager/history', icon: HistoryIcon },
 ];
 
 function getInitials(name: string) {

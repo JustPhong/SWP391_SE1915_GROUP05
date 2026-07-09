@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
+import { checkoutLookupPlate } from '../api/checkoutApi';
 import type { CheckInRecord } from '../types';
 
 // ── Types ────────────────────────────────────────────────
@@ -11,7 +12,15 @@ interface ActiveRecord {
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
-  vehicle?: { plateNumber: string; type?: 'CAR' | 'MOTORBIKE' };
+  vehicle?: { 
+    plateNumber: string; 
+    type?: 'CAR' | 'MOTORBIKE';
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    seats?: number | null;
+  };
   slot?: { code: string; floor: number };
 }
 
@@ -112,6 +121,13 @@ function now(): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function formatDateTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function FeeBreakdownCard({
   fee,
   breakdown,
@@ -191,7 +207,15 @@ export function CheckOutPage() {
         checkInTime: r.checkInTime,
         checkOutTime: r.checkOutTime,
         isMonthly: r.isMonthly ?? false,
-        vehicle: r.vehicle ? { plateNumber: r.vehicle.plateNumber, type: r.vehicle.type } : undefined,
+        vehicle: r.vehicle ? { 
+          plateNumber: r.vehicle.plateNumber, 
+          type: r.vehicle.type,
+          brand: r.vehicle.brand,
+          model: r.vehicle.model,
+          color: r.vehicle.color,
+          year: r.vehicle.year,
+          seats: r.vehicle.seats,
+        } : undefined,
         slot: r.slot ? { code: r.slot.code, floor: r.slot.floorId } : undefined,
       }));
       setAllRecords(mapped);
@@ -244,6 +268,7 @@ export function CheckOutPage() {
         setSearching(false);
         return;
       }
+      const matchedVehicle = matched.vehicle as ActiveRecord['vehicle'] | undefined;
       const mapped: ActiveRecord = {
         id: matched.id,
         vehicleId: matched.vehicleId,
@@ -251,10 +276,38 @@ export function CheckOutPage() {
         checkInTime: matched.checkInTime,
         checkOutTime: matched.checkOutTime,
         isMonthly: matched.isMonthly ?? false,
-        vehicle: matched.vehicle ? { plateNumber: matched.vehicle.plateNumber, type: matched.vehicle.type } : undefined,
+        vehicle: matchedVehicle ? { 
+          plateNumber: matchedVehicle.plateNumber, 
+          type: matchedVehicle.type,
+          brand: matchedVehicle.brand,
+          model: matchedVehicle.model,
+          color: matchedVehicle.color,
+          year: matchedVehicle.year,
+          seats: matchedVehicle.seats,
+        } : undefined,
         slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : undefined,
       };
       setFoundRecord(mapped);
+
+      // Fetch full vehicle and owner details via checkout lookup
+      try {
+        const lookup = await checkoutLookupPlate(plate);
+        if (lookup.found) {
+          setFoundRecord((prev) => prev ? {
+            ...prev,
+            vehicle: prev.vehicle ? {
+              ...prev.vehicle,
+              brand: lookup.brand ?? prev.vehicle.brand,
+              model: lookup.model ?? prev.vehicle.model,
+              color: lookup.color ?? prev.vehicle.color,
+              year: lookup.year ?? prev.vehicle.year,
+              seats: lookup.seats ?? prev.vehicle.seats,
+            } : prev.vehicle,
+          } : prev);
+        }
+      } catch {
+        // ignore lookup errors, fee preview is the primary data
+      }
 
       // Fetch fee preview from backend
       const preview = await fetchFeePreview(mapped.id);
@@ -440,7 +493,7 @@ export function CheckOutPage() {
                 {' · '}
                 Vị trí: <strong>{foundRecord.slot!.code}</strong>
                 {' · '}
-                Giờ vào: {new Date(foundRecord.checkInTime).toLocaleString('vi-VN')}
+                Giờ vào: {formatDateTime(foundRecord.checkInTime)}
                 {' · '}
                 {foundRecord.isMonthly ? (
                   <span style={{ color: C.green, fontWeight: 700 }}>Khách tháng</span>
@@ -505,7 +558,7 @@ export function CheckOutPage() {
             {[
               { label: 'Biển số', value: foundRecord.vehicle!.plateNumber },
               { label: 'Vị trí', value: foundRecord.slot!.code },
-              { label: 'Giờ vào', value: new Date(foundRecord.checkInTime).toLocaleString('vi-VN') },
+              { label: 'Giờ vào', value: formatDateTime(foundRecord.checkInTime) },
               { label: 'Giờ ra', value: now() },
             ].map((r) => (
               <div key={r.label} style={{
@@ -520,6 +573,52 @@ export function CheckOutPage() {
               </div>
             ))}
           </div>
+
+          {(foundRecord.vehicle!.brand || foundRecord.vehicle!.model || foundRecord.vehicle!.color || foundRecord.vehicle!.year || foundRecord.vehicle!.seats) && (
+            <div style={{
+              background: C.gray50,
+              border: `1px solid ${C.gray200}`,
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem',
+            }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin xe
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
+                {foundRecord.vehicle!.brand && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.model && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.color && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.year && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.seats != null && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div style={{
             background: C.greenBg,
@@ -585,7 +684,7 @@ export function CheckOutPage() {
             {[
               { label: 'Biển số', value: foundRecord.vehicle!.plateNumber },
               { label: 'Vị trí', value: foundRecord.slot!.code },
-              { label: 'Giờ vào', value: new Date(foundRecord.checkInTime).toLocaleString('vi-VN') },
+              { label: 'Giờ vào', value: formatDateTime(foundRecord.checkInTime) },
               { label: 'Giờ ra', value: now() },
             ].map((r) => (
               <div key={r.label} style={{
@@ -600,6 +699,52 @@ export function CheckOutPage() {
               </div>
             ))}
           </div>
+
+          {(foundRecord.vehicle!.brand || foundRecord.vehicle!.model || foundRecord.vehicle!.color || foundRecord.vehicle!.year || foundRecord.vehicle!.seats) && (
+            <div style={{
+              background: C.gray50,
+              border: `1px solid ${C.gray200}`,
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem',
+            }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin xe
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
+                {foundRecord.vehicle!.brand && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.model && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.color && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.year && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year}</div>
+                  </div>
+                )}
+                {foundRecord.vehicle!.seats != null && (
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Fee breakdown from API */}
           {feePreview && (
@@ -787,7 +932,7 @@ export function CheckOutPage() {
                       {r.slot!.code}
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
-                      {new Date(r.checkInTime).toLocaleString('vi-VN')}
+                      {formatDateTime(r.checkInTime)}
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>
                       <span style={{
@@ -892,7 +1037,7 @@ export function CheckOutPage() {
               {[
                 { label: 'Biển số', value: confirmState.record.vehicle!.plateNumber, mono: true },
                 { label: 'Vị trí', value: confirmState.record.slot!.code },
-                { label: 'Giờ vào', value: new Date(confirmState.record.checkInTime).toLocaleString('vi-VN') },
+                { label: 'Giờ vào', value: formatDateTime(confirmState.record.checkInTime) },
                 { label: 'Loại xe', value: confirmState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
                 { label: 'Khách', value: confirmState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: confirmState.record.isMonthly ? C.green : undefined },
               ].map((r) => (

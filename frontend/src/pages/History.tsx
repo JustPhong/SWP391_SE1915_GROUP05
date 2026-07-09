@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import styles from '../styles/history.module.css';
+import styles from './History.module.css';
 
 interface HistoryEntry {
   id: string;
@@ -34,7 +34,7 @@ const formatDateTime = (value?: string | Date) => {
   try {
     const dateObj = new Date(value);
     if (isNaN(dateObj.getTime())) return '-';
-    
+
     return new Intl.DateTimeFormat('vi-VN', {
       day: '2-digit',
       month: '2-digit',
@@ -74,7 +74,7 @@ const getStatusLabel = (status?: string) => {
 export function HistoryPage() {
   const [history, setHistory] = useState<HistoryEntry[] | undefined>(undefined);
   const [error, setError] = useState('');
-  
+
   // Local filter states
   const [searchPlate, setSearchPlate] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -538,13 +538,12 @@ export function HistoryPage() {
               <div className={styles.modalField}>
                 <span className={styles.modalLabel}>Trạng thái</span>
                 <span className={styles.modalValue}>
-                  <span className={`${styles.statusBadge} ${
-                    getStatusLabel(getStatus(selectedEntry)) === 'Đang gửi'
+                  <span className={`${styles.statusBadge} ${getStatusLabel(getStatus(selectedEntry)) === 'Đang gửi'
                       ? styles.statusActive
                       : getStatusLabel(getStatus(selectedEntry)) === 'Đã hủy'
-                      ? styles.statusCancelled
-                      : styles.statusCompleted
-                  }`}>
+                        ? styles.statusCancelled
+                        : styles.statusCompleted
+                    }`}>
                     {getStatusLabel(getStatus(selectedEntry))}
                   </span>
                 </span>

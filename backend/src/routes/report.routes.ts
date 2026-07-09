@@ -167,6 +167,7 @@ router.get('/vehicles-by-type', authorize('MANAGER', 'ADMIN'), reportController.
  *         description: Forbidden — insufficient role (requires MANAGER or ADMIN)
  */
 router.get('/revenue-detail', authorize('MANAGER', 'ADMIN'), reportController.getRevenueDetail);
+router.get('/revenue-comparison', authorize('MANAGER', 'ADMIN'), reportController.getRevenueComparison);
 
 /**
  * @swagger

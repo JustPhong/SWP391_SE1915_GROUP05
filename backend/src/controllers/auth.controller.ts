@@ -9,6 +9,16 @@ export const authController = {
     return res.status(200).json({ success: true, message: 'Mã xác nhận đã được gửi đến email của bạn' });
   }),
 
+  forgotPasswordSendOtp: asyncHandler(async (req: AuthRequest, res: Response) => {
+    await authService.forgotPasswordSendOtp(req.body);
+    return res.status(200).json({ success: true, message: 'Mã xác nhận đã được gửi đến email của bạn' });
+  }),
+
+  resetPassword: asyncHandler(async (req: AuthRequest, res: Response) => {
+    await authService.resetPassword(req.body);
+    return res.status(200).json({ success: true, message: 'Đặt lại mật khẩu thành công' });
+  }),
+
   register: asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await authService.register(req.body);
     return res.status(201).json({ success: true, data: result });
@@ -27,7 +37,7 @@ export const authController = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-role: user.roleRef!.name,
+        role: user.roleRef!.name,
         avatarUrl: user.avatarUrl ?? null,
       },
     });

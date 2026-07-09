@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { validatePlate } from '../../utils/plate';
+import { validatePlate, normalize } from '../../utils/plate';
 import styles from '../../styles/staff.module.css';
 
 interface QuickActionProps {
@@ -23,7 +23,7 @@ export function QuickAction({ onCheckIn, onCheckOut }: QuickActionProps) {
       setPlateError(result.message!);
       return;
     }
-    const normalized = plate.trim().toUpperCase();
+    const normalized = normalize(plate).replace(/[-.\s]/g, '');
     if (onCheckIn) {
       onCheckIn(normalized);
     } else {
@@ -41,7 +41,7 @@ export function QuickAction({ onCheckIn, onCheckOut }: QuickActionProps) {
       setPlateError(result.message!);
       return;
     }
-    const normalized = plate.trim().toUpperCase();
+    const normalized = normalize(plate).replace(/[-.\s]/g, '');
     if (onCheckOut) {
       onCheckOut(normalized);
     } else {

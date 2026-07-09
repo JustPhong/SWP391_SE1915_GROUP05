@@ -133,9 +133,13 @@ export function LoginPage() {
             />
             Ghi nhớ đăng nhập
           </label>
-          <button type="button" className={styles.linkBtn}>
-            Quên mật khẩu?
-          </button>
+         <button
+             type="button"
+           className={styles.linkBtn}
+            onClick={() => navigate('/forgot-password')}
+>
+               Quên mật khẩu?
+                </button>
         </div>
 
         {/* Submit */}

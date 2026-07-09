@@ -27,6 +27,16 @@ export const authService = {
     return response.data;
   },
 
+  forgotPasswordSendOtp: async (data: { email: string }) => {
+    const response = await api.post<{ success: boolean; message: string }>('/auth/forgot-password/send-otp', data);
+    return response.data;
+  },
+
+  resetPassword: async (data: { email: string; otp: string; newPassword: string }) => {
+    const response = await api.post<{ success: boolean; message: string }>('/auth/forgot-password/reset', data);
+    return response.data;
+  },
+
   me: async (): Promise<User> => {
     const response = await api.get<{ success: boolean; data: User }>('/auth/me');
     return response.data.data;

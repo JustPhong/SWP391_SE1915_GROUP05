@@ -69,13 +69,11 @@ export const driverDashboardService = {
   async getHistory(userId: string) {
     const records = await prisma.checkInRecord.findMany({
       where: {
-        checkOutTime: { not: null },
         vehicle: {
           ownerId: userId,
         },
       },
-      orderBy: { checkOutTime: 'desc' },
-      take: 10,
+      orderBy: { checkInTime: 'desc' },
       include: {
         vehicle: true,
         slot: true,
@@ -87,14 +85,42 @@ export const driverDashboardService = {
       },
     });
 
-    return records.map((record) => ({
+    const bookings = await prisma.booking.findMany({
+      where: {
+        createdById: userId,
+        status: 'ACTIVE',
+      },
+      orderBy: { expectedArrival: 'desc' },
+      include: {
+        vehicle: true,
+        slot: true,
+      },
+    });
+
+    const recordEntries = records.map((record) => ({
       id: record.id,
       plateNumber: record.vehicle.plateNumber,
       slotCode: record.slot.code,
       date: formatISODate(record.checkOutTime ?? record.checkInTime),
       duration: formatDuration(record.checkInTime, record.checkOutTime ?? new Date()),
       amount: Number(record.payments[0]?.amount ?? 0),
-      status: 'Hoàn thành',
+      status: record.checkOutTime ? 'Hoàn thành' : 'Đang đỗ',
     }));
+
+    const bookingEntries = bookings.map((b) => ({
+      id: b.id,
+      plateNumber: b.vehicle.plateNumber,
+      slotCode: b.slot.code,
+      date: formatISODate(b.expectedArrival),
+      duration: 'Chờ xe vào',
+      amount: Number(b.depositAmount),
+      status: 'Đã đặt chỗ',
+    }));
+
+    const combined = [...recordEntries, ...bookingEntries].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    return combined;
   },
 };

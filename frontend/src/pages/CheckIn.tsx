@@ -9,6 +9,7 @@ import {
   type AvailableSlot,
   type CheckinStats,
 } from '../api/checkinApi';
+import { lookupVehicleByPlate } from '../api/vehicleApi';
 
 // ═══════════════════════════════════════════════════════
 //  DESIGN TOKENS  (matches codebase palette)
@@ -125,6 +126,13 @@ const now = (): string => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+const formatDateTime = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 // ═══════════════════════════════════════════════════════
 //  ICONS
 // ═══════════════════════════════════════════════════════
@@ -203,6 +211,43 @@ function IconGrid({ size = 14, color = '#6B7280' }: { size?: number; color?: str
 // ═══════════════════════════════════════════════════════
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════
+
+/** Mini card showing owner/customer info when vehicle is found in DB */
+function OwnerInfoCard({ data }: { data: LookupResult }) {
+  if (!data.ownerName && !data.ownerPhone && !data.ownerEmail) return null;
+  return (
+    <div style={{
+      background: '#F0F4F8',
+      border: '1px solid #D1D9E6',
+      borderRadius: 10,
+      padding: '0.7rem 0.85rem',
+    }}>
+      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+        Thông tin chủ xe
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
+        <div>
+          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Họ tên</span>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{data.ownerName ?? '—'}</div>
+        </div>
+        <div>
+          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>SĐT</span>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{data.ownerPhone ?? '—'}</div>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Email</span>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{data.ownerEmail ?? '—'}</div>
+        </div>
+        {data.note && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Ghi chú</span>
+            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#D97706' }}>{data.note}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Shared card wrapper
 function Card({ title, children, style }: { title?: string; children: React.ReactNode; style?: React.CSSProperties }) {
@@ -515,6 +560,29 @@ export function CheckInPage() {
       const result = await lookupPlate(normalizePlate(formatted));
       setLookupData(result);
 
+      // Also fetch full vehicle details if found
+      let vehicleDetails = null;
+      if (result.found) {
+        try {
+          vehicleDetails = await lookupVehicleByPlate(normalizePlate(formatted));
+        } catch {
+          // Ignore vehicle lookup errors
+        }
+      }
+
+      // Merge vehicle details into lookup data
+      if (vehicleDetails) {
+        setLookupData((prev) => prev ? {
+          ...prev,
+          brand: vehicleDetails.brand ?? prev.brand,
+          model: vehicleDetails.model ?? prev.model,
+          color: vehicleDetails.color ?? prev.color,
+          ownerName: vehicleDetails.owner?.fullName ?? prev.ownerName,
+          ownerPhone: vehicleDetails.owner?.phoneNumber ?? prev.ownerPhone,
+          ownerEmail: vehicleDetails.owner?.email ?? prev.ownerEmail,
+        } : prev);
+      }
+
       if (result.alreadyParked) {
         setApiError(`Xe đang trong bãi (slot ${result.slotCode ?? '?'}) — không thể check-in.`);
         setPageState('idle');
@@ -678,7 +746,7 @@ export function CheckInPage() {
                 Check-in thành công!
               </p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Biển số <strong>{successData.plate}</strong> · Vị trí <strong>{successData.slotCode}</strong> · {new Date(successData.checkInTime).toLocaleString('vi-VN')}
+                Biển số <strong>{successData.plate}</strong> · Vị trí <strong>{successData.slotCode}</strong> · {formatDateTime(successData.checkInTime)}
               </p>
             </div>
             <button
@@ -777,9 +845,10 @@ export function CheckInPage() {
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
+              flexDirection: 'column',
             }}>
               {lookupData ? (
-                <div>
+                <>
                   <p style={{
                     margin: 0,
                     fontSize: '1.4rem',
@@ -791,10 +860,48 @@ export function CheckInPage() {
                     {plateInput.trim().toUpperCase()}
                   </p>
                   <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
-                    {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
+                    {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ'}
                     {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
                   </p>
-                </div>
+                  <div style={{
+                    background: '#F0F4F8',
+                    border: '1px solid #D1D9E6',
+                    borderRadius: 10,
+                    padding: '0.7rem 0.85rem',
+                    marginTop: '0.6rem',
+                  }}>
+                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Thông tin xe
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.brand || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.model || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.color || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.year ?? '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.seats != null ? `${lookupData.seats} chỗ` : '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Show owner info card for found customers */}
+                  <div style={{ width: '100%', marginTop: '0.75rem' }}>
+                    <OwnerInfoCard data={lookupData} />
+                  </div>
+                </>
               ) : (
                 <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray400 }}>
                   Nhập biển số và nhấn Tra cứu
@@ -1021,9 +1128,11 @@ export function CheckInPage() {
                   </>
                 )}
 
-                {/* Banner */}
-                <AlertBanner type="info">
-                  Khách lẻ — thanh toán khi xe ra.
+                {/* Banner — conditional: khách quen (found in DB) vs khách lẻ mới */}
+                <AlertBanner type={lookupData?.found ? 'success' : 'info'}>
+                  {lookupData?.found
+                    ? 'Khách quen — áp dụng giá vé tháng nếu có gói.'
+                    : 'Khách lẻ — thanh toán khi xe ra.'}
                 </AlertBanner>
               </div>
             )}

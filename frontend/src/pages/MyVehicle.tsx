@@ -122,20 +122,20 @@ const RESPONSIVE_CSS = `
 
 function IconCar({ size = 16 }: { size?: number; color?: string }) { return <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>; }
 function IconBike({ size = 16 }: { size?: number; color?: string }) { return <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>; }
-function IconPlus({ size = 14, color = C.white }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>; }
-function IconClose({ size = 14, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
-function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>; }
+function IconPlus({ size = 14, color = C.white }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>; }
+function IconClose({ size = 14, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>; }
+function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>; }
 
-function IconCalendar({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>; }
-function IconMapPin({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>; }
-function IconInfo({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>; }
-function IconTicket({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>; }
-function IconLightBulb({ size = 18, color = '#2563EB' }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21h6"/><path d="M12 3a6 6 0 0 1 6 6c0 3-2 5-3 6H9c-1-1-3-3-3-6a6 6 0 0 1 6-6z"/></svg>; }
-function IconShieldCheck({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 11 2 2 4-4"/></svg>; }
-function IconSeat({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 18h14"/><path d="M9 18v3"/><path d="M15 18v3"/><path d="M19 10h1a2 2 0 0 1 2 2v1"/><path d="M5 10H4a2 2 0 0 0-2 2v1"/></svg>; }
-function IconPaintBrush({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35857 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z"/><circle cx="7.5" cy="10.5" r="1.5" fill="currentColor"/><circle cx="11.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="16.5" cy="9.5" r="1.5" fill="currentColor"/><circle cx="15.5" cy="14.5" r="1.5" fill="currentColor"/></svg>; }
-function IconTag({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>; }
-function IconBuilding({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="16"/><line x1="15" y1="22" x2="15" y2="16"/><line x1="9" y1="16" x2="15" y2="16"/><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01"/></svg>; }
+function IconCalendar({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>; }
+function IconMapPin({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>; }
+function IconInfo({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>; }
+function IconTicket({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z" /></svg>; }
+function IconLightBulb({ size = 18, color = '#2563EB' }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21h6" /><path d="M12 3a6 6 0 0 1 6 6c0 3-2 5-3 6H9c-1-1-3-3-3-6a6 6 0 0 1 6-6z" /></svg>; }
+function IconShieldCheck({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 11 2 2 4-4" /></svg>; }
+function IconSeat({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18v-6a5 5 0 0 1 10 0v6" /><path d="M5 18h14" /><path d="M9 18v3" /><path d="M15 18v3" /><path d="M19 10h1a2 2 0 0 1 2 2v1" /><path d="M5 10H4a2 2 0 0 0-2 2v1" /></svg>; }
+function IconPaintBrush({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35857 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z" /><circle cx="7.5" cy="10.5" r="1.5" fill="currentColor" /><circle cx="11.5" cy="7.5" r="1.5" fill="currentColor" /><circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" /><circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" /></svg>; }
+function IconTag({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>; }
+function IconBuilding({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><line x1="9" y1="22" x2="9" y2="16" /><line x1="15" y1="22" x2="15" y2="16" /><line x1="9" y1="16" x2="15" y2="16" /><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01" /></svg>; }
 
 function SummaryCard({ label, value, icon, accentColor, accentBg, customCircleClass }: {
   label: string; value: number; icon: React.ReactNode; accentColor: string; accentBg: string; customCircleClass?: string;
@@ -144,7 +144,7 @@ function SummaryCard({ label, value, icon, accentColor, accentBg, customCircleCl
     <div style={{ background: C.white, borderRadius: 20, border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)', padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'all 0.2s ease', cursor: 'default' }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 16px 36px rgba(15, 23, 42, 0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe'; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 32px rgba(15, 23, 42, 0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(15, 23, 42, 0.08)'; }}>
-      <div 
+      <div
         className={customCircleClass}
         style={customCircleClass ? undefined : { width: 48, height: 48, borderRadius: '50%', background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: accentColor }}
       >
@@ -379,11 +379,11 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
       <style>{`@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.25);opacity:0.5;}100%{transform:scale(1);opacity:1;}}`}</style>
       <div style={{ background: C.white, borderRadius: '24px', width: '100%', maxWidth: 460, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#0F172A 100%)', padding: '2.25rem 1.5rem 1.75rem', textAlign: 'center', position: 'relative', color: '#FFFFFF' }}>
-          <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', borderRadius: '50%' }} onMouseEnter={(e) => { e.currentTarget.style.background='rgba(255,255,255,0.25)'; }} onMouseLeave={(e) => { e.currentTarget.style.background='rgba(255,255,255,0.15)'; }} aria-label="Đóng"><IconClose size={14} color="#FFFFFF" /></button>
+          <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', borderRadius: '50%' }} onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }} aria-label="Đóng"><IconClose size={14} color="#FFFFFF" /></button>
           <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', opacity: 0.8, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Thông tin chi tiết</span>
           {detail && !loading && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-              <div style={{ background: '#FFFFFF', border: '2px solid #1E293B', borderRadius: '10px', boxShadow: '0 8px 16px -4px rgba(0,0,0,0.2)', padding: '8px 20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily:"'Consolas','Courier New',monospace", fontWeight: 900, color: '#0F172A', fontSize: '1.4rem', letterSpacing: '2px', position: 'relative', minWidth: '160px' }}>
+              <div style={{ background: '#FFFFFF', border: '2px solid #1E293B', borderRadius: '10px', boxShadow: '0 8px 16px -4px rgba(0,0,0,0.2)', padding: '8px 20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Consolas','Courier New',monospace", fontWeight: 900, color: '#0F172A', fontSize: '1.4rem', letterSpacing: '2px', position: 'relative', minWidth: '160px' }}>
                 <div style={{ position: 'absolute', top: '3px', left: '50%', transform: 'translateX(-50%)', width: '5px', height: '5px', borderRadius: '50%', background: '#CBD5E1', border: '1px solid #94A3B8' }} />
                 {detail.plateNumber}
               </div>
@@ -410,7 +410,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cập nhật thông số xe</h4>
                   {saveError && <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: '0.75rem 1rem', color: '#B91C1C', fontSize: '0.8rem', fontWeight: 600 }}>{saveError}</div>}
-                  
+
                   {/* Hãng xe */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: C.gray600 }}>Hãng xe</label>
@@ -521,8 +521,8 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                         boxShadow: '0 4px 12px rgba(22, 163, 74, 0.15)',
                         transition: 'all 0.2s ease'
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 6px 15px rgba(22, 163, 74, 0.2)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(22, 163, 74, 0.15)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(22, 163, 74, 0.2)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.15)'; }}
                     >
                       {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
                     </button>
@@ -573,8 +573,8 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                         boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)',
                         transition: 'all 0.2s ease',
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 6px 15px rgba(30, 58, 95, 0.2)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(30, 58, 95, 0.15)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(30, 58, 95, 0.2)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 58, 95, 0.15)'; }}
                     >
                       Cập nhật thông tin
                     </button>
@@ -648,8 +648,8 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: C.gray900 }}>Bạn chưa có xe nào</p>
       <p style={{ margin: '0.4rem 0 1.5rem', fontSize: '0.85rem', color: C.gray600 }}>Nhấn "Thêm xe" để đăng ký phương tiện và quản lý dễ dàng hơn.</p>
       <button onClick={onAdd} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.7rem 1.5rem', background: '#2563EB', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37,99,235,0.2)', transition: 'all 0.18s ease' }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 8px 20px rgba(37,99,235,0.3)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(37,99,235,0.2)'; }}>
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(37,99,235,0.3)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.2)'; }}>
         <IconPlus size={14} color={C.white} /> Thêm xe ngay
       </button>
     </div>
@@ -672,9 +672,27 @@ function TipBanner({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AddVehicleForm({ submitting, error, onCancel, onSubmit }: {
-  submitting: boolean; error: string; onCancel: () => void;
-  onSubmit: (plateNumber: string, type: VehicleType, brand?: string, model?: string, color?: string, year?: number, seats?: number) => Promise<void>;
+function AddVehicleForm({
+  submitting,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  submitting: boolean;
+  error: string;
+  onCancel: () => void;
+  onSubmit: (
+    plateNumber: string,
+    type: VehicleType,
+    brand?: string,
+    model?: string,
+    color?: string,
+    year?: number,
+    seats?: number,
+    ownerFullName?: string,
+    ownerEmail?: string,
+    ownerPhone?: string,
+  ) => Promise<void>;
 }) {
   const [plateNumber, setPlateNumber] = useState('');
   const [type, setType] = useState<VehicleType>('CAR');
@@ -683,26 +701,51 @@ function AddVehicleForm({ submitting, error, onCancel, onSubmit }: {
   const [color, setColor] = useState(VEHICLE_COLORS[0]);
   const [year, setYear] = useState<number | ''>(VEHICLE_YEARS[0]);
   const [seats, setSeats] = useState<number | ''>(CAR_SEAT_OPTIONS[2] ?? 5);
+  const [ownerFullName, setOwnerFullName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPhone, setOwnerPhone] = useState('');
   const [localError, setLocalError] = useState('');
+
 
   useEffect(() => {
     const brandEntries = VEHICLE_PROFILE_OPTIONS[type];
     const currentBrand = brandEntries.find((item) => item.label === brand) ?? brandEntries[0];
     if (currentBrand.label !== brand) setBrand(currentBrand.label);
     if (!currentBrand.models.includes(model)) setModel(currentBrand.models[0]);
-  }, [type, brand]);
+  }, [type, brand, model]);
 
   const availableModels = VEHICLE_PROFILE_OPTIONS[type].find((item) => item.label === brand)?.models ?? VEHICLE_PROFILE_OPTIONS[type][0].models;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = plateNumber.trim();
-    if (!trimmed) { setLocalError('Vui lòng nhập biển số xe'); return; }
-    if (type === 'CAR' && seats === '') { setLocalError('Vui lòng chọn số chỗ cho ô tô'); return; }
+
+    if (!trimmed) {
+      setLocalError('Vui lòng nhập biển số xe');
+      return;
+    }
+
+    if (type === 'CAR' && seats === '') {
+      setLocalError('Vui lòng chọn số chỗ cho ô tô');
+      return;
+    }
+
     setLocalError('');
     const yearVal = year === '' ? undefined : Number(year);
     const seatsVal = type === 'CAR' && seats !== '' ? Number(seats) : undefined;
-    await onSubmit(trimmed, type, brand?.trim() || undefined, model?.trim() || undefined, color?.trim() || undefined, yearVal, seatsVal);
+
+    await onSubmit(
+      trimmed,
+      type,
+      brand?.trim() || undefined,
+      model?.trim() || undefined,
+      color?.trim() || undefined,
+      yearVal,
+      seatsVal,
+      ownerFullName?.trim() || undefined,
+      ownerEmail?.trim() || undefined,
+      ownerPhone?.trim() || undefined,
+    );
   };
 
   const displayError = localError || error;
@@ -715,7 +758,7 @@ function AddVehicleForm({ submitting, error, onCancel, onSubmit }: {
           <p style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.white }}>Thêm xe mới</p>
           <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Điền thông tin phương tiện của bạn</p>
         </div>
-        <button type="button" onClick={onCancel} disabled={submitting} aria-label="Đóng" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', opacity: submitting ? 0.5 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.background='rgba(255,255,255,0.25)'; }} onMouseLeave={(e) => { e.currentTarget.style.background='rgba(255,255,255,0.15)'; }}>
+        <button type="button" onClick={onCancel} disabled={submitting} aria-label="Đóng" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', opacity: submitting ? 0.5 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}>
           <IconClose size={16} color={C.white} />
         </button>
       </div>
@@ -724,25 +767,71 @@ function AddVehicleForm({ submitting, error, onCancel, onSubmit }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
-            <PlateInput value={plateNumber} onChange={setPlateNumber} placeholder="VD: 51A-12345" disabled={submitting} autoFocus style={{ ...sel, fontFamily:"'Consolas',monospace", fontWeight: 600 }} />
+            <PlateInput value={plateNumber} onChange={setPlateNumber} placeholder="VD: 51A-12345" disabled={submitting} autoFocus style={{ ...sel, fontFamily: "'Consolas',monospace", fontWeight: 600 }} />
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Loại xe</span>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {VEHICLE_TYPES.map(opt => { const selected = type === opt.value; return (
-                <button key={opt.value} type="button" onClick={() => setType(opt.value)} disabled={submitting} style={{ flex: 1, padding: '0.6rem 0.85rem', borderRadius: 10, border: `1.5px solid ${selected ? C.navy : C.gray200}`, background: selected ? C.navy : C.white, color: selected ? C.white : C.navy, fontSize: '0.85rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
-                  {opt.value === 'CAR' ? <IconCar size={14} color={selected ? C.white : C.blue} /> : <IconBike size={14} color={selected ? C.white : C.orange} />}
-                  {opt.label}
-                </button>
-              ); })}
+              {VEHICLE_TYPES.map(opt => {
+                const selected = type === opt.value; return (
+                  <button key={opt.value} type="button" onClick={() => setType(opt.value)} disabled={submitting} style={{ flex: 1, padding: '0.6rem 0.85rem', borderRadius: 10, border: `1.5px solid ${selected ? C.navy : C.gray200}`, background: selected ? C.navy : C.white, color: selected ? C.white : C.navy, fontSize: '0.85rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
+                    {opt.value === 'CAR' ? <IconCar size={14} color={selected ? C.white : C.blue} /> : <IconBike size={14} color={selected ? C.white : C.orange} />}
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.85rem', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 14 }}>
+            <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Thông tin chủ xe
+            </p>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Họ tên chủ xe</span>
+              <input
+                type="text"
+                value={ownerFullName}
+                onChange={(e) => setOwnerFullName(e.target.value)}
+                placeholder="Nguyễn Văn A"
+                disabled={submitting}
+                style={sel}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số điện thoại</span>
+              <input
+                type="tel"
+                value={ownerPhone}
+                onChange={(e) => setOwnerPhone(e.target.value)}
+                placeholder="09xxxxxxxx"
+                disabled={submitting}
+                style={sel}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Email</span>
+              <input
+                type="email"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+                placeholder="email@vidu.com"
+                disabled={submitting}
+                style={sel}
+              />
+            </label>
+          </div>
+
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span><select value={brand} onChange={(e) => setBrand(e.target.value)} disabled={submitting} style={sel}>{VEHICLE_PROFILE_OPTIONS[type].map(b => <option key={b.label} value={b.label}>{b.label}</option>)}</select></label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Mẫu</span><select value={model} onChange={(e) => setModel(e.target.value)} disabled={submitting} style={sel}>{availableModels.map(m => <option key={m} value={m}>{m}</option>)}</select></label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Màu</span><select value={color} onChange={(e) => setColor(e.target.value)} disabled={submitting} style={sel}>{VEHICLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}</select></label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm</span><select value={year === '' ? '' : year.toString()} onChange={(e) => setYear(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}>{VEHICLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select></label>
           {type === 'CAR' && (<label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số chỗ</span><select value={seats === '' ? '' : seats.toString()} onChange={(e) => setSeats(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}><option value="">Chọn số chỗ</option>{CAR_SEAT_OPTIONS.map(s => <option key={s} value={s}>{s} chỗ</option>)}</select></label>)}
         </div>
+
         <button type="submit" disabled={submitting || !plateNumber.trim()} style={{ width: '100%', padding: '0.8rem', background: submitting || !plateNumber.trim() ? C.gray300 : '#2563EB', color: submitting || !plateNumber.trim() ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: submitting || !plateNumber.trim() ? 'not-allowed' : 'pointer', marginTop: '1.25rem', boxShadow: submitting || !plateNumber.trim() ? 'none' : '0 4px 14px rgba(37,99,235,0.2)', transition: 'all 0.18s ease' }}
           onMouseEnter={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#1d4ed8'; }}
           onMouseLeave={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#2563EB'; }}
@@ -793,18 +882,67 @@ export function MyVehiclePage() {
     loadVehicles();
   }, [authLoading, user, loadVehicles]);
 
-  const handleAddVehicle = async (plateNumber: string, type: VehicleType, brand?: string, model?: string, color?: string, year?: number, seats?: number) => {
-    setSubmitting(true); setFormError('');
+  const handleAddVehicle = async (
+    plateNumber: string,
+    type: VehicleType,
+    brand?: string,
+    model?: string,
+    color?: string,
+    year?: number,
+    seats?: number,
+    ownerFullName?: string,
+    ownerEmail?: string,
+    ownerPhone?: string,
+  ) => {
+    setSubmitting(true);
+    setFormError('');
+
     try {
-      await vehicleService.create({ plateNumber, type, brand, model, color, year, seats });
-      setFormOpen(false); setFormError(''); await loadVehicles();
-    } catch (e: any) { setFormError(e?.response?.data?.message ?? 'Có lỗi xảy ra'); }
-    finally { setSubmitting(false); }
+      await vehicleService.create({
+        plateNumber,
+        type,
+        brand,
+        model,
+        color,
+        year,
+        seats,
+        ownerFullName,
+        ownerEmail,
+        ownerPhone,
+      } as any);
+
+      setFormOpen(false);
+      setFormError('');
+      await loadVehicles();
+    } catch (e: any) {
+      setFormError(e?.response?.data?.message ?? 'Có lỗi xảy ra');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const askDelete = (id: string) => setDeleteState(prev => ({ ...prev, [id]: { phase: 'confirming', error: '' } }));
-  const cancelDelete = (id: string) => setDeleteState(prev => { const next = { ...prev }; delete next[id]; return next; });
-  const clearDeleteError = (id: string) => setDeleteState(prev => { if (!prev[id]) return prev; return { ...prev, [id]: { phase: 'idle', error: '' } }; });
+  const askDelete = (id: string) => {
+    setDeleteState(prev => ({
+      ...prev,
+      [id]: { phase: 'confirming', error: '' },
+    }));
+  };
+
+  const cancelDelete = (id: string) => {
+    setDeleteState(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const clearDeleteError = (id: string) => {
+    setDeleteState(prev => {
+      if (!prev[id]) return prev;
+      return { ...prev, [id]: { phase: 'idle', error: '' } };
+    });
+  };
+
   const handleDelete = async (id: string) => {
     setDeleteState(prev => ({ ...prev, [id]: { phase: 'deleting', error: '' } }));
     try {
@@ -836,8 +974,8 @@ export function MyVehiclePage() {
         </div>
         {!formOpen && (
           <button onClick={() => setFormOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.65rem 1.35rem', background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)', transition: 'all 0.2s ease', whiteSpace: 'nowrap', flexShrink: 0 }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1.5px)'; e.currentTarget.style.boxShadow='0 8px 25px rgba(30, 58, 95, 0.25)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(30, 58, 95, 0.15)'; }}>
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1.5px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(30, 58, 95, 0.25)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 58, 95, 0.15)'; }}>
             <IconPlus size={14} color={C.white} /> Thêm xe
           </button>
         )}
@@ -849,11 +987,11 @@ export function MyVehiclePage() {
             customCircleClass={styles.totalVehicleIconCircle}
             icon={<img src="/oto.png" alt="" className={styles.totalVehicleIconImage} />} />
           <SummaryCard label="Có gói tháng" value={withPackage} accentColor={C.green} accentBg={C.greenBg}
-            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 11 2 2 4-4"/></svg>} />
+            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 11 2 2 4-4" /></svg>} />
           <SummaryCard label="Chưa có gói" value={withoutPackage} accentColor={C.orange} accentBg={C.orangeBg}
-            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>} />
+            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z" /></svg>} />
           <SummaryCard label="Sắp hết hạn" value={expiringSoon} accentColor="#DC2626" accentBg="#FEF2F2"
-            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>} />
+            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>} />
         </div>
       )}
 

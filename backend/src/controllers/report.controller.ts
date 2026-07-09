@@ -186,6 +186,11 @@ export const reportController = {
     return res.status(200).json({ success: true, data });
   }),
 
+  getRevenueComparison: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const data = await reportService.getRevenueComparison();
+    return res.status(200).json({ success: true, data });
+  }),
+
   getSessionLog: asyncHandler(async (req: AuthRequest, res: Response) => {
   const now = new Date();
   const from = req.query.from

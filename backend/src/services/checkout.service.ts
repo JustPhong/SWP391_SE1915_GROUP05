@@ -13,6 +13,7 @@ export interface CheckoutLookupResult {
   found: boolean;
   // ── only when found === true ──
   recordId?: string;
+  vehicleId?: string;
   plate?: string;
   vehicleType?: 'CAR' | 'MOTORBIKE';
   slotCode?: string;
@@ -29,6 +30,15 @@ export interface CheckoutLookupResult {
     amount: number;
     note?: string;
   }[];
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
+  seats?: number | null;
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  ownerEmail?: string | null;
+  packageExpiry?: string;
 }
 
 export interface ParkedVehicle {
@@ -91,9 +101,42 @@ export const checkoutService = {
       config,
     );
 
+    let ownerName: string | null = null;
+    let ownerPhone: string | null = null;
+    let ownerEmail: string | null = null;
+    let packageExpiry: string | undefined;
+    if (record.isMonthly && record.slot?.assignedVehicleId) {
+      const pkg = await prisma.monthlyPackage.findFirst({
+        where: {
+          vehicleId: vehicle.id,
+          status: 'ACTIVE',
+        },
+        include: {
+          user: { select: { fullName: true, phoneNumber: true, email: true } },
+        },
+      });
+      if (pkg) {
+        ownerName = pkg.user.fullName;
+        ownerPhone = pkg.user.phoneNumber;
+        ownerEmail = pkg.user.email;
+        packageExpiry = pkg.expiryDate.toISOString();
+      }
+    } else if (!record.isMonthly) {
+      const user = await prisma.user.findFirst({
+        where: { vehicles: { some: { id: vehicle.id } } },
+        select: { fullName: true, phoneNumber: true, email: true },
+      });
+      if (user) {
+        ownerName = user.fullName;
+        ownerPhone = user.phoneNumber;
+        ownerEmail = user.email;
+      }
+    }
+
     return {
       found: true,
       recordId: record.id,
+      vehicleId: vehicle.id,
       plate: vehicle.plateNumber,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
       slotCode: record.slot.code,
@@ -103,6 +146,15 @@ export const checkoutService = {
       durationMinutes,
       fee: total,
       breakdown,
+      brand: vehicle.brand,
+      model: vehicle.model,
+      color: vehicle.color,
+      year: vehicle.year,
+      seats: vehicle.seats,
+      ownerName,
+      ownerPhone,
+      ownerEmail,
+      packageExpiry,
     };
   },
 

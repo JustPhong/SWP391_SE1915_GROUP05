@@ -6,6 +6,9 @@ import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
+router.get('/lookup/:plateNumber', vehicleController.getByPlate);
+
+// Các API bên dưới mới yêu cầu đăng nhập
 router.use(authenticate);
 
 router.post('/', vehicleSchema, validate, vehicleController.create);

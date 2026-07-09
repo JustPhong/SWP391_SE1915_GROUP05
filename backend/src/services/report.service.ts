@@ -314,12 +314,99 @@ export const reportService = {
       cursor.setDate(cursor.getDate() + 1);
     }
 
+    const byMethod: Record<string, number> = {};
+    for (const p of payments) {
+      const amt = Number(p.amount);
+      const m = p.method;
+      byMethod[m] = (byMethod[m] || 0) + amt;
+    }
+
     return {
       total: casualTotal + monthlyTotal,
       casualTotal,
       monthlyTotal,
+      byMethod,
       series,
       transactions: transactions.slice(0, 50),
+    };
+  },
+
+  // ─── NEW: Revenue comparison (this month vs last month) ───────────────────
+
+  async getRevenueComparison() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed: 6 = July
+
+    // This month (from start of current month to current time)
+    const thisMonthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const thisMonthEnd = new Date(currentYear, currentMonth, now.getDate(), 23, 59, 59, 999);
+
+    // Last month
+    let lastMonthYear = currentYear;
+    let lastMonth = currentMonth - 1;
+    if (lastMonth < 0) {
+      lastMonth = 11;
+      lastMonthYear -= 1;
+    }
+
+    const lastMonthStart = new Date(lastMonthYear, lastMonth, 1, 0, 0, 0, 0);
+    
+    // Same period last month (e.g. from 1st of last month to the same day of last month)
+    const lastDayOfLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+    const sameDayOfLastMonth = Math.min(now.getDate(), lastDayOfLastMonth);
+    const lastMonthSamePeriodEnd = new Date(lastMonthYear, lastMonth, sameDayOfLastMonth, 23, 59, 59, 999);
+
+    // Full last month
+    const lastMonthFullEnd = new Date(lastMonthYear, lastMonth + 1, 0, 23, 59, 59, 999);
+
+    const [thisMonthPayments, lastMonthSamePeriodPayments, lastMonthFullPayments] = await Promise.all([
+      prisma.payment.findMany({
+        where: { paidAt: { gte: thisMonthStart, lte: thisMonthEnd } },
+      }),
+      prisma.payment.findMany({
+        where: { paidAt: { gte: lastMonthStart, lte: lastMonthSamePeriodEnd } },
+      }),
+      prisma.payment.findMany({
+        where: { paidAt: { gte: lastMonthStart, lte: lastMonthFullEnd } },
+      }),
+    ]);
+
+    const calculateTotals = (payments: any[]) => {
+      let total = 0;
+      let casual = 0;
+      let monthly = 0;
+      for (const p of payments) {
+        const amt = Number(p.amount);
+        total += amt;
+        const isCasual = p.checkInRecordId != null;
+        const isMonthly = p.monthlyPackageId != null;
+        const source = isCasual && !isMonthly ? 'CASUAL' :
+                       isMonthly && !isCasual ? 'MONTHLY' :
+                       p.type === PAYMENT_MONTHLY ? 'MONTHLY' : 'CASUAL';
+        if (source === 'CASUAL') {
+          casual += amt;
+        } else {
+          monthly += amt;
+        }
+      }
+      return { total, casual, monthly };
+    };
+
+    const thisMonth = calculateTotals(thisMonthPayments);
+    const lastMonthSamePeriod = calculateTotals(lastMonthSamePeriodPayments);
+    const lastMonthFull = calculateTotals(lastMonthFullPayments);
+
+    return {
+      thisMonth,
+      lastMonthSamePeriod,
+      lastMonthFull,
+      metadata: {
+        thisMonthName: `Tháng ${currentMonth + 1}`,
+        lastMonthName: `Tháng ${lastMonth + 1}`,
+        thisMonthSamePeriodRange: `01/${String(currentMonth + 1).padStart(2, '0')} - ${String(now.getDate()).padStart(2, '0')}/${String(currentMonth + 1).padStart(2, '0')}`,
+        lastMonthSamePeriodRangeLabel: `01/${String(lastMonth + 1).padStart(2, '0')} - ${String(sameDayOfLastMonth).padStart(2, '0')}/${String(lastMonth + 1).padStart(2, '0')}`,
+      }
     };
   },
 

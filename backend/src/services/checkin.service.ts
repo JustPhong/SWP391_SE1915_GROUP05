@@ -3,7 +3,7 @@ import { AppError } from '../utils/helpers';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const PKG_ACTIVE = 'ACTIVE';
-  
+
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;
@@ -18,6 +18,11 @@ export interface LookupResult {
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
+  // Owner / customer info
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  ownerEmail?: string | null;
+  note?: string | null;
 }
 
 export interface AvailableSlotResult {
@@ -49,12 +54,14 @@ export interface SubmitCheckinResult {
 export const checkinService = {
   // ── GET /api/checkin/lookup/:plate ─────────────────────────────────────
   async lookupPlate(plate: string): Promise<LookupResult> {
+    const normalizedPlate = normalizePlate(plate);
     const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: plate },
+      where: { plateNumber: normalizedPlate },
       include: {
         monthlyPackage: {
           include: { slot: true },
         },
+        owner: true,
       },
     });
 
@@ -72,12 +79,16 @@ export const checkinService = {
     const baseResult = {
       found: true,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
-      brand: vehicle.brand ?? null,
-      model: vehicle.model ?? null,
-      color: vehicle.color ?? null,
-      year: vehicle.year ?? null,
-      seats: (vehicle as any).seats ?? null,
+      brand: vehicle.brand ?? undefined,
+      model: vehicle.model ?? undefined,
+      color: vehicle.color ?? undefined,
+      year: vehicle.year ?? undefined,
+      seats: (vehicle as any).seats ?? undefined,
       customerType: vehicle.isMonthly ? 'monthly' : 'casual',
+      ownerName: vehicle.ownerFullName ?? vehicle.owner?.fullName ?? undefined,
+      ownerPhone: vehicle.ownerPhone ?? vehicle.owner?.phoneNumber ?? undefined,
+      ownerEmail: vehicle.ownerEmail ?? vehicle.owner?.email ?? undefined,
+      note: null,
     } as LookupResult;
 
     if (activeRecord) {
@@ -157,6 +168,8 @@ export const checkinService = {
   // ── POST /api/checkin ─────────────────────────────────────────────────
   async submit(input: SubmitCheckinInput): Promise<SubmitCheckinResult> {
     const { plate, vehicleType, slotCode, isMonthly } = input;
+    const normalizedPlate = normalizePlate(plate);
+
 
     // Resolve slot by code
     const slot = await prisma.parkingSlot.findUnique({ where: { code: slotCode } });
@@ -164,7 +177,7 @@ export const checkinService = {
     if (slot.status !== SLOT_AVAILABLE) throw new AppError(409, 'Slot không còn trống');
 
     // Resolve vehicle by plate; create walk-in vehicle if casual and not found
-    let vehicle = await prisma.vehicle.findUnique({ where: { plateNumber: plate } });
+    let vehicle = await prisma.vehicle.findUnique({ where: { plateNumber: normalizedPlate } });
 
     if (!vehicle) {
       if (isMonthly) {
@@ -175,12 +188,13 @@ export const checkinService = {
       const walkinUser = await findOrCreateWalkinUser();
       vehicle = await prisma.vehicle.create({
         data: {
-          plateNumber: plate,
+          plateNumber: normalizedPlate,
           type: vehicleType,
           isMonthly: false,
           ownerId: walkinUser.id,
         },
       });
+
     }
 
     // Create check-in record + mark slot occupied in a transaction
@@ -203,15 +217,26 @@ export const checkinService = {
 
     return {
       ok: true,
-      plate,
+      plate: normalizedPlate,
       slotCode,
       checkInTime: checkInTime.toISOString(),
     };
+
   },
 };
 
+function normalizePlate(input: string): string {
+  // Normalize so client can send with/without separators.
+  // Examples: 79C-76767, 79C.76767, 79C 76767, 79C76767 => 79C76767
+  return (input ?? '')
+    .replace(/[-.\s]/g, '')
+    .toUpperCase()
+    .trim();
+}
+
 // ── Internal helper ────────────────────────────────────────────────────────
 async function findOrCreateWalkinUser() {
+
   const email = 'walkin@system.local';
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {

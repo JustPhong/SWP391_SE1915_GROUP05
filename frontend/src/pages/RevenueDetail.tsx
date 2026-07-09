@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
+  ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
@@ -39,8 +39,27 @@ interface RevenueDetail {
   total: number;
   casualTotal: number;
   monthlyTotal: number;
+  byMethod?: Record<string, number>;
   series: SeriesRow[];
   transactions: Transaction[];
+}
+
+interface ComparisonGroup {
+  total: number;
+  casual: number;
+  monthly: number;
+}
+
+interface RevenueComparison {
+  thisMonth: ComparisonGroup;
+  lastMonthSamePeriod: ComparisonGroup;
+  lastMonthFull: ComparisonGroup;
+  metadata: {
+    thisMonthName: string;
+    lastMonthName: string;
+    thisMonthSamePeriodRange: string;
+    lastMonthSamePeriodRangeLabel: string;
+  };
 }
 
 interface SeriesRow {
@@ -267,6 +286,28 @@ export function RevenueDetailPage() {
   const [data, setData] = useState<RevenueDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [comparisonData, setComparisonData] = useState<RevenueComparison | null>(null);
+  const [loadingComp, setLoadingComp] = useState(false);
+  const [activePieTab, setActivePieTab] = useState<'source' | 'method'>('source');
+
+  const fetchComparison = useCallback(async () => {
+    setLoadingComp(true);
+    try {
+      const resp = await api.get<{ success: boolean; data: RevenueComparison }>(
+        '/reports/revenue-comparison'
+      );
+      setComparisonData(resp.data.data);
+    } catch (err) {
+      console.error('[Comparison] fetch error', err);
+    } finally {
+      setLoadingComp(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchComparison();
+  }, [fetchComparison]);
+
   const fetchData = useCallback(async (from: string, to: string) => {
     setLoading(true);
     setCurrentFrom(from);
@@ -316,6 +357,64 @@ export function RevenueDetailPage() {
   const t = data ?? { total: 0, casualTotal: 0, monthlyTotal: 0, series: [], transactions: [] };
   const shareCasual = pctOf(t.total, t.casualTotal);
   const shareMonthly = pctOf(t.total, t.monthlyTotal);
+
+  const renderCompGrowth = (current: number, previous: number) => {
+    if (!previous) return <span style={{ color: C.gray400 }}>—</span>;
+    const pct = Math.round(((current - previous) / previous) * 100);
+    const isPositive = pct >= 0;
+    return (
+      <span style={{
+        color: isPositive ? C.green : C.red,
+        fontWeight: 700,
+        fontSize: 13,
+      }}>
+        {isPositive ? `+${pct}%` : `${pct}%`}
+      </span>
+    );
+  };
+
+  const topDays = [...t.series]
+    .map(day => ({
+      date: day.date,
+      total: day.casual + day.monthly,
+      casual: day.casual,
+      monthly: day.monthly
+    }))
+    .filter(day => day.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+
+  const totalPeriodRevenue = t.total || 1;
+
+  const pieSourceData = [
+    { name: 'Khách lẻ', value: t.casualTotal, color: C.casual },
+    { name: 'Gói tháng', value: t.monthlyTotal, color: C.monthly },
+  ].filter(d => d.value > 0);
+
+  const methodColors: Record<string, string> = {
+    'CASH': '#3B82F6',
+    'CARD': '#10B981',
+    'EWALLET': '#F59E0B',
+    'Tiền mặt': '#3B82F6',
+    'Thẻ': '#10B981',
+    'Ví điện tử': '#F59E0B',
+  };
+
+  const rawMethodData = t.byMethod ?? {};
+  const pieMethodData = Object.entries(rawMethodData)
+    .map(([key, value]) => {
+      let displayName = key;
+      if (key === 'CASH') displayName = 'Tiền mặt';
+      else if (key === 'CARD') displayName = 'Thẻ';
+      else if (key === 'EWALLET') displayName = 'Ví điện tử';
+
+      return {
+        name: displayName,
+        value: Number(value),
+        color: methodColors[key] ?? methodColors[displayName] ?? '#8B5CF6',
+      };
+    })
+    .filter(d => d.value > 0);
 
   const rangeOptions: { value: DateRange; label: string }[] = [
     { value: 'today', label: 'Hôm nay' },
@@ -510,74 +609,390 @@ export function RevenueDetailPage() {
         />
       </div>
 
-      {/* ── Chart ───────────────────────────────────────────── */}
+      {/* ── NEW ANALYTICS SECTION ── */}
       <div style={{
-        background: C.white,
-        borderRadius: 18,
-        padding: '28px 28px 20px',
-        boxShadow: C.shadow,
+        display: 'grid',
+        gridTemplateColumns: '1.2fr 1fr',
+        gap: 20,
         marginBottom: 28,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: 0 }}>
-            Doanh thu theo thời gian
-          </h2>
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, fontWeight: 600 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 3, background: C.casual, display: 'inline-block' }} />
-              Khách lẻ
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 12, height: 12, borderRadius: 3, background: C.monthly, display: 'inline-block' }} />
-              Gói tháng
-            </span>
+        {/* Left: Bảng so sánh doanh thu tháng này vs tháng trước */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '28px',
+          boxShadow: C.shadow,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: 0 }}>
+                So sánh doanh thu Tháng này vs Tháng trước
+              </h2>
+              <span style={{ fontSize: 11, color: C.gray400, fontWeight: 600 }}>Đơn vị: đồng</span>
+            </div>
+
+            {loadingComp ? (
+              <p style={{ color: C.gray400, fontSize: 14, textAlign: 'center', padding: '40px 0' }}>Đang phân tích dữ liệu so sánh…</p>
+            ) : !comparisonData ? (
+              <p style={{ color: C.gray400, fontSize: 14, textAlign: 'center', padding: '40px 0' }}>Chưa có dữ liệu đối so sánh</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: `2px solid ${C.gray100}`, color: C.gray600 }}>
+                      <th style={{ textAlign: 'left', padding: '0 10px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Khoản mục</th>
+                      <th style={{ textAlign: 'right', padding: '0 10px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                        Tháng này ({comparisonData.metadata.thisMonthName})<br />
+                        <span style={{ fontSize: 10, fontWeight: 500, textTransform: 'none', color: C.gray400 }}>{comparisonData.metadata.thisMonthSamePeriodRange}</span>
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '0 10px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                        Cùng kỳ ({comparisonData.metadata.lastMonthName})<br />
+                        <span style={{ fontSize: 10, fontWeight: 500, textTransform: 'none', color: C.gray400 }}>{comparisonData.metadata.lastMonthSamePeriodRangeLabel}</span>
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '0 10px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Tăng/Giảm</th>
+                      <th style={{ textAlign: 'right', padding: '0 10px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                        Cả tháng trước<br />
+                        <span style={{ fontSize: 10, fontWeight: 500, textTransform: 'none', color: C.gray400 }}>Full {comparisonData.metadata.lastMonthName}</span>
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '0 10px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>Đạt được</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Row 1: Tổng */}
+                    <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                      <td style={{ padding: '12px 10px', fontWeight: 700, color: C.gray800 }}>Tổng doanh thu</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: C.navy }}>
+                        {fmtVnd(comparisonData.thisMonth.total)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray600 }}>
+                        {fmtVnd(comparisonData.lastMonthSamePeriod.total)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                        {renderCompGrowth(comparisonData.thisMonth.total, comparisonData.lastMonthSamePeriod.total)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray600 }}>
+                        {fmtVnd(comparisonData.lastMonthFull.total)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 600, color: C.gray800 }}>
+                        {pctOf(comparisonData.lastMonthFull.total, comparisonData.thisMonth.total)}
+                      </td>
+                    </tr>
+                    {/* Row 2: Khách lẻ */}
+                    <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                      <td style={{ padding: '12px 10px', color: C.gray800, paddingLeft: 20 }}>
+                        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: C.casual, marginRight: 6 }} />
+                        Khách lẻ
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 600, color: C.gray800 }}>
+                        {fmtVnd(comparisonData.thisMonth.casual)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray600 }}>
+                        {fmtVnd(comparisonData.lastMonthSamePeriod.casual)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                        {renderCompGrowth(comparisonData.thisMonth.casual, comparisonData.lastMonthSamePeriod.casual)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray600 }}>
+                        {fmtVnd(comparisonData.lastMonthFull.casual)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray800 }}>
+                        {pctOf(comparisonData.lastMonthFull.casual, comparisonData.thisMonth.casual)}
+                      </td>
+                    </tr>
+                    {/* Row 3: Gói tháng */}
+                    <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                      <td style={{ padding: '12px 10px', color: C.gray800, paddingLeft: 20 }}>
+                        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: C.monthly, marginRight: 6 }} />
+                        Gói tháng
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 600, color: C.gray800 }}>
+                        {fmtVnd(comparisonData.thisMonth.monthly)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray600 }}>
+                        {fmtVnd(comparisonData.lastMonthSamePeriod.monthly)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                        {renderCompGrowth(comparisonData.thisMonth.monthly, comparisonData.lastMonthSamePeriod.monthly)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray600 }}>
+                        {fmtVnd(comparisonData.lastMonthFull.monthly)}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'right', color: C.gray800 }}>
+                        {pctOf(comparisonData.lastMonthFull.monthly, comparisonData.thisMonth.monthly)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ color: C.gray400, fontSize: 14 }}>Đang tải biểu đồ…</p>
+        {/* Right: Cơ cấu doanh thu */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '28px',
+          boxShadow: C.shadow,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: 0 }}>
+                Cơ cấu doanh thu
+              </h2>
+              <div style={{
+                display: 'flex', gap: 4, background: C.gray100, padding: 3, borderRadius: 8
+              }}>
+                <button
+                  onClick={() => setActivePieTab('source')}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                    background: activePieTab === 'source' ? C.white : 'transparent',
+                    color: activePieTab === 'source' ? C.navy : C.gray600,
+                    boxShadow: activePieTab === 'source' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  Theo loại khách
+                </button>
+                <button
+                  onClick={() => setActivePieTab('method')}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                    background: activePieTab === 'method' ? C.white : 'transparent',
+                    color: activePieTab === 'method' ? C.navy : C.gray600,
+                    boxShadow: activePieTab === 'method' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  Theo PTTT
+                </button>
+              </div>
+            </div>
+
+            {activePieTab === 'source' ? (
+              pieSourceData.length === 0 ? (
+                <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.gray400, fontSize: 13 }}>
+                  Chưa có dữ liệu phân loại khách
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 180 }}>
+                  <ResponsiveContainer width="55%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieSourceData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pieSourceData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => fmtVnd(Number(value))} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 10 }}>
+                    {pieSourceData.map((entry, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: C.gray800 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, display: 'inline-block' }} />
+                          {entry.name}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 700, paddingLeft: 14, color: C.navy }}>
+                          {fmtVnd(entry.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ) : (
+              pieMethodData.length === 0 ? (
+                <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.gray400, fontSize: 13 }}>
+                  Chưa có dữ liệu phương thức thanh toán
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 180 }}>
+                  <ResponsiveContainer width="55%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieMethodData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pieMethodData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => fmtVnd(Number(value))} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 10, overflowY: 'auto', maxHeight: 180 }}>
+                    {pieMethodData.map((entry, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: C.gray800 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, display: 'inline-block' }} />
+                          {entry.name}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 700, paddingLeft: 14, color: C.navy }}>
+                          {fmtVnd(entry.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
           </div>
-        ) : t.series.length === 0 || t.series.every((r) => r.casual === 0 && r.monthly === 0) ? (
-          <div style={{
-            height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexDirection: 'column', gap: 12,
-          }}>
-            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={C.gray200} strokeWidth="1.5">
-              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-              <rect x="9" y="3" width="6" height="4" rx="1"/>
-              <line x1="9" y1="12" x2="15" y2="12"/>
-              <line x1="9" y1="16" x2="13" y2="16"/>
-            </svg>
-            <p style={{ color: C.gray400, fontSize: 14, margin: 0 }}>Chưa có doanh thu trong kỳ này</p>
+        </div>
+      </div>
+
+      {/* ── Charts Row (Time Series + Top Days) ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '2.2fr 1fr',
+        gap: 20,
+        marginBottom: 28,
+      }}>
+        {/* Time series chart */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '28px 28px 20px',
+          boxShadow: C.shadow,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: 0 }}>
+              Doanh thu theo thời gian
+            </h2>
+            <div style={{ display: 'flex', gap: 16, fontSize: 12, fontWeight: 600 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: C.casual, display: 'inline-block' }} />
+                Khách lẻ
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: C.monthly, display: 'inline-block' }} />
+                Gói tháng
+              </span>
+            </div>
           </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={t.series} barGap={4} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke={C.gray200} vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickFormatter={fmtShortDate}
-                tick={{ fontSize: 12, fill: C.gray600 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={(v: number) => {
-                  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace('.', ',')}Tr`;
-                  if (v >= 1_000) return `${Math.round(v / 1_000)}N`;
-                  return String(v);
-                }}
-                tick={{ fontSize: 12, fill: C.gray600 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="casual"  name="Khách lẻ" fill={C.casual}  radius={[4, 4, 0, 0]} />
-              <Bar dataKey="monthly" name="Gói tháng" fill={C.monthly} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+
+          {loading ? (
+            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <p style={{ color: C.gray400, fontSize: 14 }}>Đang tải biểu đồ…</p>
+            </div>
+          ) : t.series.length === 0 || t.series.every((r) => r.casual === 0 && r.monthly === 0) ? (
+            <div style={{
+              height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexDirection: 'column', gap: 12,
+            }}>
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={C.gray200} strokeWidth="1.5">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                <line x1="9" y1="12" x2="15" y2="12"/>
+                <line x1="9" y1="16" x2="13" y2="16"/>
+              </svg>
+              <p style={{ color: C.gray400, fontSize: 14, margin: 0 }}>Chưa có doanh thu trong kỳ này</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={t.series} barGap={4} barCategoryGap="30%">
+                <CartesianGrid strokeDasharray="3 3" stroke={C.gray200} vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={fmtShortDate}
+                  tick={{ fontSize: 12, fill: C.gray600 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={(v: number) => {
+                    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace('.', ',')}Tr`;
+                    if (v >= 1_000) return `${Math.round(v / 1_000)}N`;
+                    return String(v);
+                  }}
+                  tick={{ fontSize: 12, fill: C.gray600 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="casual"  name="Khách lẻ" fill={C.casual}  radius={[4, 4, 0, 0]} />
+                <Bar dataKey="monthly" name="Gói tháng" fill={C.monthly} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Right: Top ngày doanh thu cao nhất */}
+        <div style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: '28px',
+          boxShadow: C.shadow,
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: C.navy, margin: '0 0 16px' }}>
+            Top ngày doanh thu cao
+          </h2>
+          
+          {loading ? (
+            <p style={{ color: C.gray400, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Đang tải…</p>
+          ) : topDays.length === 0 ? (
+            <p style={{ color: C.gray400, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Không có dữ liệu trong kỳ</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {topDays.map((day, idx) => {
+                const percent = Math.round((day.total / totalPeriodRevenue) * 100);
+                return (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
+                      <span style={{ color: C.gray800 }}>
+                        <span style={{
+                          display: 'inline-block', width: 18, height: 18, borderRadius: '50%',
+                          background: idx === 0 ? '#FEF3C7' : idx === 1 ? '#F3F4F6' : '#EFF6FF',
+                          color: idx === 0 ? '#D97706' : idx === 1 ? '#4B5563' : '#2563EB',
+                          textAlign: 'center', lineHeight: '18px', fontSize: 10, marginRight: 8, fontWeight: 700
+                        }}>
+                          {idx + 1}
+                        </span>
+                        {fmtShortDate(day.date)}
+                      </span>
+                      <span style={{ color: C.navy }}>{fmtVnd(day.total)}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 6, background: C.gray100, borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${percent}%`,
+                          background: idx === 0 ? 'linear-gradient(90deg, #F59E0B, #D97706)' : 'linear-gradient(90deg, #3B82F6, #1D4ED8)',
+                          borderRadius: 3
+                        }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: C.gray600, fontWeight: 600, width: 28, textAlign: 'right' }}>
+                        {percent}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Transaction Table ────────────────────────────────── */}

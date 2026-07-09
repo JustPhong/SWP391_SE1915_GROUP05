@@ -52,36 +52,38 @@ export function formatPlateNumber(val: string, prevVal: string = ''): string {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/Đ/g, 'D');
 
-  // Detect backspace/deletion:
-  // If the previous value ended with a hyphen and the new value is that same string without the hyphen,
-  // it means the user deleted the hyphen. We also delete the letter before the hyphen to prevent getting stuck.
-  if (prevVal.endsWith('-') && val === prevVal.slice(0, -1)) {
-    const cleanPrev = prevVal.replace(/[^A-Z0-9]/g, '');
-    if (cleanPrev.length === 3 || cleanPrev.length === 4) {
-      const cleanNew = cleanPrev.slice(0, -1);
-      return formatPlateNumber(cleanNew, '');
-    }
-  }
-
   // Keep only alphanumeric characters
   let clean = normalized.replace(/[^A-Z0-9]/g, '');
-  
+
   if (clean.length <= 2) {
     return clean;
   }
-  
+
   // Check if first 2 characters are numbers (province code)
   const isProvNum = /^[0-9]{2}/.test(clean);
   if (!isProvNum) {
     return clean;
   }
-  
+
+  // Explicitly handle the common structure: XXA-12345  (e.g. 79C-76767)
+  // That means clean looks like: [0..1]=XX, [2]=Letter, [3..] = 5 digits (total length = 8)
+  const matchCommon = clean.match(/^(\d{2})([A-Z])(\d{5})/);
+  if (matchCommon) {
+    return `${matchCommon[1]}${matchCommon[2]}-${matchCommon[3]}`;
+  }
+
+  // Detect backspace/deletion (keep it minimal to avoid interfering with the common XXA-12345 rule)
+  // If the previous value ended with a hyphen and the user deleted it, just continue formatting from the new raw value.
+  if (prevVal.endsWith('-') && val === prevVal.slice(0, -1)) {
+    return formatPlateNumber(val, '');
+  }
+
   const char3 = clean[2];
   const char4 = clean[3];
-  
+
   const isChar3Letter = /[A-Z]/.test(char3);
   const isChar4Letter = char4 && /[A-Z]/.test(char4);
-  
+
   if (isChar3Letter) {
     if (isChar4Letter) {
       // 4-character prefix (e.g. 51LD, 30AA)
@@ -91,9 +93,12 @@ export function formatPlateNumber(val: string, prevVal: string = ''): string {
       return clean.slice(0, 3) + (clean.length > 3 ? '-' + clean.slice(3) : '-');
     }
   }
-  
+
   // If 3rd char is not a letter, fallback
   return clean.slice(0, 2) + '-' + clean.slice(2);
 }
 
+export function normalizePlateForApi(s: string): string {
+  return normalize(s).replace(/[-.\s]/g, '');
+}
 

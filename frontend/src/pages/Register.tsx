@@ -64,6 +64,7 @@ export function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // ── OTP State ──
   const [otpStep, setOtpStep] = useState(false); // true = show OTP input
@@ -415,7 +416,11 @@ export function RegisterPage() {
               onChange={(e) => setForm({ ...form, agreeTerms: e.target.checked })}
             />
             Tôi đồng ý với{' '}
-            <button type="button" className={styles.linkBtn}>
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={() => setShowTermsModal(true)}
+            >
               Điều khoản sử dụng
             </button>
           </label>
@@ -474,7 +479,7 @@ export function RegisterPage() {
             </div>
 
             {/* Expiry + Resend */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', marginBottom: '0.5rem' }}>
               <span style={{ color: otpExpiry <= 60 ? '#DC2626' : '#6B7280', fontWeight: 600 }}>
                 {otpExpiry > 0
                   ? `Hết hạn sau ${Math.floor(otpExpiry / 60)}:${String(otpExpiry % 60).padStart(2, '0')}`
@@ -529,6 +534,166 @@ export function RegisterPage() {
           </button>
         )}
       </form>
+
+      {/* Render Terms Modal */}
+      {showTermsModal && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setShowTermsModal(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(10, 25, 60, 0.55)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9998,
+              animation: 'fadeIn 0.2s ease',
+            }}
+          />
+
+          {/* Modal Box */}
+          <div style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '90%', maxWidth: 500,
+            zIndex: 9999,
+            boxSizing: 'border-box',
+          }}>
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: 20,
+              boxShadow: '0 24px 64px rgba(10, 25, 60, 0.20)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '85vh',
+            }}>
+              {/* Header */}
+              <div style={{
+                background: 'linear-gradient(135deg, #1E3A5F 0%, #2C4F78 100%)',
+                padding: '1.25rem 1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                color: '#FFFFFF',
+              }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+                  Điều khoản sử dụng dịch vụ
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(false)}
+                  style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    border: 'none', borderRadius: 8,
+                    width: 30, height: 30,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', color: '#FFFFFF', fontSize: '1.1rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div style={{
+                padding: '1.5rem',
+                overflowY: 'auto',
+                fontSize: '0.88rem',
+                color: '#4B5563',
+                lineHeight: 1.6,
+                textAlign: 'left',
+              }}>
+                <p style={{ marginTop: 0, fontWeight: 700, color: '#1E3A5F' }}>
+                  Hệ thống quản lý đỗ xe thông minh ParkSmart là một sản phẩm phần mềm bản quyền chính thức được nghiên cứu và phát triển bởi Nhóm 05 (SWP391 SE1915 FPT University). Mọi quyền sở hữu trí tuệ, thương hiệu, và tài liệu liên quan đều được bảo hộ nghiêm ngặt.
+                </p>
+                <p style={{ color: '#4B5563', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+                  Bằng việc đăng ký tài khoản thành viên hoặc sử dụng bất kỳ dịch vụ nào của hệ thống ParkSmart, quý khách (sau đây gọi là "Lái xe" hoặc "Khách hàng") cam kết đã đọc, hiểu và đồng ý vô điều kiện với toàn bộ các điều khoản sử dụng dưới đây:
+                </p>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  1. Quy định chung về đỗ xe
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Tài xế phải đỗ đúng vị trí ô (slot) được chỉ định bởi thuật toán tối ưu của hệ thống hoặc theo hướng dẫn trực tiếp từ nhân viên trực ca trực bãi xe.</li>
+                  <li>Tuyệt đối không đỗ chiếm dụng ô đỗ cố định của cư dân khác (các slot có đăng ký gói cước tháng đặc quyền).</li>
+                  <li>Tuân thủ tốc độ giới hạn (tối đa 10km/h) và các biển chỉ dẫn an toàn, biển cảnh báo giao thông trong khu vực hầm đỗ xe.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  2. Quy định đặt chỗ trước (Booking) và phí đặt cọc
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Khách vãng lai khi đặt chỗ trước qua ứng dụng phải nộp khoản tiền đặt cọc là <strong>15.000đ</strong>. Khoản cọc này sẽ được khấu trừ vào phí gửi xe thực tế khi khách hàng check-out.</li>
+                  <li>Nếu quá giờ hẹn dự kiến <strong>30 phút</strong> mà xe chưa vào bãi (No-show), lượt đặt chỗ sẽ bị hủy tự động và tiền đặt cọc sẽ bị tịch thu phục vụ phí giữ slot ảo.</li>
+                  <li>Cư dân đã đăng ký gói tháng được miễn phí tiền đặt cọc đặt chỗ, nhưng lượt đặt chỗ cũng sẽ tự động hủy sau 30 phút quá hạn để bảo đảm tối ưu hóa công suất khai thác bãi đỗ.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  3. Thẻ xe và Đền bù mất mát
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Tài xế có trách nhiệm tự bảo quản thẻ/vé gửi xe (đối với khách sử dụng vé lượt giấy hoặc thẻ RFID).</li>
+                  <li>Trong trường hợp làm mất thẻ xe, tài xế phải đền bù chi phí phát hành lại thẻ: <strong>80.000đ đối với xe máy</strong> và <strong>200.000đ đối với ô tô</strong>, đồng thời thanh toán phí gửi xe tính từ thời điểm xe check-in thực tế dựa trên dữ liệu đối soát camera bãi xe.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  4. Miễn trừ trách nhiệm về tài sản cá nhân
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Ban quản lý và đơn vị vận hành hệ thống đỗ xe không chịu trách nhiệm bảo quản hay bồi thường đối với các tài sản cá nhân có giá trị (tiền mặt, trang sức, điện thoại, máy tính...) để lại bên trong xe của quý khách.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  5. Quyền sở hữu trí tuệ và Bản quyền phát triển
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                  <li>Toàn bộ mã nguồn, cấu trúc phần mềm, cơ sở dữ liệu, giao diện người dùng (UI/UX), nhãn hiệu thương mại "ParkSmart" đều thuộc sở hữu độc quyền của ParkSmart DevTeam. Mọi hành vi sao chép, đảo ngược mã nguồn (reverse engineering), phân phối trái phép đều bị nghiêm cấm theo luật Sở hữu trí tuệ hiện hành.</li>
+                </ul>
+
+                <h4 style={{ color: '#1E3A5F', margin: '1.25rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                  6. Chính sách bảo mật dữ liệu khách hàng
+                </h4>
+                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', marginBottom: 0 }}>
+                  <li>Dữ liệu cá nhân (Họ tên, số điện thoại, biển số xe) và hình ảnh biển số ghi nhận từ camera tại cổng ra/vào chỉ được dùng cho mục đích quản lý đỗ xe, đối soát tài chính, bảo đảm an ninh bãi đỗ và hỗ trợ cơ quan điều tra khi được yêu cầu. Chúng tôi cam kết không bán hoặc chia sẻ thông tin cho các bên thứ ba vì mục đích thương mại ngoài luồng.</li>
+                </ul>
+              </div>
+
+              {/* Footer Action */}
+              <div style={{
+                background: '#F9FAFB',
+                borderTop: '1px solid #E5E7EB',
+                padding: '1rem 1.5rem',
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm({ ...form, agreeTerms: true });
+                    setShowTermsModal(false);
+                  }}
+                  style={{
+                    background: '#1E3A5F',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  Đồng ý &amp; Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </AuthLayout>
   );
 }
