@@ -6,6 +6,7 @@ import {
   CalendarIcon,
   LayoutIcon,
   HistoryIcon,
+  ShoppingBagIcon,
 } from '../components/ui/Icons';
 import { getCurrentSession, getMyPackage, CurrentSession } from '../api/driverDashboardApi';
 import { addVehicle } from '../api/vehicleApi';
@@ -54,30 +55,10 @@ const VEHICLE_PROFILE_OPTIONS: Record<VehicleType, { brands: { label: string; mo
 const VEHICLE_COLORS = ['Trắng', 'Đen', 'Bạc', 'Xám', 'Đỏ', 'Xanh dương', 'Xanh lá', 'Vàng', 'Nâu', 'Cam'];
 const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_, index) => new Date().getFullYear() - index);
 
-// ── Helpers ─────────────────────────────────────────────────
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Buổi sáng';
-  if (h < 17) return 'Buổi chiều';
-  return 'Buổi tối';
-}
-
-function getTitle(time: Date): string {
-  const h = time.getHours();
-  if (h < 5) return 'Vẫn chưa ngủ à?';
-  if (h < 12) return 'Ngày mới tràn đầy năng lượng!';
-  if (h < 14) return 'Buổi trưa rồi, xe đã đỗ chưa?';
-  if (h < 17) return 'Chiều nay đỗ xe ở đâu?';
-  if (h < 20) return 'Buổi tối, rảnh rỗi đỗ xe thôi!';
-  if (h < 22) return 'Đêm vắng, bãi xe vẫn mở!';
-  return 'Khuya rồi, cẩn thận nhé!';
-}
-
 // ── Component ──────────────────────────────────────────────
 export const WelcomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const isLoggedIn = Boolean(user);
 
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
@@ -471,7 +452,7 @@ export const WelcomePage: React.FC = () => {
           </div>
         </nav>
 
-        <HeroSection navigate={navigate} onBooking={() => setBookingOpen(true)} onViewFloorMap={() => navigate('/login')} />
+        <HeroSection />
         <StatusStrip
           availability={availability}
           availLoading={availLoading}
@@ -539,7 +520,14 @@ export const WelcomePage: React.FC = () => {
                 setActiveTab('vehicles');
               }}
             >
-              <CarIconFilled size={18} />
+              <span className={styles.navCarIconBox}>
+                <img
+                  src="/oto.png"
+                  alt=""
+                  aria-hidden="true"
+                  className={`${styles.navCarIcon} ${activeTab === 'vehicles' ? styles.navCarIconActive : styles.navCarIconInactive}`}
+                />
+              </span>
               <span>Xe của bạn</span>
             </NavLink>
             <NavLink
@@ -565,7 +553,7 @@ export const WelcomePage: React.FC = () => {
                 setActiveTab('monthly');
               }}
             >
-              <CarIconFilled size={18} />
+              <ShoppingBagIcon size={16} />
               <span>Gói tháng</span>
             </NavLink>
             <NavLink
@@ -671,7 +659,7 @@ export const WelcomePage: React.FC = () => {
       {/* ── TAB CONTENT ─────────────────────────────────── */}
       {activeTab === 'home' ? (
         <>
-          <HeroLoggedIn user={user} session={session} hasPackage={hasPackage} navigate={navigate} onBooking={() => setBookingOpen(true)} onViewFloorMap={() => setActiveTab('floormap')} />
+          <HeroLoggedIn user={user} session={session} hasPackage={hasPackage} />
           <StatusStrip
             availability={availability}
             availLoading={availLoading}
@@ -835,7 +823,7 @@ export const WelcomePage: React.FC = () => {
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════════
 
-function HeroSection({ navigate, onBooking, onViewFloorMap }: { navigate: (path: string) => void; onBooking: () => void; onViewFloorMap: () => void }) {
+function HeroSection() {
   return (
     <section className={styles.hero}>
       {/* Decorative Circles */}
@@ -883,10 +871,6 @@ function HeroSection({ navigate, onBooking, onViewFloorMap }: { navigate: (path:
               </div>
             </div>
           </div>
-          <div className={styles.heroCtas}>
-            <button className={styles.btnPrimaryHero} onClick={onBooking}>Đặt chỗ ngay</button>
-            <button className={styles.btnOutlineHero} onClick={onViewFloorMap}>Xem sơ đồ tầng</button>
-          </div>
         </div>
       </div>
     </section>
@@ -898,16 +882,10 @@ function HeroLoggedIn({
   user,
   session,
   hasPackage,
-  navigate,
-  onBooking,
-  onViewFloorMap,
 }: {
   user: { fullName: string; email: string };
   session: CurrentSession | null;
   hasPackage: boolean;
-  navigate: (path: string) => void;
-  onBooking: () => void;
-  onViewFloorMap: () => void;
 }) {
   const isLoggedIn = Boolean(user);
   const userName = user?.fullName || user?.email;
@@ -993,10 +971,6 @@ function HeroLoggedIn({
                 <p className={styles.heroHighlightDesc}>Bảo mật thông tin, yên tâm sử dụng</p>
               </div>
             </div>
-          </div>
-          <div className={styles.heroCtas}>
-            <button className={styles.btnPrimaryHero} onClick={onBooking}>Đặt chỗ ngay</button>
-            <button className={styles.btnOutlineHero} onClick={onViewFloorMap}>Xem sơ đồ tầng</button>
           </div>
         </div>
       </div>
