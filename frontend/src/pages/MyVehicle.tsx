@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle } from '../types';
 import { PlateInput } from '../components/PlateInput';
-import { BookingModal } from '../components/BookingModal';
+
 
 const C = {
-  navy: '#1E3A5F', bg: '#EEF2F7', white: '#FFFFFF',
+  navy: '#0F172A', bg: '#EEF2F7', white: '#FFFFFF',
   green: '#16A34A', greenBg: '#DCFCE7', greenLight: '#F0FDF4',
   orange: '#EA580C', orangeBg: '#FFF7ED', orangeLight: '#FFEDD5',
   gray50: '#F9FAFB', gray100: '#F3F4F6', gray200: '#E5E7EB',
@@ -42,30 +42,18 @@ const RESPONSIVE_CSS = `
   .mv-vehicle-left { display:flex; align-items:center; gap:1rem; min-width:0; }
   .mv-vehicle-mid { display:flex; flex-direction:column; gap:0.35rem; min-width:160px; }
   
-  /* Stable 3-Slot Action Area */
+  /* Stable 2-Slot Action Area */
   .mv-vehicle-actions {
     display: grid;
-    grid-template-columns: 112px 112px 44px;
+    grid-template-columns: 112px 44px;
     align-items: center;
     justify-content: end;
     column-gap: 12px;
     flex-shrink: 0;
-    min-width: 292px;
-  }
-  .mv-action-opt {
-    width: 112px;
-    display: flex;
-    justify-content: flex-end;
+    min-width: 168px;
   }
   .mv-action-detail {
     width: 112px;
-  }
-  .mv-action-placeholder {
-    display: block;
-    width: 112px;
-    height: 44px;
-    visibility: hidden;
-    pointer-events: none;
   }
   .mv-delete-btn {
     width: 44px;
@@ -88,22 +76,42 @@ const RESPONSIVE_CSS = `
     color: #ef4444;
   }
 
+  .totalVehicleIconCircle {
+    width: 64px;
+    height: 64px;
+    border-radius: 999px;
+    background: #eef5ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .totalVehicleIconImage {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    display: block;
+    transform: scale(2.2);
+    transform-origin: center;
+    pointer-events: none;
+    user-select: none;
+  }
+
   @media(max-width:1100px){ .mv-summary-grid{ grid-template-columns:repeat(2,1fr); } }
   @media(max-width:768px){
     .mv-summary-grid{ grid-template-columns:1fr; }
     .mv-vehicle-inner{ grid-template-columns:1fr; }
     .mv-vehicle-mid{ min-width:unset; }
     .mv-vehicle-actions{
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: 1fr auto;
       width: 100%;
       box-sizing: border-box;
       min-width: unset;
     }
-    .mv-action-opt, .mv-action-detail {
+    .mv-action-detail {
       width: 100%;
-    }
-    .mv-action-placeholder {
-      display: none;
     }
     .mv-header-row{ flex-direction:column; align-items:stretch; }
   }
@@ -117,7 +125,7 @@ function IconBike({ size = 16 }: { size?: number; color?: string }) { return <sp
 function IconPlus({ size = 14, color = C.white }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>; }
 function IconClose({ size = 14, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
 function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>; }
-function IconChevronRight({ size = 16, color = C.gray400 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>; }
+
 function IconCalendar({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>; }
 function IconMapPin({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>; }
 function IconInfo({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>; }
@@ -129,29 +137,32 @@ function IconPaintBrush({ size = 16, color = C.navy }: { size?: number; color?: 
 function IconTag({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>; }
 function IconBuilding({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="16"/><line x1="15" y1="22" x2="15" y2="16"/><line x1="9" y1="16" x2="15" y2="16"/><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01"/></svg>; }
 
-function SummaryCard({ label, value, icon, accentColor, accentBg }: {
-  label: string; value: number; icon: React.ReactNode; accentColor: string; accentBg: string;
+function SummaryCard({ label, value, icon, accentColor, accentBg, customCircleClass }: {
+  label: string; value: number; icon: React.ReactNode; accentColor: string; accentBg: string; customCircleClass?: string;
 }) {
   return (
-    <div style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'all 0.2s ease', cursor: 'default' }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(30,58,95,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.borderColor = C.gray200; }}>
-      <div style={{ width: 48, height: 48, borderRadius: '50%', background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: accentColor }}>{icon}</div>
+    <div style={{ background: C.white, borderRadius: 20, border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)', padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'all 0.2s ease', cursor: 'default' }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 16px 36px rgba(15, 23, 42, 0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 32px rgba(15, 23, 42, 0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(15, 23, 42, 0.08)'; }}>
+      <div 
+        className={customCircleClass}
+        style={customCircleClass ? undefined : { width: 48, height: 48, borderRadius: '50%', background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: accentColor }}
+      >
+        {icon}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '1.75rem', fontWeight: 800, color: C.gray900, lineHeight: 1 }}>{value}</div>
         <div style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500, marginTop: 3 }}>{label}</div>
       </div>
-      <IconChevronRight size={18} color={C.gray300} />
     </div>
   );
 }
 
 type DeletePhase = 'idle' | 'confirming' | 'deleting';
 
-function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCancelDelete, onViewDetail, onStartBooking }: {
+function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCancelDelete, onViewDetail }: {
   vehicle: Vehicle; phase: DeletePhase;
   onAskDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onViewDetail: () => void;
-  onStartBooking: () => void;
 }) {
   const isCar = vehicle.type === 'CAR';
   const isMonthly = hasMonthlyPackage(vehicle);
@@ -160,16 +171,16 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
   const areaText = getParkingAreaText(vehicle);
 
   return (
-    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 4px 18px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02)', padding: '1.25rem 1.5rem', opacity: busy ? 0.6 : 1, transition: 'all 0.2s ease', position: 'relative' }}
+    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)', padding: '1.25rem 1.5rem', opacity: busy ? 0.6 : 1, transition: 'all 0.2s ease', position: 'relative' }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 30px rgba(30, 58, 95, 0.06), 0 2px 6px rgba(30, 58, 95, 0.02)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 16px 36px rgba(15, 23, 42, 0.1)';
         (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
         (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe';
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 18px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 32px rgba(15, 23, 42, 0.06)';
         (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-        (e.currentTarget as HTMLDivElement).style.borderColor = C.gray200;
+        (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(15, 23, 42, 0.08)';
       }}>
       {phase === 'confirming' && (
         <div style={{ position: 'absolute', inset: 0, borderRadius: 20, background: 'rgba(254,242,242,0.97)', border: `2px solid ${C.redBorder}`, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '1rem' }}>
@@ -210,37 +221,6 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
           )}
         </div>
         <div className="mv-vehicle-actions">
-          {/* Slot 1: Optional Action (Đặt chỗ) */}
-          <div className="mv-action-opt">
-            {(!isMonthly && isCar) ? (
-              <button
-                type="button"
-                onClick={onStartBooking}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0',
-                  background: C.blue,
-                  color: C.white,
-                  border: 'none',
-                  borderRadius: 10,
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
-                  transition: 'background 0.15s',
-                  textAlign: 'center'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = C.blueDark; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = C.blue; }}
-              >
-                Đặt chỗ
-              </button>
-            ) : (
-              <div className="mv-action-placeholder" aria-hidden="true" />
-            )}
-          </div>
-
           {/* Slot 2: Detail Button (Chi tiết) */}
           <div className="mv-action-detail">
             <button
@@ -439,9 +419,9 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       value={brand}
                       onChange={(e) => setBrand(e.target.value)}
                       placeholder="Nhập hãng xe (VD: Toyota, Honda...)"
-                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                      style={{ padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'all 0.15s ease' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.12)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.24)'; e.currentTarget.style.boxShadow = 'none'; }}
                     />
                   </div>
 
@@ -453,9 +433,9 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
                       placeholder="Nhập dòng xe (VD: Camry, City...)"
-                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                      style={{ padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'all 0.15s ease' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.12)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.24)'; e.currentTarget.style.boxShadow = 'none'; }}
                     />
                   </div>
 
@@ -465,9 +445,9 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                     <select
                       value={color}
                       onChange={(e) => setColor(e.target.value)}
-                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s', background: '#FFFFFF', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236B7280\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                      style={{ padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'all 0.15s ease', background: '#FFFFFF', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236B7280\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.12)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.24)'; e.currentTarget.style.boxShadow = 'none'; }}
                     >
                       <option value="">Chưa chọn màu</option>
                       {VEHICLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -482,9 +462,9 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       value={year}
                       onChange={(e) => setYear(e.target.value)}
                       placeholder="Nhập năm sản xuất"
-                      style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                      style={{ padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'all 0.15s ease' }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.12)'; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.24)'; e.currentTarget.style.boxShadow = 'none'; }}
                     />
                   </div>
 
@@ -497,9 +477,9 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                         value={seats}
                         onChange={(e) => setSeats(e.target.value)}
                         placeholder="Nhập số chỗ ngồi"
-                        style={{ padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: '10px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'border-color 0.15s' }}
-                        onFocus={(e) => { e.currentTarget.style.borderColor = C.blue; }}
-                        onBlur={(e) => { e.currentTarget.style.borderColor = C.gray200; }}
+                        style={{ padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 500, outline: 'none', transition: 'all 0.15s ease' }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.12)'; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.24)'; e.currentTarget.style.boxShadow = 'none'; }}
                       />
                     </div>
                   )}
@@ -514,7 +494,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                         background: C.white,
                         color: C.gray600,
                         border: `1px solid ${C.gray200}`,
-                        borderRadius: 10,
+                        borderRadius: 12,
                         fontSize: '0.82rem',
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -534,7 +514,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                         background: 'linear-gradient(135deg,#16A34A 0%,#15803D 100%)',
                         color: C.white,
                         border: 'none',
-                        borderRadius: 10,
+                        borderRadius: 12,
                         fontSize: '0.82rem',
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -667,9 +647,9 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚗</div>
       <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: C.gray900 }}>Bạn chưa có xe nào</p>
       <p style={{ margin: '0.4rem 0 1.5rem', fontSize: '0.85rem', color: C.gray600 }}>Nhấn "Thêm xe" để đăng ký phương tiện và quản lý dễ dàng hơn.</p>
-      <button onClick={onAdd} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.7rem 1.5rem', background: C.navy, color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(30,58,95,0.3)', transition: 'transform 0.15s,box-shadow 0.15s' }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 8px 20px rgba(30,58,95,0.35)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(30,58,95,0.3)'; }}>
+      <button onClick={onAdd} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.7rem 1.5rem', background: '#2563EB', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37,99,235,0.2)', transition: 'all 0.18s ease' }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 8px 20px rgba(37,99,235,0.3)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 14px rgba(37,99,235,0.2)'; }}>
         <IconPlus size={14} color={C.white} /> Thêm xe ngay
       </button>
     </div>
@@ -726,10 +706,10 @@ function AddVehicleForm({ submitting, error, onCancel, onSubmit }: {
   };
 
   const displayError = localError || error;
-  const sel = { padding: '0.65rem 0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 10, background: C.white, fontSize: '0.9rem', color: C.gray900, width: '100%', fontFamily: 'inherit' };
+  const sel = { padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: 12, background: C.white, fontSize: '0.9rem', color: C.gray900, width: '100%', fontFamily: 'inherit', transition: 'all 0.15s ease' };
 
   return (
-    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: `1px solid ${C.gray200}`, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)', overflow: 'hidden' }}>
       <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <p style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.white }}>Thêm xe mới</p>
@@ -763,13 +743,21 @@ function AddVehicleForm({ submitting, error, onCancel, onSubmit }: {
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm</span><select value={year === '' ? '' : year.toString()} onChange={(e) => setYear(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}>{VEHICLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select></label>
           {type === 'CAR' && (<label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số chỗ</span><select value={seats === '' ? '' : seats.toString()} onChange={(e) => setSeats(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}><option value="">Chọn số chỗ</option>{CAR_SEAT_OPTIONS.map(s => <option key={s} value={s}>{s} chỗ</option>)}</select></label>)}
         </div>
-        <button type="submit" disabled={submitting || !plateNumber.trim()} style={{ width: '100%', padding: '0.8rem', background: submitting || !plateNumber.trim() ? C.gray300 : C.navy, color: submitting || !plateNumber.trim() ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: submitting || !plateNumber.trim() ? 'not-allowed' : 'pointer', marginTop: '1.25rem', boxShadow: submitting || !plateNumber.trim() ? 'none' : '0 4px 14px rgba(30,58,95,0.25)', transition: 'background 0.15s' }}>
+        <button type="submit" disabled={submitting || !plateNumber.trim()} style={{ width: '100%', padding: '0.8rem', background: submitting || !plateNumber.trim() ? C.gray300 : '#2563EB', color: submitting || !plateNumber.trim() ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: submitting || !plateNumber.trim() ? 'not-allowed' : 'pointer', marginTop: '1.25rem', boxShadow: submitting || !plateNumber.trim() ? 'none' : '0 4px 14px rgba(37,99,235,0.2)', transition: 'all 0.18s ease' }}
+          onMouseEnter={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#1d4ed8'; }}
+          onMouseLeave={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#2563EB'; }}
+        >
           {submitting ? 'Đang thêm...' : '+ Thêm xe'}
         </button>
       </form>
     </div>
   );
 }
+
+const styles = {
+  totalVehicleIconCircle: 'totalVehicleIconCircle',
+  totalVehicleIconImage: 'totalVehicleIconImage',
+};
 
 export function MyVehiclePage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -783,7 +771,6 @@ export function MyVehiclePage() {
   const [formError, setFormError] = useState('');
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
   const [tipVisible, setTipVisible] = useState(true);
-  const [bookingVehicle, setBookingVehicle] = useState<Vehicle | null>(null);
 
   const loadVehicles = useCallback(async () => {
     const epoch = ++loadEpoch.current;
@@ -859,7 +846,8 @@ export function MyVehiclePage() {
       {!loading && (
         <div className="mv-summary-grid">
           <SummaryCard label="Tổng phương tiện" value={totalVehicles} accentColor={C.blue} accentBg={C.blueBg}
-            icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 4v3h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>} />
+            customCircleClass={styles.totalVehicleIconCircle}
+            icon={<img src="/oto.png" alt="" className={styles.totalVehicleIconImage} />} />
           <SummaryCard label="Có gói tháng" value={withPackage} accentColor={C.green} accentBg={C.greenBg}
             icon={<svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 11 2 2 4-4"/></svg>} />
           <SummaryCard label="Chưa có gói" value={withoutPackage} accentColor={C.orange} accentBg={C.orangeBg}
@@ -890,7 +878,7 @@ export function MyVehiclePage() {
               const err = cardState?.error ?? '';
               return (
                 <div key={v.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <RichVehicleCard vehicle={v} phase={phase} onAskDelete={() => askDelete(v.id)} onConfirmDelete={() => handleDelete(v.id)} onCancelDelete={() => cancelDelete(v.id)} onViewDetail={() => setDetailVehicleId(v.id)} onStartBooking={() => setBookingVehicle(v)} />
+                  <RichVehicleCard vehicle={v} phase={phase} onAskDelete={() => askDelete(v.id)} onConfirmDelete={() => handleDelete(v.id)} onCancelDelete={() => cancelDelete(v.id)} onViewDetail={() => setDetailVehicleId(v.id)} />
                   {err && phase !== 'deleting' && <DeleteErrorBanner message={err} onDismiss={() => clearDeleteError(v.id)} />}
                 </div>
               );
@@ -905,17 +893,7 @@ export function MyVehiclePage() {
 
       {detailVehicleId && <VehicleDetailModal vehicleId={detailVehicleId} onClose={() => setDetailVehicleId(null)} onUpdate={loadVehicles} />}
 
-      {bookingVehicle && (
-        <BookingModal
-          open={!!bookingVehicle}
-          initialPlate={bookingVehicle.plateNumber}
-          onClose={() => setBookingVehicle(null)}
-          onSuccess={() => {
-            setBookingVehicle(null);
-            loadVehicles();
-          }}
-        />
-      )}
+
     </div>
   );
 }
