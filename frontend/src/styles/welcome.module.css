@@ -576,72 +576,7 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
-/* CTA buttons — sit below feature blocks */
-.heroCtas {
-  display: flex;
-  gap: 1.25rem;
-  margin-top: 0.5rem;
-  flex-wrap: wrap;
-}
 
-.btnPrimaryHero {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  color: #ffffff;
-  border: none;
-  padding: 1.1rem 2.75rem;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow:
-    0 4px 14px rgba(37, 99, 235, 0.4),
-    0 10px 28px rgba(37, 99, 235, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 0.015em;
-}
-
-.btnPrimaryHero:hover {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow:
-    0 6px 20px rgba(37, 99, 235, 0.45),
-    0 14px 36px rgba(37, 99, 235, 0.3);
-  transform: translateY(-2px);
-}
-
-.btnPrimaryHero:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
-}
-
-.btnOutlineHero {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  padding: 1.1rem 2.75rem;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(10px);
-  letter-spacing: 0.015em;
-}
-
-.btnOutlineHero:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.6);
-  transform: translateY(-2px);
-}
-
-.btnOutlineHero:active {
-  transform: translateY(0);
-}
 
 /* Responsive adjustment */
 @media (max-width: 991px) {
@@ -747,14 +682,7 @@
   .heroHighlightDesc {
     font-size: 0.74rem;
   }
-  .heroCtas {
-    gap: 0.75rem;
-  }
-  .btnPrimaryHero,
-  .btnOutlineHero {
-    padding: 0.8rem 1.75rem;
-    font-size: 0.88rem;
-  }
+
   .statusStripItem {
     padding: 0.5rem 0.85rem;
   }
@@ -1748,6 +1676,29 @@
 .tabSwitcher::-webkit-scrollbar {
   display: none;
 }
+.navCarIconBox {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.navCarIcon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  display: block;
+  transform: scale(1.45);
+  transform-origin: center;
+}
+.navCarIconInactive {
+  filter: grayscale(1) brightness(0.65) opacity(0.75);
+}
+.navCarIconActive {
+  filter: none;
+}
 .tabBtn {
   background: transparent;
   border: none;
@@ -1874,19 +1825,19 @@
 .formInput {
   width: 100%;
   padding: 0.6rem 0.875rem;
-  border: 1.5px solid #dae9f5;
-  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.24);
+  border-radius: 12px;
   font-size: 0.9rem;
   color: #16293f;
   background: #f8fcff;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   font-family: inherit;
 }
 .formInput:focus {
-  border-color: #2d5fd0;
+  border-color: #2563eb;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(45,95,208,0.1);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 .typeSelector {
   display: grid;
@@ -2390,8 +2341,8 @@
 
 .formInput, .formSelect, .formTextarea {
   padding: 0.65rem 0.85rem;
-  border: 1px solid #dae9f5;
-  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.24);
+  border-radius: 12px;
   font-size: 0.9rem;
   color: #16293f;
   outline: none;
@@ -2400,8 +2351,8 @@
 }
 
 .formInput:focus, .formSelect:focus, .formTextarea:focus {
-  border-color: #2d5fd0;
-  box-shadow: 0 0 0 3px rgba(45, 95, 208, 0.15);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .formTextarea {

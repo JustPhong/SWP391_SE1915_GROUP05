@@ -409,9 +409,9 @@
   justify-content: center;
   gap: 8px;
   padding: 0.65rem 1.25rem;
-  background-color: #1E3A5F; /* ParkSmart Navy */
+  background-color: #2563eb;
   color: #ffffff;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 0.875rem;
   font-weight: 700;
   border: none;
@@ -420,7 +420,7 @@
 }
 
 .btnPrimary:hover {
-  background-color: #112237;
+  background-color: #1d4ed8;
   transform: translateY(-1px);
 }
 
@@ -439,8 +439,8 @@
   padding: 0.65rem 1.25rem;
   background-color: #ffffff;
   color: #475569;
-  border: 1.5px solid #CBD5E1;
-  border-radius: 10px;
+  border: 1px solid rgba(100, 116, 139, 0.24);
+  border-radius: 12px;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
@@ -466,8 +466,8 @@
   padding: 0.65rem 1.25rem;
   background-color: #ffffff;
   color: #DC2626;
-  border: 1.5px solid #FCA5A5;
-  border-radius: 10px;
+  border: 1px solid #FCA5A5;
+  border-radius: 12px;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
