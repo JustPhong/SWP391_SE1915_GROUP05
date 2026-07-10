@@ -476,7 +476,6 @@ export const WelcomePage: React.FC = () => {
         <ProcessSection />
         <FeaturesSection />
         <PricingSection navigate={navigate} />
-        <CtaBand navigate={navigate} onBooking={() => setBookingOpen(true)} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
@@ -1025,31 +1024,6 @@ function FeaturesSection() {
   );
 }
 
-function CtaBand({ navigate, onBooking }: { navigate: (path: string) => void; onBooking: () => void }) {
-  return (
-    <section className={styles.ctaMiniSection}>
-      <div className={styles.ctaMiniBand}>
-        <div className={styles.ctaMiniText}>
-          <h2>Sẵn sàng đỗ xe?</h2>
-          <p>
-            Đặt chỗ ngay — hệ thống tự xếp vị trí tối ưu và giữ chỗ cho bạn trong vài giây.
-          </p>
-        </div>
-
-        <div className={styles.ctaMiniActions}>
-          <button className={styles.ctaMiniPrimary} onClick={onBooking}>
-            Đặt chỗ ngay
-          </button>
-          <button className={styles.ctaMiniSecondary} onClick={() => navigate('/login')}>
-            Đăng nhập
-          </button>
-        </div>
-
-        <div className={styles.ctaMiniCar} aria-hidden="true" />
-      </div>
-    </section>
-  );
-}
 
 function StatusStrip({
   availability,
