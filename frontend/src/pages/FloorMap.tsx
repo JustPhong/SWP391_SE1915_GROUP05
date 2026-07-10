@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { floorMapService, type FloorWithSlots } from '../services/floorMap.service';
-import type { ParkingSlot } from '../types';
+import type { ParkingSlot, Floor } from '../types';
 import styles from '../styles/floorMap.module.css';
 
 // ═══════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════
 
-function getSlotTier(code: string): 'vip' | 'popular' | 'basic' {
-  if (['G-01', 'G-02', 'G-11', 'G-12'].includes(code)) return 'vip';
-  if (['G-03', 'G-04', 'G-05', 'G-06', 'G-13', 'G-14', 'G-15', 'G-16'].includes(code)) return 'popular';
+function getSlotTier(tier?: string): 'vip' | 'popular' | 'basic' {
+  const normalized = (tier || '').toUpperCase();
+  if (normalized === 'VIP') return 'vip';
+  if (normalized === 'POPULAR') return 'popular';
   return 'basic';
 }
 
@@ -36,17 +37,54 @@ function getSlotStatus(slot: ParkingSlot, floorCode: string): 'AVAILABLE' | 'OCC
   }
 }
 
+// Natural sorting helper that ensures 'G' (Ground Floor) comes first, followed by numeric floors.
+function sortFloors(floors: Floor[]): Floor[] {
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  return [...floors].sort((a, b) => {
+    if (a.floorCode === 'G' && b.floorCode !== 'G') return -1;
+    if (b.floorCode === 'G' && a.floorCode !== 'G') return 1;
+    return collator.compare(a.floorCode, b.floorCode);
+  });
+}
+
+// Deterministic logic to group slots into rows for visual display.
+// Display rows (A, B, C, D) are presentation-derived because there is no explicit row/zone field in the current database schema.
+function groupSlotsIntoDisplayRows(slots: ParkingSlot[]): { label: string; slots: ParkingSlot[] }[] {
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const sorted = [...slots].sort((a, b) => collator.compare(a.code, b.code));
+
+  if (sorted.length === 20) {
+    return [
+      { label: 'A', slots: sorted.slice(0, 10) },
+      { label: 'B', slots: sorted.slice(10, 20) },
+    ];
+  } else if (sorted.length === 40) {
+    return [
+      { label: 'A', slots: sorted.slice(0, 10) },
+      { label: 'B', slots: sorted.slice(10, 20) },
+      { label: 'C', slots: sorted.slice(20, 30) },
+      { label: 'D', slots: sorted.slice(30, 40) },
+    ];
+  }
+
+  const half = Math.ceil(sorted.length / 2);
+  return [
+    { label: 'A', slots: sorted.slice(0, half) },
+    { label: 'B', slots: sorted.slice(half) },
+  ];
+}
+
 // ═══════════════════════════════════════════════════════
 //  SLOT CARD COMPONENT
 // ═══════════════════════════════════════════════════════
 
 interface SlotCardProps {
   slot: ParkingSlot;
-  floorCode: string;
+  floor: Floor;
 }
 
-function SlotCard({ slot, floorCode }: SlotCardProps) {
-
+function SlotCard({ slot, floor }: SlotCardProps) {
+  const floorCode = floor.floorCode;
   let cardClass = styles.slotAvailable;
   let badge: JSX.Element | null = null;
   const displayStatus = getSlotStatus(slot, floorCode);
@@ -60,24 +98,20 @@ function SlotCard({ slot, floorCode }: SlotCardProps) {
     cardClass = styles.slotReserved;
   } else {
     // AVAILABLE
-    const tier = floorCode === 'G' ? getSlotTier(slot.code) : 'basic';
-    if (floorCode === 'G') {
-      if (tier === 'vip') {
-        cardClass = styles.slotVip;
-      } else if (tier === 'popular') {
-        cardClass = styles.slotPopular;
-      }
+    const tier = getSlotTier(slot.tier);
+    if (tier === 'vip') {
+      cardClass = styles.slotVip;
+    } else if (tier === 'popular') {
+      cardClass = styles.slotPopular;
     }
   }
 
-  // Floating crown/star in corner for all G VIP/Popular slots
-  if (floorCode === 'G') {
-    const tier = getSlotTier(slot.code);
-    if (tier === 'vip') {
-      badge = <span className={styles.slotMarkerVip}>👑</span>;
-    } else if (tier === 'popular') {
-      badge = <span className={styles.slotMarkerPopular}>⭐</span>;
-    }
+  // Floating crown/star in corner for all VIP/Popular slots (visual decoration only)
+  const tier = getSlotTier(slot.tier);
+  if (tier === 'vip') {
+    badge = <span className={styles.slotMarkerVip}>👑</span>;
+  } else if (tier === 'popular') {
+    badge = <span className={styles.slotMarkerPopular}>⭐</span>;
   }
 
   // Determine small status symbol below code
@@ -107,57 +141,75 @@ function SlotCard({ slot, floorCode }: SlotCardProps) {
 // ═══════════════════════════════════════════════════════
 
 export function FloorMapPage() {
+  const [floors, setFloors] = useState<Floor[]>([]);
   const [floorSlotsMap, setFloorSlotsMap] = useState<Record<string, FloorWithSlots>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Load floors and slots on mount
-  useEffect(() => {
-    (async () => {
-      try {
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fetchedFloors = await floorMapService.getAllFloors();
+      const sortedFloors = sortFloors(fetchedFloors);
+      setFloors(sortedFloors);
 
-        const codes = ['G', '1', '2', '3'];
-        const slotsPromises = codes.map(code => floorMapService.getSlotsByFloor(code));
-        const slotsData = await Promise.all(slotsPromises);
+      const slotsPromises = sortedFloors.map(floor => floorMapService.getSlotsByFloor(floor.floorCode));
+      const slotsData = await Promise.all(slotsPromises);
 
-        const mapped: Record<string, FloorWithSlots> = {};
-        slotsData.forEach(item => {
-          mapped[item.floorCode] = item;
-        });
-        setFloorSlotsMap(mapped);
-      } catch (err) {
-        console.error('Failed to load floor map data:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  const getRows = (slots: ParkingSlot[]) => {
-    const sorted = [...slots].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-    if (sorted.length === 20) {
-      return [
-        { label: 'A', slots: sorted.slice(0, 10) },
-        { label: 'B', slots: sorted.slice(10, 20) },
-      ];
-    } else if (sorted.length === 40) {
-      return [
-        { label: 'A', slots: sorted.slice(0, 10) },
-        { label: 'B', slots: sorted.slice(10, 20) },
-        { label: 'C', slots: sorted.slice(20, 30) },
-        { label: 'D', slots: sorted.slice(30, 40) },
-      ];
+      const mapped: Record<string, FloorWithSlots> = {};
+      slotsData.forEach(item => {
+        mapped[item.floorCode] = item;
+      });
+      setFloorSlotsMap(mapped);
+    } catch (err) {
+      console.error('Failed to load floor map data:', err);
+      setError('Đã xảy ra lỗi khi tải sơ đồ bãi đỗ xe.');
+    } finally {
+      setLoading(false);
     }
-    const half = Math.ceil(sorted.length / 2);
-    return [
-      { label: 'A', slots: sorted.slice(0, half) },
-      { label: 'B', slots: sorted.slice(half) },
-    ];
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 320 }}>
         <p style={{ color: '#94a3b8', fontSize: '0.95rem', fontWeight: 500 }}>Đang tải sơ đồ bãi đỗ xe...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: 320, gap: '1rem' }}>
+        <p style={{ color: '#ef4444', fontSize: '0.95rem', fontWeight: 500 }}>{error}</p>
+        <button 
+          onClick={loadData}
+          style={{
+            background: '#2d5fd0',
+            color: '#ffffff',
+            border: 'none',
+            padding: '0.5rem 1.25rem',
+            borderRadius: '8px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontSize: '0.875rem'
+          }}
+        >
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+
+  if (floors.length === 0) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 320 }}>
+        <p style={{ color: '#94a3b8', fontSize: '0.95rem', fontWeight: 500 }}>Không tìm thấy dữ liệu tầng.</p>
       </div>
     );
   }
@@ -200,27 +252,45 @@ export function FloorMapPage() {
         </div>
       </div>
 
-      {/* 3. Floors responsive 2-column grid */}
+      {/* 3. Floors responsive vertical list */}
       <div className={styles.grid}>
-        {/* TẦNG G CARD */}
-        {(() => {
-          const floorData = floorSlotsMap['G'];
+        {floors.map(floor => {
+          const floorData = floorSlotsMap[floor.floorCode];
           const slots = floorData?.slots ?? [];
-          const availCount = slots.filter(s => getSlotStatus(s, 'G') === 'AVAILABLE').length;
-          const rows = getRows(slots);
+          const availCount = slots.filter(s => getSlotStatus(s, floor.floorCode) === 'AVAILABLE').length;
+          const rows = groupSlotsIntoDisplayRows(slots);
+
+          const isMonthlyMotorbike = floor.customerType === 'MONTHLY' && floor.vehicleType === 'MOTORBIKE';
+          const vehicleIcon = floor.vehicleType === 'CAR' ? '🚗' : '🛵';
+          const vehicleText = floor.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
+          const customerText = floor.customerType === 'MONTHLY' ? 'Khách tháng' : 'Khách vãng lai';
 
           return (
-            <div className={styles.floorCard}>
+            <div key={floor.id} className={styles.floorCard}>
               <div className={styles.floorHeader}>
                 <div className={styles.floorTitleGroup}>
-                  <div className={styles.floorIconCircle}>🚗</div>
+                  <div className={styles.floorIconCircle}>{vehicleIcon}</div>
                   <div className={styles.floorTitleContainer}>
-                    <h2 className={styles.floorTitle}>Tầng G</h2>
-                    <p className={styles.floorSubtitle}>Ô tô • Khách tháng</p>
+                    <h2 className={styles.floorTitle}>{floor.name}</h2>
+                    <p className={styles.floorSubtitle}>{vehicleText} • {customerText}</p>
                   </div>
                 </div>
-                <div className={styles.floorBadge}>{availCount}/{slots.length || 20} chỗ trống</div>
+                <div className={styles.floorBadge}>
+                  {isMonthlyMotorbike 
+                    ? `${slots.length}/${slots.length} sức chứa`
+                    : `${availCount}/${slots.length} chỗ trống`
+                  }
+                </div>
               </div>
+
+              {isMonthlyMotorbike && (
+                <div className={styles.floorNote}>
+                  <span style={{ fontSize: '14px', lineHeight: 1 }}>ℹ️</span>
+                  <p className={styles.floorNoteText}>
+                    Khách tháng được sử dụng khu vực này, không giữ cố định từng ô.
+                  </p>
+                </div>
+              )}
 
               <div className={styles.slotGridWrapper}>
                 <div className={styles.slotMapBody}>
@@ -241,7 +311,7 @@ export function FloorMapPage() {
                         <div className={styles.rowLabel}>{row.label}</div>
                         <div className={styles.slotsRow}>
                           {row.slots.map(slot => (
-                            <SlotCard key={slot.id} slot={slot} floorCode="G" />
+                            <SlotCard key={slot.id} slot={slot} floor={floor} />
                           ))}
                         </div>
                       </div>
@@ -250,180 +320,24 @@ export function FloorMapPage() {
                 </div>
               </div>
 
-              <div className={styles.tierLegend}>
-                <div className={styles.tierLegendItem}>
-                  <span>👑 VIP — Vị trí ưu tiên</span>
+              {/* Render Legend Card only on Floor G to match VIP/Popular indicators */}
+              {floor.floorCode === 'G' && floor.vehicleType === 'CAR' && floor.customerType === 'MONTHLY' && (
+                <div className={styles.tierLegend}>
+                  <div className={styles.tierLegendItem}>
+                    <span>👑 VIP — Vị trí ưu tiên</span>
+                  </div>
+                  <div className={styles.tierLegendItem}>
+                    <span>⭐ Phổ biến — Vị trí được ưa chuộng</span>
+                  </div>
+                  <div className={styles.tierLegendItem}>
+                    <span className={styles.tierIndicatorBasic} />
+                    <span>Cơ bản — Vị trí tiêu chuẩn</span>
+                  </div>
                 </div>
-                <div className={styles.tierLegendItem}>
-                  <span>⭐ Phổ biến — Vị trí được ưa chuộng</span>
-                </div>
-                <div className={styles.tierLegendItem}>
-                  <span className={styles.tierIndicatorBasic} />
-                  <span>Cơ bản — Vị trí tiêu chuẩn</span>
-                </div>
-              </div>
+              )}
             </div>
           );
-        })()}
-
-        {/* TẦNG 1 CARD */}
-        {(() => {
-          const floorData = floorSlotsMap['1'];
-          const slots = floorData?.slots ?? [];
-          const rows = getRows(slots);
-
-          return (
-            <div className={styles.floorCard}>
-              <div className={styles.floorHeader}>
-                <div className={styles.floorTitleGroup}>
-                  <div className={styles.floorIconCircle}>🛵</div>
-                  <div className={styles.floorTitleContainer}>
-                    <h2 className={styles.floorTitle}>Tầng 1</h2>
-                    <p className={styles.floorSubtitle}>Xe máy • Khách tháng</p>
-                  </div>
-                </div>
-                <div className={styles.floorBadge}>{slots.length || 40}/{slots.length || 40} sức chứa</div>
-              </div>
-
-              <div className={styles.floorNote}>
-                <span style={{ fontSize: '14px', lineHeight: 1 }}>ℹ️</span>
-                <p className={styles.floorNoteText}>
-                  Khách tháng được sử dụng khu vực này, không giữ cố định từng ô.
-                </p>
-              </div>
-
-              <div className={styles.slotGridWrapper}>
-                <div className={styles.slotMapBody}>
-                  <div className={styles.directionGuide}>
-                    <div className={styles.directionItem}>
-                      <span>Lối vào</span>
-                      <span className={styles.arrowRight}>→</span>
-                    </div>
-                    <div className={styles.directionItem}>
-                      <span className={styles.arrowLeft}>←</span>
-                      <span>Lối ra</span>
-                    </div>
-                  </div>
-
-                  <div className={styles.slotsGrid}>
-                    {rows.map(row => (
-                      <div key={row.label} className={styles.rowContainer}>
-                        <div className={styles.rowLabel}>{row.label}</div>
-                        <div className={styles.slotsRow}>
-                          {row.slots.map(slot => (
-                            <SlotCard key={slot.id} slot={slot} floorCode="1" />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* TẦNG 2 CARD */}
-        {(() => {
-          const floorData = floorSlotsMap['2'];
-          const slots = floorData?.slots ?? [];
-          const availCount = slots.filter(s => getSlotStatus(s, '2') === 'AVAILABLE').length;
-          const rows = getRows(slots);
-
-          return (
-            <div className={styles.floorCard}>
-              <div className={styles.floorHeader}>
-                <div className={styles.floorTitleGroup}>
-                  <div className={styles.floorIconCircle}>🛵</div>
-                  <div className={styles.floorTitleContainer}>
-                    <h2 className={styles.floorTitle}>Tầng 2</h2>
-                    <p className={styles.floorSubtitle}>Xe máy • Khách vãng lai</p>
-                  </div>
-                </div>
-                <div className={styles.floorBadge}>{availCount}/{slots.length || 40} chỗ trống</div>
-              </div>
-
-              <div className={styles.slotGridWrapper}>
-                <div className={styles.slotMapBody}>
-                  <div className={styles.directionGuide}>
-                    <div className={styles.directionItem}>
-                      <span>Lối vào</span>
-                      <span className={styles.arrowRight}>→</span>
-                    </div>
-                    <div className={styles.directionItem}>
-                      <span className={styles.arrowLeft}>←</span>
-                      <span>Lối ra</span>
-                    </div>
-                  </div>
-
-                  <div className={styles.slotsGrid}>
-                    {rows.map(row => (
-                      <div key={row.label} className={styles.rowContainer}>
-                        <div className={styles.rowLabel}>{row.label}</div>
-                        <div className={styles.slotsRow}>
-                          {row.slots.map(slot => (
-                            <SlotCard key={slot.id} slot={slot} floorCode="2" />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* TẦNG 3 CARD */}
-        {(() => {
-          const floorData = floorSlotsMap['3'];
-          const slots = floorData?.slots ?? [];
-          const availCount = slots.filter(s => getSlotStatus(s, '3') === 'AVAILABLE').length;
-          const rows = getRows(slots);
-
-          return (
-            <div className={styles.floorCard}>
-              <div className={styles.floorHeader}>
-                <div className={styles.floorTitleGroup}>
-                  <div className={styles.floorIconCircle}>🚗</div>
-                  <div className={styles.floorTitleContainer}>
-                    <h2 className={styles.floorTitle}>Tầng 3</h2>
-                    <p className={styles.floorSubtitle}>Ô tô • Khách vãng lai</p>
-                  </div>
-                </div>
-                <div className={styles.floorBadge}>{availCount}/{slots.length || 20} chỗ trống</div>
-              </div>
-
-              <div className={styles.slotGridWrapper}>
-                <div className={styles.slotMapBody}>
-                  <div className={styles.directionGuide}>
-                    <div className={styles.directionItem}>
-                      <span>Lối vào</span>
-                      <span className={styles.arrowRight}>→</span>
-                    </div>
-                    <div className={styles.directionItem}>
-                      <span className={styles.arrowLeft}>←</span>
-                      <span>Lối ra</span>
-                    </div>
-                  </div>
-
-                  <div className={styles.slotsGrid}>
-                    {rows.map(row => (
-                      <div key={row.label} className={styles.rowContainer}>
-                        <div className={styles.rowLabel}>{row.label}</div>
-                        <div className={styles.slotsRow}>
-                          {row.slots.map(slot => (
-                            <SlotCard key={slot.id} slot={slot} floorCode="3" />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        })}
       </div>
 
       {/* 4. Trust/Info Card Section */}

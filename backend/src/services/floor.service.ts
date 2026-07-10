@@ -18,6 +18,7 @@ export interface FloorWithSlots {
     type: string;
     status: string;
     isFixed: boolean;
+    tier: string;
   }[];
 }
 
@@ -43,6 +44,7 @@ export const floorService = {
             type: true,
             status: true,
             isFixed: true,
+            tier: true,
           },
         },
       },
@@ -64,6 +66,7 @@ export const floorService = {
             type: true,
             status: true,
             isFixed: true,
+            tier: true,
           },
         },
       },
@@ -100,6 +103,7 @@ export const floorService = {
         type: true,
         status: true,
         isFixed: true,
+        tier: true,
         assignedVehicleId: true,
         checkInRecords: {
           where: { status: "PARKING" },
@@ -163,6 +167,7 @@ export const floorService = {
             type: true,
             status: true,
             isFixed: true,
+            tier: true,
           },
         },
       },
@@ -201,6 +206,7 @@ export const floorService = {
             type: true,
             status: true,
             isFixed: true,
+            tier: true,
           },
         },
       },
