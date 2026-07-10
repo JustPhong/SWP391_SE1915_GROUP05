@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import styles from './History.module.css';
+import styles from '../styles/history.module.css';
 
 interface HistoryEntry {
   id: string;
@@ -539,10 +539,10 @@ export function HistoryPage() {
                 <span className={styles.modalLabel}>Trạng thái</span>
                 <span className={styles.modalValue}>
                   <span className={`${styles.statusBadge} ${getStatusLabel(getStatus(selectedEntry)) === 'Đang gửi'
-                      ? styles.statusActive
-                      : getStatusLabel(getStatus(selectedEntry)) === 'Đã hủy'
-                        ? styles.statusCancelled
-                        : styles.statusCompleted
+                    ? styles.statusActive
+                    : getStatusLabel(getStatus(selectedEntry)) === 'Đã hủy'
+                      ? styles.statusCancelled
+                      : styles.statusCompleted
                     }`}>
                     {getStatusLabel(getStatus(selectedEntry))}
                   </span>
