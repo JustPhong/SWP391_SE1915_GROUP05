@@ -100,15 +100,15 @@
   background: #ffffff;
   border-radius: 16px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
   padding: 1.5rem;
 }
 
 .filterGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr) auto;
-  gap: 1.25rem;
-  align-items: flex-end;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+  gap: 24px;
+  align-items: end;
 }
 
 .filterGroup {
@@ -117,79 +117,94 @@
   gap: 0.375rem;
 }
 
-.filterGroup label {
-  font-size: 0.75rem;
-  font-weight: 700;
+.filterLabel {
   color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  margin-bottom: 4px;
 }
 
-.input,
-.select {
+.filterInput,
+.filterSelect {
   width: 100%;
-  border-radius: 8px;
+  height: 44px;
+  border-radius: 12px;
   border: 1px solid rgba(100, 116, 139, 0.24);
-  background-color: #ffffff;
-  padding: 0.625rem 0.875rem;
-  font-size: 0.875rem;
-  color: #1E293B;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.input::placeholder {
-  color: #94A3B8;
+.filterInput::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
 }
 
-.input:focus,
-.select:focus {
+.filterInput:focus,
+.filterSelect:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-.btnGroup {
-  display: flex;
-  gap: 0.75rem;
-  height: auto;
-}
-
-.btnReset {
-  border-radius: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
-  background-color: #ffffff;
-  color: #1e3a5f;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 700;
+.filterButton,
+.resetButton {
+  height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1;
+  box-sizing: border-box;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 
-.btnReset:hover {
-  background-color: #f8fafc;
-  border-color: #1e3a5f;
-  color: #152a45;
-}
-
-.btnFilter {
-  border-radius: 8px;
-  border: none;
+.filterButton {
+  min-width: 96px;
+  padding: 0 22px;
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #ffffff;
-  padding: 0.625rem 1.5rem;
-  font-size: 0.875rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
-  white-space: nowrap;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.20);
+  border: none;
 }
 
-.btnFilter:hover {
-  opacity: 0.9;
+.resetButton {
+  min-width: 96px;
+  padding: 0 20px;
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 700;
+  border: 1px solid rgba(100, 116, 139, 0.24);
+  box-shadow: none;
+}
+
+.filterButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.24);
+}
+
+.resetButton:hover {
+  background: #f8fafc;
+  border-color: rgba(100, 116, 139, 0.36);
+}
+
+/* Date inputs typography normalization */
+input[type="date"] {
+  font-size: 14px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
 }
 
 /* History Table Card */
@@ -238,7 +253,7 @@
 .table th {
   background-color: #f1f5f9;
   color: #334155;
-  font-size: 0.75rem;
+  font-size: 13px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -258,8 +273,9 @@
 .table td {
   padding: 1rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-  font-size: 0.875rem;
-  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0f172a;
   vertical-align: middle;
 }
 
@@ -273,27 +289,33 @@
 
 /* Row-specific elements */
 .plateBadge {
-  background: rgba(37, 99, 235, 0.10);
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.09);
   border: 1px solid rgba(37, 99, 235, 0.18);
   color: #1e3a8a;
   font-family: 'Consolas', monospace;
-  font-size: 0.85rem;
+  font-size: 14px;
   font-weight: 800;
-  padding: 0.25rem 0.625rem;
-  border-radius: 6px;
-  display: inline-block;
-  letter-spacing: 0.05em;
-}
-
-.statusBadge {
+  letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  box-sizing: border-box;
+}
+
+.statusBadge {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1;
+  box-sizing: border-box;
 }
 
 .statusCompleted {
@@ -314,9 +336,9 @@
 .btnDetail {
   background: none;
   border: none;
-  color: #1E3A5F;
-  font-weight: 600;
-  font-size: 0.85rem;
+  color: #1e3a8a;
+  font-weight: 700;
+  font-size: 14px;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
@@ -563,11 +585,6 @@
   .filterGrid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
-  .btnGroup {
-    grid-column: span 2;
-    justify-content: flex-end;
-  }
 }
 
 @media (max-width: 640px) {
@@ -581,16 +598,10 @@
     gap: 1rem;
   }
   
-  .btnGroup {
-    grid-column: span 1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-  
-  .btnReset,
-  .btnFilter {
+  .resetButton,
+  .filterButton {
     text-align: center;
-    padding: 0.625rem 0.5rem;
+    width: 100%;
   }
   
   .tableHeader {

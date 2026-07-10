@@ -5,9 +5,10 @@
   flex-direction: column;
   gap: 1.25rem;
   width: 100%;
-  max-width: 1320px;
+  max-width: 1080px;
   margin: 0 auto;
   box-sizing: border-box;
+  scroll-padding-top: 90px;
 }
 
 /* Page Header */
@@ -19,26 +20,26 @@
 
 .title {
   margin: 0;
-  font-size: 1.65rem;
-  font-weight: 700;
-  color: #1e3a5f;
-  letter-spacing: -0.025em;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: #64748b;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* Legend Card */
 .legendCard {
   background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid #e5edf7;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
-  padding: 0.95rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 0.75rem 1.25rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -48,69 +49,71 @@
 
 .legendList {
   display: flex;
-  gap: 1.25rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
 }
 
 .legendItem {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.4rem;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .legendBadge {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
 }
 
 .badgeGreen {
   background: #f0fdf4;
-  border: 1.5px solid #22c55e;
+  border: 1px solid #bbf7d0;
 }
 
 .badgeRed {
   background: #fef2f2;
-  border: 1.5px solid #fca5a5;
+  border: 1px solid #fecaca;
 }
 
 .badgeOrange {
   background: #fffbeb;
-  border: 1.5px solid #fde68a;
+  border: 1px solid #fde68a;
 }
 
 .badgeGray {
-  background: #475569;
-  border: 1.5px solid #475569;
+  background: #334155;
+  border: 1px solid #334155;
 }
 
 /* Responsive Floor Grid */
 .grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: 1fr;
+  gap: 28px;
   width: 100%;
 }
 
 .floorCard {
   background: #ffffff;
-  border-radius: 20px;
-  border: 1px solid #e5edf7;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
   padding: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  overflow: hidden;
+  scroll-margin-top: 90px;
 }
 
-.floorCard:hover {
-  transform: translateY(-1.5px);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+.slotGridWrapper {
+  width: 100%;
+  overflow-x: auto;
 }
 
 .floorHeader {
@@ -124,19 +127,20 @@
 .floorTitleGroup {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
 }
 
 .floorIconCircle {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 1.15rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #3b82f6;
+  font-size: 1rem;
   flex-shrink: 0;
 }
 
@@ -147,33 +151,33 @@
 
 .floorTitle {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #1e3a5f;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
   line-height: 1.2;
 }
 
 .floorSubtitle {
   margin: 0.1rem 0 0;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: #64748b;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .floorBadge {
   background: #f8fafc;
   color: #475569;
-  padding: 0.3rem 0.75rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 500;
   border: 1px solid #e2e8f0;
 }
 
 /* Floor Note Info Banner */
 .floorNote {
   background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #dbeafe;
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   display: flex;
@@ -183,9 +187,9 @@
 
 .floorNoteText {
   margin: 0;
-  font-size: 0.78rem;
-  color: #1e3a8a;
-  font-weight: 600;
+  font-size: 0.75rem;
+  color: #1e40af;
+  font-weight: 500;
   line-height: 1.35;
 }
 
@@ -193,180 +197,197 @@
 .slotsGrid {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  flex: 1;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
 }
 
 .rowContainer {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 24px auto;
   align-items: center;
-  gap: 0.65rem;
+  column-gap: 14px;
+  width: 100%;
 }
 
 .rowLabel {
-  width: 24px;
-  height: 24px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #1e3a5f;
-  flex-shrink: 0;
+  width: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-align: center;
 }
 
 .slotsRow {
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: repeat(10, 56px);
+  gap: 10px;
+  justify-content: start;
 }
 
 /* Slot Box Card */
 .slotCard {
-  height: 48px;
-  border-radius: 8px;
+  width: 56px;
+  height: 44px;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.75rem;
   box-sizing: border-box;
-  padding: 2px;
   transition: all 0.15s ease;
   user-select: none;
+  border-style: solid;
+  border-width: 1px;
 }
 
 .slotCode {
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.1;
+  margin-bottom: 1px;
+}
+
+.slotSymbol {
+  font-size: 0.65rem;
   line-height: 1;
-  margin-bottom: 2px;
 }
 
 /* Slot Status Styles */
 .slotAvailable {
   background: #f0fdf4;
-  border: 1.5px solid #bbf7d0;
-  color: #16a34a;
+  border-color: #bbf7d0;
+  color: #15803d;
 }
 
 .slotMonthly {
   background: #fef2f2;
-  border: 1.5px solid #fecaca;
-  color: #dc2626;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 
 .slotReserved {
   background: #fffbeb;
-  border: 1.5px solid #fde68a;
-  color: #ea580c;
+  border-color: #fde68a;
+  color: #c2410c;
 }
 
 .slotOccupied {
-  background: #475569;
-  border: 1.5px solid #475569;
+  background: #334155;
+  border-color: #334155;
   color: #ffffff;
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
 
 /* Slot Tier Custom Styles (Floor G Only) */
 .slotVip {
   background: #fffbeb;
-  border: 1.5px solid #fcd34d;
-  color: #d97706;
+  border-color: #fcd34d;
+  color: #b45309;
 }
 
 .slotPopular {
   background: #eff6ff;
-  border: 1.5px solid #bfdbfe;
-  color: #2563eb;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 /* Floating Badges for VIP/Popular Slots */
-.slotBadgeVIP {
+.slotMarkerVip {
   position: absolute;
-  top: -6px;
-  right: -3px;
-  background: #f59e0b;
-  color: #ffffff;
-  font-size: 0.52rem;
-  font-weight: 800;
-  padding: 0px 3px;
-  border-radius: 3px;
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 1px;
+  top: 2px;
+  right: 2px;
+  font-size: 0.55rem;
+  line-height: 1;
 }
 
-.slotBadgePopular {
+.slotMarkerPopular {
   position: absolute;
-  top: -6px;
-  right: -3px;
-  background: #3b82f6;
-  color: #ffffff;
-  font-size: 0.52rem;
-  font-weight: 800;
-  padding: 0px 3px;
-  border-radius: 3px;
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
+  top: 2px;
+  right: 2px;
+  font-size: 0.55rem;
+  line-height: 1;
 }
 
 /* Tier Legend for Floor G Bottom */
 .tierLegend {
   display: flex;
-  justify-content: flex-start;
-  gap: 1rem;
-  border-top: 1px solid #f1f5f9;
-  padding-top: 0.65rem;
-  margin-top: 0.25rem;
+  justify-content: center;
+  align-items: center;
   flex-wrap: wrap;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #eef2f7;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .tierLegendItem {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 600;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: #64748b;
 }
 
-.tierIndicator {
+.tierIndicatorBasic {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: #16a34a;
   display: inline-block;
 }
 
-.tierIndicatorVip {
-  background: #f59e0b;
-  box-shadow: 0 0 0 2px #fffbeb;
+.slotMapBody {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
 }
 
-.tierIndicatorPopular {
-  background: #3b82f6;
-  box-shadow: 0 0 0 2px #eff6ff;
+.directionGuide {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #64748b;
+  border-right: 1px solid #e2e8f0;
+  padding-right: 16px;
 }
 
-.tierIndicatorBasic {
-  background: #22c55e;
-  box-shadow: 0 0 0 2px #dcfce7;
+.directionItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.arrowRight,
+.arrowLeft {
+  font-size: 16px;
+  line-height: 1;
+  color: #3b82f6;
+  font-weight: normal;
 }
 
 /* Responsive layout breakpoints */
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
   }
 }
 
@@ -382,10 +403,83 @@
   .legendList {
     gap: 0.75rem;
   }
-  .slotsRow {
-    gap: 0.25rem;
-  }
-  .slotCard {
-    height: 42px;
+}
+
+/* Trust/Info Card Section */
+.trustSection {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+  width: 100%;
+}
+
+.trustCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02);
+  padding: 1.15rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  box-sizing: border-box;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
+}
+
+.trustCard:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.trustIconCircle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.trustContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.trustTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trustDesc {
+  margin: 0;
+  font-size: 0.775rem;
+  color: #64748b;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+@media (max-width: 960px) {
+  .trustSection {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
+
+@media (max-width: 600px) {
+  .trustSection {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+

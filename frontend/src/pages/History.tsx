@@ -299,11 +299,11 @@ export function HistoryPage() {
       <div className={styles.filterCard}>
         <div className={styles.filterGrid}>
           <div className={styles.filterGroup}>
-            <label htmlFor="searchPlate">Biển số</label>
+            <label htmlFor="searchPlate" className={styles.filterLabel}>Biển số</label>
             <input
               id="searchPlate"
               type="text"
-              className={styles.input}
+              className={styles.filterInput}
               placeholder="Tìm biển số..."
               value={searchPlate}
               onChange={(e) => setSearchPlate(e.target.value)}
@@ -311,32 +311,32 @@ export function HistoryPage() {
           </div>
 
           <div className={styles.filterGroup}>
-            <label htmlFor="fromDate">Từ ngày</label>
+            <label htmlFor="fromDate" className={styles.filterLabel}>Từ ngày</label>
             <input
               id="fromDate"
               type="date"
-              className={styles.input}
+              className={styles.filterInput}
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
             />
           </div>
 
           <div className={styles.filterGroup}>
-            <label htmlFor="toDate">Đến ngày</label>
+            <label htmlFor="toDate" className={styles.filterLabel}>Đến ngày</label>
             <input
               id="toDate"
               type="date"
-              className={styles.input}
+              className={styles.filterInput}
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
             />
           </div>
 
           <div className={styles.filterGroup}>
-            <label htmlFor="statusFilter">Trạng thái</label>
+            <label htmlFor="statusFilter" className={styles.filterLabel}>Trạng thái</label>
             <select
               id="statusFilter"
-              className={styles.select}
+              className={styles.filterSelect}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -347,10 +347,8 @@ export function HistoryPage() {
             </select>
           </div>
 
-          <div className={styles.btnGroup}>
-            <button type="button" className={styles.btnReset} onClick={handleReset}>Đặt lại</button>
-            <button type="button" className={styles.btnFilter} onClick={handleFilter}>Lọc</button>
-          </div>
+          <button type="button" className={styles.resetButton} onClick={handleReset}>Đặt lại</button>
+          <button type="button" className={styles.filterButton} onClick={handleFilter}>Lọc</button>
         </div>
       </div>
 

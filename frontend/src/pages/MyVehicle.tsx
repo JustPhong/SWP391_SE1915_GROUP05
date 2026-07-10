@@ -19,7 +19,7 @@ const C = {
 
 function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
-function getPackageExpiryText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return ''; const d = new Date(pkg.expiryDate); if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; } }
+
 function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; const floorName = pkg?.slot?.floor?.name; const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
@@ -129,7 +129,7 @@ function IconTrash({ size = 14, color = C.gray600 }: { size?: number; color?: st
 function IconCalendar({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>; }
 function IconMapPin({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>; }
 function IconInfo({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>; }
-function IconTicket({ size = 14, color = C.gray600 }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z" /></svg>; }
+
 function IconLightBulb({ size = 18, color = '#2563EB' }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21h6" /><path d="M12 3a6 6 0 0 1 6 6c0 3-2 5-3 6H9c-1-1-3-3-3-6a6 6 0 0 1 6-6z" /></svg>; }
 function IconShieldCheck({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 11 2 2 4-4" /></svg>; }
 function IconSeat({ size = 16, color = C.navy }: { size?: number; color?: string }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18v-6a5 5 0 0 1 10 0v6" /><path d="M5 18h14" /><path d="M9 18v3" /><path d="M15 18v3" /><path d="M19 10h1a2 2 0 0 1 2 2v1" /><path d="M5 10H4a2 2 0 0 0-2 2v1" /></svg>; }
@@ -167,7 +167,7 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
   const isCar = vehicle.type === 'CAR';
   const isMonthly = hasMonthlyPackage(vehicle);
   const busy = phase === 'deleting';
-  const expiryText = getPackageExpiryText(vehicle);
+
   const areaText = getParkingAreaText(vehicle);
 
   return (
@@ -201,22 +201,22 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
               <span style={{ background: isMonthly ? C.greenBg : C.orangeLight, color: isMonthly ? C.green : C.orange, fontSize: '0.6rem', fontWeight: 800, padding: '0.15rem 0.6rem', borderRadius: 20, letterSpacing: '0.06em', border: `1px solid ${isMonthly ? '#A7F3D0' : '#FED7AA'}` }}>{isMonthly ? 'GÓI THÁNG' : 'VÃNG LAI'}</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500, marginBottom: '0.3rem' }}>{getVehicleTypeLabel(vehicle)}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: isMonthly ? '#22C55E' : C.blue, display: 'inline-block', animation: isMonthly ? 'mv-pulse 2s infinite' : 'none', boxShadow: isMonthly ? '0 0 0 2px #DCFCE7' : '0 0 0 2px #DBEAFE' }} />
-              <span style={{ fontSize: '0.75rem', color: isMonthly ? C.green : C.blue, fontWeight: 600 }}>{isMonthly ? 'Đang hoạt động' : 'Sẵn sàng đặt chỗ'}</span>
-            </div>
+            {isMonthly && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'mv-pulse 2s infinite', boxShadow: '0 0 0 2px #DCFCE7' }} />
+                <span style={{ fontSize: '0.75rem', color: C.green, fontWeight: 600 }}>Đang hoạt động</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="mv-vehicle-mid">
           {isMonthly ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><IconCalendar size={13} color={C.gray600} /><span style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500 }}>Hết hạn: <span style={{ color: C.gray900, fontWeight: 700 }}>{expiryText || '—'}</span></span></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><IconMapPin size={13} color={C.gray600} /><span style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500 }}>Khu đỗ: <span style={{ color: C.gray900, fontWeight: 700 }}>{areaText}</span></span></div>
             </>
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><IconInfo size={13} color={C.gray600} /><span style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500 }}>Chưa có gói tháng</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><IconTicket size={13} color={C.gray600} /><span style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500 }}>Có thể đặt chỗ theo lượt</span></div>
             </>
           )}
         </div>

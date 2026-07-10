@@ -46,79 +46,49 @@ interface SlotCardProps {
 }
 
 function SlotCard({ slot, floorCode }: SlotCardProps) {
-  const isOccupied = slot.status === 'OCCUPIED';
-  const isReserved = slot.status === 'RESERVED';
-  const isMonthly = slot.isFixed || slot.assignedVehicleId !== null;
 
   let cardClass = styles.slotAvailable;
   let badge: JSX.Element | null = null;
-  const vehicleIcon = floorCode === 'G' || floorCode === '3' ? '🚗' : '🛵';
-
-  // Determine visual status
-  if (floorCode === 'G' || floorCode === '1') {
-    if (isMonthly) {
-      cardClass = styles.slotMonthly;
-    } else if (isOccupied) {
-      cardClass = styles.slotOccupied;
-    } else if (isReserved) {
-      cardClass = styles.slotReserved;
-    } else {
-      cardClass = styles.slotAvailable;
-    }
-  } else {
-    if (isOccupied) {
-      cardClass = styles.slotOccupied;
-    } else if (isReserved) {
-      cardClass = styles.slotReserved;
-    } else {
-      cardClass = styles.slotAvailable;
-    }
-  }
-
-  // G floor tier overrides for AVAILABLE slots only
-  const tier = floorCode === 'G' ? getSlotTier(slot.code) : 'basic';
   const displayStatus = getSlotStatus(slot, floorCode);
 
-  if (floorCode === 'G' && displayStatus === 'AVAILABLE') {
-    if (tier === 'vip') {
-      cardClass = styles.slotVip;
-      badge = (
-        <span className={styles.slotBadgeVIP}>
-          👑 VIP
-        </span>
-      );
-    } else if (tier === 'popular') {
-      cardClass = styles.slotPopular;
-      badge = (
-        <span className={styles.slotBadgePopular}>
-          ⭐
-        </span>
-      );
+  // Determine visual status
+  if (displayStatus === 'MONTHLY') {
+    cardClass = styles.slotMonthly;
+  } else if (displayStatus === 'OCCUPIED') {
+    cardClass = styles.slotOccupied;
+  } else if (displayStatus === 'RESERVED') {
+    cardClass = styles.slotReserved;
+  } else {
+    // AVAILABLE
+    const tier = floorCode === 'G' ? getSlotTier(slot.code) : 'basic';
+    if (floorCode === 'G') {
+      if (tier === 'vip') {
+        cardClass = styles.slotVip;
+      } else if (tier === 'popular') {
+        cardClass = styles.slotPopular;
+      }
     }
   }
 
-  // Floating crown/star in corner for occupied/monthly G VIP/Popular slots too
-  if (floorCode === 'G' && displayStatus !== 'AVAILABLE') {
+  // Floating crown/star in corner for all G VIP/Popular slots
+  if (floorCode === 'G') {
+    const tier = getSlotTier(slot.code);
     if (tier === 'vip') {
-      badge = (
-        <span className={styles.slotBadgeVIP} style={{ background: '#f59e0b', fontSize: '0.48rem' }}>
-          👑
-        </span>
-      );
+      badge = <span className={styles.slotMarkerVip}>👑</span>;
     } else if (tier === 'popular') {
-      badge = (
-        <span className={styles.slotBadgePopular} style={{ background: '#3b82f6', fontSize: '0.48rem' }}>
-          ⭐
-        </span>
-      );
+      badge = <span className={styles.slotMarkerPopular}>⭐</span>;
     }
   }
 
-  const iconElement = displayStatus === 'RESERVED' ? (
-    <span style={{ fontSize: '10px', lineHeight: 1 }}>🔒</span>
-  ) : (
-    <span style={{ fontSize: '14px', lineHeight: 1 }}>{vehicleIcon}</span>
-  );
+  // Determine small status symbol below code
+  let statusIcon = '✓';
+  if (displayStatus === 'MONTHLY') {
+    statusIcon = '🔒';
+  } else if (displayStatus === 'RESERVED') {
+    statusIcon = '🕒';
+  } else if (displayStatus === 'OCCUPIED') {
+    statusIcon = '●';
+  }
 
   return (
     <div
@@ -126,7 +96,7 @@ function SlotCard({ slot, floorCode }: SlotCardProps) {
       title={`Vị trí: ${slot.code} | Trạng thái: ${slot.status}`}
     >
       <span className={styles.slotCode}>{slot.code}</span>
-      {iconElement}
+      <span className={styles.slotSymbol}>{statusIcon}</span>
       {badge}
     </div>
   );
@@ -252,30 +222,43 @@ export function FloorMapPage() {
                 <div className={styles.floorBadge}>{availCount}/{slots.length || 20} chỗ trống</div>
               </div>
 
-              <div className={styles.slotsGrid}>
-                {rows.map(row => (
-                  <div key={row.label} className={styles.rowContainer}>
-                    <div className={styles.rowLabel}>{row.label}</div>
-                    <div className={styles.slotsRow}>
-                      {row.slots.map(slot => (
-                        <SlotCard key={slot.id} slot={slot} floorCode="G" />
-                      ))}
+              <div className={styles.slotGridWrapper}>
+                <div className={styles.slotMapBody}>
+                  <div className={styles.directionGuide}>
+                    <div className={styles.directionItem}>
+                      <span>Lối vào</span>
+                      <span className={styles.arrowRight}>→</span>
+                    </div>
+                    <div className={styles.directionItem}>
+                      <span className={styles.arrowLeft}>←</span>
+                      <span>Lối ra</span>
                     </div>
                   </div>
-                ))}
+
+                  <div className={styles.slotsGrid}>
+                    {rows.map(row => (
+                      <div key={row.label} className={styles.rowContainer}>
+                        <div className={styles.rowLabel}>{row.label}</div>
+                        <div className={styles.slotsRow}>
+                          {row.slots.map(slot => (
+                            <SlotCard key={slot.id} slot={slot} floorCode="G" />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className={styles.tierLegend}>
                 <div className={styles.tierLegendItem}>
-                  <span className={`${styles.tierIndicator} ${styles.tierIndicatorVip}`} />
                   <span>👑 VIP — Vị trí ưu tiên</span>
                 </div>
                 <div className={styles.tierLegendItem}>
-                  <span className={`${styles.tierIndicator} ${styles.tierIndicatorPopular}`} />
                   <span>⭐ Phổ biến — Vị trí được ưa chuộng</span>
                 </div>
                 <div className={styles.tierLegendItem}>
-                  <span className={`${styles.tierIndicator} ${styles.tierIndicatorBasic}`} />
+                  <span className={styles.tierIndicatorBasic} />
                   <span>Cơ bản — Vị trí tiêu chuẩn</span>
                 </div>
               </div>
@@ -287,7 +270,6 @@ export function FloorMapPage() {
         {(() => {
           const floorData = floorSlotsMap['1'];
           const slots = floorData?.slots ?? [];
-          const availCount = slots.filter(s => getSlotStatus(s, '1') === 'AVAILABLE').length;
           const rows = getRows(slots);
 
           return (
@@ -300,7 +282,7 @@ export function FloorMapPage() {
                     <p className={styles.floorSubtitle}>Xe máy • Khách tháng</p>
                   </div>
                 </div>
-                <div className={styles.floorBadge}>{availCount}/{slots.length || 40} sức chứa</div>
+                <div className={styles.floorBadge}>{slots.length || 40}/{slots.length || 40} sức chứa</div>
               </div>
 
               <div className={styles.floorNote}>
@@ -310,17 +292,32 @@ export function FloorMapPage() {
                 </p>
               </div>
 
-              <div className={styles.slotsGrid}>
-                {rows.map(row => (
-                  <div key={row.label} className={styles.rowContainer}>
-                    <div className={styles.rowLabel}>{row.label}</div>
-                    <div className={styles.slotsRow}>
-                      {row.slots.map(slot => (
-                        <SlotCard key={slot.id} slot={slot} floorCode="1" />
-                      ))}
+              <div className={styles.slotGridWrapper}>
+                <div className={styles.slotMapBody}>
+                  <div className={styles.directionGuide}>
+                    <div className={styles.directionItem}>
+                      <span>Lối vào</span>
+                      <span className={styles.arrowRight}>→</span>
+                    </div>
+                    <div className={styles.directionItem}>
+                      <span className={styles.arrowLeft}>←</span>
+                      <span>Lối ra</span>
                     </div>
                   </div>
-                ))}
+
+                  <div className={styles.slotsGrid}>
+                    {rows.map(row => (
+                      <div key={row.label} className={styles.rowContainer}>
+                        <div className={styles.rowLabel}>{row.label}</div>
+                        <div className={styles.slotsRow}>
+                          {row.slots.map(slot => (
+                            <SlotCard key={slot.id} slot={slot} floorCode="1" />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -346,17 +343,32 @@ export function FloorMapPage() {
                 <div className={styles.floorBadge}>{availCount}/{slots.length || 40} chỗ trống</div>
               </div>
 
-              <div className={styles.slotsGrid}>
-                {rows.map(row => (
-                  <div key={row.label} className={styles.rowContainer}>
-                    <div className={styles.rowLabel}>{row.label}</div>
-                    <div className={styles.slotsRow}>
-                      {row.slots.map(slot => (
-                        <SlotCard key={slot.id} slot={slot} floorCode="2" />
-                      ))}
+              <div className={styles.slotGridWrapper}>
+                <div className={styles.slotMapBody}>
+                  <div className={styles.directionGuide}>
+                    <div className={styles.directionItem}>
+                      <span>Lối vào</span>
+                      <span className={styles.arrowRight}>→</span>
+                    </div>
+                    <div className={styles.directionItem}>
+                      <span className={styles.arrowLeft}>←</span>
+                      <span>Lối ra</span>
                     </div>
                   </div>
-                ))}
+
+                  <div className={styles.slotsGrid}>
+                    {rows.map(row => (
+                      <div key={row.label} className={styles.rowContainer}>
+                        <div className={styles.rowLabel}>{row.label}</div>
+                        <div className={styles.slotsRow}>
+                          {row.slots.map(slot => (
+                            <SlotCard key={slot.id} slot={slot} floorCode="2" />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -382,21 +394,92 @@ export function FloorMapPage() {
                 <div className={styles.floorBadge}>{availCount}/{slots.length || 20} chỗ trống</div>
               </div>
 
-              <div className={styles.slotsGrid}>
-                {rows.map(row => (
-                  <div key={row.label} className={styles.rowContainer}>
-                    <div className={styles.rowLabel}>{row.label}</div>
-                    <div className={styles.slotsRow}>
-                      {row.slots.map(slot => (
-                        <SlotCard key={slot.id} slot={slot} floorCode="3" />
-                      ))}
+              <div className={styles.slotGridWrapper}>
+                <div className={styles.slotMapBody}>
+                  <div className={styles.directionGuide}>
+                    <div className={styles.directionItem}>
+                      <span>Lối vào</span>
+                      <span className={styles.arrowRight}>→</span>
+                    </div>
+                    <div className={styles.directionItem}>
+                      <span className={styles.arrowLeft}>←</span>
+                      <span>Lối ra</span>
                     </div>
                   </div>
-                ))}
+
+                  <div className={styles.slotsGrid}>
+                    {rows.map(row => (
+                      <div key={row.label} className={styles.rowContainer}>
+                        <div className={styles.rowLabel}>{row.label}</div>
+                        <div className={styles.slotsRow}>
+                          {row.slots.map(slot => (
+                            <SlotCard key={slot.id} slot={slot} floorCode="3" />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           );
         })()}
+      </div>
+
+      {/* 4. Trust/Info Card Section */}
+      <div className={styles.trustSection}>
+        <div className={styles.trustCard}>
+          <div className={styles.trustIconCircle}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+          </div>
+          <div className={styles.trustContent}>
+            <h3 className={styles.trustTitle}>Lưu ý</h3>
+            <p className={styles.trustDesc}>Vui lòng đỗ xe đúng vị trí và tuân thủ nội quy bãi đỗ xe.</p>
+          </div>
+        </div>
+
+        <div className={styles.trustCard}>
+          <div className={styles.trustIconCircle}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 11 2 2 4-4" />
+            </svg>
+          </div>
+          <div className={styles.trustContent}>
+            <h3 className={styles.trustTitle}>An toàn & bảo mật</h3>
+            <p className={styles.trustDesc}>Hệ thống giám sát 24/7 đảm bảo an toàn cho phương tiện.</p>
+          </div>
+        </div>
+
+        <div className={styles.trustCard}>
+          <div className={styles.trustIconCircle}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+            </svg>
+          </div>
+          <div className={styles.trustContent}>
+            <h3 className={styles.trustTitle}>Hỗ trợ 24/7</h3>
+            <p className={styles.trustDesc}>Đội ngũ hỗ trợ luôn sẵn sàng giúp bạn mọi lúc.</p>
+          </div>
+        </div>
+
+        <div className={styles.trustCard}>
+          <div className={styles.trustIconCircle}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <div className={styles.trustContent}>
+            <h3 className={styles.trustTitle}>Thanh toán an toàn</h3>
+            <p className={styles.trustDesc}>Giao dịch được mã hóa và bảo vệ tuyệt đối.</p>
+          </div>
+        </div>
       </div>
     </div>
   );
