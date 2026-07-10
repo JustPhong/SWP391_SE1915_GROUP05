@@ -1534,20 +1534,49 @@ function Footer({ navigate }: { navigate: (path: string) => void }) {
   return (
     <footer className={styles.footer}>
       <div className={styles.footerInner}>
-        <div className={styles.footerBrand}>
-          <div className={styles.logo} onClick={() => navigate('/')}>
-            <img src="/logo.png" alt="ParkSmart Logo" className={styles.logoImg} />
-            <span className={`${styles.logoText} ${styles.logoTextFooter}`}>Park<span className={styles.logoTextAccent}>Smart</span></span>
+        <div className={styles.footerGrid}>
+          <div className={styles.footerBrand}>
+            <div className={styles.logo} onClick={() => navigate('/')}>
+              <img src="/logo.png" alt="ParkSmart Logo" className={styles.logoImg} />
+              <span className={`${styles.logoText} ${styles.logoTextFooter}`}>Park<span className={styles.logoTextAccent}>Smart</span></span>
+            </div>
+            <p className={styles.footerTagline}>Giải pháp đỗ xe thông minh &amp; tối ưu.</p>
           </div>
-          <p className={styles.footerTagline}>Giải pháp đỗ xe thông minh &amp; tối ưu.</p>
+
+          <div className={styles.footerColumn}>
+            <h4 className={styles.footerColumnTitle}>SẢN PHẨM</h4>
+            <div className={styles.footerNav}>
+              <span className={styles.footerLink}>Đặt chỗ</span>
+              <span className={styles.footerLink}>Check-in QR</span>
+              <span className={styles.footerLink}>Báo cáo</span>
+            </div>
+          </div>
+
+          <div className={styles.footerColumn}>
+            <h4 className={styles.footerColumnTitle}>CÔNG TY</h4>
+            <div className={styles.footerNav}>
+              <span className={styles.footerLink}>Giới thiệu</span>
+              <span className={styles.footerLink}>Tuyển dụng</span>
+              <span className={styles.footerLink}>Liên hệ</span>
+            </div>
+          </div>
+
+          <div className={styles.footerColumn}>
+            <h4 className={styles.footerColumnTitle}>HỖ TRỢ</h4>
+            <div className={styles.footerNav}>
+              <span className={styles.footerLink}>Trung tâm trợ giúp</span>
+              <span className={styles.footerLink}>Câu hỏi thường gặp</span>
+              <span className={styles.footerLink}>Liên hệ</span>
+            </div>
+          </div>
         </div>
-        <div className={styles.footerLinks}>
-          <div className={styles.footerCol}><span className={styles.footerColTitle}>Sản phẩm</span><span>Đặt chỗ</span><span>Check-in QR</span><span>Báo cáo</span></div>
-          <div className={styles.footerCol}><span className={styles.footerColTitle}>Công ty</span><span>Giới thiệu</span><span>Tuyển dụng</span><span>Liên hệ</span></div>
-          <div className={styles.footerCol}><span className={styles.footerColTitle}>Hỗ trợ</span><span>Trung tâm trợ giúp</span><span>Câu hỏi thường gặp</span><span>Liên hệ</span></div>
+
+        <div className={styles.footerDivider} />
+
+        <div className={styles.footerBottom}>
+          © 2026 ParkSmart Vietnam
         </div>
       </div>
-      <div className={styles.footerBottom}>&copy; 2026 ParkSmart Vietnam</div>
     </footer>
   );
 }
