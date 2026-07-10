@@ -871,8 +871,8 @@ function HeroSection() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
               <div className={styles.heroHighlightContent}>
-                <h3 className={styles.heroHighlightTitle}>Đặt chỗ nhanh</h3>
-                <p className={styles.heroHighlightDesc}>Chọn vị trí và đặt chỗ dễ dàng</p>
+                <h3 className={styles.heroHighlightTitle}>Giữ chỗ nhanh</h3>
+                <p className={styles.heroHighlightDesc}>Giữ chỗ đỗ trước chỉ với vài thao tác đơn giản.</p>
               </div>
             </div>
             <div className={styles.heroHighlightBlock}>
@@ -972,8 +972,8 @@ function HeroLoggedIn({
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
               <div className={styles.heroHighlightContent}>
-                <h3 className={styles.heroHighlightTitle}>Đặt chỗ nhanh</h3>
-                <p className={styles.heroHighlightDesc}>Chọn vị trí và đặt chỗ dễ dàng</p>
+                <h3 className={styles.heroHighlightTitle}>Giữ chỗ nhanh</h3>
+                <p className={styles.heroHighlightDesc}>Giữ chỗ đỗ trước chỉ với vài thao tác đơn giản.</p>
               </div>
             </div>
             <div className={styles.heroHighlightBlock}>
