@@ -3,17 +3,23 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const FLOOR_DEFINITIONS: { floorCode: string; name: string; vehicleType: string; customerType: string; capacity: number; slots: { code: string; type: string }[] }[] = [
+const FLOOR_DEFINITIONS: { floorCode: string; name: string; vehicleType: string; customerType: string; capacity: number; slots: { code: string; type: string; tier?: string }[] }[] = [
   {  
     floorCode: 'G',
     name: 'Tầng G',
     vehicleType: 'CAR',
     customerType: 'MONTHLY',
     capacity: 20,
-    slots: Array.from({ length: 20 }, (_, i) => ({
-      code: `G-${String(i + 1).padStart(2, '0')}`,
-      type: 'CAR',
-    })),
+    slots: Array.from({ length: 20 }, (_, i) => {
+      const code = `G-${String(i + 1).padStart(2, '0')}`;
+      let tier = 'REGULAR';
+      if (['G-01', 'G-02', 'G-11', 'G-12'].includes(code)) {
+        tier = 'VIP';
+      } else if (['G-03', 'G-04', 'G-05', 'G-06', 'G-13', 'G-14', 'G-15', 'G-16'].includes(code)) {
+        tier = 'POPULAR';
+      }
+      return { code, type: 'CAR', tier };
+    }),
   },
   {
     floorCode: '1',
@@ -235,6 +241,7 @@ async function main() {
           type: slotDef.type,
           status: 'AVAILABLE',
           isFixed: false,
+          tier: slotDef.tier || 'REGULAR',
           floorId: floor.id,
         },
       });

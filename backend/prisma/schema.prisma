@@ -48,6 +48,7 @@ model ParkingSlot {
   status            String           @default("AVAILABLE") @db.NVarChar(30)
   isFixed           Boolean          @default(false)
   assignedVehicleId String?
+  tier              String           @default("REGULAR") @db.NVarChar(30)
   floorId           Int
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt

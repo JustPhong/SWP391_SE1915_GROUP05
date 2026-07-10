@@ -37,6 +37,7 @@ export interface ParkingSlot {
   type: VehicleType;
   status: SlotStatus;
   isFixed: boolean;
+  tier?: 'VIP' | 'POPULAR' | 'REGULAR';
   assignedVehicleId: string | null;
   createdAt: string;
   floor?: Floor;
