@@ -54,14 +54,26 @@ export interface SubmitCheckinResult {
 export const checkinService = {
   // ── GET /api/checkin/lookup/:plate ─────────────────────────────────────
   async lookupPlate(plate: string): Promise<LookupResult> {
-    const normalizedPlate = normalizePlate(plate);
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: normalizedPlate },
+    const cleaned = plate.trim().toUpperCase();
+    const stripped = cleaned.replace(/[-.\s]/g, '');
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
       include: {
         monthlyPackage: {
           include: { slot: true },
         },
-        owner: true,
+        owner: {
+          select: {
+            fullName: true,
+            phoneNumber: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -79,15 +91,15 @@ export const checkinService = {
     const baseResult = {
       found: true,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
-      brand: vehicle.brand ?? undefined,
-      model: vehicle.model ?? undefined,
-      color: vehicle.color ?? undefined,
-      year: vehicle.year ?? undefined,
-      seats: (vehicle as any).seats ?? undefined,
+      brand: vehicle.brand ?? null,
+      model: vehicle.model ?? null,
+      color: vehicle.color ?? null,
+      year: vehicle.year ?? null,
+      seats: (vehicle as any).seats ?? null,
       customerType: vehicle.isMonthly ? 'monthly' : 'casual',
-      ownerName: vehicle.ownerFullName ?? vehicle.owner?.fullName ?? undefined,
-      ownerPhone: vehicle.ownerPhone ?? vehicle.owner?.phoneNumber ?? undefined,
-      ownerEmail: vehicle.ownerEmail ?? vehicle.owner?.email ?? undefined,
+      ownerName: vehicle.owner?.fullName ?? null,
+      ownerPhone: vehicle.owner?.phoneNumber ?? null,
+      ownerEmail: vehicle.owner?.email ?? null,
       note: null,
     } as LookupResult;
 
@@ -177,7 +189,16 @@ export const checkinService = {
     if (slot.status !== SLOT_AVAILABLE) throw new AppError(409, 'Slot không còn trống');
 
     // Resolve vehicle by plate; create walk-in vehicle if casual and not found
-    let vehicle = await prisma.vehicle.findUnique({ where: { plateNumber: normalizedPlate } });
+    const cleaned = plate.trim().toUpperCase();
+    const stripped = cleaned.replace(/[-.\s]/g, '');
+    let vehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
+    });
 
     if (!vehicle) {
       if (isMonthly) {
@@ -188,7 +209,7 @@ export const checkinService = {
       const walkinUser = await findOrCreateWalkinUser();
       vehicle = await prisma.vehicle.create({
         data: {
-          plateNumber: normalizedPlate,
+          plateNumber: cleaned,
           type: vehicleType,
           isMonthly: false,
           ownerId: walkinUser.id,
@@ -226,12 +247,7 @@ export const checkinService = {
 };
 
 function normalizePlate(input: string): string {
-  // Normalize so client can send with/without separators.
-  // Examples: 79C-76767, 79C.76767, 79C 76767, 79C76767 => 79C76767
-  return (input ?? '')
-    .replace(/[-.\s]/g, '')
-    .toUpperCase()
-    .trim();
+  return (input ?? '').trim().toUpperCase();
 }
 
 // ── Internal helper ────────────────────────────────────────────────────────

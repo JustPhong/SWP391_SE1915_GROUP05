@@ -70,8 +70,24 @@ export interface CheckoutSubmitResult {
 export const checkoutService = {
   // ── GET /api/checkout/lookup/:plate ───────────────────────
   async lookupPlate(plate: string): Promise<CheckoutLookupResult> {
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: plate },
+    const cleaned = plate.trim().toUpperCase();
+    const stripped = cleaned.replace(/[-.\s]/g, '');
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
+      include: {
+        owner: {
+          select: {
+            fullName: true,
+            phoneNumber: true,
+            email: true,
+          },
+        },
+      },
     });
 
     if (!vehicle) {
@@ -101,35 +117,19 @@ export const checkoutService = {
       config,
     );
 
-    let ownerName: string | null = null;
-    let ownerPhone: string | null = null;
-    let ownerEmail: string | null = null;
     let packageExpiry: string | undefined;
-    if (record.isMonthly && record.slot?.assignedVehicleId) {
+    if (record.isMonthly) {
       const pkg = await prisma.monthlyPackage.findFirst({
         where: {
           vehicleId: vehicle.id,
           status: 'ACTIVE',
         },
-        include: {
-          user: { select: { fullName: true, phoneNumber: true, email: true } },
+        select: {
+          expiryDate: true,
         },
       });
       if (pkg) {
-        ownerName = pkg.user.fullName;
-        ownerPhone = pkg.user.phoneNumber;
-        ownerEmail = pkg.user.email;
         packageExpiry = pkg.expiryDate.toISOString();
-      }
-    } else if (!record.isMonthly) {
-      const user = await prisma.user.findFirst({
-        where: { vehicles: { some: { id: vehicle.id } } },
-        select: { fullName: true, phoneNumber: true, email: true },
-      });
-      if (user) {
-        ownerName = user.fullName;
-        ownerPhone = user.phoneNumber;
-        ownerEmail = user.email;
       }
     }
 
@@ -151,9 +151,9 @@ export const checkoutService = {
       color: vehicle.color,
       year: vehicle.year,
       seats: vehicle.seats,
-      ownerName,
-      ownerPhone,
-      ownerEmail,
+      ownerName: vehicle.owner?.fullName ?? null,
+      ownerPhone: vehicle.owner?.phoneNumber ?? null,
+      ownerEmail: vehicle.owner?.email ?? null,
       packageExpiry,
     };
   },
@@ -185,8 +185,15 @@ export const checkoutService = {
   }): Promise<CheckoutSubmitResult> {
     const { plate, method = 'CASH' } = params;
 
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: plate },
+    const cleaned = plate.trim().toUpperCase();
+    const stripped = cleaned.replace(/[-.\s]/g, '');
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
     });
 
     if (!vehicle) {
@@ -260,8 +267,17 @@ async submitLostTicket(params: {
 }): Promise<CheckoutSubmitResult & { penaltyFee: number }> {
   const { plate, method = 'CASH', staffId } = params;
 
+  const cleaned = plate.trim().toUpperCase();
+  const stripped = cleaned.replace(/[-.\s]/g, '');
   const [vehicle, staff] = await Promise.all([
-    prisma.vehicle.findUnique({ where: { plateNumber: plate } }),
+    prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
+    }),
     prisma.user.findUnique({
       where: { id: staffId },
       select: { fullName: true, roleRef: { select: { name: true } } },

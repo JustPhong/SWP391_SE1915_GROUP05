@@ -191,6 +191,7 @@ export function CheckOutPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutResult, setCheckoutResult] = useState<CheckOutResponse | null>(null);
+  const [ownerInfo, setOwnerInfo] = useState<{ name: string | null; phone: string | null; email: string | null } | null>(null);
   const autoSearchRan = useRef(false);
   const [searchParams] = useSearchParams();
 
@@ -256,6 +257,7 @@ export function CheckOutPage() {
     setSearchError('');
     setFoundRecord(null);
     setFeePreview(null);
+    setOwnerInfo(null);
 
     try {
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
@@ -266,6 +268,7 @@ export function CheckOutPage() {
       if (!matched) {
         setSearchError(`Xe "${plate}" không có trong bãi đỗ.`);
         setSearching(false);
+        setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
         return;
       }
       const matchedVehicle = matched.vehicle as ActiveRecord['vehicle'] | undefined;
@@ -304,6 +307,13 @@ export function CheckOutPage() {
               seats: lookup.seats ?? prev.vehicle.seats,
             } : prev.vehicle,
           } : prev);
+          setOwnerInfo({
+            name: lookup.ownerName ?? null,
+            phone: lookup.ownerPhone ?? null,
+            email: lookup.ownerEmail ?? null,
+          });
+        } else {
+          setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
         }
       } catch {
         // ignore lookup errors, fee preview is the primary data
@@ -346,6 +356,7 @@ export function CheckOutPage() {
       setConfirmState(null);
       setFoundRecord(null);
       setFeePreview(null);
+      setOwnerInfo(null);
       setPlateInput('');
       loadAllRecords();
     } catch (err: unknown) {
@@ -373,6 +384,7 @@ export function CheckOutPage() {
   const handleDismissFound = () => {
     setFoundRecord(null);
     setFeePreview(null);
+    setOwnerInfo(null);
     setPlateInput('');
   };
 
@@ -411,7 +423,7 @@ export function CheckOutPage() {
           <input
             type="text"
             value={plateInput}
-            onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setSearchError(''); setFoundRecord(null); setFeePreview(null); }}
+            onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setSearchError(''); setFoundRecord(null); setFeePreview(null); setOwnerInfo(null); }}
             onKeyDown={handleKeyDown}
             placeholder="VD: 51A-11111"
             style={{
@@ -620,6 +632,35 @@ export function CheckOutPage() {
             </div>
           )}
 
+          {ownerInfo && (
+            <div style={{
+              background: C.greenBg,
+              border: `1.5px solid ${C.greenBorder}`,
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+            }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin chủ xe
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#15803D' }}>Họ tên</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.name}</span>
+                </div>
+                {ownerInfo.phone && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#15803D' }}>SĐT</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.phone}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#15803D' }}>Email</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.email}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{
             background: C.greenBg,
             border: `1.5px solid ${C.greenBorder}`,
@@ -742,6 +783,35 @@ export function CheckOutPage() {
                     <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {ownerInfo && (
+            <div style={{
+              background: '#EFF6FF',
+              border: '1.5px solid #BFDBFE',
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+            }}>
+              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin chủ xe
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', color: C.navy }}>Họ tên</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.name}</span>
+                </div>
+                {ownerInfo.phone && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.82rem', color: C.navy }}>SĐT</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.phone}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', color: C.navy }}>Email</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.email}</span>
+                </div>
               </div>
             </div>
           )}
@@ -962,7 +1032,25 @@ export function CheckOutPage() {
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>
                       <button
-                        onClick={() => { setFoundRecord(r); setPlateInput(r.vehicle!.plateNumber); fetchFeePreview(r.id).then(setFeePreview); }}
+                        onClick={async () => { 
+                          setFoundRecord(r); 
+                          setPlateInput(r.vehicle!.plateNumber); 
+                          fetchFeePreview(r.id).then(setFeePreview);
+                          try {
+                            const lookup = await checkoutLookupPlate(r.vehicle!.plateNumber);
+                            if (lookup.found) {
+                              setOwnerInfo({
+                                name: lookup.ownerName ?? null,
+                                phone: lookup.ownerPhone ?? null,
+                                email: lookup.ownerEmail ?? null,
+                              });
+                            } else {
+                              setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+                            }
+                          } catch {
+                            setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+                          }
+                        }}
                         style={{
                           background: C.navy,
                           color: C.white,

@@ -35,8 +35,15 @@ function buildFeeResult(checkIn: Date, checkOut: Date, vehicleType: 'CAR' | 'MOT
 
 export const checkInService = {
   async checkIn(input: CheckInInput) {
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: input.plateNumber },
+    const cleaned = input.plateNumber.trim().toUpperCase();
+    const stripped = cleaned.replace(/[-.\s]/g, '');
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
       include: { monthlyPackage: true },
     });
 

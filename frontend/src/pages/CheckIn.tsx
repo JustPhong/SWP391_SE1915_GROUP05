@@ -214,7 +214,7 @@ function IconGrid({ size = 14, color = '#6B7280' }: { size?: number; color?: str
 
 /** Mini card showing owner/customer info when vehicle is found in DB */
 function OwnerInfoCard({ data }: { data: LookupResult }) {
-  if (!data.ownerName && !data.ownerPhone && !data.ownerEmail) return null;
+  if (data.customerType === 'casual' && !data.ownerName && !data.ownerPhone && !data.ownerEmail) return null;
   return (
     <div style={{
       background: '#F0F4F8',
@@ -876,15 +876,15 @@ export function CheckInPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
                       <div>
                         <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.brand || '—'}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.brand ?? '—'}</div>
                       </div>
                       <div>
                         <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.model || '—'}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.model ?? '—'}</div>
                       </div>
                       <div>
                         <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.color || '—'}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.color ?? '—'}</div>
                       </div>
                       <div>
                         <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
