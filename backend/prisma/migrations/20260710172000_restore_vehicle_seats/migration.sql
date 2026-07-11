@@ -2,7 +2,10 @@ BEGIN TRY
 
 BEGIN TRAN;
 
-ALTER TABLE [dbo].[Vehicle] ADD [seats] INT NULL;
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('[dbo].[Vehicle]') AND name = 'seats')
+BEGIN
+    ALTER TABLE [dbo].[Vehicle] ADD [seats] INT NULL;
+END
 
 COMMIT TRAN;
 

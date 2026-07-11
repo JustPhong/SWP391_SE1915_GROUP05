@@ -678,8 +678,7 @@ export function CheckInPage() {
   const isConfirmDisabled =
     submitting ||
     (isCasual && !isMotorbikeCasual && !selectedSlot) ||
-    (isCasual && isMotorbikeCasual && !motorbikeAutoSlot) ||
-    (pageState === 'monthly_valid' && !lookupData?.fixedSlot);
+    (isCasual && isMotorbikeCasual && !motorbikeAutoSlot);
 
   const expiryLabel = lookupData?.packageExpiry
     ? new Date(lookupData.packageExpiry).toLocaleDateString('vi-VN')
