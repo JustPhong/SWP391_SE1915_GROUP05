@@ -419,12 +419,23 @@ export function CheckOutPage() {
 
   // ── Submit lost ticket ─────────────────────────────────
   const handleLostTicketConfirm = async (method: 'CASH' | 'CARD' | 'EWALLET') => {
-    if (!lostTicketState) return;
+    const state = lostTicketState;
+    if (!state) return;
+    const plate = state.record.vehicle!.plateNumber;
     setLostTicketState((prev) => prev ? { ...prev, loading: true, error: '' } : prev);
     try {
-      const result = await submitLostTicket({ plate: lostTicketState.record.vehicle!.plateNumber, method });
-      setLostTicketState((prev) => prev ? { ...prev, result, loading: false } : prev);
-      setCheckoutResult(result);
+      const result = await submitLostTicket({ plate, method });
+      const checkoutRes: CheckOutResponse = {
+        recordId: state.record.id,
+        paymentRequired: !state.record.isMonthly && result.fee > 0,
+        amountDue: result.fee,
+        fee: result.fee,
+        durationHours: 0,
+        note: state.record.isMonthly ? 'Khách tháng - mất thẻ' : 'Mất thẻ - đã thu phí',
+        breakdown: result.breakdown,
+      };
+      setLostTicketState((prev) => prev ? { ...prev, result: checkoutRes, loading: false } : prev);
+      setCheckoutResult(checkoutRes);
       setFoundRecord(null);
       setFeePreview(null);
       setOwnerInfo(null);
@@ -432,6 +443,7 @@ export function CheckOutPage() {
       loadAllRecords();
     } catch (err: unknown) {
       const msg =
+        (err instanceof Error ? err.message : null) ??
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         'Xử lý mất thẻ thất bại. Vui lòng thử lại.';
       setLostTicketState((prev) => prev ? { ...prev, error: msg, loading: false } : prev);

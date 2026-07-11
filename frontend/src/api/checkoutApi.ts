@@ -59,13 +59,13 @@ export interface LostTicketPayload {
 }
 
 export interface LostTicketResponse {
-  recordId: string;
-  paymentRequired: boolean;
-  amountDue?: number;
-  durationHours?: number;
-  note?: string;
-  fee?: number;
-  depositCredit?: number;
+  ok: boolean;
+  plate: string;
+  slotCode: string;
+  fee: number;
+  penaltyFee: number;
+  isMonthly: boolean;
+  checkOutTime: string;
   breakdown?: {
     label: string;
     minutesInBlock: number;

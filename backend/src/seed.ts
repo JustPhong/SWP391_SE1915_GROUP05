@@ -61,6 +61,7 @@ const PERMISSIONS = [
   // Check-in / Check-out
   { key: 'checkin.create',   label: 'Tạo check-in',       category: 'Check-in / Check-out' },
   { key: 'checkout.process', label: 'Xử lý check-out',     category: 'Check-in / Check-out' },
+  { key: 'checkout.lost_ticket', label: 'Xử lý mất thẻ',   category: 'Check-in / Check-out' },
   { key: 'slotmap.view',     label: 'Xem sơ đồ slot',      category: 'Check-in / Check-out' },
   // Gói tháng & Đặt chỗ
   { key: 'package.buy',      label: 'Mua gói tháng',       category: 'Gói tháng & Đặt chỗ' },
@@ -82,6 +83,7 @@ const PERMISSIONS = [
 const PERMISSION_OWNERS: Record<string, string[]> = {
   'checkin.create':     ['STAFF'],
   'checkout.process':   ['STAFF'],
+  'checkout.lost_ticket': ['STAFF'],
   'slotmap.view':       ['STAFF'],
   'package.buy':         ['DRIVER'],
   'booking.create':      ['DRIVER'],
