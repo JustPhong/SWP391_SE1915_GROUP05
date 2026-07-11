@@ -13,7 +13,13 @@
 /* ── Sidebar ── */
 .sidebar {
   width: 240px;
-  background: #1E3A5F;
+  background: linear-gradient(
+    180deg,
+    #173b76 0%,
+    #14346a 42%,
+    #102d60 72%,
+    #0d2857 100%
+  );
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
