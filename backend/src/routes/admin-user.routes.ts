@@ -6,7 +6,7 @@ import { requirePermission } from '../middleware/permission.middleware';
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'STAFF'));
 
 router.get('/',       requirePermission('account.manage'), adminUserController.list);
 router.post('/',      requirePermission('account.manage'), adminUserController.create);

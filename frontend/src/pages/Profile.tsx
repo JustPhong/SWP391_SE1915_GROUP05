@@ -71,9 +71,11 @@ export function ProfilePage() {
     }
   }, [user]);
 
-  useEffect(() => {
+ useEffect(() => {
+  if (user?.role === 'DRIVER') {
     getMyPackage().then(pkg => setHasPackage(!!pkg)).catch(() => {});
-  }, []);
+  }
+}, [user]);
 
   if (!user) return null;
 

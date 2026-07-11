@@ -12,6 +12,7 @@ import {
   HelpIcon,
   CalendarIcon,
   HistoryIcon,
+  SettingsIcon,
 } from './ui/Icons';
 import styles from '../styles/staff.module.css';
 
@@ -28,6 +29,7 @@ const staffNavItems = [
   { label: 'Check-out', path: '/staff/checkout', icon: LogoutIcon },
   { label: 'Sơ đồ tầng', path: '/staff/floor-map', icon: LayoutIcon },
   { label: 'Đặt chỗ', path: '/staff/bookings', icon: CalendarIcon },
+  { label: 'Tài khoản', path: '/profile', icon: SettingsIcon },
   { label: 'Báo cáo ca', path: '/staff/reports', icon: BellIcon },
   { label: 'Lịch sử', path: '/staff/history', icon: HistoryIcon },
 ];
@@ -142,8 +144,10 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
           </button>
         </div>
         <div className={styles.topBarRight}>
-          <div className={styles.userAvatar}>
-            <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
+          <div
+               className={styles.userAvatar}
+              onClick={() => navigate('/profile')}
+              style={{ cursor: 'pointer' }}>            <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
               <span className={styles.shiftBadge}>{getShiftName()}</span>
