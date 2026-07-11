@@ -93,7 +93,7 @@ const PERMISSION_OWNERS: Record<string, string[]> = {
   'report.occupancy':   ['MANAGER'],
   'report.traffic':     ['MANAGER'],
   'report.export':      ['MANAGER'],
-  'account.manage':     ['ADMIN'],
+  'account.manage':     ['STAFF', 'ADMIN'],
   'permission.manage':  ['ADMIN'],
   'slotconfig.manage':  ['ADMIN'],
 };

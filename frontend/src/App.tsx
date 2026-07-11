@@ -218,6 +218,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/staff/users"
+        element={
+          <StaffRoute>
+            <UserManagementPage />
+          </StaffRoute>
+        }
+      />
+      <Route
         path="/reports"
         element={
           <StaffRoute>
