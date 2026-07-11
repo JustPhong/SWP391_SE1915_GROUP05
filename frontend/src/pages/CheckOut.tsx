@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
-import { checkoutLookupPlate } from '../api/checkoutApi';
+import { checkoutLookupPlate, submitLostTicket } from '../api/checkoutApi';
 import type { CheckInRecord } from '../types';
 
 // ── Types ────────────────────────────────────────────────
@@ -70,6 +70,15 @@ interface ConfirmState {
   record: ActiveRecord;
   feePreview: FeePreview;
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
+}
+
+interface LostTicketState {
+  record: ActiveRecord;
+  preview: FeePreview | null;
+  loading: boolean;
+  error: string;
+  result: CheckOutResponse | null;
+  isMonthly: boolean;
 }
 
 // ── Design tokens ────────────────────────────────────────
@@ -194,6 +203,7 @@ export function CheckOutPage() {
   const [ownerInfo, setOwnerInfo] = useState<{ name: string | null; phone: string | null; email: string | null } | null>(null);
   const autoSearchRan = useRef(false);
   const [searchParams] = useSearchParams();
+  const [lostTicketState, setLostTicketState] = useState<LostTicketState | null>(null);
 
   // ── Load all active records (sidebar table) ───────────
   const loadAllRecords = async () => {
@@ -386,6 +396,46 @@ export function CheckOutPage() {
     setFeePreview(null);
     setOwnerInfo(null);
     setPlateInput('');
+  };
+
+  // ── Open lost ticket modal ────────────────────────────
+  const openLostTicket = (record: ActiveRecord) => {
+    setLostTicketState({
+      record,
+      preview: null,
+      loading: true,
+      error: '',
+      result: null,
+      isMonthly: record.isMonthly,
+    });
+    setFoundRecord(record);
+    setPlateInput(record.vehicle!.plateNumber);
+    setOwnerInfo({ name: 'Mất thẻ / Không tìm thấy thẻ', phone: null, email: null });
+
+    fetchFeePreview(record.id).then((preview) => {
+      setLostTicketState((prev) => prev ? { ...prev, preview, loading: false } : prev);
+    });
+  };
+
+  // ── Submit lost ticket ─────────────────────────────────
+  const handleLostTicketConfirm = async (method: 'CASH' | 'CARD' | 'EWALLET') => {
+    if (!lostTicketState) return;
+    setLostTicketState((prev) => prev ? { ...prev, loading: true, error: '' } : prev);
+    try {
+      const result = await submitLostTicket({ plate: lostTicketState.record.vehicle!.plateNumber, method });
+      setLostTicketState((prev) => prev ? { ...prev, result, loading: false } : prev);
+      setCheckoutResult(result);
+      setFoundRecord(null);
+      setFeePreview(null);
+      setOwnerInfo(null);
+      setPlateInput('');
+      loadAllRecords();
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Xử lý mất thẻ thất bại. Vui lòng thử lại.';
+      setLostTicketState((prev) => prev ? { ...prev, error: msg, loading: false } : prev);
+    }
   };
 
   return (
@@ -1031,39 +1081,56 @@ export function CheckOutPage() {
                       </span>
                     </td>
                     <td style={{ padding: '0.65rem 0.75rem' }}>
-                      <button
-                        onClick={async () => { 
-                          setFoundRecord(r); 
-                          setPlateInput(r.vehicle!.plateNumber); 
-                          fetchFeePreview(r.id).then(setFeePreview);
-                          try {
-                            const lookup = await checkoutLookupPlate(r.vehicle!.plateNumber);
-                            if (lookup.found) {
-                              setOwnerInfo({
-                                name: lookup.ownerName ?? null,
-                                phone: lookup.ownerPhone ?? null,
-                                email: lookup.ownerEmail ?? null,
-                              });
-                            } else {
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button
+                          onClick={async () => { 
+                            setFoundRecord(r); 
+                            setPlateInput(r.vehicle!.plateNumber); 
+                            fetchFeePreview(r.id).then(setFeePreview);
+                            try {
+                              const lookup = await checkoutLookupPlate(r.vehicle!.plateNumber);
+                              if (lookup.found) {
+                                setOwnerInfo({
+                                  name: lookup.ownerName ?? null,
+                                  phone: lookup.ownerPhone ?? null,
+                                  email: lookup.ownerEmail ?? null,
+                                });
+                              } else {
+                                setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+                              }
+                            } catch {
                               setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
                             }
-                          } catch {
-                            setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
-                          }
-                        }}
-                        style={{
-                          background: C.navy,
-                          color: C.white,
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '0.35rem 0.85rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Check-out
-                      </button>
+                          }}
+                          style={{
+                            background: C.navy,
+                            color: C.white,
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '0.35rem 0.85rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Check-out
+                        </button>
+                        <button
+                          onClick={async () => { openLostTicket(r); }}
+                          style={{
+                            background: '#DC2626',
+                            color: C.white,
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '0.35rem 0.85rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Mất thẻ
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1072,6 +1139,190 @@ export function CheckOutPage() {
           </div>
         )}
       </div>
+
+      {/* ── LOST TICKET MODAL ── */}
+      {lostTicketState && !lostTicketState.result && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(17,24,39,0.45)',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setLostTicketState(null); }}
+        >
+          <div style={{
+            background: C.white,
+            borderRadius: 16,
+            padding: '1.5rem',
+            width: 440,
+            boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+          }}>
+            <h3 style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 800, color: '#DC2626' }}>
+              Xác nhận mất thẻ
+            </h3>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', background: '#FEE2E2', padding: '0.65rem 0.9rem', borderRadius: 10, border: '1.5px solid #FECACA' }}>
+              <IconAlert size={16} color={C.red} />
+              <span style={{ fontSize: '0.82rem', color: '#991B1B', fontWeight: 600 }}>
+                Xe ra cổng với phương thức mất thẻ · Phí có thể cao hơn.
+              </span>
+            </div>
+
+            {lostTicketState.error && (
+              <div style={{
+                background: C.redBg,
+                border: `1.5px solid ${C.redBorder}`,
+                borderRadius: 8,
+                padding: '0.5rem 0.75rem',
+                marginBottom: '1rem',
+                fontSize: '0.82rem',
+                color: C.red,
+              }}>
+                {lostTicketState.error}
+              </div>
+            )}
+
+            <div style={{
+              background: C.gray50,
+              borderRadius: 10,
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.3rem',
+            }}>
+              {[
+                { label: 'Biển số', value: lostTicketState.record.vehicle!.plateNumber, mono: true },
+                { label: 'Vị trí', value: lostTicketState.record.slot!.code },
+                { label: 'Giờ vào', value: formatDateTime(lostTicketState.record.checkInTime) },
+                { label: 'Loại xe', value: lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
+                { label: 'Khách', value: lostTicketState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: lostTicketState.record.isMonthly ? C.green : undefined },
+              ].map((r) => (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', color: C.gray500 }}>{r.label}</span>
+                  <span style={{
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    color: r.color ?? C.gray800,
+                    fontFamily: (r as { mono?: boolean }).mono ? "'Consolas','Courier New',monospace" : undefined,
+                  }}>
+                    {r.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {lostTicketState.isMonthly && (
+              <div style={{
+                background: C.greenBg,
+                border: `1.5px solid ${C.greenBorder}`,
+                borderRadius: 10,
+                padding: '0.65rem 0.9rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}>
+                <IconCheck size={14} color={C.green} />
+                <span style={{ fontSize: '0.82rem', color: '#15803D', fontWeight: 500 }}>
+                  Khách tháng — không thu phí khi ra.
+                </span>
+              </div>
+            )}
+
+            {!lostTicketState.isMonthly && lostTicketState.preview && (
+              <div style={{ marginBottom: '1rem' }}>
+                <FeeBreakdownCard
+                  fee={lostTicketState.preview.fee}
+                  breakdown={lostTicketState.preview.breakdown}
+                  depositCredit={lostTicketState.preview.depositCredit}
+                  total={lostTicketState.preview.amountDue ?? lostTicketState.preview.fee}
+                />
+              </div>
+            )}
+
+            {!lostTicketState.preview && !lostTicketState.loading && (
+              <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: C.gray400 }}>
+                Đang tính phí mất thẻ...
+              </p>
+            )}
+
+            {!lostTicketState.isMonthly && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Phương thức thanh toán
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {(['CASH', 'CARD', 'EWALLET'] as const).map((method) => {
+                    const labels: Record<string, string> = { CASH: 'Tiền mặt', CARD: 'Thẻ', EWALLET: 'Ví điện tử' };
+                    return (
+                      <button
+                        key={method}
+                        onClick={() => handleLostTicketConfirm(method)}
+                        disabled={lostTicketState.loading}
+                        style={{
+                          flex: 1,
+                          padding: '0.6rem',
+                          background: lostTicketState.loading ? C.gray200 : '#DC2626',
+                          color: C.white,
+                          border: 'none',
+                          borderRadius: 10,
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: lostTicketState.loading ? 'not-allowed' : 'pointer',
+                          boxShadow: lostTicketState.loading ? 'none' : '0 2px 8px rgba(220,38,38,0.25)',
+                        }}
+                      >
+                        {lostTicketState.loading ? 'Đang xử lý...' : labels[method]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {lostTicketState.isMonthly && (
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => handleLostTicketConfirm('CASH')}
+                  disabled={lostTicketState.loading}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    background: lostTicketState.loading ? C.gray200 : '#DC2626',
+                    color: C.white,
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    cursor: lostTicketState.loading ? 'not-allowed' : 'pointer',
+                    boxShadow: lostTicketState.loading ? 'none' : '0 4px 14px rgba(220,38,38,0.25)',
+                  }}
+                >
+                  {lostTicketState.loading ? 'Đang xử lý...' : 'Xác nhận cho xe ra (mất thẻ)'}
+                </button>
+                <button
+                  onClick={() => setLostTicketState(null)}
+                  style={{
+                    padding: '0.75rem 1.25rem',
+                    background: C.white,
+                    color: C.gray500,
+                    border: `1.5px solid ${C.gray200}`,
+                    borderRadius: 12,
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Hủy
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── CONFIRM MODAL ── */}
       {confirmState && (
