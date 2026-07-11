@@ -281,7 +281,6 @@ export const floorService = {
         });
       });
     }
-
     return bookings.length;
   },
 };

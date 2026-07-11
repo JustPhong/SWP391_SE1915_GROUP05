@@ -8,7 +8,7 @@
 /* ===== Sidebar ===== */
 .sidebar {
   width: 248px;
-  background: #1E3A5F;
+  background: #082B63;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -25,7 +25,8 @@
   align-items: center;
   gap: 10px;
   padding: 1.25rem 1.25rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  background: #062652;
 }
 
 .sidebarLogoIcon {
@@ -49,7 +50,7 @@
 }
 
 .sidebarLogoSub {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 0.68rem;
   font-weight: 500;
   letter-spacing: 0.05em;
@@ -66,7 +67,7 @@
 }
 
 .navSectionLabel {
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -80,7 +81,7 @@
   gap: 10px;
   padding: 0.6rem 0.75rem;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.84);
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
@@ -90,13 +91,14 @@
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.10);
   color: #fff;
 }
 
 .navItemActive {
-  background: rgba(255, 255, 255, 0.18);
+  background: #1E5BFF;
   color: #fff;
+  font-weight: 600;
 }
 
 .navItemIcon {
@@ -110,7 +112,7 @@
 
 .sidebarFooter {
   padding: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
 }
 
 .sidebarBottomItem {
@@ -119,7 +121,7 @@
   gap: 10px;
   padding: 0.6rem 0.75rem;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.84);
   font-size: 0.875rem;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -131,7 +133,7 @@
 }
 
 .sidebarBottomItem:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.10);
   color: #fff;
 }
 
@@ -188,7 +190,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #1E3A5F;
+  background: #082B63;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -207,8 +209,8 @@
 .main {
   margin-left: 248px;
   width: calc(100% - 248px);
-  background: #F3F4F6;
-  min-height: calc(100vh - 64px); /* fill viewport minus 64px sticky topBar */
+  background: #F4F8FF;
+  min-height: calc(100vh - 64px);
   padding: 1.5rem;
   box-sizing: border-box;
 }
@@ -327,13 +329,13 @@
 }
 
 .btnPrimary {
-  background: #1E3A5F;
+  background: #082B63;
   color: #fff;
-  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.2);
+  box-shadow: 0 2px 8px rgba(8, 43, 99, 0.25);
 }
 
 .btnPrimary:hover:not(:disabled) {
-  background: #2a4d7a;
+  background: #1E5BFF;
 }
 
 .btnSecondary {
@@ -444,7 +446,7 @@
 
 .tableBadgeMonthly {
   background: #DBEAFE;
-  color: #1E3A5F;
+  color: #082B63;
 }
 
 .tableBadgeCasual {
@@ -460,12 +462,12 @@
   cursor: pointer;
   border: none;
   transition: background 0.15s;
-  background: #1E3A5F;
+  background: #082B63;
   color: #fff;
 }
 
 .btnSm:hover {
-  background: #2a4d7a;
+  background: #1E5BFF;
 }
 
 /* ===== Empty State ===== */
@@ -552,8 +554,8 @@
 }
 
 .quickSearchInput:focus {
-  border-color: #1E3A5F;
-  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+  border-color: #082B63;
+  box-shadow: 0 0 0 3px rgba(8, 43, 99, 0.1);
 }
 
 .quickSearchInput::placeholder {
@@ -653,14 +655,14 @@
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1E3A5F;
+  color: #082B63;
   padding: 0;
   text-decoration: none;
   transition: color 0.15s;
 }
 
 .linkBtn:hover {
-  color: #2a4d7a;
+  color: #1E5BFF;
   text-decoration: underline;
 }
 
@@ -668,12 +670,525 @@
 .plateChip {
   display: inline-block;
   background: #EFF6FF;
-  color: #1E3A5F;
+  color: #082B63;
   font-size: 0.8rem;
   font-weight: 700;
   padding: 0.2rem 0.55rem;
   border-radius: 6px;
   letter-spacing: 0.03em;
+}
+
+/* ===== Search Vehicle Specific Styles ===== */
+.svPage {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+
+.svHeader {
+  margin-bottom: 28px;
+}
+
+.svTitle {
+  font-size: 30px;
+  font-weight: 700;
+  color: #082B63;
+  margin: 0 0 6px;
+  line-height: 1.2;
+}
+
+.svSubtitle {
+  font-size: 15px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Search Card */
+.svSearchCard {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(8, 43, 99, 0.05);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+.svSearchSectionTitle {
+  font-size: 19px;
+  font-weight: 700;
+  color: #082B63;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.svSearchHelper {
+  font-size: 13px;
+  color: #94A3B8;
+  margin: 0 0 20px;
+}
+
+.svInputGroup {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.svInputField {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.svInputLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.svInputWrapper {
+  position: relative;
+}
+
+.svInputIcon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94A3B8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.svInput {
+  width: 100%;
+  height: 50px;
+  padding: 0 14px 0 42px;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #1E293B;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.svInput:focus {
+  border-color: #1E5BFF;
+  box-shadow: 0 0 0 3px rgba(30, 91, 255, 0.12);
+}
+
+.svInput::placeholder {
+  color: #94A3B8;
+}
+
+.svInput:disabled {
+  background: #F8FAFC;
+  cursor: not-allowed;
+}
+
+.svSearchBtn {
+  height: 50px;
+  min-width: 140px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 10px;
+  background: #082B63;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.svSearchBtn:hover:not(:disabled) {
+  background: #1E5BFF;
+  box-shadow: 0 4px 12px rgba(30, 91, 255, 0.3);
+}
+
+.svSearchBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.svError {
+  margin: 12px 0 0;
+  color: #DC2626;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Result Card */
+.svResultCard {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(8, 43, 99, 0.05);
+  padding: 24px 28px;
+}
+
+.svResultHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.svResultTitle {
+  font-size: 19px;
+  font-weight: 700;
+  color: #082B63;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Summary Row */
+.svSummary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  margin-bottom: 22px;
+}
+
+.svPlateNumber {
+  font-size: 22px;
+  font-weight: 800;
+  color: #082B63;
+  letter-spacing: 0.03em;
+  font-family: 'Courier New', monospace;
+}
+
+.svBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.svBadgeCar {
+  background: #EFF6FF;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
+}
+
+.svBadgeMotorbike {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.svBadgeMonthly {
+  background: #EEF2FF;
+  color: #4338CA;
+  border: 1px solid #C7D2FE;
+}
+
+.svBadgeCasual {
+  background: #F8FAFC;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+}
+
+.svBadgeParked {
+  background: #DCFCE7;
+  color: #166534;
+  border: 1px solid #86EFAC;
+}
+
+.svBadgeNotParked {
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #E2E8F0;
+}
+
+.svBadgeExpired {
+  background: #FEF2F2;
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+/* Content Grid */
+.svContentGrid {
+  display: grid;
+  grid-template-columns: 56% 44%;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .svContentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Info Panel */
+.svInfoPanel {
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: #fff;
+}
+
+.svInfoSection {
+  margin-bottom: 0;
+}
+
+.svInfoSectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.svInfoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+}
+
+.svInfoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.svInfoLabel {
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.svInfoValue {
+  font-size: 14px;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.svInfoValueMissing {
+  font-size: 14px;
+  color: #94A3B8;
+  font-style: italic;
+}
+
+.svDivider {
+  height: 1px;
+  background: #E2E8F0;
+  margin: 18px 0;
+}
+
+/* Status Panel */
+.svStatusPanel {
+  background: #F0F7FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.svStatusEmpty {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.svStatusRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(191, 219, 254, 0.5);
+}
+
+.svStatusRow:last-child {
+  border-bottom: none;
+}
+
+.svStatusIcon {
+  color: #1E40AF;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+}
+
+.svStatusLabel {
+  font-size: 13px;
+  color: #475569;
+  flex: 1;
+}
+
+.svStatusValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E293B;
+  text-align: right;
+}
+
+.svStatusActive {
+  color: #16A34A;
+  font-weight: 600;
+}
+
+.svStatusWarning {
+  color: #D97706;
+  font-weight: 600;
+}
+
+/* Empty state */
+.svEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.svEmptyIcon {
+  color: #CBD5E1;
+  margin-bottom: 16px;
+}
+
+.svEmptyText {
+  font-size: 15px;
+  color: #94A3B8;
+  margin: 0;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+/* Not found state */
+.svNotFound {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.svNotFoundIcon {
+  color: #F59E0B;
+  margin-bottom: 12px;
+}
+
+.svNotFoundTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E293B;
+  margin: 0 0 8px;
+}
+
+.svNotFoundText {
+  font-size: 14px;
+  color: #64748B;
+  margin: 0;
+}
+
+/* Loading spinner */
+@keyframes svSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.svSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: svSpin 0.6s linear infinite;
+}
+
+/* Info banner */
+.svBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.svBannerIcon {
+  color: #1E40AF;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.svBannerText {
+  font-size: 13px;
+  color: #1E40AF;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Error state */
+.svErrorState {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.svErrorStateIcon {
+  color: #EF4444;
+  margin-bottom: 12px;
+}
+
+.svErrorStateTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E293B;
+  margin: 0 0 8px;
+}
+
+.svErrorStateText {
+  font-size: 14px;
+  color: #64748B;
+  margin: 0 0 16px;
+}
+
+.svRetryBtn {
+  padding: 8px 20px;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 8px;
+  background: #fff;
+  color: #082B63;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.svRetryBtn:hover {
+  background: #F8FAFC;
 }
 
 /* ===== Responsive ===== */
@@ -766,6 +1281,32 @@
   .densitySlot {
     width: 11px;
     height: 11px;
+  }
+
+  .svPage {
+    padding: 20px 16px;
+  }
+
+  .svInputGroup {
+    flex-direction: column;
+  }
+
+  .svSearchBtn {
+    width: 100%;
+  }
+
+  .svContentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .svInfoGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .svSummary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }
 
