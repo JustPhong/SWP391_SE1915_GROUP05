@@ -12,29 +12,32 @@ import {
 import { lookupVehicleByPlate } from '../api/vehicleApi';
 
 // ═══════════════════════════════════════════════════════
-//  DESIGN TOKENS  (matches codebase palette)
+//  DESIGN TOKENS  (approved palette)
 // ═══════════════════════════════════════════════════════
 const C = {
-  navy: '#1E3A5F',
-  navyLight: '#2C4F78',
-  bg: 'linear-gradient(160deg,#EFF6FF 0%,#DBEAFE 50%,#EFF6FF 100%)',
+  navy: '#0B2F6B',
+  navyLight: '#153B75',
+  activeBlue: '#1F5EFF',
+  bg: '#F5F8FE',
   white: '#FFFFFF',
   green: '#16A34A',
-  greenBg: '#DCFCE7',
-  greenBorder: '#86EFAC',
+  greenBg: '#EFFAF2',
+  greenBorder: '#BBF7D0',
   yellow: '#D97706',
-  yellowBg: '#FEF9C3',
-  yellowBorder: '#FDE047',
+  yellowBg: '#FEF3C3',
+  yellowBorder: '#FDE68A',
   red: '#DC2626',
   redBg: '#FEE2E2',
   redBorder: '#FECACA',
-  gray50: '#F9FAFB',
-  gray100: '#F3F5F7',
-  gray200: '#E5E7EB',
-  gray400: '#9CA3AF',
-  gray500: '#6B7280',
-  gray800: '#111827',
-  shadow: '0 8px 32px rgba(30,58,95,0.08)',
+  gray50: '#F8FAFC',
+  gray100: '#F1F5F9',
+  gray200: '#E3EAF5',
+  gray400: '#94A3B8',
+  gray500: '#64748B',
+  gray800: '#10264F',
+  border: '#E3EAF5',
+  shadow: '0 8px 30px rgba(11,47,107,0.08)',
+  cardShadow: '0 1px 3px rgba(11,47,107,0.04), 0 6px 18px rgba(11,47,107,0.06)',
 };
 
 const VALID_PROVINCE_CODES = [
@@ -48,7 +51,6 @@ const VALID_PROVINCE_CODES = [
   92, 93, 94, 95, 97, 98, 99,
 ];
 
-/** Strip spaces/dots/dashes and uppercase. */
 function normalizePlate(raw: string): string {
   return raw.replace(/[\s.\-]/g, '').toUpperCase();
 }
@@ -64,7 +66,6 @@ function formatPlate(raw: string, vehicleType: VehicleTypeFmt): { valid: boolean
   let suffix: string;
 
   if (dashIndex !== -1) {
-    // Respect the dash position the user actually typed.
     prefix = upper.slice(0, dashIndex).replace(/[\s.]/g, '');
     suffix = upper.slice(dashIndex + 1).replace(/[\s.\-]/g, '');
   } else {
@@ -118,7 +119,6 @@ function isPlateValid(raw: string, vehicleType: VehicleTypeFmt): boolean {
   return formatPlate(raw, vehicleType).valid;
 }
 
-
 type PageState = 'idle' | 'monthly_valid' | 'monthly_expired' | 'casual';
 
 const now = (): string => {
@@ -136,17 +136,17 @@ const formatDateTime = (dateInput: string | Date | null | undefined): string => 
 // ═══════════════════════════════════════════════════════
 //  ICONS
 // ═══════════════════════════════════════════════════════
-function IconCar({ size = 16 }: { size?: number; color?: string }) {
+function IconCar({ size = 16 }: { size?: number }) {
   return (
     <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
   );
 }
-function IconMoto({ size = 16 }: { size?: number; color?: string }) {
+function IconMoto({ size = 16 }: { size?: number }) {
   return (
     <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>
   );
 }
-function IconLock({ size = 14, color = '#6B7280' }: { size?: number; color?: string }) {
+function IconLock({ size = 14, color = '#94A3B8' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -154,7 +154,7 @@ function IconLock({ size = 14, color = '#6B7280' }: { size?: number; color?: str
     </svg>
   );
 }
-function IconStar({ size = 12, color = '#3B82F6' }: { size?: number; color?: string }) {
+function IconStar({ size = 12, color }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -183,7 +183,7 @@ function IconAlert({ size = 16, color = C.red }: { size?: number; color?: string
     </svg>
   );
 }
-function IconUsers({ size = 14, color = '#6B7280' }: { size?: number; color?: string }) {
+function IconUsers({ size = 14, color = '#64748B' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
@@ -199,11 +199,46 @@ function IconSearch({ size = 16, color = '#fff' }: { size?: number; color?: stri
     </svg>
   );
 }
-function IconGrid({ size = 14, color = '#6B7280' }: { size?: number; color?: string }) {
+function IconGrid({ size = 14, color = '#64748B' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
       <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+function IconRefresh({ size = 16, color = C.gray800 }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+function IconCamera({ size = 24, color = '#94A3B8' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+function IconPlate({ size = 18, color = '#64748B' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="6" width="18" height="12" rx="2" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="8" y1="15" x2="8" y2="15.01" strokeWidth="2.5" />
+    </svg>
+  );
+}
+function IconShipping({ size = 18, color = '#64748B' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="15" height="13" />
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+      <circle cx="5.5" cy="18.5" r="2.5" />
+      <circle cx="18.5" cy="18.5" r="2.5" />
     </svg>
   );
 }
@@ -212,7 +247,6 @@ function IconGrid({ size = 14, color = '#6B7280' }: { size?: number; color?: str
 //  SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════
 
-/** Mini card showing owner/customer info when vehicle is found in DB */
 function OwnerInfoCard({ data }: { data: LookupResult }) {
   if (data.customerType === 'casual' && !data.ownerName && !data.ownerPhone && !data.ownerEmail) return null;
   return (
@@ -228,15 +262,15 @@ function OwnerInfoCard({ data }: { data: LookupResult }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
         <div>
           <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Họ tên</span>
-          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{data.ownerName ?? '—'}</div>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{data.ownerName ?? '—'}</div>
         </div>
         <div>
           <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>SĐT</span>
-          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{data.ownerPhone ?? '—'}</div>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{data.ownerPhone ?? '—'}</div>
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
           <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Email</span>
-          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{data.ownerEmail ?? '—'}</div>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{data.ownerEmail ?? '—'}</div>
         </div>
         {data.note && (
           <div style={{ gridColumn: '1 / -1' }}>
@@ -249,76 +283,22 @@ function OwnerInfoCard({ data }: { data: LookupResult }) {
   );
 }
 
-// Shared card wrapper
 function Card({ title, children, style }: { title?: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
       background: C.white,
-      borderRadius: 18,
-      boxShadow: C.shadow,
+      borderRadius: 16,
+      boxShadow: C.cardShadow,
+      border: `1px solid ${C.border}`,
       padding: '1.25rem 1.5rem',
       ...style,
     }}>
       {title && (
-        <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', fontWeight: 800, color: C.navy, letterSpacing: '0.01em' }}>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.92rem', fontWeight: 800, color: C.navy, letterSpacing: '0.01em' }}>
           {title}
         </p>
       )}
       {children}
-    </div>
-  );
-}
-
-// Vehicle type toggle
-function VehicleTypeToggle({
-  value,
-  onChange,
-  locked,
-  vehicleType,
-}: {
-  value: 'CAR' | 'MOTORBIKE';
-  onChange: (v: 'CAR' | 'MOTORBIKE') => void;
-  locked: boolean;
-  vehicleType?: 'CAR' | 'MOTORBIKE';
-}) {
-  const selected = vehicleType ?? value;
-  return (
-    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-      {(['CAR', 'MOTORBIKE'] as const).map((type) => {
-        const active = selected === type;
-        const disabled = locked && vehicleType !== undefined && vehicleType !== type;
-        return (
-          <button
-            key={type}
-            onClick={() => !disabled && onChange(type)}
-            disabled={disabled}
-            style={{
-              flex: 1,
-              padding: '0.55rem 0.75rem',
-              borderRadius: 10,
-              border: `1.5px solid ${active ? C.navy : disabled ? C.gray200 : C.gray400}`,
-              background: active ? C.navy : disabled ? C.gray50 : C.white,
-              color: active ? C.white : disabled ? C.gray400 : C.gray800,
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              opacity: disabled ? 0.7 : 1,
-              transition: 'all 0.15s',
-            }}
-          >
-            {type === 'CAR'
-              ? <IconCar size={13} color={active ? C.white : disabled ? C.gray400 : '#3B82F6'} />
-              : <IconMoto size={13} color={active ? C.white : disabled ? C.gray400 : '#F97316'} />
-            }
-            {type === 'CAR' ? 'Ô tô' : 'Xe máy'}
-            {locked && disabled && <IconLock size={11} color={C.gray400} />}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -426,6 +406,47 @@ function InfoRow({ label, value, valueColor }: { label: string; value: string; v
   );
 }
 
+// Progress indicator
+function ProgressIndicator({ step }: { step: number }) {
+  const steps = ['Chọn loại xe', 'Nhận diện biển số', 'Xác nhận', 'Hoàn tất'];
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+      marginBottom: '1.25rem',
+      overflowX: 'auto',
+      paddingBottom: 4,
+    }}>
+      {steps.map((label, i) => {
+        const active = i + 1 === step;
+        const done = i + 1 < step;
+        return (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            <div style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: done ? C.navy : active ? C.activeBlue : '#EFF6FF',
+              color: done || active ? '#fff' : '#64748B',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              border: `2px solid ${done ? C.navy : active ? C.activeBlue : '#E3EAF5'}`,
+            }}>
+              {done ? <IconCheck size={14} color="#fff" /> : i + 1}
+            </div>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? C.navy : '#64748B', whiteSpace: 'nowrap' }}>{label}</span>
+            {i < steps.length - 1 && <div style={{ width: 24, height: 2, background: done ? C.navy : '#E3EAF5', borderRadius: 2, flexShrink: 0 }} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
@@ -464,8 +485,6 @@ export function CheckInPage() {
   }, []);
 
   // ── Auto-lookup if plate was passed via ?plate= ─────
-  // Guarded with a ref so it runs exactly once and is not affected by
-  // other useEffects resetting state during the render cycle.
   useEffect(() => {
     if (autoLookupRan.current) return;
     autoLookupRan.current = true;
@@ -502,8 +521,7 @@ export function CheckInPage() {
       });
   }, []); // run once on mount after useSearchParams stabilizes
 
-  // ── Load available slots when entering casual state ─
-
+  // ── Load available slots when entering casual state ──
   useEffect(() => {
     if (pageState === 'casual' || pageState === 'monthly_expired') {
       getAvailableSlots(vehicleType).then((slots) => {
@@ -671,6 +689,10 @@ export function CheckInPage() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  const handleSnapshotClick = () => {
+    alert('Tính năng camera sẽ được kết nối ở bước tiếp theo.');
+  };
+
   // ── Derived ───────────────────────────────────────
   const isCasual = pageState === 'casual';
   const isMotorbikeCasual = isCasual && vehicleType === 'MOTORBIKE';
@@ -689,20 +711,24 @@ export function CheckInPage() {
     <div style={{
       background: C.bg,
       fontFamily: "'Segoe UI', Arial, sans-serif",
+      minHeight: '100vh',
     }}>
 
       {/* ══ MAIN BODY ════════════════════════════════════ */}
-      <main style={{ padding: '1.5rem', maxWidth: 1100, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+      <main style={{ padding: '1.5rem', maxWidth: 1200, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {/* Page title */}
         <div style={{ marginBottom: '1.25rem' }}>
           <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: C.navy }}>
-            Check-in (Xe vào)
+            Check-in xe vào
           </h1>
           <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.gray500 }}>
             Tra cứu biển số → Xác nhận xe vào bãi đỗ
           </p>
         </div>
+
+        {/* Progress indicator */}
+        <ProgressIndicator step={pageState === 'idle' ? 1 : 2} />
 
         {/* API error banner */}
         {apiError && (
@@ -769,388 +795,513 @@ export function CheckInPage() {
         {/* TWO-COLUMN LAYOUT */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1.2fr',
-          gap: '1.25rem',
+          gridTemplateColumns: '55% 45%',
+          gap: 24,
           alignItems: 'start',
         }}>
 
-          {/* ══ LEFT CARD — Nhận diện biển số ═════════════ */}
-          <Card title="Nhận diện biển số">
-            {/* Search row */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-              <input
-                type="text"
-                value={plateInput}
-                onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setApiError(''); setPlateError(''); }}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                placeholder="VD: 51A-11111"
-                disabled={searching}
-                style={{
-                  flex: 1,
-                  padding: '0.65rem 0.85rem',
-                  border: `1.5px solid ${plateError ? C.redBorder : C.gray200}`,
-                  borderRadius: 10,
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  fontFamily: "'Consolas','Courier New',monospace",
-                  color: C.gray800,
-                  background: C.white,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  letterSpacing: '0.04em',
-                }}
-              />
-              {plateError && (
-                <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: C.red }}>
-                  {plateError}
-                </p>
-              )}
-              <button
-                onClick={handleSearch}
-                disabled={!isPlateValid(plateInput, vehicleType) || searching}
+          {/* ══ LEFT — Workflow ═════════════════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                style={{
-
-                  padding: '0.65rem 1rem',
-                  background: isPlateValid(plateInput, vehicleType) && !searching ? C.navy : C.gray200,
-                  color: isPlateValid(plateInput, vehicleType) && !searching ? C.white : C.gray400,
-                  border: 'none',
-                  borderRadius: 10,
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  cursor: isPlateValid(plateInput, vehicleType) && !searching ? 'pointer' : 'not-allowed',
-
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {searching ? 'Đang tra...' : <><IconSearch size={14} />Tra cứu</>}
-              </button>
-            </div>
-
-            {/* Plate display box */}
-            <div style={{
-              border: `2px dashed ${C.gray200}`,
-              borderRadius: 12,
-              padding: '1rem 1.25rem',
-              background: C.gray50,
-              textAlign: 'center',
-              minHeight: 70,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              flexDirection: 'column',
-            }}>
-              {lookupData ? (
-                <>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '1.4rem',
-                    fontWeight: 800,
-                    fontFamily: "'Consolas','Courier New',monospace",
-                    color: C.navy,
-                    letterSpacing: '0.06em',
-                  }}>
-                    {plateInput.trim().toUpperCase()}
-                  </p>
-                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
-                    {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ'}
-                    {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
-                  </p>
-                  <div style={{
-                    background: '#F0F4F8',
-                    border: '1px solid #D1D9E6',
-                    borderRadius: 10,
-                    padding: '0.7rem 0.85rem',
-                    marginTop: '0.6rem',
-                  }}>
-                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Thông tin xe
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
-                      <div>
-                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.brand ?? '—'}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.model ?? '—'}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.color ?? '—'}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.year ?? '—'}</div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E3A5F' }}>{lookupData.seats != null ? `${lookupData.seats} chỗ` : '—'}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Show owner info card for found customers */}
-                  <div style={{ width: '100%', marginTop: '0.75rem' }}>
-                    <OwnerInfoCard data={lookupData} />
-                  </div>
-                </>
-              ) : (
-                <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray400 }}>
-                  Nhập biển số và nhấn Tra cứu
-                </p>
-              )}
-            </div>
-
-          </Card>
-
-          {/* ══ RIGHT CARD — Thông tin Check-in ═══════════ */}
-          <Card title="Thông tin Check-in">
-
-            {/* ── MONTHLY VALID ─────────────────────── */}
-            {pageState === 'monthly_valid' && lookupData && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {/* Badge */}
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: C.greenBg,
-                  border: `1.5px solid ${C.greenBorder}`,
-                  borderRadius: 20,
-                  padding: '0.3rem 0.75rem',
-                  width: 'fit-content',
-                }}>
-                  <IconCheck size={13} color={C.green} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803D' }}>
-                    KHÁCH THÁNG · Còn hạn
-                  </span>
-                </div>
-
-                {/* Info rows */}
-                <div>
-                  {[
-                    { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
-                    { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.green },
-                    ...(lookupData.fixedSlot ? [{ label: 'Slot cố định', value: `${lookupData.fixedSlot} (cố định)`, valueColor: C.navy }] : []),
-                    { label: 'Giờ vào', value: now() },
-                  ].map((r) => <InfoRow key={r.label} {...r} />)}
-                </div>
-
-                {/* Banner */}
-                <AlertBanner type="success">
-                  Khách tháng — không thu phí vào.
-                </AlertBanner>
-
-                {/* Vehicle type (locked) */}
-                <div>
-                  <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Loại xe (khóa)
-                  </p>
-                  <VehicleTypeToggle
-                    value={vehicleType}
-                    onChange={setVehicleType}
-                    locked={true}
-                    vehicleType={lookupData.vehicleType}
-                  />
-                </div>
-
-                {/* Slot info */}
-                {lookupData.fixedSlot && (
-                  <div>
-                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Vị trí
-                    </p>
-                    <div style={{
-                      padding: '0.6rem 0.85rem',
-                      background: '#EFF6FF',
-                      border: '1.5px solid #BFDBFE',
-                      borderRadius: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}>
-                      <IconLock size={13} color={C.navy} />
-                      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>
-                        {lookupData.fixedSlot} — Cố định
-                      </span>
-                    </div>
-                  </div>
-                )}
+            {/* Step 1: Vehicle type */}
+            <Card title="Bước 1 · Chọn loại phương tiện">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+                {(
+                  [
+                    { value: 'CAR', label: 'Ô tô', Icon: IconCar },
+                    { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
+                  ] as const
+                ).map(({ value, label, Icon }) => {
+                  const active = vehicleType === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setVehicleType(value)}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 10,
+                        padding: '0.9rem 1rem',
+                        borderRadius: 14,
+                        border: `2px solid ${active ? C.navy : C.border}`,
+                        background: active ? C.navy : C.white,
+                        color: active ? '#fff' : C.gray800,
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <Icon size={22} />
+                      {label}
+                      {active && <IconCheck size={16} color="#fff" />}
+                    </button>
+                  );
+                })}
               </div>
-            )}
+              <p style={{ margin: '0.6rem 0 0', fontSize: '0.78rem', color: C.gray500, lineHeight: 1.5 }}>
+                Sau khi chọn loại xe, hệ thống sẽ mở phần chụp ảnh biển số phù hợp.
+              </p>
+            </Card>
 
-            {/* ── MONTHLY EXPIRED ───────────────────── */}
-            {pageState === 'monthly_expired' && lookupData && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {/* Top red banner */}
-                <AlertBanner type="error">
-                  Gói tháng hết hạn (ngày {expiryLabel}). Slot cố định tạm khóa.
-                </AlertBanner>
-
-                {/* Badge */}
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: C.redBg,
-                  border: `1.5px solid ${C.redBorder}`,
-                  borderRadius: 20,
-                  padding: '0.3rem 0.75rem',
-                  width: 'fit-content',
-                }}>
-                  <IconX size={13} color={C.red} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.red }}>
-                    ĐÃ HẾT HẠN
-                  </span>
-                </div>
-
-                {/* Info rows */}
-                <div>
-                  {[
-                    { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
-                    { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.red },
-                    { label: 'Giờ vào', value: now() },
-                  ].map((r) => <InfoRow key={r.label} {...r} />)}
-                </div>
-
-                {/* Vehicle type (locked) */}
-                <div>
-                  <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Loại xe (khóa)
-                  </p>
-                  <VehicleTypeToggle
-                    value={vehicleType}
-                    onChange={setVehicleType}
-                    locked={true}
-                    vehicleType={lookupData.vehicleType}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ── CASUAL ─────────────────────────────── */}
-            {pageState === 'casual' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {/* Badge */}
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: '#EFF6FF',
-                  border: '1.5px solid #BFDBFE',
-                  borderRadius: 20,
-                  padding: '0.3rem 0.75rem',
-                  width: 'fit-content',
-                }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.navy }}>KHÁCH LẺ</span>
-                </div>
-
-                {/* Vehicle type toggle (enabled) */}
-                <div>
-                  <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Loại xe
-                  </p>
-                  <VehicleTypeToggle
-                    value={vehicleType}
-                    onChange={(t) => { setVehicleType(t); setSelectedSlot(null); }}
-                    locked={false}
-                  />
-                </div>
-
-                {/* ── MOTORBIKE: auto-assign, no slot grid ── */}
-                {vehicleType === 'MOTORBIKE' ? (
-                  <>
-                    <div style={{
-                      padding: '0.65rem 0.9rem',
-                      background: '#F0FDF4',
-                      border: '1.5px solid #BBF7D0',
-                      borderRadius: 10,
+            {/* Step 2: Front/rear image placeholders */}
+            <div style={{ opacity: vehicleType ? 1 : 0.5, pointerEvents: vehicleType ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+              <Card title="Bước 2 · Nhận diện biển số xe">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  {['Ảnh đầu xe', 'Ảnh đuôi xe'].map((label) => (
+                    <div key={label} style={{
+                      border: `1.5px dashed ${C.gray200}`,
+                      borderRadius: 14,
+                      padding: '1.25rem',
                       display: 'flex',
+                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 8,
+                      gap: 10,
+                      background: '#FAFBFF',
                     }}>
-                      <IconMoto size={14} color={C.navy} />
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.navy }}>
-                        Xe máy — đỗ ô trống bất kỳ (Tầng 2)
-                      </span>
-                    </div>
-                    <div>
-                      {[{ label: 'Giờ vào', value: now() }].map((r) => <InfoRow key={r.label} {...r} />)}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Slot selector — car casual */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Chọn vị trí đỗ
-                        </p>
-                        {availableSlots.find((s) => s.suggested) && (
-                          <span style={{
-                            background: '#EFF6FF',
-                            border: '1px solid #BFDBFE',
-                            borderRadius: 12,
-                            padding: '0.15rem 0.5rem',
-                            fontSize: '0.68rem',
-                            fontWeight: 700,
-                            color: C.navy,
-                          }}>
-                            Gợi ý: {availableSlots.find((s) => s.suggested)?.code}
-                          </span>
-                        )}
+                      <div style={{
+                        width: '100%', aspectRatio: '16/10',
+                        border: `1.5px dashed ${C.gray200}`,
+                        borderRadius: 12,
+                        background: '#F8FAFC',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <IconCamera size={32} color="#CBD5E1" />
                       </div>
-                      <SlotChipRow
-                        slots={availableSlots}
-                        selectedCode={selectedSlot}
-                        onSelect={setSelectedSlot}
-                      />
-                      <p style={{ margin: '0.4rem 0 0', fontSize: '0.72rem', color: C.gray400 }}>
-                        Khách có thể đỗ ở ô trống khác còn trống.
+                      <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>{label}</div>
+                      <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                        <button onClick={handleSnapshotClick} style={{
+                          flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                          border: `1.5px solid ${C.border}`, background: C.white, color: C.navy,
+                          fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                        }}>Chụp ảnh</button>
+                        <button onClick={handleSnapshotClick} style={{
+                          flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                          border: `1.5px solid ${C.border}`, background: C.white, color: C.gray800,
+                          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                        }}>Chọn từ thư viện</button>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.7rem', color: C.gray500 }}>
+                        Chụp rõ biển số, đủ sáng, thẳng góc
                       </p>
                     </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
 
-                    {/* Info rows */}
-                    <div>
-                      {[
-                        ...(selectedSlot ? [{ label: 'Vị trí', value: selectedSlot, valueColor: C.navy }] : []),
-                        { label: 'Giờ vào', value: now() },
-                      ].map((r) => <InfoRow key={r.label} {...r} />)}
-                    </div>
-                  </>
-                )}
-
-                {/* Banner — conditional: khách quen (found in DB) vs khách lẻ mới */}
-                <AlertBanner type={lookupData?.found ? 'success' : 'info'}>
-                  {lookupData?.found
-                    ? 'Khách quen — áp dụng giá vé tháng nếu có gói.'
-                    : 'Khách lẻ — thanh toán khi xe ra.'}
-                </AlertBanner>
-              </div>
-            )}
-
-            {/* ── IDLE ───────────────────────────────── */}
-            {pageState === 'idle' && (
-              <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: C.gray400 }}>
-                  Tra cứu biển số để bắt đầu check-in
+            {/* Recognition result placeholder */}
+            <Card title="Kết quả nhận diện">
+              <div style={{
+                border: `2px dashed ${C.gray200}`,
+                borderRadius: 14,
+                padding: '1.25rem',
+                textAlign: 'center',
+                background: '#FAFBFF',
+              }}>
+                <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa có kết quả nhận diện</p>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
+                  Biển số sẽ hiển thị tại đây sau khi tính năng camera và nhận diện được kết nối.
                 </p>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12 }}>
+                  <button disabled style={{
+                    padding: '0.55rem 1rem', borderRadius: 8,
+                    border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
+                    fontSize: '0.78rem', fontWeight: 700, cursor: 'not-allowed', opacity: 0.6,
+                  }}>Chụp lại</button>
+                  <button disabled style={{
+                    padding: '0.55rem 1rem', borderRadius: 8,
+                    border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
+                    fontSize: '0.78rem', fontWeight: 700, cursor: 'not-allowed', opacity: 0.6,
+                  }}>Chỉnh sửa</button>
+                </div>
               </div>
+            </Card>
+
+            {/* Vehicle result placeholder */}
+            <Card title="Thông tin phương tiện">
+              {lookupData ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{
+                    background: C.greenBg,
+                    border: `1.5px solid ${C.greenBorder}`,
+                    borderRadius: 10,
+                    padding: '0.6rem 0.85rem',
+                    display: 'inline-flex',
+                    alignItems: 'center', gap: 6,
+                    width: 'fit-content',
+                  }}>
+                    <IconCheck size={13} color={C.green} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803D' }}>
+                      {lookupData.customerType === 'monthly' ? 'KHÁCH THÁNG' : lookupData.found ? 'KHÁCH QUEN' : 'KHÁCH LẺ'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.model ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.year ?? '—'}</div>
+                    </div>
+                  </div>
+                  <OwnerInfoCard data={lookupData} />
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                  <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa có dữ liệu phương tiện</p>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
+                    Hệ thống sẽ tra cứu thông tin sau khi nhận diện được biển số.
+                  </p>
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* ══ RIGHT — Information & Actions ══════════════════ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* Parking area info */}
+            <Card title="Hệ thống ghi nhận khu vực đỗ">
+              {pageState === 'idle' ? (
+                <div style={{ textAlign: 'center', padding: '0.75rem 0' }}>
+                  <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa xác định khu vực</p>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
+                    Khu vực phù hợp sẽ hiển thị sau khi xác nhận loại xe và biển số.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray800 }}>
+                    {vehicleType === 'MOTORBIKE' ? 'Tầng 2 — khu vực xe máy' : 'Tầng 1 — khu vực ô tô'}
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: C.gray500 }}>
+                    Khách có thể đỗ tại bất kỳ vị trí trống nào trong khu vực được phân bổ.
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: C.gray500 }}>
+                    Hệ thống không gán cố định từng ô.
+                  </p>
+                </div>
+              )}
+            </Card>
+
+            {/* Check-in summary */}
+            <Card title="Tóm tắt check-in">
+              <div>
+                {[
+                  { label: 'Biển số', value: plateInput.trim() || 'Chưa xác định' },
+                  { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
+                  { label: 'Nguồn nhận diện', value: lookupData ? 'Tra cứu hệ thống' : 'Chưa xác định' },
+                  { label: 'Loại khách', value: lookupData
+                    ? (lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ')
+                    : 'Chưa xác định'
+                  },
+                  { label: 'Tầng / Khu vực', value: pageState === 'idle' ? 'Chưa xác định' : (vehicleType === 'MOTORBIKE' ? 'Tầng 2' : 'Tầng 1') },
+                  { label: 'Hình thức đỗ', value: vehicleType === 'MOTORBIKE' ? 'Tự do trong khu vực' : 'Chọn ô trống' },
+                  { label: 'Giờ vào dự kiến', value: pageState === 'idle' ? 'Chưa xác định' : now() },
+                ].map((r) => <InfoRow key={r.label} {...r} />)}
+              </div>
+            </Card>
+
+            {/* Monthly valid state */}
+            {pageState === 'monthly_valid' && lookupData && (
+              <Card title="Thông tin khách tháng">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: C.greenBg,
+                    border: `1.5px solid ${C.greenBorder}`,
+                    borderRadius: 20,
+                    padding: '0.3rem 0.75rem',
+                    width: 'fit-content',
+                  }}>
+                    <IconCheck size={13} color={C.green} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803D' }}>
+                      KHÁCH THÁNG · Còn hạn
+                    </span>
+                  </div>
+                  <div>
+                    {[
+                      { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
+                      { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.green },
+                      ...(lookupData.fixedSlot ? [{ label: 'Slot cố định', value: `${lookupData.fixedSlot} (cố định)`, valueColor: C.navy }] : []),
+                      { label: 'Giờ vào', value: now() },
+                    ].map((r) => <InfoRow key={r.label} {...r} />)}
+                  </div>
+                  <AlertBanner type="success">
+                    Khách tháng — không thu phí vào.
+                  </AlertBanner>
+                  <div>
+                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Loại xe (khóa)
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {(
+                        [
+                          { value: 'CAR', label: 'Ô tô', Icon: IconCar },
+                          { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
+                        ] as const
+                      ).map(({ value, label, Icon }) => {
+                        const active = lookupData.vehicleType === value;
+                        return (
+                          <div key={value} style={{
+                            flex: 1, padding: '0.55rem 0.75rem', borderRadius: 10,
+                            border: `1.5px solid ${active ? C.navy : C.border}`,
+                            background: active ? C.navy : C.white,
+                            color: active ? '#fff' : C.gray800,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            fontSize: '0.8rem', fontWeight: 700, opacity: active ? 1 : 0.6,
+                          }}>
+                            <Icon size={14} />
+                            {label}
+                            {active && <IconLock size={12} color={active ? '#fff' : '#94A3B8'} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {lookupData.fixedSlot && (
+                    <div>
+                      <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Vị trí
+                      </p>
+                      <div style={{
+                        padding: '0.6rem 0.85rem',
+                        background: '#EFF6FF',
+                        border: '1.5px solid #BFDBFE',
+                        borderRadius: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}>
+                        <IconLock size={13} color={C.navy} />
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>
+                          {lookupData.fixedSlot} — Cố định
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
             )}
-          </Card>
+
+            {/* Monthly expired state */}
+            {pageState === 'monthly_expired' && lookupData && (
+              <Card title="Thông tin khách tháng">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <AlertBanner type="error">
+                    Gói tháng hết hạn (ngày {expiryLabel}). Slot cố định tạm khóa.
+                  </AlertBanner>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: C.redBg,
+                    border: `1.5px solid ${C.redBorder}`,
+                    borderRadius: 20,
+                    padding: '0.3rem 0.75rem',
+                    width: 'fit-content',
+                  }}>
+                    <IconX size={13} color={C.red} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.red }}>
+                      ĐÃ HẾT HẠN
+                    </span>
+                  </div>
+                  <div>
+                    {[
+                      { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
+                      { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.red },
+                      { label: 'Giờ vào', value: now() },
+                    ].map((r) => <InfoRow key={r.label} {...r} />)}
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Loại xe (khóa)
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {(
+                        [
+                          { value: 'CAR', label: 'Ô tô', Icon: IconCar },
+                          { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
+                        ] as const
+                      ).map(({ value, label, Icon }) => {
+                        const active = lookupData.vehicleType === value;
+                        return (
+                          <div key={value} style={{
+                            flex: 1, padding: '0.55rem 0.75rem', borderRadius: 10,
+                            border: `1.5px solid ${active ? C.navy : C.border}`,
+                            background: active ? C.navy : C.white,
+                            color: active ? '#fff' : C.gray800,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            fontSize: '0.8rem', fontWeight: 700, opacity: active ? 1 : 0.6,
+                          }}>
+                            <Icon size={14} />
+                            {label}
+                            {active && <IconLock size={12} color={active ? '#fff' : '#94A3B8'} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* Casual state */}
+            {pageState === 'casual' && (
+              <Card title="Thông tin khách lẻ">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#EFF6FF',
+                    border: '1.5px solid #BFDBFE',
+                    borderRadius: 20,
+                    padding: '0.3rem 0.75rem',
+                    width: 'fit-content',
+                  }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.navy }}>KHÁCH LẺ</span>
+                  </div>
+
+                  {/* Vehicle type toggle (enabled) */}
+                  <div>
+                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Loại xe
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {(
+                        [
+                          { value: 'CAR', label: 'Ô tô', Icon: IconCar },
+                          { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
+                        ] as const
+                      ).map(({ value, label, Icon }) => {
+                        const active = vehicleType === value;
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => { setVehicleType(value); setSelectedSlot(null); }}
+                            style={{
+                              flex: 1, padding: '0.55rem 0.75rem', borderRadius: 10,
+                              border: `2px solid ${active ? C.navy : C.border}`,
+                              background: active ? C.navy : C.white,
+                              color: active ? '#fff' : C.gray800,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                            }}
+                          >
+                            <Icon size={14} />
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* MOTORBIKE: auto-assign, no slot grid */}
+                  {vehicleType === 'MOTORBIKE' ? (
+                    <>
+                      <div style={{
+                        padding: '0.65rem 0.9rem',
+                        background: '#F0FDF4',
+                        border: '1.5px solid #BBF7D0',
+                        borderRadius: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}>
+                        <IconMoto size={14} color={C.navy} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.navy }}>
+                          Xe máy — đỗ ô trống bất kỳ (Tầng 2)
+                        </span>
+                      </div>
+                      <div>
+                        {[{ label: 'Giờ vào', value: now() }].map((r) => <InfoRow key={r.label} {...r} />)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Slot selector — car casual */}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Chọn vị trí đỗ
+                          </p>
+                          {availableSlots.find((s) => s.suggested) && (
+                            <span style={{
+                              background: '#EFF6FF',
+                              border: '1px solid #BFDBFE',
+                              borderRadius: 12,
+                              padding: '0.15rem 0.5rem',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              color: C.navy,
+                            }}>
+                              Gợi ý: {availableSlots.find((s) => s.suggested)?.code}
+                            </span>
+                          )}
+                        </div>
+                        <SlotChipRow
+                          slots={availableSlots}
+                          selectedCode={selectedSlot}
+                          onSelect={setSelectedSlot}
+                        />
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '0.72rem', color: C.gray400 }}>
+                          Khách có thể đỗ ở ô trống khác còn trống.
+                        </p>
+                      </div>
+
+                      {/* Info rows */}
+                      <div>
+                        {[
+                          ...(selectedSlot ? [{ label: 'Vị trí', value: selectedSlot, valueColor: C.navy }] : []),
+                          { label: 'Giờ vào', value: now() },
+                        ].map((r) => <InfoRow key={r.label} {...r} />)}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Banner — conditional: khách quen (found in DB) vs khách lẻ mới */}
+                  <AlertBanner type={lookupData?.found ? 'success' : 'info'}>
+                    {lookupData?.found
+                      ? 'Khách quen — áp dụng giá vé tháng nếu có gói.'
+                      : 'Khách lẻ — thanh toán khi xe ra.'}
+                  </AlertBanner>
+                </div>
+              </Card>
+            )}
+
+            {/* IDLE */}
+            {pageState === 'idle' && (
+              <Card title="Thông tin tra cứu">
+                <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: C.gray400 }}>
+                    Tra cứu biển số để bắt đầu check-in
+                  </p>
+                </div>
+              </Card>
+            )}
+
+          </div>
         </div>
 
         {/* ══ ACTION BUTTONS (below two-column) ═══════════ */}
         {(pageState === 'monthly_valid' || pageState === 'monthly_expired' || pageState === 'casual') && (
           <div style={{
-            marginTop: '1rem',
+            marginTop: '1.25rem',
             display: 'flex',
             gap: '0.75rem',
             alignItems: 'center',
@@ -1162,8 +1313,8 @@ export function CheckInPage() {
               disabled={isConfirmDisabled || submitting}
               style={{
                 padding: '0.75rem 1.5rem',
-                background: !isConfirmDisabled ? C.navy : C.gray200,
-                color: !isConfirmDisabled ? C.white : C.gray400,
+                background: !isConfirmDisabled ? C.navy : '#E5E7EB',
+                color: !isConfirmDisabled ? C.white : '#9CA3AF',
                 border: 'none',
                 borderRadius: 12,
                 fontSize: '0.9rem',
@@ -1176,7 +1327,7 @@ export function CheckInPage() {
                 gap: 8,
               }}
             >
-              {submitting ? 'Đang xử lý...' : 'Xác nhận cho xe vào'}
+              {submitting ? 'Đang xử lý...' : 'Xác nhận check-in'}
             </button>
 
             {/* Expired-specific: convert to casual */}
@@ -1186,7 +1337,7 @@ export function CheckInPage() {
                 style={{
                   padding: '0.75rem 1.25rem',
                   background: C.yellowBg,
-                  color: C.yellow,
+                  color: '#92400E',
                   border: `1.5px solid ${C.yellowBorder}`,
                   borderRadius: 12,
                   fontSize: '0.85rem',
@@ -1217,7 +1368,7 @@ export function CheckInPage() {
               </button>
             )}
 
-            {/* Cancel */}
+            {/* Refresh */}
             <button
               onClick={handleReset}
               style={{
@@ -1229,12 +1380,148 @@ export function CheckInPage() {
                 fontSize: '0.85rem',
                 fontWeight: 600,
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
               }}
             >
-              Hủy / Nhập lại
+              <IconRefresh size={16} />
+              Làm mới
             </button>
           </div>
         )}
+
+        {/* ══ SEARCH ROW (always visible) ══════════════════ */}
+        <Card title="Nhận diện biển số">
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={plateInput}
+              onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setApiError(''); setPlateError(''); }}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              placeholder="VD: 51A-11111"
+              disabled={searching}
+              style={{
+                flex: 1,
+                minWidth: 200,
+                padding: '0.65rem 0.85rem',
+                border: `1.5px solid ${plateError ? C.redBorder : C.border}`,
+                borderRadius: 10,
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                fontFamily: "'Consolas','Courier New',monospace",
+                color: C.gray800,
+                background: C.white,
+                outline: 'none',
+                boxSizing: 'border-box',
+                letterSpacing: '0.04em',
+              }}
+            />
+            {plateError && (
+              <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: C.red }}>
+                {plateError}
+              </p>
+            )}
+            <button
+              onClick={handleSearch}
+              disabled={!isPlateValid(plateInput, vehicleType) || searching}
+              style={{
+                padding: '0.65rem 1rem',
+                background: isPlateValid(plateInput, vehicleType) && !searching ? C.navy : '#E5E7EB',
+                color: isPlateValid(plateInput, vehicleType) && !searching ? C.white : '#9CA3AF',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: isPlateValid(plateInput, vehicleType) && !searching ? 'pointer' : 'not-allowed',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+              }}
+            >
+              {searching ? 'Đang tra...' : <><IconSearch size={14} />Tra cứu</>}
+            </button>
+          </div>
+
+          {/* Plate display box */}
+          <div style={{
+            border: `2px dashed ${C.gray200}`,
+            borderRadius: 12,
+            padding: '1rem 1.25rem',
+            background: '#FAFBFF',
+            textAlign: 'center',
+            minHeight: 70,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            flexDirection: 'column',
+          }}>
+            {lookupData ? (
+              <>
+                <p style={{
+                  margin: 0,
+                  fontSize: '1.4rem',
+                  fontWeight: 800,
+                  fontFamily: "'Consolas','Courier New',monospace",
+                  color: C.navy,
+                  letterSpacing: '0.06em',
+                }}>
+                  {plateInput.trim().toUpperCase()}
+                </p>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
+                  {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ'}
+                  {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
+                </p>
+                <div style={{
+                  background: '#F0F4F8',
+                  border: '1px solid #D1D9E6',
+                  borderRadius: 10,
+                  padding: '0.7rem 0.85rem',
+                  marginTop: '0.6rem',
+                }}>
+                  <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Thông tin xe
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.model ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.year ?? '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.seats != null ? `${lookupData.seats} chỗ` : '—'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Show owner info card for found customers */}
+                <div style={{ width: '100%', marginTop: '0.75rem' }}>
+                  <OwnerInfoCard data={lookupData} />
+                </div>
+              </>
+            ) : (
+              <p style={{ margin: 0, fontSize: '0.82rem', color: '#94A3B8' }}>
+                Nhập biển số và nhấn Tra cứu
+              </p>
+            )}
+          </div>
+        </Card>
 
         {/* ══ FOOTER STAT TILES ══════════════════════════ */}
         <div style={{
