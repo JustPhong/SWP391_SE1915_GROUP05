@@ -450,6 +450,16 @@ export function CheckInPage() {
   // ── Footer stats ───────────────────────────────────
   const [stats, setStats] = useState<CheckinStats | null>(null);
 
+  // ── Image capture state ─────────────────────────────────
+  const [frontImage, setFrontImage] = useState<File | null>(null);
+  const [rearImage, setRearImage] = useState<File | null>(null);
+  const [frontPreview, setFrontPreview] = useState<string | null>(null);
+  const [rearPreview, setRearPreview] = useState<string | null>(null);
+  const frontCameraInputRef = useRef<HTMLInputElement>(null);
+  const frontLibraryInputRef = useRef<HTMLInputElement>(null);
+  const rearCameraInputRef = useRef<HTMLInputElement>(null);
+  const rearLibraryInputRef = useRef<HTMLInputElement>(null);
+
   // ── Query param access (must be at component top level) ──
   const [searchParams] = useSearchParams();
   const autoLookupRan = useRef(false);
@@ -662,6 +672,60 @@ export function CheckInPage() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  // ── Image upload handlers ───────────────────────────────
+  const handleImageSelect = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setImage: (f: File | null) => void,
+    setPreview: (url: string | null) => void,
+    currentPreview: string | null
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Clean up previous preview URL to avoid memory leaks
+    if (currentPreview) {
+      URL.revokeObjectURL(currentPreview);
+    }
+    
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
+    
+    // Reset the input value so the same file can be selected again if needed
+    e.target.value = '';
+  };
+
+  const handleFrontCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview);
+  };
+
+  const handleFrontLibrarySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview);
+  };
+
+  const handleRearCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImageSelect(e, setRearImage, setRearPreview, rearPreview);
+  };
+
+  const handleRearLibrarySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImageSelect(e, setRearImage, setRearPreview, rearPreview);
+  };
+
+  const handleRemoveFrontImage = () => {
+    if (frontPreview) {
+      URL.revokeObjectURL(frontPreview);
+    }
+    setFrontImage(null);
+    setFrontPreview(null);
+  };
+
+  const handleRemoveRearImage = () => {
+    if (rearPreview) {
+      URL.revokeObjectURL(rearPreview);
+    }
+    setRearImage(null);
+    setRearPreview(null);
+  };
+
   // ── Derived ───────────────────────────────────────
   const isCasual = pageState === 'casual';
   const isMotorbikeCasual = isCasual && vehicleType === 'MOTORBIKE';
@@ -815,47 +879,222 @@ export function CheckInPage() {
               </p>
             </Card>
 
-            {/* Step 2: Front/rear image placeholders */}
-            <Card title="Bước 2 · Nhận diện biển số xe">
+            {/* Step 2: Front/rear image capture */}
+            <Card title="Bước 2 · Chụp ảnh xe">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                {['Ảnh đầu xe', 'Ảnh đuôi xe'].map((label) => (
-                  <div key={label} style={{
-                    border: `1.5px dashed ${C.gray200}`,
-                    borderRadius: 14,
-                    padding: '1.25rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 10,
-                    background: '#FAFBFF',
+                {/* Front Image */}
+                <div style={{
+                  border: `1.5px solid ${frontPreview ? C.navy : C.gray200}`,
+                  borderRadius: 14,
+                  padding: '1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  background: frontPreview ? '#F0F8FF' : '#FAFBFF',
+                }}>
+                  <div style={{
+                    width: '100%', aspectRatio: '16/10',
+                    border: `1.5px dashed ${frontPreview ? C.navy : C.gray200}`,
+                    borderRadius: 12,
+                    background: frontPreview ? '#fff' : '#F8FAFC',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative',
                   }}>
-                    <div style={{
-                      width: '100%', aspectRatio: '16/10',
-                      border: `1.5px dashed ${C.gray200}`,
-                      borderRadius: 12,
-                      background: '#F8FAFC',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <IconCamera size={32} color="#CBD5E1" />
-                    </div>
-                    <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>{label}</div>
-                    <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                      <button disabled style={{
-                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                        border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
-                        fontSize: '0.78rem', fontWeight: 700, cursor: 'not-allowed', opacity: 0.6,
-                      }}>Chụp ảnh</button>
-                      <button disabled style={{
-                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                        border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
-                        fontSize: '0.78rem', fontWeight: 600, cursor: 'not-allowed', opacity: 0.6,
-                      }}>Chọn từ thư viện</button>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.7rem', color: C.gray500 }}>
-                      Tính năng chụp ảnh sẽ được kết nối ở bước tiếp theo.
-                    </p>
+                    {frontPreview ? (
+                      <>
+                        <img 
+                          src={frontPreview} 
+                          alt="Ảnh đầu xe" 
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                          }} 
+                        />
+                        <button
+                          onClick={handleRemoveFrontImage}
+                          style={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            background: C.white,
+                            border: `1.5px solid ${C.red}`,
+                            borderRadius: '50%',
+                            width: 28,
+                            height: 28,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            zIndex: 10,
+                          }}
+                          title="Xóa ảnh"
+                        >
+                          <IconX size={14} color={C.red} />
+                        </button>
+                      </>
+                    ) : (
+                      <IconCamera size={36} color="#94A3B8" />
+                    )}
                   </div>
-                ))}
+                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>
+                    Ảnh đầu xe
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                    <button
+                      onClick={() => frontCameraInputRef.current?.click()}
+                      style={{
+                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                        border: `1.5px solid ${C.navy}`, background: frontPreview ? C.gray100 : C.navy, 
+                        color: frontPreview ? C.gray800 : C.white,
+                        fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      📷 Chụp ảnh
+                    </button>
+                    <button
+                      onClick={() => frontLibraryInputRef.current?.click()}
+                      style={{
+                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                        border: `1.5px solid ${C.navy}`, background: frontPreview ? C.gray100 : C.white, 
+                        color: frontPreview ? C.gray800 : C.navy,
+                        fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      🖼️ Thư viện
+                    </button>
+                  </div>
+                  <input
+                    ref={frontCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={handleFrontCameraCapture}
+                  />
+                  <input
+                    ref={frontLibraryInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleFrontLibrarySelect}
+                  />
+                </div>
+
+                {/* Rear Image */}
+                <div style={{
+                  border: `1.5px solid ${rearPreview ? C.navy : C.gray200}`,
+                  borderRadius: 14,
+                  padding: '1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  background: rearPreview ? '#F0F8FF' : '#FAFBFF',
+                }}>
+                  <div style={{
+                    width: '100%', aspectRatio: '16/10',
+                    border: `1.5px dashed ${rearPreview ? C.navy : C.gray200}`,
+                    borderRadius: 12,
+                    background: rearPreview ? '#fff' : '#F8FAFC',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}>
+                    {rearPreview ? (
+                      <>
+                        <img 
+                          src={rearPreview} 
+                          alt="Ảnh đuôi xe" 
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                          }} 
+                        />
+                        <button
+                          onClick={handleRemoveRearImage}
+                          style={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            background: C.white,
+                            border: `1.5px solid ${C.red}`,
+                            borderRadius: '50%',
+                            width: 28,
+                            height: 28,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            zIndex: 10,
+                          }}
+                          title="Xóa ảnh"
+                        >
+                          <IconX size={14} color={C.red} />
+                        </button>
+                      </>
+                    ) : (
+                      <IconCamera size={36} color="#94A3B8" />
+                    )}
+                  </div>
+                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>
+                    Ảnh đuôi xe
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                    <button
+                      onClick={() => rearCameraInputRef.current?.click()}
+                      style={{
+                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                        border: `1.5px solid ${C.navy}`, background: rearPreview ? C.gray100 : C.navy, 
+                        color: rearPreview ? C.gray800 : C.white,
+                        fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      📷 Chụp ảnh
+                    </button>
+                    <button
+                      onClick={() => rearLibraryInputRef.current?.click()}
+                      style={{
+                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                        border: `1.5px solid ${C.navy}`, background: rearPreview ? C.gray100 : C.white, 
+                        color: rearPreview ? C.gray800 : C.navy,
+                        fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      🖼️ Thư viện
+                    </button>
+                  </div>
+                  <input
+                    ref={rearCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={handleRearCameraCapture}
+                  />
+                  <input
+                    ref={rearLibraryInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleRearLibrarySelect}
+                  />
+                </div>
               </div>
             </Card>
 
