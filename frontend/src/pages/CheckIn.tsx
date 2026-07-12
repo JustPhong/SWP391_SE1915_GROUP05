@@ -11,9 +11,9 @@ import {
 } from '../api/checkinApi';
 import { lookupVehicleByPlate } from '../api/vehicleApi';
 
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 //  DESIGN TOKENS  (approved palette)
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 const C = {
   navy: '#0B2F6B',
   navyLight: '#153B75',
@@ -121,11 +121,6 @@ function isPlateValid(raw: string, vehicleType: VehicleTypeFmt): boolean {
 
 type PageState = 'idle' | 'monthly_valid' | 'monthly_expired' | 'casual';
 
-const now = (): string => {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
-
 const formatDateTime = (dateInput: string | Date | null | undefined): string => {
   if (!dateInput) return '';
   const d = new Date(dateInput);
@@ -133,9 +128,9 @@ const formatDateTime = (dateInput: string | Date | null | undefined): string => 
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 //  ICONS
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 function IconCar({ size = 16 }: { size?: number }) {
   return (
     <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
@@ -223,29 +218,9 @@ function IconCamera({ size = 24, color = '#94A3B8' }: { size?: number; color?: s
     </svg>
   );
 }
-function IconPlate({ size = 18, color = '#64748B' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="6" width="18" height="12" rx="2" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-      <line x1="8" y1="15" x2="8" y2="15.01" strokeWidth="2.5" />
-    </svg>
-  );
-}
-function IconShipping({ size = 18, color = '#64748B' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="3" width="15" height="13" />
-      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-      <circle cx="5.5" cy="18.5" r="2.5" />
-      <circle cx="18.5" cy="18.5" r="2.5" />
-    </svg>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 //  SUB-COMPONENTS
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 
 function OwnerInfoCard({ data }: { data: LookupResult }) {
   if (data.customerType === 'casual' && !data.ownerName && !data.ownerPhone && !data.ownerEmail) return null;
@@ -316,7 +291,7 @@ function SlotChipRow({
   if (slots.length === 0) {
     return (
       <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: C.red }}>
-        Không có ô trống nào khả dụng.
+        Chưa có dữ liệu ô trống.
       </p>
     );
   }
@@ -447,9 +422,9 @@ function ProgressIndicator({ step }: { step: number }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 //  MAIN COMPONENT
-// ═══════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 export function CheckInPage() {
 
   // ── Form state ──────────────────────────────────────
@@ -493,7 +468,6 @@ export function CheckInPage() {
     if (!raw) return;
     const { valid, formatted } = formatPlate(raw, vehicleType);
     if (!valid) return;
-
 
     setPlateInput(formatted);
 
@@ -543,7 +517,6 @@ export function CheckInPage() {
       return;
     }
     const { valid, formatted } = formatPlate(plateInput, vehicleType);
-
 
     if (!valid) {
       setPlateError('Biển số không hợp lệ (sai mã tỉnh hoặc định dạng)');
@@ -689,10 +662,6 @@ export function CheckInPage() {
     if (e.key === 'Enter') handleSearch();
   };
 
-  const handleSnapshotClick = () => {
-    alert('Tính năng camera sẽ được kết nối ở bước tiếp theo.');
-  };
-
   // ── Derived ───────────────────────────────────────
   const isCasual = pageState === 'casual';
   const isMotorbikeCasual = isCasual && vehicleType === 'MOTORBIKE';
@@ -800,7 +769,7 @@ export function CheckInPage() {
           alignItems: 'start',
         }}>
 
-          {/* ══ LEFT — Workflow ═════════════════════════════ */}
+          {/* ══ LEFT — Workflow ═══════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {/* Step 1: Vehicle type */}
@@ -847,50 +816,48 @@ export function CheckInPage() {
             </Card>
 
             {/* Step 2: Front/rear image placeholders */}
-            <div style={{ opacity: vehicleType ? 1 : 0.5, pointerEvents: vehicleType ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
-              <Card title="Bước 2 · Nhận diện biển số xe">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  {['Ảnh đầu xe', 'Ảnh đuôi xe'].map((label) => (
-                    <div key={label} style={{
+            <Card title="Bước 2 · Nhận diện biển số xe">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {['Ảnh đầu xe', 'Ảnh đuôi xe'].map((label) => (
+                  <div key={label} style={{
+                    border: `1.5px dashed ${C.gray200}`,
+                    borderRadius: 14,
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 10,
+                    background: '#FAFBFF',
+                  }}>
+                    <div style={{
+                      width: '100%', aspectRatio: '16/10',
                       border: `1.5px dashed ${C.gray200}`,
-                      borderRadius: 14,
-                      padding: '1.25rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 10,
-                      background: '#FAFBFF',
+                      borderRadius: 12,
+                      background: '#F8FAFC',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <div style={{
-                        width: '100%', aspectRatio: '16/10',
-                        border: `1.5px dashed ${C.gray200}`,
-                        borderRadius: 12,
-                        background: '#F8FAFC',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <IconCamera size={32} color="#CBD5E1" />
-                      </div>
-                      <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>{label}</div>
-                      <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                        <button onClick={handleSnapshotClick} style={{
-                          flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                          border: `1.5px solid ${C.border}`, background: C.white, color: C.navy,
-                          fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                        }}>Chụp ảnh</button>
-                        <button onClick={handleSnapshotClick} style={{
-                          flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                          border: `1.5px solid ${C.border}`, background: C.white, color: C.gray800,
-                          fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                        }}>Chọn từ thư viện</button>
-                      </div>
-                      <p style={{ margin: 0, fontSize: '0.7rem', color: C.gray500 }}>
-                        Chụp rõ biển số, đủ sáng, thẳng góc
-                      </p>
+                      <IconCamera size={32} color="#CBD5E1" />
                     </div>
-                  ))}
-                </div>
-              </Card>
-            </div>
+                    <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>{label}</div>
+                    <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                      <button disabled style={{
+                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                        border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
+                        fontSize: '0.78rem', fontWeight: 700, cursor: 'not-allowed', opacity: 0.6,
+                      }}>Chụp ảnh</button>
+                      <button disabled style={{
+                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
+                        border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
+                        fontSize: '0.78rem', fontWeight: 600, cursor: 'not-allowed', opacity: 0.6,
+                      }}>Chọn từ thư viện</button>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: C.gray500 }}>
+                      Tính năng chụp ảnh sẽ được kết nối ở bước tiếp theo.
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
 
             {/* Recognition result placeholder */}
             <Card title="Kết quả nhận diện">
@@ -974,26 +941,17 @@ export function CheckInPage() {
 
             {/* Parking area info */}
             <Card title="Hệ thống ghi nhận khu vực đỗ">
-              {pageState === 'idle' ? (
-                <div style={{ textAlign: 'center', padding: '0.75rem 0' }}>
-                  <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa xác định khu vực</p>
-                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
-                    Khu vực phù hợp sẽ hiển thị sau khi xác nhận loại xe và biển số.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray800 }}>
-                    {vehicleType === 'MOTORBIKE' ? 'Tầng 2 — khu vực xe máy' : 'Tầng 1 — khu vực ô tô'}
-                  </p>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: C.gray500 }}>
-                    Khách có thể đỗ tại bất kỳ vị trí trống nào trong khu vực được phân bổ.
-                  </p>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: C.gray500 }}>
-                    Hệ thống không gán cố định từng ô.
-                  </p>
-                </div>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>
+                  Chưa xác định khu vực
+                </p>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
+                  Khu vực phù hợp sẽ hiển thị sau khi xác nhận loại xe và hoàn tất nhận diện biển số.
+                </p>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
+                  Khách sẽ đỗ tự do trong khu vực được phân bổ. Hệ thống không gán cố định từng ô.
+                </p>
+              </div>
             </Card>
 
             {/* Check-in summary */}
@@ -1002,14 +960,14 @@ export function CheckInPage() {
                 {[
                   { label: 'Biển số', value: plateInput.trim() || 'Chưa xác định' },
                   { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
-                  { label: 'Nguồn nhận diện', value: lookupData ? 'Tra cứu hệ thống' : 'Chưa xác định' },
+                  { label: 'Nguồn nhận diện', value: lookupData ? 'Tra cứu hệ thống' : 'Chưa kết nối' },
                   { label: 'Loại khách', value: lookupData
                     ? (lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ')
                     : 'Chưa xác định'
                   },
-                  { label: 'Tầng / Khu vực', value: pageState === 'idle' ? 'Chưa xác định' : (vehicleType === 'MOTORBIKE' ? 'Tầng 2' : 'Tầng 1') },
-                  { label: 'Hình thức đỗ', value: vehicleType === 'MOTORBIKE' ? 'Tự do trong khu vực' : 'Chọn ô trống' },
-                  { label: 'Giờ vào dự kiến', value: pageState === 'idle' ? 'Chưa xác định' : now() },
+                  { label: 'Tầng / Khu vực', value: 'Chưa xác định' },
+                  { label: 'Hình thức đỗ', value: 'Tự do trong khu vực' },
+                  { label: 'Giờ vào dự kiến', value: 'Chưa xác định' },
                 ].map((r) => <InfoRow key={r.label} {...r} />)}
               </div>
             </Card>
@@ -1038,7 +996,7 @@ export function CheckInPage() {
                       { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
                       { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.green },
                       ...(lookupData.fixedSlot ? [{ label: 'Slot cố định', value: `${lookupData.fixedSlot} (cố định)`, valueColor: C.navy }] : []),
-                      { label: 'Giờ vào', value: now() },
+                      { label: 'Giờ vào', value: 'Chưa xác định' },
                     ].map((r) => <InfoRow key={r.label} {...r} />)}
                   </div>
                   <AlertBanner type="success">
@@ -1124,7 +1082,7 @@ export function CheckInPage() {
                     {[
                       { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
                       { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.red },
-                      { label: 'Giờ vào', value: now() },
+                      { label: 'Giờ vào', value: 'Chưa xác định' },
                     ].map((r) => <InfoRow key={r.label} {...r} />)}
                   </div>
                   <div>
@@ -1223,13 +1181,13 @@ export function CheckInPage() {
                         alignItems: 'center',
                         gap: 8,
                       }}>
-                        <IconMoto size={14} color={C.navy} />
+                        <IconMoto size={14} />
                         <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.navy }}>
-                          Xe máy — đỗ ô trống bất kỳ (Tầng 2)
+                          Đỗ tự do trong khu vực
                         </span>
                       </div>
                       <div>
-                        {[{ label: 'Giờ vào', value: now() }].map((r) => <InfoRow key={r.label} {...r} />)}
+                        {[{ label: 'Giờ vào', value: 'Chưa xác định' }].map((r) => <InfoRow key={r.label} {...r} />)}
                       </div>
                     </>
                   ) : (
@@ -1238,7 +1196,7 @@ export function CheckInPage() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Chọn vị trí đỗ
+                            Vị trí đỗ
                           </p>
                           {availableSlots.find((s) => s.suggested) && (
                             <span style={{
@@ -1260,7 +1218,7 @@ export function CheckInPage() {
                           onSelect={setSelectedSlot}
                         />
                         <p style={{ margin: '0.4rem 0 0', fontSize: '0.72rem', color: C.gray400 }}>
-                          Khách có thể đỗ ở ô trống khác còn trống.
+                          Khách đỗ tại vị trí trống bất kỳ trong khu vực phân bổ.
                         </p>
                       </div>
 
@@ -1268,18 +1226,12 @@ export function CheckInPage() {
                       <div>
                         {[
                           ...(selectedSlot ? [{ label: 'Vị trí', value: selectedSlot, valueColor: C.navy }] : []),
-                          { label: 'Giờ vào', value: now() },
+                          { label: 'Giờ vào', value: 'Chưa xác định' },
                         ].map((r) => <InfoRow key={r.label} {...r} />)}
                       </div>
                     </>
                   )}
 
-                  {/* Banner — conditional: khách quen (found in DB) vs khách lẻ mới */}
-                  <AlertBanner type={lookupData?.found ? 'success' : 'info'}>
-                    {lookupData?.found
-                      ? 'Khách quen — áp dụng giá vé tháng nếu có gói.'
-                      : 'Khách lẻ — thanh toán khi xe ra.'}
-                  </AlertBanner>
                 </div>
               </Card>
             )}
