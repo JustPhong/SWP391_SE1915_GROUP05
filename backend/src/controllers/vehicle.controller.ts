@@ -1,10 +1,21 @@
 import { Response } from 'express';
 import { vehicleService } from '../services/vehicle.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { asyncHandler } from '../utils/helpers';
+import { asyncHandler, AppError } from '../utils/helpers';
+import prisma from '../config/db';
 
 export const vehicleController = {
   create: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const isStaffOrAdmin = req.user!.role === 'ADMIN' || req.user!.role === 'STAFF' || req.user!.role === 'MANAGER';
+    const ownerId = (isStaffOrAdmin && req.body.ownerId) ? req.body.ownerId : req.user!.id;
+
+    if (ownerId === req.user!.id) {
+      const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+      if (!currentUser?.phoneNumber) {
+        throw new AppError(400, 'Vui lòng cập nhật số điện thoại trong Hồ sơ trước khi thêm xe.');
+      }
+    }
+
     const payload = {
       plateNumber: req.body.plateNumber,
       type: req.body.type,
@@ -14,7 +25,7 @@ export const vehicleController = {
       color: req.body.color,
       year: req.body.year,
       seats: req.body.seats,
-      ownerId: req.user!.id,
+      ownerId,
     };
     const vehicle = await vehicleService.create(payload);
     return res.status(201).json({ success: true, data: vehicle });

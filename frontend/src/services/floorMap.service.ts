@@ -39,4 +39,9 @@ export const floorMapService = {
     const response = await api.post<{ success: boolean; data: Booking }>(`/bookings/${bookingId}/fulfill`);
     return response.data.data;
   },
+
+  getZoneQuotas: async (): Promise<Record<string, { capacity: number; sold: number; remaining: number }>> => {
+    const response = await api.get<{ success: boolean; data: any }>('/monthly-packages/quotas');
+    return response.data.data;
+  },
 };

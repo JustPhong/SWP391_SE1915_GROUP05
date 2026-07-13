@@ -12,6 +12,7 @@ export interface User {
   email: string;
   role: UserRole;
   avatarUrl?: string | null;
+  phoneNumber?: string | null;
   createdAt: string;
 }
 
@@ -69,6 +70,7 @@ export interface MonthlyPackage {
   vehicle?: Vehicle;
   slot?: ParkingSlot;
   payments?: Payment[];
+  allowedTier?: 'VIP' | 'POPULAR' | 'REGULAR' | null;
   createdAt: string;
 }
 
