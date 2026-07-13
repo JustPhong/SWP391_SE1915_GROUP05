@@ -33,6 +33,12 @@ export const bookingController = {
     return res.status(200).json({ success: true, data: result[0] });
   }),
 
+  markNoShow: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const bookingId = req.params.id;
+    const result = await bookingService.markNoShow(bookingId);
+    return res.status(200).json({ success: true, data: result[0] });
+  }),
+
   cancel: asyncHandler(async (req: AuthRequest, res: Response) => {
     const bookingId = req.params.id;
     const result = await bookingService.cancel(bookingId);

@@ -2,6 +2,13 @@ import api from '../services/api';
 
 export type BookingStatus = 'ACTIVE' | 'FULFILLED' | 'CANCELLED' | 'NO_SHOW';
 
+export interface FloorInfo {
+  floorCode: string;
+  name: string;
+  vehicleType: string;
+  customerType: string;
+}
+
 export interface BookingItem {
   id: string;
   status: BookingStatus;
@@ -12,6 +19,7 @@ export interface BookingItem {
   slot: {
     id: string;
     code: string;
+    floor?: FloorInfo;
   };
   vehicle: {
     id: string;
@@ -69,16 +77,16 @@ export async function fulfillBooking(id: string): Promise<BookingItem> {
   }
 }
 
-export async function cancelBooking(id: string): Promise<BookingItem> {
+export async function markNoShow(id: string): Promise<BookingItem> {
   try {
     const response = await api.post<{ success: boolean; data: BookingItem }>(
-      `/bookings/${id}/cancel`
+      `/bookings/${id}/no-show`
     );
     return unwrap(response);
   } catch (err: unknown) {
     const msg =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-      'Không thể hủy đặt chỗ.';
+      'Không thể đánh dấu vắng mặt.';
     throw new Error(msg);
   }
 }
