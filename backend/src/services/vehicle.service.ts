@@ -37,6 +37,13 @@ export const vehicleService = {
       throw new AppError(409, 'Vehicle with this plate number already exists');
     }
 
+    const owner = await prisma.user.findUnique({
+      where: { id: input.ownerId },
+    });
+    if (!owner) {
+      throw new AppError(404, 'Không tìm thấy thông tin chủ xe');
+    }
+
     const data = {
       plateNumber: input.plateNumber,
       type: input.type,
@@ -47,12 +54,11 @@ export const vehicleService = {
       color: input.color ?? undefined,
       year: input.year ?? undefined,
       seats: input.seats ?? undefined,
-      ownerFullName: input.ownerFullName ?? undefined,
-      ownerEmail: input.ownerEmail ? input.ownerEmail.toLowerCase() : undefined,
-      ownerPhone: input.ownerPhone ?? undefined,
+      ownerFullName: owner.fullName,
+      ownerEmail: owner.email.toLowerCase(),
+      ownerPhone: owner.phoneNumber ?? null,
     };
     return prisma.vehicle.create({ data });
-
   },
 
   async getByPlate(plateNumber: string) {
