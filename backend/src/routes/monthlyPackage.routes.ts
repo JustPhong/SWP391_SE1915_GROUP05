@@ -23,6 +23,7 @@ router.use(authenticate);
  *         description: Unauthorized — missing or invalid JWT
  */
 router.get('/active', monthlyPackageController.getActivePackages);
+router.get('/quotas', monthlyPackageController.getQuotas);
 
 /**
  * @swagger

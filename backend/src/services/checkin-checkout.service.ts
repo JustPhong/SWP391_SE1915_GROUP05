@@ -170,7 +170,7 @@ export const checkInService = {
       recordType: 'CHECKIN',
       plateNumber: r.vehicle.plateNumber,
       vehicleType: r.vehicle.type,
-      slotCode: r.slot.code,
+      slotCode: r.slot?.code ?? null,
       timeIn: r.checkInTime.toISOString(),
       timeOut: r.checkOutTime ? r.checkOutTime.toISOString() : null,
       status: r.checkOutTime ? 'COMPLETED' : 'PARKING',
@@ -188,7 +188,7 @@ export const checkInService = {
       recordType: 'BOOKING',
       plateNumber: b.vehicle.plateNumber,
       vehicleType: b.vehicle.type,
-      slotCode: b.slot.code,
+      slotCode: b.slot?.code ?? null,
       timeIn: null,
       timeOut: null,
       status: b.status,
@@ -233,7 +233,7 @@ export const checkOutService = {
     return {
       recordId: record.id,
       plate: record.vehicle.plateNumber,
-      slotCode: record.slot.code,
+      slotCode: record.slot?.code ?? null,
       vehicleType: record.vehicle.type as 'CAR' | 'MOTORBIKE',
       isMonthly: record.isMonthly,
       checkInTime: record.checkInTime.toISOString(),
@@ -255,16 +255,21 @@ export const checkOutService = {
     if (record.checkOutTime) throw new AppError(400, 'Vehicle already checked out');
 
     if (record.isMonthly) {
-      await prisma.$transaction([
-        prisma.parkingSlot.update({
-          where: { id: record.slotId },
-          data: { status: SLOT_AVAILABLE },
-        }),
+      const ops: Prisma.PrismaPromise<unknown>[] = [
         prisma.checkInRecord.update({
           where: { id: record.id },
           data: { checkOutTime: new Date() },
         }),
-      ]);
+      ];
+      if (record.slotId) {
+        ops.push(
+          prisma.parkingSlot.update({
+            where: { id: record.slotId },
+            data: { status: SLOT_AVAILABLE },
+          })
+        );
+      }
+      await prisma.$transaction(ops);
       return {
         recordId: record.id,
         paymentRequired: false,
@@ -288,10 +293,6 @@ export const checkOutService = {
     const finalAmount = Math.max(0, amount - depositCredit);
 
     const ops: Prisma.PrismaPromise<unknown>[] = [
-      prisma.parkingSlot.update({
-        where: { id: record.slotId },
-        data: { status: SLOT_AVAILABLE },
-      }),
       prisma.checkInRecord.update({
         where: { id: record.id },
         data: { checkOutTime: new Date() },
@@ -305,6 +306,14 @@ export const checkOutService = {
         },
       }),
     ];
+    if (record.slotId) {
+      ops.push(
+        prisma.parkingSlot.update({
+          where: { id: record.slotId },
+          data: { status: SLOT_AVAILABLE },
+        })
+      );
+    }
     if (creditable) {
       ops.push(
         prisma.booking.update({

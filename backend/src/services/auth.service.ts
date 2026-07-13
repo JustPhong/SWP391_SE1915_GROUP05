@@ -27,6 +27,7 @@ export interface AuthResult {
     fullName: string;
     email: string;
     role: string;
+    phoneNumber: string | null;
   };
 }
 
@@ -216,6 +217,7 @@ export const authService = {
         fullName: user.fullName,
         email: user.email,
         role: roleName,
+        phoneNumber: user.phoneNumber ?? null,
       },
     };
   },
@@ -253,6 +255,7 @@ export const authService = {
         fullName: user.fullName,
         email: user.email,
         role: roleName,
+        phoneNumber: user.phoneNumber ?? null,
       },
     };
   },
@@ -266,13 +269,28 @@ export const authService = {
     return user;
   },
 
-  async updateProfile(userId: string, input: { fullName?: string }) {
-    if (!input.fullName || !input.fullName.trim()) {
+  async updateProfile(userId: string, input: { fullName?: string; phoneNumber?: string | null }) {
+    if (input.fullName !== undefined && !input.fullName.trim()) {
       throw new AppError(400, 'Họ tên không được để trống');
+    }
+    const data: any = {};
+    if (input.fullName !== undefined) {
+      data.fullName = input.fullName.trim();
+    }
+    if (input.phoneNumber !== undefined) {
+      if (input.phoneNumber !== null) {
+        const trimmedPhone = input.phoneNumber.trim();
+        if (trimmedPhone && !/^0\d{9,10}$/.test(trimmedPhone)) {
+          throw new AppError(400, 'Số điện thoại không hợp lệ');
+        }
+        data.phoneNumber = trimmedPhone || null;
+      } else {
+        data.phoneNumber = null;
+      }
     }
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { fullName: input.fullName.trim() },
+      data,
       include: { roleRef: true },
     });
     return user;
