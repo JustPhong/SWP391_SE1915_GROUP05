@@ -96,7 +96,11 @@
 }
 
 .navItemActive {
-  background: #1E5BFF;
+  background: linear-gradient(
+    90deg,
+    rgba(54, 101, 205, 0.85) 0%,
+    rgba(61, 96, 220, 0.90) 100%
+  );
   color: #fff;
   font-weight: 600;
 }
