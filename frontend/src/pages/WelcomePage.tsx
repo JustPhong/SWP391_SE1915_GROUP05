@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
 import {
   HomeIcon,
   CalendarIcon,
@@ -59,6 +60,36 @@ const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_
 export const WelcomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [purchasePlanId, setPurchasePlanId] = useState('');
+  const [purchaseVtype, setPurchaseVtype] = useState<'CAR' | 'MOTORBIKE'>('CAR');
+
+  useEffect(() => {
+    const state = location.state as { reopenPlanId?: string; reopenVtype?: 'CAR' | 'MOTORBIKE' } | null;
+    if (state?.reopenPlanId && state?.reopenVtype && user) {
+      setPurchasePlanId(state.reopenPlanId);
+      setPurchaseVtype(state.reopenVtype);
+      setPurchaseModalOpen(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location, user]);
+
+  const handleSelectPackage = (planId: string, vtype: 'CAR' | 'MOTORBIKE') => {
+    if (!user) {
+      navigate('/login', {
+        state: {
+          redirectFrom: '/',
+          selectedPlanId: planId,
+          selectedVtype: vtype
+        }
+      });
+    } else {
+      setPurchasePlanId(planId);
+      setPurchaseVtype(vtype);
+      setPurchaseModalOpen(true);
+    }
+  };
 
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
@@ -475,7 +506,7 @@ export const WelcomePage: React.FC = () => {
         />
         <ProcessSection />
         <FeaturesSection />
-        <PricingSection navigate={navigate} />
+        <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
@@ -491,6 +522,12 @@ export const WelcomePage: React.FC = () => {
             onClose={() => setBookingSuccess(null)}
           />
         )}
+        <PackagePurchaseModal
+          isOpen={purchaseModalOpen}
+          onClose={() => setPurchaseModalOpen(false)}
+          planId={purchasePlanId}
+          vehicleType={purchaseVtype}
+        />
       </div>
     );
   }
@@ -681,7 +718,7 @@ export const WelcomePage: React.FC = () => {
           />
           <ProcessSection />
           <FeaturesSection />
-          <PricingSection navigate={navigate} onSelectPackage={() => setActiveTab('monthly')} />
+          <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
         </>
       ) : activeTab === 'vehicles' ? (
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
@@ -829,6 +866,12 @@ export const WelcomePage: React.FC = () => {
           onClose={() => setBookingSuccess(null)}
         />
       )}
+      <PackagePurchaseModal
+        isOpen={purchaseModalOpen}
+        onClose={() => setPurchaseModalOpen(false)}
+        planId={purchasePlanId}
+        vehicleType={purchaseVtype}
+      />
     </div>
   );
 };
@@ -1114,9 +1157,15 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
   );
 }
 
-function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: () => void }) {
+function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: (planId: string, vtype: VType) => void }) {
   const [vtype, setVtype] = useState<VType>('MOTORBIKE');
-  const handleSelect = onSelectPackage ?? (() => navigate('/monthly-package'));
+  const handleSelect = (planId: string, planVtype: VType) => {
+    if (onSelectPackage) {
+      onSelectPackage(planId, planVtype);
+    } else {
+      navigate('/monthly-package');
+    }
+  };
   return (
     <section id="pricing" className={styles.section}>
       <div className={styles.sectionInner}>
@@ -1390,7 +1439,7 @@ const CAR_TIER_PERKS: TierPerk[][] = [
 const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'CAO CẤP'];
 const CAR_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 
-function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () => void }) {
+function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (planId: string, vtype: VType) => void }) {
   const isCar = vtype === 'CAR';
   const groupClass = isCar ? styles.pricingGroupIconGreen : styles.pricingGroupIconBlue;
   const cardFeatured = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
@@ -1436,7 +1485,7 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
                 key={pkg.id}
                 type="button"
                 className={`${styles.planCard} ${isFeatured ? `${styles.planCardFeatured} ${cardFeatured}` : ''}`}
-                onClick={onClickCard}
+                onClick={() => onClickCard(pkg.id, vtype)}
               >
                 {isFeatured && (
                   <span className={styles.planBadge}>★ Tiết kiệm nhất</span>
