@@ -16,7 +16,7 @@ export interface CheckoutLookupResult {
   vehicleId?: string;
   plate?: string;
   vehicleType?: 'CAR' | 'MOTORBIKE';
-  slotCode?: string;
+  slotCode?: string | null;
   isMonthly?: boolean;
   checkInTime?: string;
   now?: string;
@@ -44,7 +44,7 @@ export interface CheckoutLookupResult {
 export interface ParkedVehicle {
   plate: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
-  slotCode: string;
+  slotCode: string | null;
   checkInTime: string;
   isMonthly: boolean;
 }
@@ -52,7 +52,7 @@ export interface ParkedVehicle {
 export interface CheckoutSubmitResult {
   ok: boolean;
   plate: string;
-  slotCode: string;
+  slotCode: string | null;
   fee: number;
   isMonthly: boolean;
   checkOutTime: string;
@@ -139,7 +139,7 @@ export const checkoutService = {
       vehicleId: vehicle.id,
       plate: vehicle.plateNumber,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
-      slotCode: record.slot.code,
+      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       isMonthly: record.isMonthly,
       checkInTime: record.checkInTime.toISOString(),
       now: now.toISOString(),
@@ -172,7 +172,7 @@ export const checkoutService = {
     return records.map((r) => ({
       plate: r.vehicle.plateNumber,
       vehicleType: r.vehicle.type as 'CAR' | 'MOTORBIKE',
-      slotCode: r.slot.code,
+      slotCode: r.slot?.code ?? (r.allowedTier ? `Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       checkInTime: r.checkInTime.toISOString(),
       isMonthly: r.isMonthly,
     }));
@@ -237,22 +237,24 @@ export const checkoutService = {
         });
       }
 
-      const updateData: { status: string; assignedVehicleId?: string | null } = {
-        status: 'AVAILABLE',
-      };
-      if (!record.isMonthly) {
-        updateData.assignedVehicleId = null;
+      if (record.slotId) {
+        const updateData: { status: string; assignedVehicleId?: string | null } = {
+          status: 'AVAILABLE',
+        };
+        if (!record.isMonthly) {
+          updateData.assignedVehicleId = null;
+        }
+        await tx.parkingSlot.update({
+          where: { id: record.slotId },
+          data: updateData,
+        });
       }
-      await tx.parkingSlot.update({
-        where: { id: record.slotId },
-        data: updateData,
-      });
     });
 
     return {
       ok: true,
       plate: vehicle.plateNumber,
-      slotCode: record.slot.code,
+      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       fee: total,
       isMonthly: record.isMonthly,
       checkOutTime: now.toISOString(),
@@ -325,13 +327,15 @@ async submitLostTicket(params: {
       });
     }
 
-    await tx.parkingSlot.update({
-      where: { id: record.slotId },
-      data: {
-        status: 'AVAILABLE',
-        assignedVehicleId: record.isMonthly ? undefined : null,
-      },
-    });
+    if (record.slotId) {
+      await tx.parkingSlot.update({
+        where: { id: record.slotId },
+        data: {
+          status: 'AVAILABLE',
+          assignedVehicleId: record.isMonthly ? undefined : null,
+        },
+      });
+    }
 
     // ── Ghi AuditLog sự cố mất thẻ ──────────────────────
     await tx.auditLog.create({
@@ -342,10 +346,10 @@ async submitLostTicket(params: {
         action:      'checkout.lost_ticket',
         targetType:  'CheckInRecord',
         targetId:    record.id,
-        description: `Xử lý mất thẻ xe ${plate} tại ô ${record.slot.code} — phí phạt ${penaltyFee.toLocaleString('vi-VN')}đ`,
+        description: `Xử lý mất thẻ xe ${plate} tại ô ${record.slot?.code ?? 'Không cố định'} — phí phạt ${penaltyFee.toLocaleString('vi-VN')}đ`,
         metadata:    JSON.stringify({
           plate,
-          slotCode:    record.slot.code,
+          slotCode:    record.slot?.code ?? null,
           parkingFee:  total,
           penaltyFee,
           totalFee:    finalFee,
@@ -360,7 +364,7 @@ async submitLostTicket(params: {
   return {
     ok:           true,
     plate:        vehicle.plateNumber,
-    slotCode:     record.slot.code,
+    slotCode:     record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
     fee:          finalFee,
     penaltyFee,
     isMonthly:    record.isMonthly,

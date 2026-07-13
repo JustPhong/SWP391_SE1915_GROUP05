@@ -43,4 +43,9 @@ export const monthlyPackageController = {
     const pkg = await monthlyPackageService.cancelPackage(req.params.packageId, req.user!.id);
     return res.status(200).json({ success: true, data: pkg });
   }),
+
+  getQuotas: asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const quotas = await monthlyPackageService.getZoneQuotas();
+    return res.status(200).json({ success: true, data: quotas });
+  }),
 };
