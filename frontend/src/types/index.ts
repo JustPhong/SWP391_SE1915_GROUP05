@@ -29,6 +29,15 @@ export interface Vehicle {
   year?: number | null;
   seats?: number | null;
   createdAt: string;
+  monthlyPackage?: {
+    id: string;
+    status: string;
+    expiryDate: string;
+    payments?: Array<{
+      id: string;
+      status: string;
+    }>;
+  } | null;
 }
 
 export interface ParkingSlot {

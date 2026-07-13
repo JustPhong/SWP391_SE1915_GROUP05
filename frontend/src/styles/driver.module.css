@@ -971,7 +971,6 @@
   flex-direction: column;
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
   transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease;
-  cursor: pointer;
   text-align: left;
   font-family: inherit;
   overflow: hidden;
