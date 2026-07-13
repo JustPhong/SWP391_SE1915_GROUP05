@@ -137,26 +137,29 @@ function IconClose({ size = 16, color = 'currentColor' }: { size?: number; color
 function getCarPerks(planId: string): string[] {
   if (planId === '1m') {
     return [
-      'Sử dụng khu Cơ bản - Tầng G',
-      'Hệ thống tự sắp xếp khu vực phù hợp khi bạn đến',
+      'Sử dụng Khu Cơ bản',
+      'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Ra vào không giới hạn'
+      'Đỗ xe tại bất kỳ chỗ trống trong khu',
+      'Camera giám sát 24/7'
     ];
   }
   if (planId === '3m') {
     return [
-      'Sử dụng khu Phổ biến - Tầng G',
-      'Ưu tiên khu vực thuận tiện hơn',
-      'Đỗ tại vị trí trống bất kỳ trong khu',
-      'Không tính phí theo lượt'
+      'Tất cả quyền lợi gói 1 tháng',
+      'Sử dụng Khu Phổ biến',
+      'Ra vào không giới hạn',
+      'Không tính phí theo lượt',
+      'Đỗ xe tại bất kỳ chỗ trống trong khu'
     ];
   }
   if (planId === '1y') {
     return [
-      'Sử dụng khu VIP - Tầng G',
-      'Ưu tiên khu vực tốt nhất',
-      'Đỗ tại vị trí trống bất kỳ trong khu',
-      'Không tính phí theo lượt'
+      'Tất cả quyền lợi gói 3 tháng',
+      'Sử dụng Khu VIP',
+      'Ra vào không giới hạn',
+      'Không tính phí theo lượt',
+      'Đỗ xe tại bất kỳ chỗ trống trong khu'
     ];
   }
   return [];
@@ -170,8 +173,7 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
   const perks = isCar ? getCarPerks(pkg.id) : MOTO_PERKS;
   const CardIcon = isCar ? <IconCar size={16} /> : <IconBike size={16} />;
   return (
-    <button
-      onClick={onSelect}
+    <div
       className={[
         styles.pkgCard,
         isFeatured ? styles.pkgCardFeatured : '',
@@ -232,19 +234,23 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
         </span>
       )}
 
-      <span className={[
-        styles.pkgCta,
-        isFeatured ? styles.pkgCtaGold : styles.pkgCtaOutline,
-        selected && !isFeatured ? styles.pkgCtaOutlineSelected : '',
-      ].filter(Boolean).join(' ')}>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={[
+          styles.pkgCta,
+          isFeatured ? styles.pkgCtaGold : styles.pkgCtaOutline,
+          selected && !isFeatured ? styles.pkgCtaOutlineSelected : '',
+        ].filter(Boolean).join(' ')}
+      >
         {selected ? (
           <>
             <IconCheck size={14} color={isFeatured ? '#78350f' : C.white} />
             Đã chọn
           </>
-        ) : isFeatured ? 'Đăng ký ngay' : 'Chọn gói này'}
-      </span>
-    </button>
+        ) : 'Chọn gói này'}
+      </button>
+    </div>
   );
 }
 

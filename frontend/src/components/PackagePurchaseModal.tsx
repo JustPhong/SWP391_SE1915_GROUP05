@@ -74,6 +74,7 @@ export function PackagePurchaseModal({
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [hasVehiclesOfThisType, setHasVehiclesOfThisType] = useState(true);
   
   // Payment step states
   const [step, setStep] = useState<'CONFIRM' | 'PAYMENT_METHOD' | 'QR' | 'CARD' | 'SUCCESS'>('CONFIRM');
@@ -104,20 +105,32 @@ export function PackagePurchaseModal({
   const priceObj = plan?.prices[vehicleType];
   const price = priceObj?.price ?? 0;
   
-  // Load user vehicles
   const loadVehicles = async () => {
     if (!user) return;
     setLoadingVehicles(true);
     try {
       const data = await vehicleService.getMyVehicles();
-      // Filter by type matching current purchase
-      const filtered = (data ?? []).filter((v: Vehicle) => v.type === vehicleType);
+      const rawVehicles = data ?? [];
+      const sameType = rawVehicles.filter((v: Vehicle) => v.type === vehicleType);
+      setHasVehiclesOfThisType(sameType.length > 0);
+
+      const now = new Date();
+      const filtered = sameType.filter((v: Vehicle) => {
+        if (v.monthlyPackage && v.monthlyPackage.status === 'ACTIVE') {
+          const expiryDate = new Date(v.monthlyPackage.expiryDate);
+          if (expiryDate > now) {
+            const payments = v.monthlyPackage.payments || [];
+            const isPaid = payments.length === 0 || payments.some((p: any) => p.status === 'SUCCESS');
+            if (isPaid) {
+              return false; // Exclude from eligible list
+            }
+          }
+        }
+        return true;
+      });
+
       setVehicles(filtered);
-      if (filtered.length > 0) {
-        setSelectedVehicleId(filtered[0].id);
-      } else {
-        setSelectedVehicleId('');
-      }
+      setSelectedVehicleId('');
     } catch (e) {
       console.error('Failed to load vehicles', e);
     } finally {
@@ -299,6 +312,7 @@ export function PackagePurchaseModal({
         price,
         paymentMethod,
         planId,
+        vehicleType,
       });
       setCreatedPkg(created);
       setStep('SUCCESS');
@@ -506,28 +520,27 @@ export function PackagePurchaseModal({
                     <label style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray600 }}>Chọn xe sử dụng gói</label>
                     {loadingVehicles ? (
                       <div style={{ padding: '0.75rem', textAlign: 'center', color: C.gray400, fontSize: '0.85rem' }}>Đang tải danh sách phương tiện...</div>
-                    ) : vehicles.length === 0 ? (
-                      <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, padding: '1rem', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+                    ) : !hasVehiclesOfThisType ? (
+                      <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, padding: '0.75rem 1rem', borderRadius: 14, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.85rem', color: '#B91C1C', fontWeight: 600, textAlign: 'center' }}>
-                          Bạn chưa có phương tiện {vehicleType === 'CAR' ? 'ô tô' : 'xe máy'} nào để đăng ký gói này.
+                          Bạn chưa có phương tiện phù hợp để đăng ký gói này.
                         </span>
-                        <button type="button" onClick={() => setShowAddVehicle(true)} style={{ padding: '0.5rem 1.25rem', background: '#2563EB', border: 'none', borderRadius: 10, color: C.white, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
-                          + Thêm xe ngay
-                        </button>
+                      </div>
+                    ) : vehicles.length === 0 ? (
+                      <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, padding: '0.75rem 1rem', borderRadius: 14, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#B91C1C', fontWeight: 600, textAlign: 'center' }}>
+                          Không có phương tiện đủ điều kiện để đăng ký gói này.
+                        </span>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <select value={selectedVehicleId} onChange={(e) => setSelectedVehicleId(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                          {vehicles.map(v => (
-                            <option key={v.id} value={v.id}>
-                              {v.plateNumber} - {v.brand} {v.model} ({v.type === 'CAR' ? 'Ô tô' : 'Xe máy'})
-                            </option>
-                          ))}
-                        </select>
-                        <button type="button" onClick={() => setShowAddVehicle(true)} style={{ padding: '0.65rem 1rem', background: C.gray100, border: `1px solid ${C.gray200}`, borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, color: C.gray900, cursor: 'pointer' }}>
-                          + Thêm xe
-                        </button>
-                      </div>
+                      <select value={selectedVehicleId} onChange={(e) => setSelectedVehicleId(e.target.value)} style={inputStyle}>
+                        <option value="">-- Chọn phương tiện --</option>
+                        {vehicles.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.plateNumber} - {v.brand} {v.model} ({v.type === 'CAR' ? 'Ô tô' : 'Xe máy'})
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </div>
 
