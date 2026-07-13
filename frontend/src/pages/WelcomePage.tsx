@@ -1415,24 +1415,27 @@ const MOTO_TIER_PERKS: TierPerk[][] = [
 const CAR_TIER_PERKS: TierPerk[][] = [
   // CƠ BẢN (1 tháng)
   [
-    { icon: 'parking', text: 'Đỗ trong khu ô tô tháng' },
-    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'location', text: 'Sử dụng Khu Cơ bản' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
-    { icon: 'support', text: 'Hỗ trợ cơ bản' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
   // PHỔ BIẾN (3 tháng)
   [
     { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
-    { icon: 'location', text: 'Vị trí ưu tiên gần lối ra' },
-    { icon: 'camera', text: 'Camera giám sát 24/7' },
-    { icon: 'zap', text: 'Hỗ trợ nhanh' },
+    { icon: 'location', text: 'Sử dụng Khu Phổ biến' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
   ],
   // VIP (1 năm)
   [
     { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
-    { icon: 'key', text: 'Chỗ đỗ cố định riêng' },
-    { icon: 'zap', text: 'Làn check-in ưu tiên' },
-    { icon: 'crown', text: 'Hỗ trợ VIP' },
+    { icon: 'crown', text: 'Sử dụng Khu VIP' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
   ],
 ];
 
@@ -1481,11 +1484,9 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
             const perks = tierPerks[idx];
             const tierLabel = tierLabels[idx];
             return (
-              <button
+              <div
                 key={pkg.id}
-                type="button"
                 className={`${styles.planCard} ${isFeatured ? `${styles.planCardFeatured} ${cardFeatured}` : ''}`}
-                onClick={() => onClickCard(pkg.id, vtype)}
               >
                 {isFeatured && (
                   <span className={styles.planBadge}>★ Tiết kiệm nhất</span>
@@ -1545,12 +1546,14 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
                   ))}
                 </ul>
 
-                <span className={`${styles.planCta} ${isFeatured ? styles.planCtaGold : styles.planCtaOutline}`}>
-                  {isFeatured ? (
-                    <>Đăng ký ngay <span style={{ marginLeft: 6 }}>→</span></>
-                  ) : 'Chọn gói này'}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onClickCard(pkg.id, vtype)}
+                  className={`${styles.planCta} ${isFeatured ? styles.planCtaGold : styles.planCtaOutline}`}
+                >
+                  {'Chọn gói này'}
+                </button>
+              </div>
             );
           })}
         </div>
