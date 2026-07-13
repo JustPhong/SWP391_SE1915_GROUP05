@@ -146,6 +146,8 @@ router.post('/', authorize('DRIVER'), createBookingSchema, validate, bookingCont
  *       '404':
  *         description: Booking not found
  */
+router.post('/:id/no-show', authorize('STAFF', 'MANAGER', 'ADMIN'), bookingController.markNoShow);
+
 router.post('/:id/cancel', cancelBookingSchema, validate, bookingController.cancel);
 
 /**

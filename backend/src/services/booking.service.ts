@@ -33,6 +33,23 @@ export interface FulfillBookingInput {
   staffId: string;
 }
 
+const bookingInclude = {
+  slot: {
+    include: {
+      floor: {
+        select: {
+          floorCode: true,
+          name: true,
+          vehicleType: true,
+          customerType: true,
+        },
+      },
+    },
+  },
+  vehicle: { include: { owner: true } },
+  createdBy: { select: { id: true, fullName: true, email: true } },
+} as const;
+
 export const bookingService = {
   async create(input: CreateBookingInput) {
     // 1. Find or create vehicle (casual bookings are allowed)
@@ -98,7 +115,18 @@ export const bookingService = {
           createdById:     input.createdById,
         },
         include: {
-          slot: true,
+          slot: {
+            include: {
+              floor: {
+                select: {
+                  floorCode: true,
+                  name: true,
+                  vehicleType: true,
+                  customerType: true,
+                },
+              },
+            },
+          },
           vehicle: true,
           createdBy: { select: { id: true, fullName: true, email: true } },
         },
@@ -160,6 +188,28 @@ export const bookingService = {
     ]);
   },
 
+  async markNoShow(bookingId: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { slot: true, vehicle: { select: { plateNumber: true } } },
+    });
+    if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
+    if (booking.status !== BOOKING_ACTIVE) {
+      throw new AppError(400, `Không thể đánh dấu vắng mặt đặt chỗ ở trạng thái "${booking.status}"`);
+    }
+
+    return prisma.$transaction([
+      prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: BOOKING_NO_SHOW, depositStatus: 'FORFEITED' },
+      }),
+      prisma.parkingSlot.update({
+        where: { id: booking.slotId },
+        data: { status: SLOT_AVAILABLE },
+      }),
+    ]);
+  },
+
   async cancel(bookingId: string) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
@@ -187,11 +237,7 @@ export const bookingService = {
     await floorService.cleanupNoShowBookings();
     return prisma.booking.findMany({
       where: { status: BOOKING_ACTIVE },
-      include: {
-        slot: true,
-        vehicle: { include: { owner: true } },
-        createdBy: { select: { id: true, fullName: true, email: true } },
-      },
+      include: bookingInclude,
       orderBy: { bookingTime: 'desc' },
     });
   },
@@ -199,11 +245,7 @@ export const bookingService = {
   async getAll() {
     await floorService.cleanupNoShowBookings();
     return prisma.booking.findMany({
-      include: {
-        slot: true,
-        vehicle: { include: { owner: true } },
-        createdBy: { select: { id: true, fullName: true, email: true } },
-      },
+      include: bookingInclude,
       orderBy: { bookingTime: 'desc' },
     });
   },
@@ -212,7 +254,7 @@ export const bookingService = {
     return prisma.booking.findMany({
       where: { vehicleId },
       orderBy: { bookingTime: 'desc' },
-      include: { slot: true },
+      include: { slot: { include: { floor: { select: { floorCode: true, name: true, vehicleType: true, customerType: true } } } } },
     });
   },
 };
