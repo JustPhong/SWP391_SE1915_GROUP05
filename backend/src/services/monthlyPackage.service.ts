@@ -20,6 +20,7 @@ export interface CreatePackageInput {
   expiryDate: Date;
   price: number;
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
+  vehicleType?: string;
 }
 
 export function getTierFromPlan(planId: string | null, durationDays: number): 'VIP' | 'POPULAR' | 'REGULAR' {
@@ -42,15 +43,37 @@ export const monthlyPackageService = {
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
+    
+    // 1. belongs to the authenticated user
     if (vehicle.ownerId !== input.userId) {
       throw new AppError(403, 'Bạn không có quyền với xe này');
     }
 
+    // 2. matches the package vehicle type
+    if (input.vehicleType && vehicle.type !== input.vehicleType) {
+      throw new AppError(400, 'Phương tiện không khớp với loại gói đăng ký');
+    }
+
+    // 3. has no active, paid, non-expired monthly package
+    const now = new Date();
     const existingActive = await prisma.monthlyPackage.findFirst({
-      where: { vehicleId: input.vehicleId, status: PKG_ACTIVE },
+      where: {
+        vehicleId: input.vehicleId,
+        status: PKG_ACTIVE,
+        expiryDate: { gt: now },
+      },
+      include: {
+        payments: true,
+      },
     });
-    if (existingActive) {
-      throw new AppError(409, 'Vehicle already has an active monthly package');
+
+    const isActivePaid = existingActive && (
+      existingActive.payments.length === 0 ||
+      existingActive.payments.some(p => p.status === 'SUCCESS')
+    );
+
+    if (isActivePaid) {
+      throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
     }
 
     return prisma.$transaction(async (tx) => {

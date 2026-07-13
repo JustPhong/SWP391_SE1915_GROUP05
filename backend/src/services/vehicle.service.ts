@@ -126,7 +126,16 @@ export const vehicleService = {
   },
 
   async getByOwner(ownerId: string) {
-    return prisma.vehicle.findMany({ where: { ownerId } });
+    return prisma.vehicle.findMany({
+      where: { ownerId },
+      include: {
+        monthlyPackage: {
+          include: {
+            payments: true,
+          },
+        },
+      },
+    });
   },
 
   async getDetail(vehicleId: string, userId: string) {
