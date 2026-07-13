@@ -50,6 +50,7 @@ export function ProfilePage() {
   const [deleteError, setDeleteError] = useState('');
 
   const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -68,6 +69,9 @@ export function ProfilePage() {
   useEffect(() => {
     if (user?.fullName) {
       setFullName(user.fullName);
+    }
+    if (user?.phoneNumber) {
+      setPhoneNumber(user.phoneNumber);
     }
   }, [user]);
 
@@ -90,10 +94,13 @@ export function ProfilePage() {
     setUpdatingName(true);
 
     try {
-      const updatedUser = await updateProfile({ fullName: fullName.trim() });
+      const updatedUser = await updateProfile({
+        fullName: fullName.trim(),
+        phoneNumber: phoneNumber.trim() || null
+      });
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
-      setNameSuccess('Cập nhật họ tên thành công!');
+      setNameSuccess('Cập nhật thông tin thành công!');
     } catch (err: any) {
       setNameError(err.response?.data?.message ?? err.message ?? 'Cập nhật thất bại');
     } finally {
@@ -304,6 +311,23 @@ export function ProfilePage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Nhập họ tên"
+                  style={{
+                    width: '100%', padding: '10px 14px', borderRadius: 12,
+                    border: `1.5px solid ${C.gray200}`, fontSize: '0.9rem', color: C.gray800,
+                    outline: 'none', boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = C.navy}
+                  onBlur={(e) => e.target.style.borderColor = C.gray200}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: C.gray600, marginBottom: 6 }}>Số điện thoại</label>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="Nhập số điện thoại (VD: 09xxxxxxxx)"
                   style={{
                     width: '100%', padding: '10px 14px', borderRadius: 12,
                     border: `1.5px solid ${C.gray200}`, fontSize: '0.9rem', color: C.gray800,

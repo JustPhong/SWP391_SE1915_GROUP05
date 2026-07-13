@@ -6,6 +6,7 @@ export const monthlyPackageService = {
     userId: string;
     vehicleId: string;
     slotId?: string;
+    planId?: string;
     startDate: string;
     expiryDate: string;
     price: number;
