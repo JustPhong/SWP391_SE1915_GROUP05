@@ -64,7 +64,7 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
         <div className={styles.sidebarLogo}>
           <img src="/logo.png" alt="ParkSmart Logo" className={styles.sidebarLogoIcon} />
           <div className={styles.sidebarLogoText}>
-            <span className={styles.sidebarLogoName}>ParkSmart Vietnam</span>
+            <span className={styles.sidebarLogoName}>PARKING SYSTEM</span>
             <span className={styles.sidebarLogoSub}>Quản lý (Manager)</span>
           </div>
         </div>
