@@ -13,6 +13,7 @@ export interface RegisterInput {
   vehicleType: 'MOTORBIKE' | 'CAR';
   role?: string;
   otp?: string;
+  phoneNumber?: string;
 }
 
 export interface LoginInput {
@@ -188,6 +189,7 @@ export const authService = {
         email,
         passwordHash,
         roleId: role.id,
+        phoneNumber: input.phoneNumber || undefined,
       },
     });
 
