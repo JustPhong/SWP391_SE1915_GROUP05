@@ -57,11 +57,14 @@ export const DEFAULT_FEE_CONFIG: FeeConfig = {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function ceilLots(minutes: number, lotMinutes: number): number {
+  // Minimum 1 lot even for very short stays
+  if (minutes <= 0) return 1;
   return Math.ceil(minutes / lotMinutes);
 }
 
 function ceilLotsCar(minutes: number, lotMinutes: number): number {
-  if (minutes <= 0) return 0;
+  // Minimum 1 lot even for very short stays
+  if (minutes <= 0) return 1;
   if (minutes <= 61) return 1;
   return Math.ceil((minutes - 61) / lotMinutes) + 1;
 }
