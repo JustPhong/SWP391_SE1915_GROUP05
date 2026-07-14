@@ -1,15 +1,16 @@
 /* ===================================================
    Staff Shift Report Page — report.module.css
+   Light Theme
    =================================================== */
 
 .container {
-  background-color: #0F172A; /* Dark charcoal/blue-black background */
+  background-color: #F4F8FF;
   min-height: 100vh;
   padding: 24px 32px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  color: #F8FAFC; /* Clear white primary text */
+  color: #1E293B;
   font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
 }
 
@@ -20,7 +21,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  border-bottom: 1px solid #1E293B;
+  border-bottom: 1px solid #E2E8F0;
   padding-bottom: 16px;
 }
 
@@ -33,14 +34,14 @@
   margin: 0;
   font-size: 26px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: #1E3A5F;
   letter-spacing: -0.02em;
 }
 
 .subtitle {
   margin: 4px 0 0 0;
   font-size: 13.5px;
-  color: #94A3B8; /* Lighter gray secondary text */
+  color: #64748B;
   font-weight: 500;
 }
 
@@ -56,9 +57,9 @@
   gap: 6px;
   padding: 8px 14px;
   border-radius: 8px;
-  border: 1px solid #334155;
-  background-color: #1E293B;
-  color: #E2E8F0;
+  border: 1.5px solid #E2E8F0;
+  background-color: #FFFFFF;
+  color: #374151;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
@@ -66,9 +67,9 @@
 }
 
 .btnAction:hover:not(:disabled) {
-  background-color: #334155;
-  border-color: #475569;
-  color: #FFFFFF;
+  background-color: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #1E3A5F;
 }
 
 .btnAction:disabled {
@@ -96,22 +97,22 @@
 }
 
 .summaryBlock {
-  background-color: #1E293B;
-  border: 1px solid #334155;
+  background-color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
   border-radius: 12px;
   padding: 16px;
   display: flex;
   align-items: center;
   gap: 14px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(30, 58, 95, 0.04);
 }
 
 .iconWrapper {
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #3B82F6;
+  background-color: #EFF6FF;
+  color: #2563EB;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -126,7 +127,7 @@
 .summaryLabel {
   font-size: 11px;
   font-weight: 700;
-  color: #94A3B8;
+  color: #64748B;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -134,33 +135,33 @@
 .summaryValue {
   font-size: 14.5px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #1E293B;
   margin-top: 2px;
 }
 
 .summarySub {
   font-size: 11.5px;
-  color: #64748B;
+  color: #94A3B8;
   margin-top: 1px;
   font-weight: 500;
 }
 
 /* ── Control/Filter Card ── */
 .controlCard {
-  background-color: #1E293B;
-  border: 1px solid #334155;
+  background-color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
   border-radius: 12px;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(30, 58, 95, 0.04);
 }
 
 .controlTitle {
   font-size: 13.5px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #1E3A5F;
   margin: 0;
 }
 
@@ -182,7 +183,7 @@
 .controlLabel {
   font-size: 11px;
   font-weight: 700;
-  color: #94A3B8;
+  color: #64748B;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -192,9 +193,9 @@
   width: 100%;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid #334155;
-  background-color: #0F172A;
-  color: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  background-color: #FFFFFF;
+  color: #1E293B;
   font-size: 13.5px;
   font-weight: 500;
   outline: none;
@@ -206,7 +207,8 @@
 .inputField:focus,
 .selectField:focus {
   border-color: #3B82F6;
-  background-color: #1E293B;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background-color: #FFFFFF;
 }
 
 .btnSubmit {
@@ -215,7 +217,7 @@
   padding: 0 20px;
   border-radius: 8px;
   border: none;
-  background-color: #3B82F6;
+  background-color: #2563EB;
   color: #FFFFFF;
   font-weight: 700;
   font-size: 13.5px;
@@ -227,7 +229,7 @@
 }
 
 .btnSubmit:hover:not(:disabled) {
-  background-color: #2563EB;
+  background-color: #1D4ED8;
 }
 
 .btnSubmit:disabled {
@@ -237,7 +239,7 @@
 
 .controlNote {
   font-size: 11.5px;
-  color: #64748B;
+  color: #94A3B8;
   font-weight: 500;
   margin-top: -4px;
 }
@@ -248,21 +250,21 @@
   justify-content: space-between;
   align-items: center;
   margin: 12px 0 4px 0;
-  border-left: 3px solid #3B82F6;
+  border-left: 3px solid #2563EB;
   padding-left: 10px;
 }
 
 .sectionTitle {
   font-size: 16px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: #1E3A5F;
   margin: 0;
   letter-spacing: -0.01em;
 }
 
 .sectionExplanatory {
   font-size: 12px;
-  color: #64748B;
+  color: #94A3B8;
   margin-top: 4px;
   font-weight: 500;
 }
@@ -279,27 +281,27 @@
 }
 
 .kpiCard {
-  background-color: #1E293B;
-  border: 1px solid #334155;
+  background-color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
   border-radius: 12px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(30, 58, 95, 0.04);
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .kpiCard:hover {
   transform: translateY(-1px);
-  border-color: #475569;
+  border-color: #CBD5E1;
 }
 
 .kpiHeader {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #94A3B8;
+  color: #64748B;
 }
 
 .kpiLabel {
@@ -312,20 +314,20 @@
 .kpiValue {
   font-size: 20px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: #1E293B;
   margin: 10px 0 4px 0;
 }
 
 .kpiSubText {
   font-size: 11px;
-  color: #64748B;
+  color: #94A3B8;
   font-weight: 500;
 }
 
 /* Handover highlight card */
 .kpiHighlight {
-  border: 1px solid #F59E0B;
-  background-color: rgba(245, 158, 11, 0.03);
+  border: 1.5px solid #F59E0B;
+  background-color: #FFFBEB;
 }
 
 .kpiHighlight:hover {
@@ -333,11 +335,11 @@
 }
 
 .kpiHighlight .kpiHeader {
-  color: #FBBF24;
+  color: #B45309;
 }
 
 .kpiHighlight .kpiValue {
-  color: #F59E0B;
+  color: #D97706;
 }
 
 /* ── Activity Grid ── */
@@ -349,10 +351,10 @@
 
 /* ── Floor status table ── */
 .tableCard {
-  background-color: #1E293B;
-  border: 1px solid #334155;
+  background-color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
   border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(30, 58, 95, 0.04);
   overflow: hidden;
 }
 
@@ -371,18 +373,18 @@
   padding: 12px 16px;
   font-size: 11px;
   font-weight: 700;
-  color: #94A3B8;
+  color: #64748B;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 2px solid #334155;
-  background-color: #131D31;
+  border-bottom: 2px solid #E2E8F0;
+  background-color: #F8FAFC;
 }
 
 .td {
   padding: 12px 16px;
   font-size: 13px;
-  color: #E2E8F0;
-  border-bottom: 1px solid #334155;
+  color: #374151;
+  border-bottom: 1px solid #F3F4F6;
   vertical-align: middle;
 }
 
@@ -391,16 +393,16 @@
 }
 
 .tr:hover {
-  background-color: #243147;
+  background-color: #F8FAFC;
 }
 
 .trSummary {
-  background-color: #131D31;
+  background-color: #F1F5F9;
   font-weight: 700;
 }
 
 .trSummary .td {
-  color: #FFFFFF;
+  color: #1E293B;
   border-bottom: none;
 }
 
@@ -416,7 +418,7 @@
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background-color: #0F172A;
+  background-color: #E2E8F0;
   overflow: hidden;
   position: relative;
 }
@@ -424,7 +426,7 @@
 .progressBarFill {
   height: 100%;
   border-radius: 3px;
-  background-color: #3B82F6;
+  background-color: #2563EB;
   transition: width 0.3s ease;
 }
 
@@ -439,18 +441,18 @@
 .progressValue {
   font-size: 12px;
   font-weight: 700;
-  color: #F8FAFC;
+  color: #1E293B;
   width: 36px;
   text-align: right;
 }
 
 /* ── Note / Handover Card ── */
 .noteCard {
-  background-color: #1E293B;
-  border: 1px solid #334155;
+  background-color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(30, 58, 95, 0.04);
 }
 
 .noteHeader {
@@ -463,16 +465,16 @@
 .noteTitle {
   font-size: 14.5px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #1E3A5F;
   margin: 0;
 }
 
 .btnEditNote {
   background: none;
-  border: 1px solid #334155;
+  border: 1.5px solid #E2E8F0;
   border-radius: 6px;
   padding: 4px 10px;
-  color: #94A3B8;
+  color: #64748B;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -480,17 +482,17 @@
 }
 
 .btnEditNote:hover {
-  background-color: #334155;
-  color: #FFFFFF;
-  border-color: #475569;
+  background-color: #F8FAFC;
+  color: #1E3A5F;
+  border-color: #CBD5E1;
 }
 
 .noteText {
   font-size: 13.5px;
   line-height: 1.6;
-  color: #CBD5E1;
-  background-color: #0F172A;
-  border: 1px solid #334155;
+  color: #374151;
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
   border-radius: 8px;
   padding: 14px;
   margin: 0;
@@ -500,9 +502,9 @@
 .textarea {
   width: 100%;
   height: 100px;
-  background-color: #0F172A;
-  color: #F8FAFC;
-  border: 1px solid #3B82F6;
+  background-color: #FFFFFF;
+  color: #1E293B;
+  border: 1.5px solid #3B82F6;
   border-radius: 8px;
   padding: 12px;
   font-size: 13.5px;
@@ -520,7 +522,7 @@
 }
 
 .btnSave {
-  background-color: #3B82F6;
+  background-color: #2563EB;
   color: #FFFFFF;
   border: none;
   border-radius: 6px;
@@ -532,13 +534,13 @@
 }
 
 .btnSave:hover {
-  background-color: #2563EB;
+  background-color: #1D4ED8;
 }
 
 .btnCancel {
   background: none;
-  border: 1px solid #334155;
-  color: #94A3B8;
+  border: 1.5px solid #E2E8F0;
+  color: #64748B;
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 12px;
@@ -548,8 +550,8 @@
 }
 
 .btnCancel:hover {
-  background-color: #334155;
-  color: #FFFFFF;
+  background-color: #F8FAFC;
+  color: #1E293B;
 }
 
 /* ── States ── */
@@ -565,8 +567,8 @@
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(59, 130, 246, 0.1);
-  border-top-color: #3B82F6;
+  border: 3px solid rgba(37, 99, 235, 0.15);
+  border-top-color: #2563EB;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
