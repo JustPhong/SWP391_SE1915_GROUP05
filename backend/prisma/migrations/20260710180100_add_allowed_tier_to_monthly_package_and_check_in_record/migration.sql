@@ -1,0 +1,23 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+-- AlterTable
+ALTER TABLE [dbo].[CheckInRecord] ALTER COLUMN [slotId] NVARCHAR(1000) NULL;
+ALTER TABLE [dbo].[CheckInRecord] ADD [allowedTier] NVARCHAR(30) NULL;
+
+-- AlterTable
+ALTER TABLE [dbo].[MonthlyPackage] ADD [allowedTier] NVARCHAR(30) NULL;
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRAN;
+END;
+THROW
+
+END CATCH
