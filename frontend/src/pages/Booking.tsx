@@ -69,7 +69,7 @@ export function BookingPage() {
     setErrorMsg('');
     try {
       const arrival = new Date();
-      arrival.setMinutes(arrival.getMinutes() + 30); // 30 mins hold window
+      arrival.setMinutes(arrival.getMinutes() + 30);
       
       const res = await api.post<{ success: boolean; data: any }>('/bookings', {
         plateNumber: selectedVehicle.plateNumber,
