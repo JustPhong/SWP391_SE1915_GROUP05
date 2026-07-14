@@ -12,7 +12,8 @@ interface AuthContextType {
     password: string,
     plateNumber: string,
     vehicleType: 'MOTORBIKE' | 'CAR',
-    otp: string
+    otp: string,
+    phoneNumber?: string
   ) => Promise<User>;
   logout: () => void;
   isLoading: boolean;
@@ -65,9 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     plateNumber: string,
     vehicleType: 'MOTORBIKE' | 'CAR',
-    otp: string
+    otp: string,
+    phoneNumber?: string
   ): Promise<User> => {
-    const response = await authService.register({ fullName, email, password, plateNumber, vehicleType, otp });
+    const response = await authService.register({ fullName, email, password, plateNumber, vehicleType, otp, phoneNumber });
     setToken(response.token);
     setUser(response.user);
     localStorage.setItem('token', response.token);
