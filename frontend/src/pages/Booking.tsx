@@ -37,6 +37,7 @@ export function BookingPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Fetch cars on mount
   const loadCars = useCallback(async () => {
@@ -65,6 +66,14 @@ export function BookingPage() {
 
   const handleBooking = async () => {
     if (!selectedVehicle) return;
+    
+    // Only require payment if not monthly
+    const isMonthly = selectedVehicle.isMonthly || !!selectedVehicle.monthlyPackage;
+    if (!isMonthly && !showPaymentModal) {
+      setShowPaymentModal(true);
+      return;
+    }
+
     setSubmitting(true);
     setErrorMsg('');
     try {
@@ -76,6 +85,7 @@ export function BookingPage() {
         expectedArrival: arrival.toISOString(),
       });
       
+      setShowPaymentModal(false);
       setBookingSuccess({
         booking: res.data.data,
         vehicle: selectedVehicle,
@@ -483,6 +493,57 @@ export function BookingPage() {
 
       </div>
 
+      {/* 4. Payment Modal */}
+      {showPaymentModal && selectedVehicle && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 100, backdropFilter: 'blur(4px)' }} onClick={() => setShowPaymentModal(false)} />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            background: '#FFFFFF', borderRadius: 20, width: '100%', maxWidth: 400, zIndex: 101,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '1.5rem', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1E3A5F' }}>Thanh toán phí đặt cọc</h3>
+              <button onClick={() => setShowPaymentModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#64748B', lineHeight: 1 }}>&times;</button>
+            </div>
+            
+            <div style={{ padding: '2rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748B' }}>Quét mã QR để thanh toán phí giữ chỗ</p>
+              
+              <div style={{ padding: '1rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, display: 'inline-block' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=PARKSMART_DEPOSIT_${selectedVehicle.plateNumber}`}
+                  alt="QR Code"
+                  style={{ width: 160, height: 160 }}
+                />
+              </div>
+              
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#2563EB' }}>15.000đ</div>
+              
+              <div style={{ width: '100%', background: '#F1F5F9', borderRadius: 12, padding: '1rem', fontSize: '0.85rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748B' }}>Biển số:</span>
+                  <span style={{ fontWeight: 700, color: '#1E3A5F' }}>{selectedVehicle.plateNumber}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748B' }}>Nội dung:</span>
+                  <span style={{ fontWeight: 700, color: '#1E3A5F' }}>Coc giu cho {selectedVehicle.plateNumber}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid #E2E8F0', display: 'flex', gap: '0.75rem' }}>
+              <button onClick={() => setShowPaymentModal(false)} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: '1.5px solid #CBD5E1', borderRadius: 12, background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>
+                Hủy
+              </button>
+              <button onClick={handleBooking} disabled={submitting} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 12, background: '#2563EB', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>
+                {submitting ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
