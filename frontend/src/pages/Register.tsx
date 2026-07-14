@@ -517,7 +517,7 @@ export function RegisterPage() {
               ? 'Đang gửi mã...'
               : otpStep
                 ? 'Xác nhận & Tạo tài khoản'
-                : 'Gửi mã xác nhận'}
+                : 'Đăng kí tài khoản'}
         </button>
 
         {otpStep && (
