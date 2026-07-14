@@ -746,15 +746,7 @@ export const WelcomePage: React.FC = () => {
 
       {activeTab === 'booking' && (
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
-          {hasPackage ? (
-            <BookingPage />
-          ) : (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.75rem' }}>Tính năng dành cho khách gói tháng</h2>
-              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Đặt chỗ trước chỉ áp dụng cho khách đã đăng ký gói tháng. Vui lòng mua gói tháng để sử dụng.</p>
-              <button className={styles.btnPrimary} onClick={() => setActiveTab('monthly')}>Xem gói tháng</button>
-            </div>
-          )}
+          <BookingPage />
         </div>
       )}
 
