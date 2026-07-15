@@ -37,6 +37,7 @@ export function BookingPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Fetch cars on mount
   const loadCars = useCallback(async () => {
@@ -63,19 +64,26 @@ export function BookingPage() {
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? null;
 
-  const handleBooking = async () => {
+  // Step 1: user clicks "Xác nhận đặt chỗ" → open QR modal
+  const handleBooking = () => {
+    if (!selectedVehicle) return;
+    setErrorMsg('');
+    setShowPaymentModal(true);
+  };
+
+  // Step 2: user confirms payment in modal → call API
+  const handleConfirmPayment = async () => {
     if (!selectedVehicle) return;
     setSubmitting(true);
     setErrorMsg('');
+    setShowPaymentModal(false);
     try {
       const arrival = new Date();
       arrival.setMinutes(arrival.getMinutes() + 30);
-      
       const res = await api.post<{ success: boolean; data: any }>('/bookings', {
         plateNumber: selectedVehicle.plateNumber,
         expectedArrival: arrival.toISOString(),
       });
-      
       setBookingSuccess({
         booking: res.data.data,
         vehicle: selectedVehicle,
@@ -202,6 +210,7 @@ export function BookingPage() {
 
   // ── Main Booking Screen ──────────────────────────────────
   return (
+    <>
     <div className={styles.container}>
       {/* 1. Page Title Section */}
       <div className={styles.headerSection}>
@@ -484,5 +493,139 @@ export function BookingPage() {
       </div>
 
     </div>
+
+    {/* ── QR Payment Modal ───────────────────────────────── */}
+    {showPaymentModal && selectedVehicle && (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(15,23,42,0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem',
+        animation: 'fadeIn 0.2s ease',
+      }}>
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: 24,
+          width: '100%',
+          maxWidth: 440,
+          boxShadow: '0 24px 48px -8px rgba(15,23,42,0.25)',
+          overflow: 'hidden',
+        }}>
+          {/* Modal Header */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5BA3 100%)',
+            padding: '1.5rem 1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div>
+              <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF' }}>
+                💳 Thanh toán đặt cọc
+              </p>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)' }}>
+                Quét mã QR để hoàn tất thanh toán
+              </p>
+            </div>
+            <button
+              onClick={() => setShowPaymentModal(false)}
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', color: '#FFFFFF' }}
+            >✕</button>
+          </div>
+
+          {/* Modal Body */}
+          <div style={{ padding: '1.75rem' }}>
+
+            {/* Booking info */}
+            <div style={{ background: '#F8FAFC', borderRadius: 12, border: '1px solid #E2E8F0', padding: '0.85rem 1rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600 }}>XE</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>{selectedVehicle.plateNumber}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600 }}>PHÍ ĐẶT CỌC</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10B981' }}>15.000đ</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600 }}>THỜI GIAN GIỮ CHỖ</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#D97706' }}>30 phút</span>
+              </div>
+              <div style={{ height: 1, background: '#E2E8F0', margin: '0.25rem 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600 }}>MÃ GIAO DỊCH</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1E3A5F', fontFamily: 'monospace', letterSpacing: '0.05em' }}>DEP-{selectedVehicle.plateNumber.replace(/[^A-Z0-9]/gi, '')}</span>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{
+                display: 'inline-block',
+                padding: '12px',
+                background: '#FFFFFF',
+                border: '2px solid #E2E8F0',
+                borderRadius: 16,
+                boxShadow: '0 4px 12px rgba(15,23,42,0.08)',
+              }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=BANK:BIDV%7CACC:1234567890%7CAMT:15000%7CMSG:DAT-COC-${selectedVehicle.plateNumber.replace(/[^A-Z0-9]/gi, '')}`}
+                  alt="QR Code thanh toán"
+                  style={{ display: 'block', width: 180, height: 180, borderRadius: 8 }}
+                />
+              </div>
+              <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>
+                Ngân hàng: <strong style={{ color: '#1E3A5F' }}>BIDV</strong> · STK: <strong style={{ color: '#1E3A5F' }}>1234567890</strong>
+              </p>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>
+                Nội dung CK: <strong style={{ color: '#1E3A5F', fontFamily: 'monospace' }}>DAT-COC-{selectedVehicle.plateNumber.replace(/[^A-Z0-9]/gi, '')}</strong>
+              </p>
+            </div>
+
+            {/* Confirm button */}
+            <button
+              onClick={handleConfirmPayment}
+              disabled={submitting}
+              style={{
+                width: '100%',
+                padding: '0.9rem',
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: '0.95rem',
+                fontWeight: 800,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
+                marginBottom: '0.75rem',
+              }}
+            >
+              ✅ Xác nhận đã thanh toán
+            </button>
+            <button
+              onClick={() => setShowPaymentModal(false)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: 'transparent',
+                color: '#64748B',
+                border: '1px solid #E2E8F0',
+                borderRadius: 12,
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Hủy bỏ
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
