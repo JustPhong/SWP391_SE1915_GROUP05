@@ -70,9 +70,6 @@ function formatTime(iso: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function formatDateTime(iso: string): string {
-  return `${formatDate(iso)} ${formatTime(iso)}`;
-}
 
 /** Centralized countdown formatting */
 function formatCountdown(expectedArrival: string): {
