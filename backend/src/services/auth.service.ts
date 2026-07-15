@@ -75,7 +75,7 @@ export const authService = {
       }
     }, OTP_TTL_MS + 1000);
 
-    await sendOtpEmail(email, code, fullName);
+    sendOtpEmail(email, code, fullName);
     console.log(`[OTP] Sent to ${email}: ${code}`);
   },
 
@@ -105,7 +105,7 @@ export const authService = {
       }
     }, OTP_TTL_MS + 1000);
 
-    await sendOtpEmail(email, code, user.fullName);
+    sendOtpEmail(email, code, user.fullName);
     console.log(`[Reset-OTP] Sent to ${email}: ${code}`);
   },
 
