@@ -265,10 +265,14 @@ function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selec
   const panelClass = isCar ? styles.pkgPanelGreen : styles.pkgPanelBlue;
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
-  const IconSvg = isCar ? <IconCar size={18} /> : <IconBike size={18} />;
+  const IconSvg = isCar ? (
+    <div className={styles.carSectionIcon} />
+  ) : (
+    <div className={styles.motorbikeSectionIcon} />
+  );
   return (
     <div className={styles.pkgGroup}>
-      <div className={styles.pkgGroupHeader}>
+      <div className={`${styles.pkgGroupHeader} ${isCar ? styles.pkgGroupHeaderCar : ''}`}>
         <div className={`${styles.pkgGroupIcon} ${isCar ? styles.pkgGroupIconGreen : styles.pkgGroupIconBlue}`}>
           {IconSvg}
         </div>
