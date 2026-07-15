@@ -107,7 +107,7 @@ export const checkinService = {
       return {
         ...baseResult,
         alreadyParked: true,
-        slotCode: activeRecord.slot.code,
+        slotCode: activeRecord.slot?.code ?? '',
       };
     }
 
