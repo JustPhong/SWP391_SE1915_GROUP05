@@ -94,15 +94,25 @@ export const WelcomePage: React.FC = () => {
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
   const [pkgLoading, setPkgLoading] = useState(true);
-  const [hasPackage, setHasPackage] = useState(false); // true = monthly customer
+  const [hasPackage, setHasPackage] = useState(false); // true = has ACTIVE non-expired package
 
   useEffect(() => {
     if (!user) { setPkgLoading(false); return; }
     getMyPackage().then(pkg => {
-      // Mọi user đều ở lại trang Welcome (kể cả khách gói tháng) — không redirect sang /dashboard nữa
-      setHasPackage(!!pkg);
+      // Active-package condition: status MUST be ACTIVE and expiry MUST be in the future.
+      // !!pkg alone is wrong — an expired/cancelled package is also truthy.
+      if (!pkg) {
+        setHasPackage(false);
+      } else {
+        const expiryTime = new Date(pkg.expiryDate).getTime();
+        const isActive =
+          pkg.status === 'ACTIVE' &&
+          Number.isFinite(expiryTime) &&
+          expiryTime > Date.now();
+        setHasPackage(isActive);
+      }
       setPkgLoading(false);
-    }).catch(() => setPkgLoading(false));
+    }).catch(() => { setHasPackage(false); setPkgLoading(false); });
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live availability for the public StatusStrip ────────────────
@@ -594,19 +604,22 @@ export const WelcomePage: React.FC = () => {
               <HistoryIcon size={16} />
               <span>Lịch sử</span>
             </NavLink>
-            <NavLink
-              to="/monthly-package"
-              className={() =>
-                `${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`
-              }
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab('monthly');
-              }}
-            >
-              <ShoppingBagIcon size={16} />
-              <span>Gói tháng</span>
-            </NavLink>
+            {/* "Gói tháng" tab: only rendered when user has an active, non-expired monthly package */}
+            {!pkgLoading && hasPackage && (
+              <NavLink
+                to="/monthly-package"
+                className={() =>
+                  `${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`
+                }
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('monthly');
+                }}
+              >
+                <ShoppingBagIcon size={16} />
+                <span>Gói tháng</span>
+              </NavLink>
+            )}
             <NavLink
               to="/booking"
               className={() =>
@@ -620,19 +633,22 @@ export const WelcomePage: React.FC = () => {
               <CalendarIcon size={16} />
               <span>Đặt chỗ</span>
             </NavLink>
-            <NavLink
-              to="/floor-map"
-              className={() =>
-                `${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`
-              }
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab('floormap');
-              }}
-            >
-              <LayoutIcon size={16} />
-              <span>Sơ đồ tầng</span>
-            </NavLink>
+            {/* "Sơ đồ tầng" tab: only rendered when user has an active, non-expired monthly package */}
+            {!pkgLoading && hasPackage && (
+              <NavLink
+                to="/floor-map"
+                className={() =>
+                  `${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`
+                }
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('floormap');
+                }}
+              >
+                <LayoutIcon size={16} />
+                <span>Sơ đồ tầng</span>
+              </NavLink>
+            )}
           </div>
 
           <div className={styles.navRight}>
