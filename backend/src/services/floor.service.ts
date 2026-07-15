@@ -269,11 +269,11 @@ export const floorService = {
             action:      "booking.no_show",
             targetType:  "Booking",
             targetId:    String(booking.id),
-            description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại ô ${booking.slot.code} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
+            description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại ô ${booking.slot?.code ?? ''} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
             metadata:    JSON.stringify({
               bookingId:        booking.id,
               plate:            booking.vehicle.plateNumber,
-              slotCode:         booking.slot.code,
+              slotCode:         booking.slot?.code ?? '',
               expectedArrival:  booking.expectedArrival,
               depositForfeited: true,
             }),

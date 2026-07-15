@@ -277,5 +277,12 @@ export const monthlyPackageService = {
       return updated;
     });
   },
+
+  async getZoneQuotas() {
+    return {
+      car: { total: 20, used: 0 },
+      motorbike: { total: 100, used: 0 }
+    };
+  },
 };
 
