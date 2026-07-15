@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useActiveMonthlyPackage } from './hooks/useActiveMonthlyPackage';
 import { DriverLayout } from './components/DriverLayout';
 import { StaffLayout } from './components/StaffLayout';
 import { ManagerLayout } from './components/ManagerLayout';
@@ -83,6 +84,22 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'ADMIN') return <Navigate to="/" replace />;
   return <AdminLayout>{children}</AdminLayout>;
+}
+
+/**
+ * Route guard for pages that require an ACTIVE monthly package.
+ * - Shows LoadingScreen while auth or package data is still loading.
+ * - Redirects to '/' (DriverDashboard / WelcomePage) if user has no active package.
+ * - Renders children normally when an active package is confirmed.
+ */
+function MonthlyPackageRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading: authLoading } = useAuth();
+  const { isPackageLoading, hasActiveMonthlyPackage } = useActiveMonthlyPackage();
+
+  if (authLoading || isPackageLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!hasActiveMonthlyPackage) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 function ProfileRoute() {
@@ -338,29 +355,29 @@ function AppRoutes() {
       <Route
         path="/booking"
         element={
-          <ProtectedRoute>
+          <MonthlyPackageRoute>
             <BookingPage />
-          </ProtectedRoute>
+          </MonthlyPackageRoute>
         }
       />
       <Route
         path="/floor-map"
         element={
-          <ProtectedRoute>
+          <MonthlyPackageRoute>
             <DriverLayout title="Sơ đồ tầng">
               <FloorMapPage />
             </DriverLayout>
-          </ProtectedRoute>
+          </MonthlyPackageRoute>
         }
       />
       <Route
         path="/monthly-package"
         element={
-          <ProtectedRoute>
+          <MonthlyPackageRoute>
             <DriverLayout title="Gói tháng">
               <MonthlyPackagePage />
             </DriverLayout>
-          </ProtectedRoute>
+          </MonthlyPackageRoute>
         }
       />
       <Route path="/profile" element={<ProfileRoute />} />
