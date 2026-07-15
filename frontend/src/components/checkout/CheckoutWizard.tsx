@@ -223,7 +223,7 @@ function Step2({ data, onNext, onUpdate }: { data: CheckoutFormData; onNext: (s:
   );
 }
 
-function Step3({ data, onNext, onFinish, onUpdate }: { data: CheckoutFormData; onNext: (s: number) => void; onFinish: () => void; onUpdate: (f: CheckoutFormData) => void }) {
+function Step3({ data, onNext, onUpdate }: { data: CheckoutFormData; onNext: (s: number) => void; onFinish?: () => void; onUpdate: (f: CheckoutFormData) => void }) {
   const [method, setMethod] = useState<'CASH'|'CARD'|'EWALLET'>('CASH');
   const [cardType, setCardType] = useState('VISA');
   const [cardNumber, setCardNumber] = useState('');
