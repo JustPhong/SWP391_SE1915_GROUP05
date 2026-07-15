@@ -451,8 +451,10 @@ export function CheckInPage() {
   const [stats, setStats] = useState<CheckinStats | null>(null);
 
   // ── Image capture state ─────────────────────────────────
-  const [frontImage, setFrontImage] = useState<File | null>(null);
-  const [rearImage, setRearImage] = useState<File | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [, setFrontImage] = useState<File | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [, setRearImage] = useState<File | null>(null);
   const [frontPreview, setFrontPreview] = useState<string | null>(null);
   const [rearPreview, setRearPreview] = useState<string | null>(null);
   const frontCameraInputRef = useRef<HTMLInputElement>(null);
