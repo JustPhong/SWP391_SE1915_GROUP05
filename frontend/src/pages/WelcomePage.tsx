@@ -1440,20 +1440,20 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
   const cardFeatured = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
   const panelClass = isCar ? styles.pricingPanelGreen : styles.pricingPanelBlue;
   const title = isCar ? 'Gói ô tô' : 'Gói xe máy';
-  const subtitle = isCar ? 'Chỗ đỗ cố định, ưu tiên khu gửi tháng' : 'Đỗ linh hoạt, tiết kiệm cho người gửi xe thường xuyên';
+  const subtitle = isCar ? 'Đỗ linh hoạt trong khu vực phù hợp với gói đã chọn' : 'Đỗ linh hoạt, tiết kiệm cho người gửi xe thường xuyên';
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
   const tierPerks = isCar ? CAR_TIER_PERKS : MOTO_TIER_PERKS;
   const tierLabels = isCar ? CAR_TIER_LABELS : MOTO_TIER_LABELS;
   const HeaderIcon = isCar ? (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
+    <div className={styles.carSectionIcon} />
   ) : (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
+    <div className={styles.motorbikeSectionIcon} />
   );
 
   return (
     <div className={styles.pricingGroup}>
-      <div className={styles.pricingGroupHeader}>
+      <div className={`${styles.pricingGroupHeader} ${isCar ? styles.pricingGroupHeaderCar : ''}`}>
         <div className={`${styles.pricingGroupIcon} ${groupClass}`}>{HeaderIcon}</div>
         <div>
           <h4 className={styles.pricingGroupTitle}>{title}</h4>
