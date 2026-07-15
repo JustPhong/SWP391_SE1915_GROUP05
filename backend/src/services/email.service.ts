@@ -1,43 +1,50 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { config } from '../config';
 
-let resend: Resend | null = null;
+let transporter: nodemailer.Transporter | null = null;
 
-function getResendClient(): Resend | null {
-  if (!config.resendApiKey) return null;
-  if (!resend) resend = new Resend(config.resendApiKey);
-  return resend;
+function getTransporter(): nodemailer.Transporter | null {
+  const user = config.gmailUser;
+  const pass = config.gmailAppPassword;
+
+  if (!user || !pass) {
+    return null;
+  }
+
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+    });
+  }
+
+  return transporter;
 }
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  const client = getResendClient();
+  const client = getTransporter();
 
   if (!client) {
-    console.warn('[Email] RESEND_API_KEY is not configured; skipping email send. OTP logged to console only.');
+    console.warn('[Email] GMAIL_USER / GMAIL_APP_PASSWORD chưa được cấu hình. OTP chỉ in ra console.');
     return;
   }
 
-  const { data, error } = await client.emails.send({
-    from: 'ParkSmart <onboarding@resend.dev>',
-    to,
-    subject,
-    html,
-  });
-
-  if (error) {
-    // Log the error but do NOT throw — OTP is already stored in memory.
-    // In development / free Resend plan, emails can only be sent to the owner's address.
-    // Users can use the bypass code "123456" as a fallback.
-    console.warn(`[Email] Resend could not deliver to ${to}:`, error.message);
-    console.warn('[Email] Tip: verify a domain at resend.com/domains or send to the Resend account email only.');
-    return;
+  try {
+    const info = await client.sendMail({
+      from: `"ParkSmart" <${config.gmailUser}>`,
+      to,
+      subject,
+      html,
+    });
+    console.log(`[Email] Gửi thành công: ${info.messageId}`);
+  } catch (err: any) {
+    console.error(`[Email] Lỗi khi gửi email tới ${to}:`, err?.message);
+    // Không throw — OTP đã lưu trong bộ nhớ, người dùng có thể dùng mã bypass 123456 nếu cần.
   }
-
-  console.log(`[Email] Sent successfully. id=${data?.id}`);
 }
 
 export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
-  console.log(`[OTP] Code for ${to}: ${otp}  ← (also works: 123456 as bypass)`);
+  console.log(`[OTP] Mã cho ${to}: ${otp}  ← (mã bypass: 123456)`);
   const subject = 'Mã xác thực OTP - ParkSmart';
   const greeting = fullName ? `Xin chào <strong>${fullName}</strong>,` : 'Xin chào,';
   const html = `
