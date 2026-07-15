@@ -140,26 +140,27 @@ function getCarPerks(planId: string): string[] {
       'Sử dụng Khu Cơ bản',
       'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Đỗ xe tại bất kỳ chỗ trống trong khu',
-      'Camera giám sát 24/7'
+      'Xem sơ đồ tầng',
+      'Camera giám sát 24/7',
     ];
   }
   if (planId === '3m') {
     return [
-      'Tất cả quyền lợi gói 1 tháng',
       'Sử dụng Khu Phổ biến',
       'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Đỗ xe tại bất kỳ chỗ trống trong khu'
+      'Xem sơ đồ tầng',
+      'Camera giám sát 24/7',
     ];
   }
   if (planId === '1y') {
     return [
-      'Tất cả quyền lợi gói 3 tháng',
       'Sử dụng Khu VIP',
       'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Đỗ xe tại bất kỳ chỗ trống trong khu'
+      'Xem sơ đồ tầng',
+      'Camera giám sát 24/7',
+      'Ưu tiên check-in',
     ];
   }
   return [];

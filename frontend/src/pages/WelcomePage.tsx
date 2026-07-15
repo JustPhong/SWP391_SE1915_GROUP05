@@ -1383,6 +1383,15 @@ function PerkIcon({ name, color }: { name: string; color: string }) {
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
         </svg>
       );
+    case 'map':
+      return (
+        <svg {...commonProps}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+      );
     default:
       return (
         <svg {...commonProps}>
@@ -1426,24 +1435,25 @@ const CAR_TIER_PERKS: TierPerk[][] = [
     { icon: 'location', text: 'Sử dụng Khu Cơ bản' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
-    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
     { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
   // PHỔ BIẾN (3 tháng)
   [
-    { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
     { icon: 'location', text: 'Sử dụng Khu Phổ biến' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
-    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
   // VIP (1 năm)
   [
-    { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
     { icon: 'crown', text: 'Sử dụng Khu VIP' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
-    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
+    { icon: 'zap', text: 'Ưu tiên check-in' },
   ],
 ];
 
