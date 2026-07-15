@@ -615,7 +615,7 @@ async getSessionLog(from: Date, to: Date, vehicleType?: string) {
       vehicleType:  r.vehicle.type,
       isMonthly:    r.isMonthly,
       floorCode:    r.slot.floor.floorCode,
-      slotCode:     r.slot.code,
+      slotCode:     r.slot?.code ?? '',
       customerType: r.slot.floor.customerType,
       checkInTime:  r.checkInTime,
       checkOutTime: r.checkOutTime ?? null,
