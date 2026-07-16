@@ -4,7 +4,7 @@ import { PACKAGES } from '../constants/packages';
 import { vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import { Link } from 'react-router-dom';
-import type { Vehicle } from '../types';
+import type { Vehicle } from '../types/index';
 import { PlateInput } from './PlateInput';
 
 const C = {

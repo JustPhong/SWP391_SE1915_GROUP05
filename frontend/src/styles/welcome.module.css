@@ -4566,16 +4566,8 @@
 
 /* FINAL CTA CAR ASSET REPLACEMENT */
 .ctaMiniCar {
-  display: block !important;
-  position: absolute !important;
-  right: 42px !important;
-  bottom: -10px !important;
-  width: 240px !important;
-  height: 82px !important;
-  opacity: 0.26 !important;
-  pointer-events: none !important;
-  background: url("/cta-car-outline.svg") center / contain no-repeat !important;
-  filter: drop-shadow(0 0 12px rgba(96, 165, 250, 0.26)) !important;
+  content: none !important;
+  display: none !important;
 }
 
 .ctaMiniBand::after {
@@ -4583,7 +4575,7 @@
 }
 
 .ctaMiniActions {
-  margin-right: 230px !important;
+  margin-right: 0 !important;
 }
 
 @media (max-width: 768px) {
@@ -4689,7 +4681,7 @@
   align-items: stretch !important;
   gap: 10px !important;
   flex-shrink: 0 !important;
-  margin-right: 300px !important;
+  margin-right: 0 !important;
 }
 
 .ctaMiniPrimary,
@@ -4719,18 +4711,8 @@
 }
 
 .ctaMiniCar {
-  display: block !important;
-  position: absolute !important;
-  right: 56px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 270px !important;
-  height: 92px !important;
-  opacity: 0.95 !important;
-  pointer-events: none !important;
-  background: url("/cta-car-outline.svg") center / contain no-repeat !important;
-  filter:
-    brightness(0) invert(1) drop-shadow(0 0 10px rgba(125, 211, 252, 0.55)) drop-shadow(0 0 22px rgba(59, 130, 246, 0.35)) !important;
+  content: none !important;
+  display: none !important;
 }
 
 .footer {
@@ -4871,7 +4853,7 @@
   justify-content: center !important;
   gap: 8px !important;
   flex-shrink: 0 !important;
-  margin: 0 188px 0 0 !important;
+  margin: 0 !important;
 }
 
 .ctaMiniPrimary,
@@ -5060,7 +5042,7 @@
   justify-content: center !important;
   gap: 12px !important;
   flex-shrink: 0 !important;
-  margin: 0 220px 0 0 !important;
+  margin: 0 !important;
 }
 
 .ctaMiniPrimary,

@@ -1,4 +1,4 @@
-import type { ParkingSlot } from '../../types';
+import type { ParkingSlot } from '../../types/index';
 import styles from '../../styles/staff.module.css';
 
 interface FloorData {

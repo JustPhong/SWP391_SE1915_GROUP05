@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
-import type { Vehicle } from '../types';
+import type { Vehicle } from '../types/index';
 import { PlateInput } from '../components/PlateInput';
 
 

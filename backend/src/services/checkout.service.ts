@@ -22,14 +22,14 @@ export interface CheckoutLookupResult {
   now?: string;
   durationMinutes?: number;
   fee?: number;
-  breakdown?: Array<{
+  breakdown?: {
     label: string;
     minutesInBlock: number;
     lots: number;
     rate: number;
     amount: number;
     note?: string;
-  }>;
+  }[];
   brand?: string | null;
   model?: string | null;
   color?: string | null;
@@ -39,9 +39,6 @@ export interface CheckoutLookupResult {
   ownerPhone?: string | null;
   ownerEmail?: string | null;
   packageExpiry?: string;
-  // ── Booking deposit info ──
-  depositAmount?: number;
-  hasBookingDeposit?: boolean;
 }
 
 export interface ParkedVehicle {
@@ -59,47 +56,29 @@ export interface CheckoutSubmitResult {
   fee: number;
   isMonthly: boolean;
   checkOutTime: string;
-  breakdown?: Array<{
+  breakdown?: {
     label: string;
     minutesInBlock: number;
     lots: number;
     rate: number;
     amount: number;
     note?: string;
-  }>;
-  // ── Booking deposit info ──
-  depositDeducted?: number;
+  }[];
 }
 
 // ── Service ──────────────────────────────────────────────
-function normalizePlate(p: string): string {
-  return p.replace(/[-.\s]/g, '').toUpperCase();
-}
-
-/** Kiểm tra xe có booking cọc không (chỉ cho vãng lai) */
-async function getBookingDeposit(vehicleId: string): Promise<{ depositAmount: number; bookingId: string } | null> {
-  const booking = await prisma.booking.findFirst({
-    where: {
-      vehicleId,
-      status: 'FULFILLED',
-      depositAmount: { gt: 0 },
-      depositStatus: 'PAID',
-    },
-    select: { id: true, depositAmount: true },
-    orderBy: { bookingTime: 'desc' },
-  });
-  if (!booking) return null;
-  return { depositAmount: Number(booking.depositAmount), bookingId: booking.id };
-}
-
-const BOOKING_DEPOSIT = 15000;
-
 export const checkoutService = {
   // ── GET /api/checkout/lookup/:plate ───────────────────────
   async lookupPlate(plate: string): Promise<CheckoutLookupResult> {
     const cleaned = plate.trim().toUpperCase();
-    const stripped = normalizePlate(plate);
-    const vehicles = await prisma.vehicle.findMany({
+    const stripped = cleaned.replace(/[-.\s]/g, '');
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleaned },
+          { plateNumber: stripped },
+        ],
+      },
       include: {
         owner: {
           select: {
@@ -110,8 +89,6 @@ export const checkoutService = {
         },
       },
     });
-
-    const vehicle = vehicles.find((v) => normalizePlate(v.plateNumber) === stripped) ?? null;
 
     if (!vehicle) {
       return { found: false };
@@ -133,24 +110,27 @@ export const checkoutService = {
     const checkIn = new Date(record.checkInTime);
     const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
     const config = await feeRuleService.getFeeConfig();
-    let { total, breakdown } = calcFee(
+    const { total, breakdown } = calcFee(
       checkIn,
       now,
       vehicle.type as 'CAR' | 'MOTORBIKE',
       config,
     );
 
-    // ── Kiểm tra booking cọc (BR-BK-02) ──
-    let depositAmount = 0;
-    let hasBookingDeposit = false;
+    let depositCredit = 0;
     if (!record.isMonthly) {
-      const deposit = await getBookingDeposit(vehicle.id);
-      if (deposit) {
-        depositAmount = Number(deposit.depositAmount);
-        hasBookingDeposit = true;
-        total = Math.max(0, total - depositAmount); // Trừ cọc vào phí
+      const booking = await prisma.booking.findFirst({
+        where: {
+          vehicleId: vehicle.id,
+          status: 'FULFILLED',
+          depositStatus: 'PAID',
+        },
+      });
+      if (booking) {
+        depositCredit = parseFloat(String(booking.depositAmount)) || 0;
       }
     }
+    const amountDue = Math.max(0, total - depositCredit);
 
     let packageExpiry: string | undefined;
     if (record.isMonthly) {
@@ -180,24 +160,7 @@ export const checkoutService = {
       now: now.toISOString(),
       durationMinutes,
       fee: total,
-      breakdown: breakdown ? [
-        ...breakdown.map(b => ({
-          label: b.label,
-          minutesInBlock: b.minutesInBlock,
-          lots: b.lots,
-          rate: b.rate,
-          amount: b.amount,
-          note: b.note,
-        })),
-        ...(hasBookingDeposit ? [{
-          label: 'Trừ cọc đặt chỗ (15k)',
-          minutesInBlock: 0,
-          lots: 0,
-          rate: 0,
-          amount: -depositAmount,
-          note: 'BR-BK-02',
-        }] : []),
-      ] : undefined,
+      breakdown,
       brand: vehicle.brand,
       model: vehicle.model,
       color: vehicle.color,
@@ -207,13 +170,11 @@ export const checkoutService = {
       ownerPhone: vehicle.owner?.phoneNumber ?? null,
       ownerEmail: vehicle.owner?.email ?? null,
       packageExpiry,
-      depositAmount,
-      hasBookingDeposit,
     };
   },
 
   // ── GET /api/checkout/parked ─────────────────────────────
-  async getParkedVehicles(): Promise<(ParkedVehicle & { recordId: string })[]> {
+  async getParkedVehicles(): Promise<ParkedVehicle[]> {
     const records = await prisma.checkInRecord.findMany({
       where: { checkOutTime: null },
       include: {
@@ -224,7 +185,6 @@ export const checkoutService = {
     });
 
     return records.map((r) => ({
-      recordId: r.id,
       plate: r.vehicle.plateNumber,
       vehicleType: r.vehicle.type as 'CAR' | 'MOTORBIKE',
       slotCode: r.slot?.code ?? (r.allowedTier ? `Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
@@ -233,28 +193,97 @@ export const checkoutService = {
     }));
   },
 
-  // ── POST /api/checkout ───────────────────────────────────
-  async submit(params: {
-    plate: string;
-    method?: 'CASH' | 'CARD' | 'EWALLET';
-  }): Promise<CheckoutSubmitResult> {
-    const { plate, method = 'CASH' } = params;
-
-    const stripped = normalizePlate(plate);
-    const vehicles = await prisma.vehicle.findMany({});
-    const vehicle = vehicles.find((v) => normalizePlate(v.plateNumber) === stripped) ?? null;
-
-    if (!vehicle) {
-      throw new AppError(404, 'Xe không có trong bãi đỗ.');
-    }
-
-    const record = await prisma.checkInRecord.findFirst({
-      where: { vehicleId: vehicle.id, checkOutTime: null },
-      include: { slot: true },
+  // ── GET /api/checkout/preview/:recordId ───────────────────
+  async previewFee(recordId: string): Promise<{
+    fee: number;
+    breakdown: any[];
+    depositCredit: number;
+    amountDue: number;
+    penaltyFee?: number;
+  }> {
+    const record = await prisma.checkInRecord.findUnique({
+      where: { id: recordId },
+      include: { vehicle: true },
     });
 
     if (!record) {
-      throw new AppError(404, 'Xe không có trong bãi đỗ.');
+      throw new AppError(404, 'Không tìm thấy thông tin lượt gửi xe');
+    }
+
+    const now = new Date();
+    const config = await feeRuleService.getFeeConfig();
+    const { total, breakdown } = calcFee(
+      new Date(record.checkInTime),
+      now,
+      record.vehicle.type as 'CAR' | 'MOTORBIKE',
+      config
+    );
+
+    let depositCredit = 0;
+    if (!record.isMonthly) {
+      const booking = await prisma.booking.findFirst({
+        where: {
+          vehicleId: record.vehicleId,
+          status: 'FULFILLED',
+          depositStatus: 'PAID',
+        },
+      });
+      if (booking) {
+        depositCredit = parseFloat(String(booking.depositAmount)) || 0;
+      }
+    }
+
+    const amountDue = Math.max(0, total - depositCredit);
+
+    return {
+      fee: total,
+      breakdown,
+      depositCredit,
+      amountDue,
+    };
+  },
+
+  // ── POST /api/checkout ───────────────────────────────────
+  async submit(params: {
+    checkInRecordId?: string;
+    plate?: string;
+    method?: 'CASH' | 'CARD' | 'EWALLET';
+    staffId: string;
+  }): Promise<CheckoutSubmitResult> {
+    const { checkInRecordId, plate, method = 'CASH', staffId } = params;
+
+    if (method !== 'CASH') {
+      throw new AppError(400, 'Chỉ chấp nhận thanh toán bằng tiền mặt (CASH) tại quầy cổng.');
+    }
+
+    let record: any = null;
+
+    if (checkInRecordId) {
+      record = await prisma.checkInRecord.findUnique({
+        where: { id: checkInRecordId },
+        include: { vehicle: true, slot: true },
+      });
+    } else if (plate) {
+      const cleaned = plate.trim().toUpperCase();
+      const stripped = cleaned.replace(/[-.\s]/g, '');
+      const vehicle = await prisma.vehicle.findFirst({
+        where: {
+          OR: [
+            { plateNumber: cleaned },
+            { plateNumber: stripped },
+          ],
+        },
+      });
+      if (vehicle) {
+        record = await prisma.checkInRecord.findFirst({
+          where: { vehicleId: vehicle.id, checkOutTime: null },
+          include: { vehicle: true, slot: true },
+        });
+      }
+    }
+
+    if (!record || record.checkOutTime !== null) {
+      throw new AppError(404, 'Không tìm thấy lượt đỗ xe đang hoạt động.');
     }
 
     const now = new Date();
@@ -263,33 +292,76 @@ export const checkoutService = {
     const { total, breakdown } = calcFee(
       checkIn,
       now,
-      vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
+      record.vehicle.type as 'CAR' | 'MOTORBIKE',
+      config
     );
 
+    let depositCredit = 0;
+    let bookingToUse: any = null;
+
+    if (!record.isMonthly) {
+      bookingToUse = await prisma.booking.findFirst({
+        where: {
+          vehicleId: record.vehicleId,
+          status: 'FULFILLED',
+          depositStatus: 'PAID',
+        },
+      });
+      if (bookingToUse) {
+        depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+      }
+    }
+
+    const finalAmountDue = Math.max(0, total - depositCredit);
+
     await prisma.$transaction(async (tx) => {
-      await tx.checkInRecord.update({
-        where: { id: record.id },
-        data: { checkOutTime: now },
+      // 1. Transaction gate: atomic update checkInRecord status
+      const updated = await tx.checkInRecord.updateMany({
+        where: {
+          id: record.id,
+          checkOutTime: null,
+          status: 'PARKING',
+        },
+        data: {
+          checkOutTime: now,
+          checkedOutById: staffId,
+          status: 'COMPLETED',
+        },
       });
 
-      if (!record.isMonthly && total > 0) {
+      if (updated.count === 0) {
+        throw new AppError(409, 'Phiên gửi xe này đã được thanh toán hoặc đã kết thúc.');
+      }
+
+      // 2. Create Payment only if total > 0 (if guest monthly, no payment created)
+      if (!record.isMonthly && finalAmountDue > 0) {
         await tx.payment.create({
           data: {
             checkInRecordId: record.id,
-            amount: total,
+            amount: finalAmountDue,
             method,
             type: 'SESSION',
             paidAt: now,
+            collectedById: staffId,
           },
         });
       }
 
+      // 3. Consume Booking Deposit if present
+      if (bookingToUse) {
+        await tx.booking.update({
+          where: { id: bookingToUse.id },
+          data: { depositStatus: 'USED' },
+        });
+      }
+
+      // 4. Update Slot Status
       if (record.slotId) {
         const updateData: { status: string; assignedVehicleId?: string | null } = {
           status: 'AVAILABLE',
         };
-        if (!record.isMonthly) {
+        // Preserving assignedVehicleId for fixed monthly slots
+        if (!record.isMonthly && !record.slot.isFixed) {
           updateData.assignedVehicleId = null;
         }
         await tx.parkingSlot.update({
@@ -301,67 +373,125 @@ export const checkoutService = {
 
     return {
       ok: true,
-      plate: vehicle.plateNumber,
+      plate: record.vehicle.plateNumber,
       slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      fee: total,
+      fee: finalAmountDue,
       isMonthly: record.isMonthly,
       checkOutTime: now.toISOString(),
       breakdown,
     };
   },
 
+  // ── POST /api/checkout/lost-ticket ───────────────────────
   async submitLostTicket(params: {
-    plate: string;
+    checkInRecordId?: string;
+    plate?: string;
     method?: 'CASH' | 'CARD' | 'EWALLET';
     staffId: string;
+    reason: string;
   }): Promise<CheckoutSubmitResult & { penaltyFee: number }> {
-    const { plate, method = 'CASH', staffId } = params;
+    const { checkInRecordId, plate, method = 'CASH', staffId, reason } = params;
 
-    const stripped = normalizePlate(plate);
-    const [vehicle, staff] = await Promise.all([
-      (async () => {
-        const all = await prisma.vehicle.findMany({});
-        return all.find((v) => normalizePlate(v.plateNumber) === stripped) ?? null;
-      })(),
-      prisma.user.findUnique({
-        where: { id: staffId },
-        select: { fullName: true, roleRef: { select: { name: true } } },
-      }),
-    ]);
+    if (!reason || reason.trim().length < 5) {
+      throw new AppError(400, 'Lý do sự cố mất thẻ phải tối thiểu 5 ký tự.');
+    }
 
-    if (!vehicle) throw new AppError(404, 'Xe không có trong bãi đỗ.');
+    if (method !== 'CASH') {
+      throw new AppError(400, 'Chỉ chấp nhận thanh toán bằng tiền mặt (CASH) tại quầy cổng.');
+    }
 
-    const record = await prisma.checkInRecord.findFirst({
-      where: { vehicleId: vehicle.id, checkOutTime: null },
-      include: { slot: true },
-    });
+    let record: any = null;
 
-    if (!record) throw new AppError(404, 'Xe không có trong bãi đỗ.');
+    if (checkInRecordId) {
+      record = await prisma.checkInRecord.findUnique({
+        where: { id: checkInRecordId },
+        include: { vehicle: true, slot: true },
+      });
+    } else if (plate) {
+      const cleaned = plate.trim().toUpperCase();
+      const stripped = cleaned.replace(/[-.\s]/g, '');
+      const vehicle = await prisma.vehicle.findFirst({
+        where: {
+          OR: [
+            { plateNumber: cleaned },
+            { plateNumber: stripped },
+          ],
+        },
+      });
+      if (vehicle) {
+        record = await prisma.checkInRecord.findFirst({
+          where: { vehicleId: vehicle.id, checkOutTime: null },
+          include: { vehicle: true, slot: true },
+        });
+      }
+    }
+
+    if (!record || record.checkOutTime !== null) {
+      throw new AppError(404, 'Không tìm thấy lượt đỗ xe đang hoạt động.');
+    }
 
     const now = new Date();
     const config = await feeRuleService.getFeeConfig();
     const { total, breakdown } = calcFee(
       new Date(record.checkInTime),
       now,
-      vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
+      record.vehicle.type as 'CAR' | 'MOTORBIKE',
+      config
     );
 
-    const vehicleType = vehicle.type as 'CAR' | 'MOTORBIKE';
+    const vehicleType = record.vehicle.type as 'CAR' | 'MOTORBIKE';
     const penaltyFee = LOST_TICKET_PENALTY[vehicleType];
+
+    let depositCredit = 0;
+    let bookingToUse: any = null;
+
+    if (!record.isMonthly) {
+      bookingToUse = await prisma.booking.findFirst({
+        where: {
+          vehicleId: record.vehicleId,
+          status: 'FULFILLED',
+          depositStatus: 'PAID',
+        },
+      });
+      if (bookingToUse) {
+        depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+      }
+    }
+
     const finalFee = total + penaltyFee;
+    const finalAmountDue = Math.max(0, finalFee - depositCredit);
+
+    const staff = await prisma.user.findUnique({
+      where: { id: staffId },
+      select: { fullName: true, roleRef: { select: { name: true } } },
+    });
 
     await prisma.$transaction(async (tx) => {
-      await tx.checkInRecord.update({
-        where: { id: record.id },
-        data: { checkOutTime: now, isLostTicket: true },
+      // 1. Transaction gate: atomic update checkInRecord status
+      const updated = await tx.checkInRecord.updateMany({
+        where: {
+          id: record.id,
+          checkOutTime: null,
+          status: 'PARKING',
+        },
+        data: {
+          checkOutTime: now,
+          checkedOutById: staffId,
+          status: 'COMPLETED',
+          isLostTicket: true,
+        },
       });
 
-      if (!record.isMonthly) {
+      if (updated.count === 0) {
+        throw new AppError(409, 'Phiên gửi xe này đã được thanh toán hoặc đã kết thúc.');
+      }
+
+      // 2. Create Payment
+      if (!record.isMonthly && finalAmountDue > 0) {
         await tx.payment.create({
           data: {
             checkInRecordId: record.id,
-            amount: finalFee,
+            amount: finalAmountDue,
             method,
             type: 'SESSION',
             paidAt: now,
@@ -370,16 +500,29 @@ export const checkoutService = {
         });
       }
 
-      if (record.slotId) {
-        await tx.parkingSlot.update({
-          where: { id: record.slotId },
-          data: {
-            status: 'AVAILABLE',
-            assignedVehicleId: record.isMonthly ? undefined : null,
-          },
+      // 3. Consume Booking Deposit if present
+      if (bookingToUse) {
+        await tx.booking.update({
+          where: { id: bookingToUse.id },
+          data: { depositStatus: 'USED' },
         });
       }
 
+      // 4. Update Slot Status
+      if (record.slotId) {
+        const updateData: { status: string; assignedVehicleId?: string | null } = {
+          status: 'AVAILABLE',
+        };
+        if (!record.isMonthly && !record.slot.isFixed) {
+          updateData.assignedVehicleId = null;
+        }
+        await tx.parkingSlot.update({
+          where: { id: record.slotId },
+          data: updateData,
+        });
+      }
+
+      // 5. Write audit log with reason
       await tx.auditLog.create({
         data: {
           actorId: staffId,
@@ -388,14 +531,17 @@ export const checkoutService = {
           action: 'checkout.lost_ticket',
           targetType: 'CheckInRecord',
           targetId: record.id,
-          description: `Xử lý mất thẻ xe ${plate} tại ô ${record.slot?.code ?? 'Không cố định'} — phí phạt ${penaltyFee.toLocaleString('vi-VN')}đ`,
+          description: `Xử lý sự cố mất thẻ xe ${record.vehicle.plateNumber} tại ô ${record.slot?.code ?? 'Không cố định'} — Lý do: ${reason} — phí phạt ${penaltyFee.toLocaleString('vi-VN')}đ`,
           metadata: JSON.stringify({
-            plate,
+            plate: record.vehicle.plateNumber,
             slotCode: record.slot?.code ?? null,
             parkingFee: total,
             penaltyFee,
+            depositCredit,
             totalFee: finalFee,
+            amountPaid: finalAmountDue,
             method,
+            reason,
             checkInTime: record.checkInTime,
             checkOutTime: now,
           }),
@@ -405,160 +551,13 @@ export const checkoutService = {
 
     return {
       ok: true,
-      plate: vehicle.plateNumber,
+      plate: record.vehicle.plateNumber,
       slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      fee: finalFee,
+      fee: finalAmountDue,
       penaltyFee,
       isMonthly: record.isMonthly,
       checkOutTime: now.toISOString(),
       breakdown,
-    };
-  },
-
-  async uploadPhotos(ticketId: string, photos: { front: string; back: string }) {
-    const record = await prisma.checkInRecord.findUnique({
-      where: { id: ticketId },
-      include: { slot: true, vehicle: true },
-    });
-    if (!record) throw new AppError(404, 'Không tìm thấy vé/xe.');
-    // Giả lập lưu ảnh bằng metadata JSON trên CheckInRecord
-    const updated = await prisma.checkInRecord.update({
-      where: { id: ticketId },
-      data: {
-        // Nếu muốn persist, thêm field photos vào schema; hiện tại không mutate DB
-      },
-    });
-    return { ok: true, ticketId, photos };
-  },
-
-  async calculateFee(ticketId: string, checkOutTime?: string) {
-    const record = await prisma.checkInRecord.findUnique({
-      where: { id: ticketId },
-      include: { vehicle: true, slot: true },
-    });
-    if (!record) throw new AppError(404, 'Không tìm thấy vé.');
-    const now = checkOutTime ? new Date(checkOutTime) : new Date();
-    const config = await feeRuleService.getFeeConfig();
-    let { total, breakdown } = calcFee(
-      new Date(record.checkInTime),
-      now,
-      record.vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
-    );
-
-    // ── Kiểm tra booking cọc (BR-BK-02) ──
-    let depositDeducted = 0;
-    if (!record.isMonthly) {
-      const deposit = await getBookingDeposit(record.vehicleId);
-      if (deposit) {
-        depositDeducted = Number(deposit.depositAmount);
-        total = Math.max(0, total - depositDeducted);
-      }
-    }
-
-    return {
-      ticketId: record.id,
-      plate: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? null,
-      checkInTime: record.checkInTime.toISOString(),
-      checkOutTime: now.toISOString(),
-      durationMinutes: Math.round((now.getTime() - new Date(record.checkInTime).getTime()) / 60000),
-      fee: total,
-      isMonthly: record.isMonthly,
-      breakdown,
-      depositDeducted,
-    };
-  },
-
-  async complete(ticketId: string, params: { method?: 'CASH' | 'CARD' | 'EWALLET'; photos?: { front: string; back: string }; staffId: string }) {
-    const record = await prisma.checkInRecord.findUnique({
-      where: { id: ticketId },
-      include: { slot: true, vehicle: true },
-    });
-    if (!record) throw new AppError(404, 'Không tìm thấy vé.');
-    const now = new Date();
-    const config = await feeRuleService.getFeeConfig();
-    let { total, breakdown } = calcFee(
-      new Date(record.checkInTime),
-      now,
-      record.vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
-    );
-    let finalFee = total;
-    if (record.isMonthly) finalFee = 0;
-
-    // ── Trừ cọc booking (BR-BK-02) ──
-    let depositDeducted = 0;
-    if (!record.isMonthly && finalFee > 0) {
-      const deposit = await getBookingDeposit(record.vehicleId);
-      if (deposit) {
-        depositDeducted = Number(deposit.depositAmount);
-        finalFee = Math.max(0, finalFee - depositDeducted);
-      }
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.checkInRecord.update({
-        where: { id: record.id },
-        data: { checkOutTime: now },
-      });
-
-      // Chỉ tạo payment nếu còn phải trả sau khi trừ cọc
-      if (!record.isMonthly && finalFee > 0) {
-        await tx.payment.create({
-          data: {
-            checkInRecordId: record.id,
-            amount: finalFee,
-            method: params.method ?? 'CASH',
-            type: 'SESSION',
-            paidAt: now,
-            collectedById: params.staffId,
-          },
-        });
-      }
-
-      if (record.slotId) {
-        await tx.parkingSlot.update({
-          where: { id: record.slotId },
-          data: {
-            status: 'AVAILABLE',
-            assignedVehicleId: record.isMonthly ? undefined : null,
-          },
-        });
-      }
-
-      await tx.auditLog.create({
-        data: {
-          actorId: params.staffId,
-          actorName: undefined,
-          actorRole: 'STAFF',
-          action: 'checkout.complete',
-          targetType: 'CheckInRecord',
-          targetId: record.id,
-          description: `Check-out xe ${record.vehicle.plateNumber} tại ô ${record.slot?.code ?? 'Không cố định'}`,
-          metadata: JSON.stringify({
-            plate: record.vehicle.plateNumber,
-            slotCode: record.slot?.code ?? null,
-            method: params.method,
-            photos: params.photos,
-            fee: finalFee,
-            isMonthly: record.isMonthly,
-            checkInTime: record.checkInTime,
-            checkOutTime: now,
-          }),
-        },
-      });
-    });
-
-    return {
-      ok: true,
-      plate: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? null,
-      fee: finalFee,
-      isMonthly: record.isMonthly,
-      checkOutTime: now.toISOString(),
-      breakdown,
-      depositDeducted,
     };
   },
 };

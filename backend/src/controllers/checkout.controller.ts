@@ -37,7 +37,7 @@ export const checkoutController = {
       });
     }
 
-    const result = await checkoutService.submit({ plate, method });
+    const result = await checkoutService.submit({ plate, method, staffId: req.user!.id });
 
     return res.status(200).json({
       success: true,
@@ -50,9 +50,11 @@ export const checkoutController = {
     const {
       plate,
       method,
+      reason,
     } = req.body as {
       plate?: string;
       method?: 'CASH' | 'CARD' | 'EWALLET';
+      reason?: string;
     };
 
     if (!plate) {
@@ -62,42 +64,23 @@ export const checkoutController = {
       });
     }
 
+    if (!reason || reason.trim().length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lý do sự cố mất thẻ phải tối thiểu 5 ký tự.',
+      });
+    }
+
     const result = await checkoutService.submitLostTicket({
       plate,
       method,
       staffId: req.user!.id,
+      reason,
     });
 
     return res.status(200).json({
       success: true,
       data: result,
     });
-  }),
-
-  // POST /api/checkout/:ticketId/photos
-  uploadPhotos: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { ticketId } = req.params as { ticketId: string };
-    const { front, back } = req.body as { front?: string; back?: string };
-    if (!front || !back) {
-      return res.status(400).json({ success: false, message: 'Ảnh đầu xe và đuôi xe là bắt buộc.' });
-    }
-    const record = await checkoutService.uploadPhotos(ticketId, { front, back });
-    return res.status(200).json({ success: true, data: record });
-  }),
-
-  // POST /api/checkout/calculate-fee/:ticketId
-  calculateFee: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { ticketId } = req.params as { ticketId: string };
-    const { checkOutTime } = req.body as { checkOutTime?: string };
-    const result = await checkoutService.calculateFee(ticketId, checkOutTime);
-    return res.status(200).json({ success: true, data: result });
-  }),
-
-  // POST /api/checkout/complete/:ticketId
-  complete: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { ticketId } = req.params as { ticketId: string };
-    const { method, photos } = req.body as { method?: 'CASH' | 'CARD' | 'EWALLET'; photos?: { front: string; back: string } };
-    const result = await checkoutService.complete(ticketId, { method, photos, staffId: req.user!.id });
-    return res.status(200).json({ success: true, data: result });
   }),
 };

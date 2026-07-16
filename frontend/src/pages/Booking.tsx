@@ -66,7 +66,7 @@ export function BookingPage() {
 
   const handleBooking = async () => {
     if (!selectedVehicle) return;
-    
+
     // Only require payment if not monthly
     const isMonthly = selectedVehicle.isMonthly || !!selectedVehicle.monthlyPackage;
     if (!isMonthly && !showPaymentModal) {
@@ -79,12 +79,12 @@ export function BookingPage() {
     try {
       const arrival = new Date();
       arrival.setMinutes(arrival.getMinutes() + 30);
-      
+
       const res = await api.post<{ success: boolean; data: any }>('/bookings', {
         plateNumber: selectedVehicle.plateNumber,
         expectedArrival: arrival.toISOString(),
       });
-      
+
       setShowPaymentModal(false);
       setBookingSuccess({
         booking: res.data.data,
@@ -179,9 +179,9 @@ export function BookingPage() {
                   padding: '4px 10px', borderRadius: 20, letterSpacing: '0.05em'
                 }}>ĐANG HIỆU LỰC</span>
               </div>
-              
+
               <div style={{ height: 1, background: '#E2E8F0', margin: '0.5rem 0' }} />
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'center', padding: '0.5rem 0' }}>
                 <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 600 }}>
                   {floorName && slotCode ? (
@@ -242,10 +242,10 @@ export function BookingPage() {
 
       {/* 3. Two Column Layout */}
       <div className={styles.layoutGrid}>
-        
+
         {/* LEFT COLUMN: Booking Form Options (70%) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
-          
+
           {/* Section 1: Choose Car */}
           <div className={styles.card}>
             <h3 className={styles.cardTitle}>
@@ -320,7 +320,7 @@ export function BookingPage() {
 
             {/* 4 Item horizontal summary row */}
             <div className={styles.infoSummaryGrid}>
-              
+
               {/* Item 1 */}
               <div className={styles.summaryCol}>
                 <div className={styles.summaryColCircle} style={{ background: '#EFF6FF', color: '#2563EB' }}>
@@ -410,7 +410,7 @@ export function BookingPage() {
 
         {/* RIGHT COLUMN: Sidebar Summary (30%) */}
         <div className={styles.sidebarWrapper}>
-          
+
           {/* Card 1: Booking Summary */}
           <div className={styles.sidebarCard}>
             <div className={styles.sidebarTitleRow}>
@@ -419,7 +419,7 @@ export function BookingPage() {
               </div>
               <h3 className={styles.sidebarTitle}>Tóm tắt đặt chỗ</h3>
             </div>
-            
+
             <div className={styles.summaryRows}>
               <div className={styles.summaryRow}>
                 <span className={styles.rowLabel}>Xe đã chọn</span>
@@ -435,30 +435,30 @@ export function BookingPage() {
                   <span className={styles.rowValue}>—</span>
                 )}
               </div>
-              
+
               <div className={styles.rowDivider} />
 
               <div className={styles.summaryRow}>
                 <span className={styles.rowLabel}>Loại đặt chỗ</span>
                 <span className={styles.rowValue}>Ô tô khách vãng lai</span>
               </div>
-              
+
               <div className={styles.rowDivider} />
 
               <div className={styles.summaryRow}>
                 <span className={styles.rowLabel}>Phí đặt cọc</span>
                 <span className={styles.rowValueGreen}>15.000đ</span>
               </div>
-              
+
               <div className={styles.rowDivider} />
 
               <div className={styles.summaryRow}>
                 <span className={styles.rowLabel}>Thời gian giữ chỗ</span>
                 <span className={styles.rowValue} style={{ color: '#D97706' }}>30 phút</span>
               </div>
-              
+
               <div className={styles.rowDivider} />
-              
+
               <div className={styles.blueNote}>
                 Vị trí đỗ cụ thể sẽ được bố trí khi bạn đến bãi.
               </div>
@@ -508,10 +508,10 @@ export function BookingPage() {
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1E3A5F' }}>Thanh toán phí đặt cọc</h3>
               <button onClick={() => setShowPaymentModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#64748B', lineHeight: 1 }}>&times;</button>
             </div>
-            
+
             <div style={{ padding: '2rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
               <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748B' }}>Quét mã QR để thanh toán phí giữ chỗ</p>
-              
+
               <div style={{ padding: '1rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, display: 'inline-block' }}>
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=PARKSMART_DEPOSIT_${selectedVehicle.plateNumber}`}
@@ -519,9 +519,9 @@ export function BookingPage() {
                   style={{ width: 160, height: 160 }}
                 />
               </div>
-              
+
               <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#2563EB' }}>15.000đ</div>
-              
+
               <div style={{ width: '100%', background: '#F1F5F9', borderRadius: 12, padding: '1rem', fontSize: '0.85rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748B' }}>Biển số:</span>
@@ -533,7 +533,7 @@ export function BookingPage() {
                 </div>
               </div>
             </div>
-            
+
             <div style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid #E2E8F0', display: 'flex', gap: '0.75rem' }}>
               <button onClick={() => setShowPaymentModal(false)} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: '1.5px solid #CBD5E1', borderRadius: 12, background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>
                 Hủy

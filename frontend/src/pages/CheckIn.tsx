@@ -947,8 +947,9 @@ export function CheckInPage() {
                       <IconCamera size={36} color="#94A3B8" />
                     )}
                   </div>
-                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>
-                    Ảnh đầu xe
+                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem', textAlign: 'center' }}>
+                    Ảnh đầu xe <br />
+                    <span style={{ fontSize: '0.7rem', color: C.gray500, fontWeight: 400 }}>(Bản xem trước tạm thời)</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, width: '100%' }}>
                     <button
@@ -1054,8 +1055,9 @@ export function CheckInPage() {
                       <IconCamera size={36} color="#94A3B8" />
                     )}
                   </div>
-                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem' }}>
-                    Ảnh đuôi xe
+                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem', textAlign: 'center' }}>
+                    Ảnh đuôi xe <br />
+                    <span style={{ fontSize: '0.7rem', color: C.gray500, fontWeight: 400 }}>(Bản xem trước tạm thời)</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, width: '100%' }}>
                     <button

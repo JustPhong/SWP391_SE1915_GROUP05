@@ -1,5 +1,5 @@
 import api from './api';
-import type { MonthlyPackage } from '../types';
+import type { MonthlyPackage } from '../types/index';
 
 export const monthlyPackageService = {
   create: async (data: {

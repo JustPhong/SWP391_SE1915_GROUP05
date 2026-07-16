@@ -91,6 +91,8 @@ export const slotSuggestionService = {
       where: {
         status: SLOT_AVAILABLE,
         type: vehicleType.toUpperCase(),
+        isFixed: zone === 'CASUAL' ? false : undefined,
+        assignedVehicleId: zone === 'CASUAL' ? null : undefined,
       },
       include: {
         floor: {
@@ -140,6 +142,8 @@ export const slotSuggestionService = {
       where: {
         status: SLOT_AVAILABLE,
         type: vehicleType.toUpperCase(),
+        isFixed: zone === 'CASUAL' ? false : undefined,
+        assignedVehicleId: zone === 'CASUAL' ? null : undefined,
       },
       include: {
         floor: {

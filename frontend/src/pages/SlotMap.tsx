@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
-import type { ParkingSlot, Floor } from '../types';
+import type { ParkingSlot, Floor } from '../types/index';
 
 // ── API response shape ───────────────────────────────────
 interface SlotWithFloor extends Omit<ParkingSlot, 'floor'> {

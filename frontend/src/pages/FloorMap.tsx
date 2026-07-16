@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { floorMapService, type FloorWithSlots } from '../services/floorMap.service';
-import type { ParkingSlot, Floor } from '../types';
+import type { ParkingSlot, Floor } from '../types/index';
 import styles from '../styles/floorMap.module.css';
 
 // ═══════════════════════════════════════════════════════

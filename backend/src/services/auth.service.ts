@@ -9,11 +9,11 @@ export interface RegisterInput {
   fullName: string;
   email: string;
   password: string;
+  phoneNumber?: string;
   plateNumber: string;
   vehicleType: 'MOTORBIKE' | 'CAR';
   role?: string;
   otp?: string;
-  phoneNumber?: string;
 }
 
 export interface LoginInput {
@@ -158,9 +158,7 @@ export const authService = {
       otpStore.delete(email);
       throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
     }
-    // Allow universal bypass code "123456" for testing / fallback
-    const BYPASS_OTP = '123456';
-    if (input.otp.trim() !== BYPASS_OTP && entry.code !== input.otp.trim()) {
+    if (entry.code !== input.otp.trim()) {
       throw new AppError(400, 'Mã xác nhận không chính xác');
     }
     // OTP valid → consume it
@@ -187,9 +185,9 @@ export const authService = {
       data: {
         fullName: input.fullName,
         email,
+        phoneNumber: input.phoneNumber ?? null,
         passwordHash,
         roleId: role.id,
-        phoneNumber: input.phoneNumber || undefined,
       },
     });
 

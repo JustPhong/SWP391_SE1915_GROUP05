@@ -56,6 +56,7 @@ export async function checkoutLookupPlate(plate: string): Promise<CheckoutLookup
 export interface LostTicketPayload {
   plate: string;
   method: 'CASH' | 'CARD' | 'EWALLET';
+  reason: string;
 }
 
 export interface LostTicketResponse {

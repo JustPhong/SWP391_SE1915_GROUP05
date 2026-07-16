@@ -1,5 +1,5 @@
 import api from './api';
-import type { CheckInRecord, ParkingSlot } from '../types';
+import type { CheckInRecord, ParkingSlot } from '../types/index';
 
 interface CheckInResult {
   id: string;

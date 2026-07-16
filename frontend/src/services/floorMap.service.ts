@@ -1,5 +1,5 @@
 import api from './api';
-import type { Floor, Booking, ParkingSlot } from '../types';
+import type { Floor, Booking, ParkingSlot } from '../types/index';
 
 export interface FloorWithSlots extends Floor {
   slots: ParkingSlot[];

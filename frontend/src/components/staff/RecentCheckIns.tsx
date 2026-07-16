@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { CheckInRecord } from '../../types';
+import type { CheckInRecord } from '../../types/index';
 import styles from '../../styles/staff.module.css';
 
 interface ProcessedRecord extends CheckInRecord {
