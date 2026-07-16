@@ -30,6 +30,8 @@ export default function CheckoutWizard() {
   const start = useCallback((d: CheckoutFormData) => { setForm(d); setStep(2); }, []);
   const finish = useCallback(() => setDone(true), []);
   const reset = useCallback(() => { setForm(null); setStep(1); setDone(false); }, []);
+  // Khách tháng: SKIP thanh toán, đi thẳng từ Step2 → Step4
+  const skipToComplete = useCallback((d: CheckoutFormData) => { setForm(d); setStep(4); }, []);
 
   if (done && form) {
     return (
@@ -66,7 +68,7 @@ export default function CheckoutWizard() {
         ))}
       </div>
       {step===1 && <Step1 onNext={start} />}
-      {step===2 && form && <Step2 data={form} onNext={go} onUpdate={setForm} />}
+      {step===2 && form && <Step2 data={form} onNext={go} onUpdate={setForm} onSkipPayment={form.vehicleInfo.isMonthly ? skipToComplete : undefined} />}
       {step===3 && form && <Step3 data={form} onNext={go} onFinish={finish} onUpdate={setForm} />}
       {step===4 && form && !done && <Step4 data={form} onBack={reset} onComplete={finish} />}
     </div>
@@ -123,7 +125,7 @@ function Step1({ onNext }: { onNext: (d: CheckoutFormData) => void }) {
   );
 }
 
-function Step2({ data, onNext, onUpdate }: { data: CheckoutFormData; onNext: (s: number) => void; onUpdate: (f: CheckoutFormData) => void }) {
+function Step2({ data, onNext, onUpdate, onSkipPayment }: { data: CheckoutFormData; onNext: (s: number) => void; onUpdate: (f: CheckoutFormData) => void; onSkipPayment?: (d: CheckoutFormData) => void }) {
   const [photos, setPhotos] = useState<{ front: string | null; back: string | null }>({ front: null, back: null });
   const [lostOpen, setLostOpen] = useState(false);
   const [lostForm, setLostForm] = useState({ fullName: '', phone: '', email: '', driverLicense: '', cccd: '', method: 'CASH' as 'CASH'|'CARD'|'EWALLET' });
@@ -166,7 +168,9 @@ function Step2({ data, onNext, onUpdate }: { data: CheckoutFormData; onNext: (s:
         <PhotoBox label="Ảnh đuôi xe (ra)" photo={photos.back} id="co-b" onChange={e => onFile(e, 'back')} />
       </div>
       <div style={{ display:'flex', gap:'0.5rem', marginTop:'1rem' }}>
-        <button onClick={() => photos.front && photos.back && (onUpdate({ ...data, checkoutPhotos: photos }), onNext(3))} disabled={!photos.front || !photos.back} style={{ flex:1, padding:'0.75rem', background: (!photos.front || !photos.back) ? '#E5E7EB':'#0B2F6B', color: (!photos.front || !photos.back) ? '#9CA3AF':'#fff', border:'none', borderRadius:12, fontSize:'0.9rem', fontWeight:700, cursor: (!photos.front || !photos.back) ? 'not-allowed':'pointer' }}>Tiếp tục</button>
+        <button onClick={() => photos.front && photos.back && (onUpdate({ ...data, checkoutPhotos: photos }), onSkipPayment ? onSkipPayment({ ...data, checkoutPhotos: photos }) : onNext(3))} disabled={!photos.front || !photos.back} style={{ flex:1, padding:'0.75rem', background: (!photos.front || !photos.back) ? '#E5E7EB':'#0B2F6B', color: (!photos.front || !photos.back) ? '#9CA3AF':'#fff', border:'none', borderRadius:12, fontSize:'0.9rem', fontWeight:700, cursor: (!photos.front || !photos.back) ? 'not-allowed':'pointer' }}>
+          {data.vehicleInfo.isMonthly ? 'Xác nhận check-out' : 'Tiếp tục'}
+        </button>
         <button onClick={() => setLostOpen(true)} style={{ padding:'0.75rem 1rem', background:'#fff', color:'#DC2626', border:'1.5px solid #FECACA', borderRadius:12, fontSize:'0.875rem', fontWeight:700, cursor:'pointer' }}>Mất thẻ</button>
       </div>
 
