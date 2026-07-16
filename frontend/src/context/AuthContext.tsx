@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User } from '../types';
+import type { User } from '../types/index';
 import { authService } from '../services/auth.service';
 
 interface AuthContextType {
@@ -10,6 +10,7 @@ interface AuthContextType {
     fullName: string,
     email: string,
     password: string,
+    phoneNumber: string,
     plateNumber: string,
     vehicleType: 'MOTORBIKE' | 'CAR',
     otp: string
@@ -63,11 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     email: string,
     password: string,
+    phoneNumber: string,
     plateNumber: string,
     vehicleType: 'MOTORBIKE' | 'CAR',
     otp: string
   ): Promise<User> => {
-    const response = await authService.register({ fullName, email, password, plateNumber, vehicleType, otp });
+    const response = await authService.register({ fullName, email, password, phoneNumber, plateNumber, vehicleType, otp });
     setToken(response.token);
     setUser(response.user);
     localStorage.setItem('token', response.token);
