@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
@@ -20,7 +22,7 @@ const C = {
 function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 
-function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; const floorName = pkg?.slot?.floor?.name; const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
+function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { return `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'} (Tầng G)`; } const floorName = pkg?.slot?.floor?.name; const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 type VehicleType = 'CAR' | 'MOTORBIKE';
@@ -592,7 +594,11 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
                         <div>Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> – <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong></div>
-                        {detail.monthlyPackage.slot && <div>Vị trí cố định: <strong>Tầng {detail.monthlyPackage.slot.floor?.name ?? '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>}
+                        {detail.monthlyPackage.slot ? (
+                          <div>Vị trí cố định: <strong>Tầng {detail.monthlyPackage.slot.floor?.name ?? '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
+                        ) : detail.monthlyPackage.allowedTier ? (
+                          <div>Khu vực đỗ xe: <strong>Tầng G · Khu {detail.monthlyPackage.allowedTier === 'VIP' ? 'VIP' : detail.monthlyPackage.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}</strong></div>
+                        ) : null}
                         <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 800, color: '#FCD34D', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
                       </div>
                     </div>
@@ -615,7 +621,30 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                     <div>
                       <h4 style={{ margin: '0 0 0.8rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lịch sử gửi xe gần đây</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '10px', borderLeft: '2px solid #E2E8F0', gap: '16px', marginLeft: '6px', marginTop: '6px' }}>
-                        {detail.checkInRecords.map((r: any) => { const isCurrentlyParked = !r.checkOutTime; return (<div key={r.id} style={{ position: 'relative', paddingLeft: '14px' }}><div style={{ position: 'absolute', left: '-21px', top: '4px', width: '10px', height: '10px', borderRadius: '50%', background: isCurrentlyParked ? '#10B981' : '#94A3B8', border: '2px solid #FFFFFF', boxShadow: `0 0 0 2px ${isCurrentlyParked ? '#A7F3D0' : '#E2E8F0'}`, animation: isCurrentlyParked ? 'pulse 2s infinite' : 'none' }} /><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}><div><div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Tầng {r.slot?.floor?.name ?? '—'} · Ô {r.slot?.code ?? '—'}</div><div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>Vào: {fmtDatetime(r.checkInTime)}</div>{r.checkOutTime && <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Ra: {fmtDatetime(r.checkOutTime)}</div>}</div><span style={{ background: isCurrentlyParked ? '#D1FAE5' : '#F1F5F9', color: isCurrentlyParked ? '#065F46' : '#475569', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', flexShrink: 0 }}>{isCurrentlyParked ? 'Đang đỗ' : 'Đã ra'}</span></div></div>); })}
+                        {detail.checkInRecords.map((r: any) => {
+                          const isCurrentlyParked = !r.checkOutTime;
+                          const locationText = r.slot?.floor?.name && r.slot?.code
+                            ? `Tầng ${r.slot.floor.name} · Ô ${r.slot.code}`
+                            : (r.allowedTier ? `Tầng G · Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Chưa phân vị trí');
+                          const activeStatusText = isCurrentlyParked
+                            ? (r.allowedTier ? `Đang đỗ - Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Đang đỗ')
+                            : 'Đã ra';
+                          return (
+                            <div key={r.id} style={{ position: 'relative', paddingLeft: '14px' }}>
+                              <div style={{ position: 'absolute', left: '-21px', top: '4px', width: '10px', height: '10px', borderRadius: '50%', background: isCurrentlyParked ? '#10B981' : '#94A3B8', border: '2px solid #FFFFFF', boxShadow: `0 0 0 2px ${isCurrentlyParked ? '#A7F3D0' : '#E2E8F0'}`, animation: isCurrentlyParked ? 'pulse 2s infinite' : 'none' }} />
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>{locationText}</div>
+                                  <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>Vào: {fmtDatetime(r.checkInTime)}</div>
+                                  {r.checkOutTime && <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Ra: {fmtDatetime(r.checkOutTime)}</div>}
+                                </div>
+                                <span style={{ background: isCurrentlyParked ? '#D1FAE5' : '#F1F5F9', color: isCurrentlyParked ? '#065F46' : '#475569', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', flexShrink: 0 }}>
+                                  {activeStatusText}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -689,11 +718,9 @@ function AddVehicleForm({
     color?: string,
     year?: number,
     seats?: number,
-    ownerFullName?: string,
-    ownerEmail?: string,
-    ownerPhone?: string,
   ) => Promise<void>;
 }) {
+  const { user } = useAuth();
   const [plateNumber, setPlateNumber] = useState('');
   const [type, setType] = useState<VehicleType>('CAR');
   const [brand, setBrand] = useState(VEHICLE_PROFILE_OPTIONS.CAR[0].label);
@@ -701,11 +728,7 @@ function AddVehicleForm({
   const [color, setColor] = useState(VEHICLE_COLORS[0]);
   const [year, setYear] = useState<number | ''>(VEHICLE_YEARS[0]);
   const [seats, setSeats] = useState<number | ''>(CAR_SEAT_OPTIONS[2] ?? 5);
-  const [ownerFullName, setOwnerFullName] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');
-  const [ownerPhone, setOwnerPhone] = useState('');
   const [localError, setLocalError] = useState('');
-
 
   useEffect(() => {
     const brandEntries = VEHICLE_PROFILE_OPTIONS[type];
@@ -742,39 +765,71 @@ function AddVehicleForm({
       color?.trim() || undefined,
       yearVal,
       seatsVal,
-      ownerFullName?.trim() || undefined,
-      ownerEmail?.trim() || undefined,
-      ownerPhone?.trim() || undefined,
     );
   };
 
   const displayError = localError || error;
-  const sel = { padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: 12, background: C.white, fontSize: '0.9rem', color: C.gray900, width: '100%', fontFamily: 'inherit', transition: 'all 0.15s ease' };
+  const sel: React.CSSProperties = { padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: 12, background: C.white, fontSize: '0.9rem', color: C.gray900, width: '100%', fontFamily: 'inherit', transition: 'all 0.15s ease' };
+
+  /* ── No phone → show compact warning inside modal ── */
+  if (!user?.phoneNumber) {
+    return (
+      <>
+        {/* Fixed header */}
+        <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <p id="add-vehicle-title" style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.white }}>Thêm xe mới</p>
+          <button type="button" onClick={onCancel} aria-label="Đóng" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+            <IconClose size={16} color={C.white} />
+          </button>
+        </div>
+        {/* Scrollable body */}
+        <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Yêu cầu thông tin số điện thoại</p>
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: C.gray600, lineHeight: 1.5 }}>
+            Vui lòng cập nhật số điện thoại trong <Link to="/profile" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Hồ sơ</Link> trước khi thêm xe.
+          </p>
+        </div>
+        {/* Fixed footer */}
+        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end', padding: '1rem 1.5rem', borderTop: `1px solid ${C.gray200}`, background: C.white }}>
+          <button type="button" onClick={onCancel} style={{ padding: '0.6rem 1.5rem', background: C.gray100, border: `1px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.88rem', fontWeight: 700, color: C.gray900, cursor: 'pointer' }}>Đóng</button>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="mv-anim" style={{ background: C.white, borderRadius: 20, border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)', overflow: 'hidden' }}>
-      <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
+      {/* ── Fixed header ── */}
+      <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <p style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.white }}>Thêm xe mới</p>
+          <p id="add-vehicle-title" style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.white }}>Thêm xe mới</p>
           <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Điền thông tin phương tiện của bạn</p>
         </div>
-        <button type="button" onClick={onCancel} disabled={submitting} aria-label="Đóng" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', opacity: submitting ? 0.5 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}>
+        <button type="button" onClick={onCancel} disabled={submitting} aria-label="Đóng" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', opacity: submitting ? 0.5 : 1 }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}>
           <IconClose size={16} color={C.white} />
         </button>
       </div>
-      <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+
+      {/* ── Scrollable body ── */}
+      <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '1.5rem' }}>
         {displayError && <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.6rem 0.85rem', marginBottom: '1rem', fontSize: '0.8rem', color: '#B91C1C', fontWeight: 500 }}>{displayError}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
             <PlateInput value={plateNumber} onChange={setPlateNumber} placeholder="VD: 51A-12345" disabled={submitting} autoFocus style={{ ...sel, fontFamily: "'Consolas',monospace", fontWeight: 600 }} />
           </label>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Loại xe</span>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {VEHICLE_TYPES.map(opt => {
-                const selected = type === opt.value; return (
-                  <button key={opt.value} type="button" onClick={() => setType(opt.value)} disabled={submitting} style={{ flex: 1, padding: '0.6rem 0.85rem', borderRadius: 10, border: `1.5px solid ${selected ? C.navy : C.gray200}`, background: selected ? C.navy : C.white, color: selected ? C.white : C.navy, fontSize: '0.85rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
+                const selected = type === opt.value;
+                return (
+                  <button key={opt.value} type="button" onClick={() => setType(opt.value)} disabled={submitting}
+                    style={{ flex: 1, padding: '0.6rem 0.85rem', borderRadius: 10, border: `1.5px solid ${selected ? C.navy : C.gray200}`, background: selected ? C.navy : C.white, color: selected ? C.white : C.navy, fontSize: '0.85rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
                     {opt.value === 'CAR' ? <IconCar size={14} color={selected ? C.white : C.blue} /> : <IconBike size={14} color={selected ? C.white : C.orange} />}
                     {opt.label}
                   </button>
@@ -783,63 +838,65 @@ function AddVehicleForm({
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.85rem', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 14 }}>
-            <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Thông tin chủ xe
-            </p>
-
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Họ tên chủ xe</span>
-              <input
-                type="text"
-                value={ownerFullName}
-                onChange={(e) => setOwnerFullName(e.target.value)}
-                placeholder="Nguyễn Văn A"
-                disabled={submitting}
-                style={sel}
-              />
-            </label>
-
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số điện thoại</span>
-              <input
-                type="tel"
-                value={ownerPhone}
-                onChange={(e) => setOwnerPhone(e.target.value)}
-                placeholder="09xxxxxxxx"
-                disabled={submitting}
-                style={sel}
-              />
-            </label>
-
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Email</span>
-              <input
-                type="email"
-                value={ownerEmail}
-                onChange={(e) => setOwnerEmail(e.target.value)}
-                placeholder="email@vidu.com"
-                disabled={submitting}
-                style={sel}
-              />
-            </label>
+          {/* Read-only owner summary */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', padding: '0.75rem 1rem', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 12 }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Chủ xe</span>
+            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.gray900 }}>{user?.fullName ?? '—'}</span>
+            <span style={{ fontSize: '0.75rem', color: C.gray600 }}>Thông tin được lấy từ hồ sơ tài khoản</span>
           </div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span><select value={brand} onChange={(e) => setBrand(e.target.value)} disabled={submitting} style={sel}>{VEHICLE_PROFILE_OPTIONS[type].map(b => <option key={b.label} value={b.label}>{b.label}</option>)}</select></label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Mẫu</span><select value={model} onChange={(e) => setModel(e.target.value)} disabled={submitting} style={sel}>{availableModels.map(m => <option key={m} value={m}>{m}</option>)}</select></label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Màu</span><select value={color} onChange={(e) => setColor(e.target.value)} disabled={submitting} style={sel}>{VEHICLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}</select></label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm</span><select value={year === '' ? '' : year.toString()} onChange={(e) => setYear(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}>{VEHICLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select></label>
-          {type === 'CAR' && (<label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số chỗ</span><select value={seats === '' ? '' : seats.toString()} onChange={(e) => setSeats(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}><option value="">Chọn số chỗ</option>{CAR_SEAT_OPTIONS.map(s => <option key={s} value={s}>{s} chỗ</option>)}</select></label>)}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span>
+            <select value={brand} onChange={(e) => setBrand(e.target.value)} disabled={submitting} style={sel}>
+              {VEHICLE_PROFILE_OPTIONS[type].map(b => <option key={b.label} value={b.label}>{b.label}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Mẫu</span>
+            <select value={model} onChange={(e) => setModel(e.target.value)} disabled={submitting} style={sel}>
+              {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Màu</span>
+            <select value={color} onChange={(e) => setColor(e.target.value)} disabled={submitting} style={sel}>
+              {VEHICLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm sản xuất</span>
+            <select value={year === '' ? '' : year.toString()} onChange={(e) => setYear(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}>
+              {VEHICLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </label>
+          {type === 'CAR' && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số chỗ ngồi</span>
+              <select value={seats === '' ? '' : seats.toString()} onChange={(e) => setSeats(e.target.value === '' ? '' : Number(e.target.value))} disabled={submitting} style={sel}>
+                <option value="">Chọn số chỗ</option>
+                {CAR_SEAT_OPTIONS.map(s => <option key={s} value={s}>{s} chỗ</option>)}
+              </select>
+            </label>
+          )}
         </div>
+      </div>
 
-        <button type="submit" disabled={submitting || !plateNumber.trim()} style={{ width: '100%', padding: '0.8rem', background: submitting || !plateNumber.trim() ? C.gray300 : '#2563EB', color: submitting || !plateNumber.trim() ? C.gray400 : C.white, border: 'none', borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: submitting || !plateNumber.trim() ? 'not-allowed' : 'pointer', marginTop: '1.25rem', boxShadow: submitting || !plateNumber.trim() ? 'none' : '0 4px 14px rgba(37,99,235,0.2)', transition: 'all 0.18s ease' }}
-          onMouseEnter={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#1d4ed8'; }}
-          onMouseLeave={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#2563EB'; }}
-        >
-          {submitting ? 'Đang thêm...' : '+ Thêm xe'}
+      {/* ── Fixed footer ── */}
+      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.5rem', borderTop: `1px solid ${C.gray200}`, background: C.white }}>
+        <button type="button" onClick={onCancel} disabled={submitting}
+          style={{ padding: '0.6rem 1.4rem', background: C.white, border: `1.5px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.88rem', fontWeight: 700, color: C.gray900, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, transition: 'all 0.15s' }}
+          onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = C.gray50; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = C.white; }}>
+          Hủy
         </button>
-      </form>
-    </div>
+        <button type="submit" disabled={submitting || !plateNumber.trim()}
+          style={{ padding: '0.6rem 1.6rem', background: submitting || !plateNumber.trim() ? C.gray300 : '#2563EB', color: submitting || !plateNumber.trim() ? C.gray400 : C.white, border: 'none', borderRadius: 10, fontSize: '0.88rem', fontWeight: 700, cursor: submitting || !plateNumber.trim() ? 'not-allowed' : 'pointer', boxShadow: submitting || !plateNumber.trim() ? 'none' : '0 4px 14px rgba(37,99,235,0.2)', transition: 'all 0.18s ease' }}
+          onMouseEnter={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#1d4ed8'; }}
+          onMouseLeave={(e) => { if (!submitting && plateNumber.trim()) e.currentTarget.style.background = '#2563EB'; }}>
+          {submitting ? 'Đang thêm...' : 'Thêm xe'}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -860,6 +917,32 @@ export function MyVehiclePage() {
   const [formError, setFormError] = useState('');
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
   const [tipVisible, setTipVisible] = useState(true);
+  const addVehicleBtnRef = useRef<HTMLButtonElement>(null);
+
+  /* ── Scroll-lock while modal is open ── */
+  useEffect(() => {
+    if (!formOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [formOpen]);
+
+  /* ── Escape key closes modal ── */
+  useEffect(() => {
+    if (!formOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) handleCloseModal();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formOpen, submitting]);
+
+  const handleCloseModal = () => {
+    setFormOpen(false);
+    setFormError('');
+    setTimeout(() => addVehicleBtnRef.current?.focus(), 50);
+  };
 
   const loadVehicles = useCallback(async () => {
     const epoch = ++loadEpoch.current;
@@ -890,9 +973,6 @@ export function MyVehiclePage() {
     color?: string,
     year?: number,
     seats?: number,
-    ownerFullName?: string,
-    ownerEmail?: string,
-    ownerPhone?: string,
   ) => {
     setSubmitting(true);
     setFormError('');
@@ -906,13 +986,9 @@ export function MyVehiclePage() {
         color,
         year,
         seats,
-        ownerFullName,
-        ownerEmail,
-        ownerPhone,
-      } as any);
+      });
 
-      setFormOpen(false);
-      setFormError('');
+      handleCloseModal();
       await loadVehicles();
     } catch (e: any) {
       setFormError(e?.response?.data?.message ?? 'Có lỗi xảy ra');
@@ -972,13 +1048,12 @@ export function MyVehiclePage() {
           <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: C.navy, letterSpacing: '-0.02em' }}>Xe của tôi</h1>
           <p style={{ margin: '0.3rem 0 0', fontSize: '0.875rem', color: C.gray600, fontWeight: 500 }}>Quản lý phương tiện, gói tháng và lịch sử sử dụng của từng xe.</p>
         </div>
-        {!formOpen && (
-          <button onClick={() => setFormOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.65rem 1.35rem', background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)', transition: 'all 0.2s ease', whiteSpace: 'nowrap', flexShrink: 0 }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1.5px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(30, 58, 95, 0.25)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 58, 95, 0.15)'; }}>
-            <IconPlus size={14} color={C.white} /> Thêm xe
-          </button>
-        )}
+        <button ref={addVehicleBtnRef} onClick={() => setFormOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.65rem 1.35rem', background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(30, 58, 95, 0.15)', transition: 'all 0.2s ease', whiteSpace: 'nowrap', flexShrink: 0 }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1.5px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(30, 58, 95, 0.25)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 58, 95, 0.15)'; }}>
+          <IconPlus size={14} color={C.white} /> Thêm xe
+        </button>
       </div>
 
       {!loading && (
@@ -1025,7 +1100,46 @@ export function MyVehiclePage() {
         )}
       </div>
 
-      {formOpen && <AddVehicleForm submitting={submitting} error={formError} onCancel={() => { setFormOpen(false); setFormError(''); }} onSubmit={handleAddVehicle} />}
+      {/* ── Add Vehicle MODAL (portal to document.body) ── */}
+      {formOpen && createPortal(
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            display: 'grid', placeItems: 'center', padding: '20px',
+            background: 'rgba(15, 23, 42, 0.58)',
+            backdropFilter: 'blur(3px)',
+            WebkitBackdropFilter: 'blur(3px)',
+          }}
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !submitting) handleCloseModal(); }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-vehicle-title"
+            style={{
+              position: 'relative',
+              width: 'min(860px, calc(100vw - 40px))',
+              maxHeight: 'min(86vh, 820px)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              borderRadius: 18,
+              background: '#ffffff',
+              boxShadow: '0 28px 80px rgba(15,23,42,0.32), 0 8px 24px rgba(15,23,42,0.14)',
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <AddVehicleForm
+              submitting={submitting}
+              error={formError}
+              onCancel={handleCloseModal}
+              onSubmit={handleAddVehicle}
+            />
+          </section>
+        </div>,
+        document.body,
+      )}
 
       {tipVisible && !loading && <TipBanner onClose={() => setTipVisible(false)} />}
 
