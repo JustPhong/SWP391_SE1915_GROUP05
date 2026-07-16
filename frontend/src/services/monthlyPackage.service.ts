@@ -6,10 +6,12 @@ export const monthlyPackageService = {
     userId: string;
     vehicleId: string;
     slotId?: string;
+    planId?: string;
     startDate: string;
     expiryDate: string;
     price: number;
     paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
+    vehicleType?: string;
   }) => {
     const response = await api.post<{ success: boolean; data: MonthlyPackage }>('/monthly-packages', data);
     return response.data.data;

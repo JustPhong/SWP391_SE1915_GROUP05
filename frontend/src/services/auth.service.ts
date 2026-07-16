@@ -14,6 +14,7 @@ export const authService = {
     plateNumber: string;
     vehicleType: 'MOTORBIKE' | 'CAR';
     otp: string;
+    phoneNumber?: string;
   }) => {
     const response = await api.post<{ success: boolean; data: AuthResponse }>('/auth/register', {
       ...data,
