@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { vehicleService } from '../services/vehicle.service';
-import type { Vehicle } from '../types';
+import type { Vehicle } from '../types/index';
 import styles from '../styles/booking.module.css';
 
 // ── Icons ──────────────────────────────────────────────────
