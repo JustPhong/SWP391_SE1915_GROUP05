@@ -22,7 +22,7 @@ const C = {
 function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 
-function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { return `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'} (Tầng G)`; } const floorName = pkg?.slot?.floor?.name; const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
+function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { return `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'} (Tầng G)`; } const rawFloor = pkg?.slot?.floor?.name || ''; const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, ''); const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 type VehicleType = 'CAR' | 'MOTORBIKE';
@@ -595,7 +595,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
                         <div>Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> – <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong></div>
                         {detail.monthlyPackage.slot ? (
-                          <div>Vị trí cố định: <strong>Tầng {detail.monthlyPackage.slot.floor?.name ?? '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
+                          <div>Vị trí cố định: <strong>Tầng {(detail.monthlyPackage.slot.floor?.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
                         ) : detail.monthlyPackage.allowedTier ? (
                           <div>Khu vực đỗ xe: <strong>Tầng G · Khu {detail.monthlyPackage.allowedTier === 'VIP' ? 'VIP' : detail.monthlyPackage.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}</strong></div>
                         ) : null}
@@ -613,7 +613,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                     <div>
                       <h4 style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lịch đặt chỗ gần đây</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {detail.bookings.map((b: any) => (<div key={b.id} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Tầng {b.slot?.floor?.name ?? '—'} · Ô {b.slot?.code ?? '—'}</div><div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}</div></div><BookingStatusBadge status={b.status} /></div>))}
+                        {detail.bookings.map((b: any) => (<div key={b.id} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Tầng {(b.slot?.floor?.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · Ô {b.slot?.code ?? '—'}</div><div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}</div></div><BookingStatusBadge status={b.status} /></div>))}
                       </div>
                     </div>
                   )}
