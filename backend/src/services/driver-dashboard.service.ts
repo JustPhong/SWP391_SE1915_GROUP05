@@ -38,8 +38,8 @@ export const driverDashboardService = {
     return {
       id: record.id,
       plateNumber: record.vehicle.plateNumber,
-      slotCode: record.slot.code,
-      floor: floorIdToLabel(record.slot.floorId),
+      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+      floor: record.slot ? floorIdToLabel(record.slot.floorId) : 'Tầng G',
       checkInTime: formatISODate(record.checkInTime),
       estimatedAmount: record.isMonthly ? null : Math.ceil((Date.now() - record.checkInTime.getTime()) / (1000 * 60 * 60)) * SESSION_RATE,
       customerType: record.isMonthly ? 'MONTHLY' : 'CASUAL',
@@ -100,7 +100,7 @@ export const driverDashboardService = {
     const recordEntries = records.map((record) => ({
       id: record.id,
       plateNumber: record.vehicle.plateNumber,
-      slotCode: record.slot.code,
+      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       date: formatISODate(record.checkOutTime ?? record.checkInTime),
       duration: formatDuration(record.checkInTime, record.checkOutTime ?? new Date()),
       amount: Number(record.payments[0]?.amount ?? 0),
