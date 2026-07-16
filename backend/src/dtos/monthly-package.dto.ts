@@ -26,6 +26,10 @@ export const createMonthlyPackageSchema = [
   body('price')
     .isFloat({ gt: 0 })
     .withMessage('Price must be a positive number'),
+  body('planId')
+    .optional()
+    .isIn(['1m', '3m', '1y'])
+    .withMessage('Plan ID must be 1m, 3m, or 1y'),
 ].concat(paymentSchema);
 
 export const setAutoRenewSchema = [

@@ -20,6 +20,16 @@ export interface CreatePackageInput {
   expiryDate: Date;
   price: number;
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
+  vehicleType?: string;
+}
+
+export function getTierFromPlan(planId: string | null, durationDays: number): 'VIP' | 'POPULAR' | 'REGULAR' {
+  if (planId === '1y') return 'VIP';
+  if (planId === '3m') return 'POPULAR';
+  if (planId === '1m') return 'REGULAR';
+  if (durationDays > 100) return 'VIP';
+  if (durationDays > 35) return 'POPULAR';
+  return 'REGULAR';
 }
      
 export const monthlyPackageService = {
@@ -33,15 +43,37 @@ export const monthlyPackageService = {
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
+    
+    // 1. belongs to the authenticated user
     if (vehicle.ownerId !== input.userId) {
       throw new AppError(403, 'Bạn không có quyền với xe này');
     }
 
+    // 2. matches the package vehicle type
+    if (input.vehicleType && vehicle.type !== input.vehicleType) {
+      throw new AppError(400, 'Phương tiện không khớp với loại gói đăng ký');
+    }
+
+    // 3. has no active, paid, non-expired monthly package
+    const now = new Date();
     const existingActive = await prisma.monthlyPackage.findFirst({
-      where: { vehicleId: input.vehicleId, status: PKG_ACTIVE },
+      where: {
+        vehicleId: input.vehicleId,
+        status: PKG_ACTIVE,
+        expiryDate: { gt: now },
+      },
+      include: {
+        payments: true,
+      },
     });
-    if (existingActive) {
-      throw new AppError(409, 'Vehicle already has an active monthly package');
+
+    const isActivePaid = existingActive && (
+      existingActive.payments.length === 0 ||
+      existingActive.payments.some(p => p.status === 'SUCCESS')
+    );
+
+    if (isActivePaid) {
+      throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
     }
 
     return prisma.$transaction(async (tx) => {
@@ -49,44 +81,36 @@ export const monthlyPackageService = {
       const vehicleType = vehicle.type;
 
       let resolvedSlotId: string | null = null;
+      let allowedTierValue: string | null = null;
 
       if (vehicleType === VEHICLE_CAR) {
-        // CAR monthly packages require a user-picked fixed slot.
-        if (!input.slotId) {
-          throw new AppError(400, 'Vui lòng chọn chỗ đỗ cố định');
-        }
+        // CAR monthly packages DO NOT pick a physical slot.
+        // Determine zone tier based on planName/duration
+        const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
+        const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+        const resolvedTier = getTierFromPlan(input.planId ?? null, durationDays);
 
-        // Load slot with its floor so we can validate type + zone in one query.
-        const slot = await tx.parkingSlot.findUnique({
-          where: { id: input.slotId },
-          include: { floor: true },
-        });
-        if (!slot) {
-          throw new AppError(400, 'Chỗ đỗ không hợp lệ');
-        }
-        if (slot.type !== SLOT_TYPE_CAR || slot.floor.customerType !== FLOOR_MONTHLY) {
-          throw new AppError(400, 'Chỗ đỗ không hợp lệ');
-        }
-        // BR-2 capacity is enforced by this check: floor G has exactly 20
-        // physical CAR slots, so once all 20 are RESERVED none remain
-        // AVAILABLE and the request fails here. No count() needed.
-        if (slot.status !== SLOT_AVAILABLE) {
-          throw new AppError(409, 'Chỗ đỗ đã được người khác chọn');
-        }
-
-        await tx.parkingSlot.update({
-          where: { id: input.slotId },
-          data: {
-            status: SLOT_RESERVED,
-            assignedVehicleId: input.vehicleId,
-            isFixed: true,
+        // Check quota: VIP: 4, POPULAR: 8, REGULAR: 8
+        const soldCount = await tx.monthlyPackage.count({
+          where: {
+            status: PKG_ACTIVE,
+            expiryDate: { gte: new Date() },
+            vehicle: { type: VEHICLE_CAR },
+            allowedTier: resolvedTier,
           },
         });
-        resolvedSlotId = input.slotId;
+
+        const capacities = { VIP: 4, POPULAR: 8, REGULAR: 8 };
+        const capacity = capacities[resolvedTier];
+
+        if (soldCount >= capacity) {
+          throw new AppError(400, 'Hiện khu vực của gói này đã đủ số lượng đăng ký. Vui lòng chọn gói khác hoặc liên hệ hỗ trợ.');
+        }
+
+        allowedTierValue = resolvedTier;
       }
       // MOTORBIKE branch: no fixed slot. resolvedSlotId stays null and
-      // input.slotId is intentionally ignored (it must not be honored even
-      // if the caller passes one).
+      // input.slotId is intentionally ignored.
 
       const pkg = await tx.monthlyPackage.create({
         data: {
@@ -98,6 +122,7 @@ export const monthlyPackageService = {
           expiryDate: input.expiryDate,
           price: input.price,
           status: PKG_ACTIVE,
+          allowedTier: allowedTierValue,
         },
       });
 
@@ -111,9 +136,7 @@ export const monthlyPackageService = {
       });
 
       // FIX: vehicle.isMonthly must flip to true on EVERY package creation,
-      // regardless of whether a slot was reserved. Previously this was
-      // gated on `!input.slotId`, which silently failed to mark slotted
-      // (CAR) vehicles as monthly.
+      // regardless of whether a slot was reserved.
       await tx.vehicle.update({
         where: { id: input.vehicleId },
         data: { isMonthly: true },
@@ -276,6 +299,57 @@ export const monthlyPackageService = {
 
       return updated;
     });
+  },
+
+  async getZoneQuotas() {
+    const capacities = {
+      VIP: 4,
+      POPULAR: 8,
+      REGULAR: 8,
+    };
+
+    const activeCarPackages = await prisma.monthlyPackage.findMany({
+      where: {
+        status: PKG_ACTIVE,
+        expiryDate: { gte: new Date() },
+        vehicle: { type: VEHICLE_CAR },
+      },
+      select: {
+        id: true,
+        allowedTier: true,
+      },
+    });
+
+    const soldCounts = {
+      VIP: 0,
+      POPULAR: 0,
+      REGULAR: 0,
+    };
+
+    for (const pkg of activeCarPackages) {
+      const tier = pkg.allowedTier as 'VIP' | 'POPULAR' | 'REGULAR';
+      if (tier && soldCounts[tier] !== undefined) {
+        soldCounts[tier]++;
+      }
+    }
+
+    return {
+      VIP: {
+        capacity: capacities.VIP,
+        sold: soldCounts.VIP,
+        remaining: Math.max(0, capacities.VIP - soldCounts.VIP),
+      },
+      POPULAR: {
+        capacity: capacities.POPULAR,
+        sold: soldCounts.POPULAR,
+        remaining: Math.max(0, capacities.POPULAR - soldCounts.POPULAR),
+      },
+      REGULAR: {
+        capacity: capacities.REGULAR,
+        sold: soldCounts.REGULAR,
+        remaining: Math.max(0, capacities.REGULAR - soldCounts.REGULAR),
+      },
+    };
   },
 };
 
