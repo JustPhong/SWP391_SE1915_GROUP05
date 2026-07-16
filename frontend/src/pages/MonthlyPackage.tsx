@@ -140,26 +140,27 @@ function getCarPerks(planId: string): string[] {
       'Sử dụng Khu Cơ bản',
       'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Đỗ xe tại bất kỳ chỗ trống trong khu',
-      'Camera giám sát 24/7'
+      'Xem sơ đồ tầng',
+      'Camera giám sát 24/7',
     ];
   }
   if (planId === '3m') {
     return [
-      'Tất cả quyền lợi gói 1 tháng',
       'Sử dụng Khu Phổ biến',
       'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Đỗ xe tại bất kỳ chỗ trống trong khu'
+      'Xem sơ đồ tầng',
+      'Camera giám sát 24/7',
     ];
   }
   if (planId === '1y') {
     return [
-      'Tất cả quyền lợi gói 3 tháng',
       'Sử dụng Khu VIP',
       'Ra vào không giới hạn',
       'Không tính phí theo lượt',
-      'Đỗ xe tại bất kỳ chỗ trống trong khu'
+      'Xem sơ đồ tầng',
+      'Camera giám sát 24/7',
+      'Ưu tiên check-in',
     ];
   }
   return [];
@@ -265,10 +266,14 @@ function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selec
   const panelClass = isCar ? styles.pkgPanelGreen : styles.pkgPanelBlue;
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
-  const IconSvg = isCar ? <IconCar size={18} /> : <IconBike size={18} />;
+  const IconSvg = isCar ? (
+    <div className={styles.carSectionIcon} />
+  ) : (
+    <div className={styles.motorbikeSectionIcon} />
+  );
   return (
     <div className={styles.pkgGroup}>
-      <div className={styles.pkgGroupHeader}>
+      <div className={`${styles.pkgGroupHeader} ${isCar ? styles.pkgGroupHeaderCar : ''}`}>
         <div className={`${styles.pkgGroupIcon} ${isCar ? styles.pkgGroupIconGreen : styles.pkgGroupIconBlue}`}>
           {IconSvg}
         </div>

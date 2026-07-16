@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useActiveMonthlyPackage } from '../hooks/useActiveMonthlyPackage';
 import {
   HomeIcon,
   CalendarIcon,
@@ -21,13 +22,18 @@ interface DriverLayoutProps {
   title?: string;
 }
 
-const driverNavItems = [
+// Always-visible nav items (regardless of monthly package status)
+const driverNavBaseItems = [
   { label: 'Trang chủ', path: '/', icon: HomeIcon },
-  { label: 'Đặt chỗ', path: '/booking', icon: CalendarIcon },
-  { label: 'Sơ đồ tầng', path: '/floor-map', icon: LayoutIcon },
-  { label: 'Gói tháng', path: '/monthly-package', icon: ShoppingBagIcon },
-  { label: 'Xe của tôi', path: '/my-vehicle', icon: CarIconFilled },
+  { label: 'Xe của bạn', path: '/my-vehicle', icon: CarIconFilled },
   { label: 'Lịch sử', path: '/history', icon: HistoryIcon },
+  { label: 'Đặt chỗ', path: '/booking', icon: CalendarIcon },
+];
+
+// Nav items visible ONLY when the user has an active, non-expired monthly package
+const driverNavPackageItems = [
+  { label: 'Gói tháng', path: '/monthly-package', icon: ShoppingBagIcon },
+  { label: 'Sơ đồ tầng', path: '/floor-map', icon: LayoutIcon },
 ];
 
 function getInitials(name: string) {
@@ -57,6 +63,7 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { hasActiveMonthlyPackage, isPackageLoading } = useActiveMonthlyPackage();
 
   const handleLogout = () => {
     logout();
@@ -89,11 +96,31 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
         <nav className={styles.sidebarNav}>
           <p className={styles.navSectionLabel}>Danh mục</p>
           <div className={styles.navSection}>
-            {driverNavItems.map((item) => {
+            {/* Base nav items — always visible */}
+            {driverNavBaseItems.map((item) => {
               const isActive =
                 item.path === '/'
                   ? location.pathname === '/'
                   : location.pathname.startsWith(item.path);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                  onClick={closeSidebar}
+                >
+                  <span className={styles.navItemIcon}>
+                    <Icon size={16} />
+                  </span>
+                  {item.label}
+                </Link>
+              );
+            })}
+
+            {/* Package-only nav items — visible only when user has an active monthly package */}
+            {!isPackageLoading && hasActiveMonthlyPackage && driverNavPackageItems.map((item) => {
+              const isActive = location.pathname.startsWith(item.path);
               const Icon = item.icon;
               return (
                 <Link

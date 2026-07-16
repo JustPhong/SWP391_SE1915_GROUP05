@@ -94,15 +94,25 @@ export const WelcomePage: React.FC = () => {
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
   const [pkgLoading, setPkgLoading] = useState(true);
-  const [hasPackage, setHasPackage] = useState(false); // true = monthly customer
+  const [hasPackage, setHasPackage] = useState(false); // true = has ACTIVE non-expired package
 
   useEffect(() => {
     if (!user) { setPkgLoading(false); return; }
     getMyPackage().then(pkg => {
-      // Mọi user đều ở lại trang Welcome (kể cả khách gói tháng) — không redirect sang /dashboard nữa
-      setHasPackage(!!pkg);
+      // Active-package condition: status MUST be ACTIVE and expiry MUST be in the future.
+      // !!pkg alone is wrong — an expired/cancelled package is also truthy.
+      if (!pkg) {
+        setHasPackage(false);
+      } else {
+        const expiryTime = new Date(pkg.expiryDate).getTime();
+        const isActive =
+          pkg.status === 'ACTIVE' &&
+          Number.isFinite(expiryTime) &&
+          expiryTime > Date.now();
+        setHasPackage(isActive);
+      }
       setPkgLoading(false);
-    }).catch(() => setPkgLoading(false));
+    }).catch(() => { setHasPackage(false); setPkgLoading(false); });
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live availability for the public StatusStrip ────────────────
@@ -594,19 +604,22 @@ export const WelcomePage: React.FC = () => {
               <HistoryIcon size={16} />
               <span>Lịch sử</span>
             </NavLink>
-            <NavLink
-              to="/monthly-package"
-              className={() =>
-                `${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`
-              }
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab('monthly');
-              }}
-            >
-              <ShoppingBagIcon size={16} />
-              <span>Gói tháng</span>
-            </NavLink>
+            {/* "Gói tháng" tab: only rendered when user has an active, non-expired monthly package */}
+            {!pkgLoading && hasPackage && (
+              <NavLink
+                to="/monthly-package"
+                className={() =>
+                  `${styles.tabBtn} ${activeTab === 'monthly' ? styles.tabBtnActive : ''}`
+                }
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('monthly');
+                }}
+              >
+                <ShoppingBagIcon size={16} />
+                <span>Gói tháng</span>
+              </NavLink>
+            )}
             <NavLink
               to="/booking"
               className={() =>
@@ -620,19 +633,22 @@ export const WelcomePage: React.FC = () => {
               <CalendarIcon size={16} />
               <span>Đặt chỗ</span>
             </NavLink>
-            <NavLink
-              to="/floor-map"
-              className={() =>
-                `${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`
-              }
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab('floormap');
-              }}
-            >
-              <LayoutIcon size={16} />
-              <span>Sơ đồ tầng</span>
-            </NavLink>
+            {/* "Sơ đồ tầng" tab: only rendered when user has an active, non-expired monthly package */}
+            {!pkgLoading && hasPackage && (
+              <NavLink
+                to="/floor-map"
+                className={() =>
+                  `${styles.tabBtn} ${activeTab === 'floormap' ? styles.tabBtnActive : ''}`
+                }
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab('floormap');
+                }}
+              >
+                <LayoutIcon size={16} />
+                <span>Sơ đồ tầng</span>
+              </NavLink>
+            )}
           </div>
 
           <div className={styles.navRight}>
@@ -1367,6 +1383,15 @@ function PerkIcon({ name, color }: { name: string; color: string }) {
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
         </svg>
       );
+    case 'map':
+      return (
+        <svg {...commonProps}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+      );
     default:
       return (
         <svg {...commonProps}>
@@ -1410,24 +1435,25 @@ const CAR_TIER_PERKS: TierPerk[][] = [
     { icon: 'location', text: 'Sử dụng Khu Cơ bản' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
-    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
     { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
   // PHỔ BIẾN (3 tháng)
   [
-    { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
     { icon: 'location', text: 'Sử dụng Khu Phổ biến' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
-    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
   // VIP (1 năm)
   [
-    { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
     { icon: 'crown', text: 'Sử dụng Khu VIP' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
-    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
+    { icon: 'zap', text: 'Ưu tiên check-in' },
   ],
 ];
 
@@ -1440,20 +1466,20 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
   const cardFeatured = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
   const panelClass = isCar ? styles.pricingPanelGreen : styles.pricingPanelBlue;
   const title = isCar ? 'Gói ô tô' : 'Gói xe máy';
-  const subtitle = isCar ? 'Chỗ đỗ cố định, ưu tiên khu gửi tháng' : 'Đỗ linh hoạt, tiết kiệm cho người gửi xe thường xuyên';
+  const subtitle = isCar ? 'Đỗ linh hoạt trong khu vực phù hợp với gói đã chọn' : 'Đỗ linh hoạt, tiết kiệm cho người gửi xe thường xuyên';
   const watermarkSrc = isCar ? carWatermark : motorbikeWatermark;
   const watermarkClass = `${styles.vehicleWatermark} ${isCar ? styles.vehicleWatermarkCar : ''}`;
   const tierPerks = isCar ? CAR_TIER_PERKS : MOTO_TIER_PERKS;
   const tierLabels = isCar ? CAR_TIER_LABELS : MOTO_TIER_LABELS;
   const HeaderIcon = isCar ? (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h11l5 5v4" /><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" /></svg>
+    <div className={styles.carSectionIcon} />
   ) : (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="17" r="3" /><circle cx="19" cy="17" r="3" /><path d="M12 17V9l4-4M12 5h3l2 4" /></svg>
+    <div className={styles.motorbikeSectionIcon} />
   );
 
   return (
     <div className={styles.pricingGroup}>
-      <div className={styles.pricingGroupHeader}>
+      <div className={`${styles.pricingGroupHeader} ${isCar ? styles.pricingGroupHeaderCar : ''}`}>
         <div className={`${styles.pricingGroupIcon} ${groupClass}`}>{HeaderIcon}</div>
         <div>
           <h4 className={styles.pricingGroupTitle}>{title}</h4>
