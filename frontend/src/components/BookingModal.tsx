@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { ParkingSlot } from '../types';
+import type { ParkingSlot } from '../types/index';
 import { useAuth } from '../context/AuthContext';
 import { getMyVehicles, lookupVehicleByPlate } from '../api/vehicleApi';
 import type { Vehicle } from '../api/vehicleApi';

@@ -1,4 +1,4 @@
-import type { ParkingSlot } from '../types';
+import type { ParkingSlot } from '../types/index';
 
 interface SlotCardProps {
   slot: ParkingSlot;
