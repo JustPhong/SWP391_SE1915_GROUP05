@@ -3,6 +3,7 @@ import type { User } from '../types';
 
 export interface UpdateProfileInput {
   fullName?: string;
+  phoneNumber?: string | null;
 }
 
 export async function updateProfile(input: UpdateProfileInput): Promise<User> {

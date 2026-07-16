@@ -81,13 +81,14 @@ function groupSlotsIntoDisplayRows(slots: ParkingSlot[]): { label: string; slots
 interface SlotCardProps {
   slot: ParkingSlot;
   floor: Floor;
+  isSoldQuota?: boolean;
 }
 
-function SlotCard({ slot, floor }: SlotCardProps) {
+function SlotCard({ slot, floor, isSoldQuota }: SlotCardProps) {
   const floorCode = floor.floorCode;
   let cardClass = styles.slotAvailable;
   let badge: JSX.Element | null = null;
-  const displayStatus = getSlotStatus(slot, floorCode);
+  const displayStatus = isSoldQuota ? 'MONTHLY' : getSlotStatus(slot, floorCode);
 
   // Determine visual status
   if (displayStatus === 'MONTHLY') {
@@ -124,10 +125,14 @@ function SlotCard({ slot, floor }: SlotCardProps) {
     statusIcon = '●';
   }
 
+  const tooltip = isSoldQuota
+    ? `Vị trí: ${slot.code} | Trạng thái: Chỉ báo chỉ tiêu đăng ký gói hoạt động (Khu vực VIP/Phổ biến/Cơ bản)`
+    : `Vị trí: ${slot.code} | Trạng thái: ${slot.status === 'OCCUPIED' ? 'Đang đỗ xe' : slot.status === 'RESERVED' ? 'Đã đặt trước' : 'Đang trống'}`;
+
   return (
     <div
       className={`${styles.slotCard} ${cardClass}`}
-      title={`Vị trí: ${slot.code} | Trạng thái: ${slot.status}`}
+      title={tooltip}
     >
       <span className={styles.slotCode}>{slot.code}</span>
       <span className={styles.slotSymbol}>{statusIcon}</span>
@@ -145,6 +150,11 @@ export function FloorMapPage() {
   const [floorSlotsMap, setFloorSlotsMap] = useState<Record<string, FloorWithSlots>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quotas, setQuotas] = useState<Record<string, { capacity: number; sold: number; remaining: number }>>({
+    VIP: { capacity: 4, sold: 0, remaining: 4 },
+    POPULAR: { capacity: 8, sold: 0, remaining: 8 },
+    REGULAR: { capacity: 8, sold: 0, remaining: 8 },
+  });
 
   // Load floors and slots on mount
   const loadData = async () => {
@@ -163,6 +173,15 @@ export function FloorMapPage() {
         mapped[item.floorCode] = item;
       });
       setFloorSlotsMap(mapped);
+
+      try {
+        const zoneQuotas = await floorMapService.getZoneQuotas();
+        if (zoneQuotas) {
+          setQuotas(zoneQuotas);
+        }
+      } catch (qErr) {
+        console.error('Failed to load zone quotas:', qErr);
+      }
     } catch (err) {
       console.error('Failed to load floor map data:', err);
       setError('Đã xảy ra lỗi khi tải sơ đồ bãi đỗ xe.');
@@ -214,6 +233,20 @@ export function FloorMapPage() {
     );
   }
 
+  // Precompute Floor G quota indicator slots
+  const floorGSlots = floorSlotsMap['G']?.slots || [];
+  const vipGSlots = floorGSlots.filter(s => s.tier === 'VIP').sort((a, b) => a.code.localeCompare(b.code));
+  const popularGSlots = floorGSlots.filter(s => s.tier === 'POPULAR').sort((a, b) => a.code.localeCompare(b.code));
+  const regularGSlots = floorGSlots.filter(s => s.tier === 'REGULAR').sort((a, b) => a.code.localeCompare(b.code));
+
+  const soldQuotaSlotCodes = new Set<string>();
+  const vipSold = quotas.VIP?.sold || 0;
+  vipGSlots.slice(0, vipSold).forEach(s => soldQuotaSlotCodes.add(s.code));
+  const popularSold = quotas.POPULAR?.sold || 0;
+  popularGSlots.slice(0, popularSold).forEach(s => soldQuotaSlotCodes.add(s.code));
+  const regularSold = quotas.REGULAR?.sold || 0;
+  regularGSlots.slice(0, regularSold).forEach(s => soldQuotaSlotCodes.add(s.code));
+
   return (
     <div className={styles.container}>
       {/* 1. Header */}
@@ -257,7 +290,10 @@ export function FloorMapPage() {
         {floors.map(floor => {
           const floorData = floorSlotsMap[floor.floorCode];
           const slots = floorData?.slots ?? [];
-          const availCount = slots.filter(s => getSlotStatus(s, floor.floorCode) === 'AVAILABLE').length;
+          const availCount = slots.filter(s => {
+            const isSoldQuota = floor.floorCode === 'G' && soldQuotaSlotCodes.has(s.code);
+            return !isSoldQuota && getSlotStatus(s, floor.floorCode) === 'AVAILABLE';
+          }).length;
           const rows = groupSlotsIntoDisplayRows(slots);
 
           const isMonthlyMotorbike = floor.customerType === 'MONTHLY' && floor.vehicleType === 'MOTORBIKE';
@@ -292,6 +328,15 @@ export function FloorMapPage() {
                 </div>
               )}
 
+              {floor.floorCode === 'G' && floor.vehicleType === 'CAR' && floor.customerType === 'MONTHLY' && (
+                <div className={styles.floorNote}>
+                  <span style={{ fontSize: '14px', lineHeight: 1 }}>ℹ️</span>
+                  <p className={styles.floorNoteText}>
+                    Các ô có biểu tượng khóa (🔒) biểu thị chỉ tiêu gói đăng ký hoạt động trong phân hạng, không phải vị trí cố định riêng. Khách hàng có thể đỗ tại vị trí trống bất kỳ trong phân hạng VIP, Phổ biến, hoặc Cơ bản.
+                  </p>
+                </div>
+              )}
+
               <div className={styles.slotGridWrapper}>
                 <div className={styles.slotMapBody}>
                   <div className={styles.directionGuide}>
@@ -310,9 +355,12 @@ export function FloorMapPage() {
                       <div key={row.label} className={styles.rowContainer}>
                         <div className={styles.rowLabel}>{row.label}</div>
                         <div className={styles.slotsRow}>
-                          {row.slots.map(slot => (
-                            <SlotCard key={slot.id} slot={slot} floor={floor} />
-                          ))}
+                          {row.slots.map(slot => {
+                            const isSoldQuota = floor.floorCode === 'G' && soldQuotaSlotCodes.has(slot.code);
+                            return (
+                              <SlotCard key={slot.id} slot={slot} floor={floor} isSoldQuota={isSoldQuota} />
+                            );
+                          })}
                         </div>
                       </div>
                     ))}

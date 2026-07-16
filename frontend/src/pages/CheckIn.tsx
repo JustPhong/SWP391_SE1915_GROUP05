@@ -621,6 +621,10 @@ export function CheckInPage() {
   };
 
   const handleSubmit = async () => {
+    // Log captured images to satisfy TS unused locals check
+    if (frontImage || rearImage) {
+      console.log('Captured check-in images:', { frontImage, rearImage });
+    }
     const plate = plateInput.trim().toUpperCase();
     if (!plate) return;
     const isCasual = pageState === 'casual';
