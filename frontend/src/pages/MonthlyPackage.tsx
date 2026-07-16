@@ -123,6 +123,25 @@ function IconTrash({ size = 16, color = 'currentColor' }: { size?: number; color
 function IconClose({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
+// ── Motorbike-benefit icons ───────────────────────────────
+function IconInfinity({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4z" /><path d="M12 12c2 2.5 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.5-6 4z" /></svg>;
+}
+function IconReceipt({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 2 6 22" /><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z" /><line x1="9" y1="9" x2="15" y2="9" /><line x1="9" y1="13" x2="15" y2="13" /></svg>;
+}
+function IconMap({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></svg>;
+}
+function IconCamera({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>;
+}
+function IconHeadset({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z" /><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" /></svg>;
+}
+function IconZap({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>;
+}
 
 
 
@@ -166,12 +185,56 @@ function getCarPerks(planId: string): string[] {
   return [];
 }
 
-const MOTO_PERKS = ['Đỗ ở ô trống bất kỳ', 'Không tính phí theo lượt', 'Ra vào không giới hạn', 'Khu xe máy riêng, có mái che'];
+type PerkItem = { label: string; iconKey: string };
+
+function getMotoPerks(planId: string): PerkItem[] {
+  if (planId === '1m') {
+    return [
+      { label: 'Đỗ xe máy tại khu Cơ bản', iconKey: 'bike' },
+      { label: 'Ra vào không giới hạn',          iconKey: 'infinity' },
+      { label: 'Không tính phí theo lượt',        iconKey: 'receipt' },
+      { label: 'Xem sơ đồ tầng',                 iconKey: 'map' },
+      { label: 'Camera giám sát 24/7',            iconKey: 'camera' },
+    ];
+  }
+  if (planId === '3m') {
+    return [
+      { label: 'Đỗ xe máy tại khu Phổ biến',     iconKey: 'bike' },
+      { label: 'Ra vào không giới hạn',          iconKey: 'infinity' },
+      { label: 'Không tính phí theo lượt',        iconKey: 'receipt' },
+      { label: 'Xem sơ đồ tầng',                 iconKey: 'map' },
+      { label: 'Camera giám sát 24/7',            iconKey: 'camera' },
+    ];
+  }
+  if (planId === '1y') {
+    return [
+      { label: 'Đỗ xe máy tại khu VIP',          iconKey: 'bike' },
+      { label: 'Ra vào không giới hạn',          iconKey: 'infinity' },
+      { label: 'Không tính phí theo lượt',        iconKey: 'receipt' },
+      { label: 'Xem sơ đồ tầng',                 iconKey: 'map' },
+      { label: 'Camera giám sát 24/7',            iconKey: 'camera' },
+      { label: 'Ưu tiên check-in',               iconKey: 'zap' },
+    ];
+  }
+  return [];
+}
+
+function MotoPerkIcon({ iconKey, size, color }: { iconKey: string; size: number; color: string }) {
+  if (iconKey === 'infinity') return <IconInfinity size={size} color={color} />;
+  if (iconKey === 'receipt')  return <IconReceipt  size={size} color={color} />;
+  if (iconKey === 'map')      return <IconMap       size={size} color={color} />;
+  if (iconKey === 'camera')   return <IconCamera    size={size} color={color} />;
+  if (iconKey === 'headset')  return <IconHeadset   size={size} color={color} />;
+  if (iconKey === 'zap')      return <IconZap       size={size} color={color} />;
+  return <IconBike size={size} color={color} />; // default: bike
+}
 
 function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg: PackagePlan; selected: boolean; vehicleType: VType; isFeatured: boolean; onSelect: () => void }) {
   const pricing = pkg.prices[vehicleType];
   const isCar = vehicleType === 'CAR';
-  const perks = isCar ? getCarPerks(pkg.id) : MOTO_PERKS;
+  const carPerks = isCar ? getCarPerks(pkg.id) : null;
+  const motoPerks = !isCar ? getMotoPerks(pkg.id) : null;
+  const iconColor = isFeatured ? '#ffffff' : '#16a34a';
   const CardIcon = isCar ? <IconCar size={16} /> : <IconBike size={16} />;
   return (
     <div
@@ -216,12 +279,20 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
       <hr className={`${styles.pkgDivider} ${isFeatured ? styles.pkgDividerLight : ''}`} />
 
       <ul className={`${styles.pkgPerks} ${isFeatured ? styles.pkgPerksLight : ''}`}>
-        {perks.map((p) => (
-          <li key={p}>
-            <IconCheck size={14} color={isFeatured ? '#ffffff' : '#16a34a'} />
-            <span>{p}</span>
-          </li>
-        ))}
+        {isCar
+          ? (carPerks ?? []).map((p) => (
+              <li key={p}>
+                <IconCheck size={14} color={iconColor} />
+                <span>{p}</span>
+              </li>
+            ))
+          : (motoPerks ?? []).map((p) => (
+              <li key={p.label}>
+                <MotoPerkIcon iconKey={p.iconKey} size={14} color={iconColor} />
+                <span>{p.label}</span>
+              </li>
+            ))
+        }
       </ul>
 
       {isFeatured && (

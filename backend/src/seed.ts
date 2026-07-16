@@ -27,10 +27,17 @@ const FLOOR_DEFINITIONS: { floorCode: string; name: string; vehicleType: string;
     vehicleType: 'MOTORBIKE',
     customerType: 'MONTHLY',
     capacity: 40,
-    slots: Array.from({ length: 40 }, (_, i) => ({
-      code: `1-${String(i + 1).padStart(2, '0')}`,
-      type: 'MOTORBIKE',
-    })),
+    slots: Array.from({ length: 40 }, (_, i) => {
+      const code = `1-${String(i + 1).padStart(2, '0')}`;
+      const mod = (i + 1) % 10;
+      let tier = 'REGULAR';
+      if (mod >= 1 && mod <= 3) {
+        tier = 'VIP';
+      } else if (mod >= 4 && mod <= 7) {
+        tier = 'POPULAR';
+      }
+      return { code, type: 'MOTORBIKE', tier };
+    }),
   },
   {
     floorCode: '2',
