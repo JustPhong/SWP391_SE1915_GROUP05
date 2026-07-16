@@ -1,5 +1,5 @@
 import api from './api';
-import type { Vehicle } from '../types';
+import type { Vehicle } from '../types/index';
 
 export const vehicleService = {
   create: async (data: {
