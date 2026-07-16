@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { floorMapService, type FloorWithSlots } from '../services/floorMap.service';
-import type { ParkingSlot, Floor } from '../types/index';
+import { floorMapService, type FloorWithSlots, type ZoneQuotaResponse } from '../services/floorMap.service';
+import type { ParkingSlot, Floor } from '../types';
 import styles from '../styles/floorMap.module.css';
 
 // ═══════════════════════════════════════════════════════
@@ -14,10 +14,10 @@ function getSlotTier(tier?: string): 'vip' | 'popular' | 'basic' {
   return 'basic';
 }
 
-function getSlotStatus(slot: ParkingSlot, floorCode: string): 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'MONTHLY' {
+function getSlotStatus(slot: ParkingSlot, isMonthlyFloor: boolean): 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'MONTHLY' {
   const isMonthly = slot.isFixed || slot.assignedVehicleId !== null;
-  
-  if (floorCode === 'G' || floorCode === '1') {
+
+  if (isMonthlyFloor) {
     // Monthly floors
     if (isMonthly) {
       return 'MONTHLY';
@@ -85,10 +85,9 @@ interface SlotCardProps {
 }
 
 function SlotCard({ slot, floor, isSoldQuota }: SlotCardProps) {
-  const floorCode = floor.floorCode;
   let cardClass = styles.slotAvailable;
   let badge: JSX.Element | null = null;
-  const displayStatus = isSoldQuota ? 'MONTHLY' : getSlotStatus(slot, floorCode);
+  const displayStatus = isSoldQuota ? 'MONTHLY' : getSlotStatus(slot, floor.customerType === 'MONTHLY');
 
   // Determine visual status
   if (displayStatus === 'MONTHLY') {
@@ -150,10 +149,20 @@ export function FloorMapPage() {
   const [floorSlotsMap, setFloorSlotsMap] = useState<Record<string, FloorWithSlots>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [quotas, setQuotas] = useState<Record<string, { capacity: number; sold: number; remaining: number }>>({
+  const [quotas, setQuotas] = useState<ZoneQuotaResponse>({
     VIP: { capacity: 4, sold: 0, remaining: 4 },
     POPULAR: { capacity: 8, sold: 0, remaining: 8 },
     REGULAR: { capacity: 8, sold: 0, remaining: 8 },
+    CAR: {
+      VIP: { capacity: 4, sold: 0, remaining: 4 },
+      POPULAR: { capacity: 8, sold: 0, remaining: 8 },
+      REGULAR: { capacity: 8, sold: 0, remaining: 8 },
+    },
+    MOTORBIKE: {
+      VIP: { capacity: 12, sold: 0, remaining: 12 },
+      POPULAR: { capacity: 16, sold: 0, remaining: 16 },
+      REGULAR: { capacity: 12, sold: 0, remaining: 12 },
+    }
   });
 
   // Load floors and slots on mount
@@ -206,7 +215,7 @@ export function FloorMapPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: 320, gap: '1rem' }}>
         <p style={{ color: '#ef4444', fontSize: '0.95rem', fontWeight: 500 }}>{error}</p>
-        <button 
+        <button
           onClick={loadData}
           style={{
             background: '#2d5fd0',
@@ -233,19 +242,49 @@ export function FloorMapPage() {
     );
   }
 
-  // Precompute Floor G quota indicator slots
-  const floorGSlots = floorSlotsMap['G']?.slots || [];
-  const vipGSlots = floorGSlots.filter(s => s.tier === 'VIP').sort((a, b) => a.code.localeCompare(b.code));
-  const popularGSlots = floorGSlots.filter(s => s.tier === 'POPULAR').sort((a, b) => a.code.localeCompare(b.code));
-  const regularGSlots = floorGSlots.filter(s => s.tier === 'REGULAR').sort((a, b) => a.code.localeCompare(b.code));
+  // Dynamically find monthly CAR floor
+  const carMonthlyFloor = floors.find(f => f.vehicleType === 'CAR' && f.customerType === 'MONTHLY');
+  const carMonthlySlots = carMonthlyFloor
+    ? floorSlotsMap[carMonthlyFloor.floorCode]?.slots ?? []
+    : [];
+  const vipGSlots = carMonthlySlots.filter(s => s.tier === 'VIP').sort((a, b) => a.code.localeCompare(b.code));
+  const popularGSlots = carMonthlySlots.filter(s => s.tier === 'POPULAR').sort((a, b) => a.code.localeCompare(b.code));
+  const regularGSlots = carMonthlySlots.filter(s => s.tier === 'REGULAR').sort((a, b) => a.code.localeCompare(b.code));
+
+  // Determine CAR quotas (fallback to flat quotas if structured response isn't loaded)
+  const quotasCar = quotas.CAR || quotas;
+  const vipSold = quotasCar.VIP?.sold || 0;
+  const popularSold = quotasCar.POPULAR?.sold || 0;
+  const regularSold = quotasCar.REGULAR?.sold || 0;
 
   const soldQuotaSlotCodes = new Set<string>();
-  const vipSold = quotas.VIP?.sold || 0;
   vipGSlots.slice(0, vipSold).forEach(s => soldQuotaSlotCodes.add(s.code));
-  const popularSold = quotas.POPULAR?.sold || 0;
   popularGSlots.slice(0, popularSold).forEach(s => soldQuotaSlotCodes.add(s.code));
-  const regularSold = quotas.REGULAR?.sold || 0;
   regularGSlots.slice(0, regularSold).forEach(s => soldQuotaSlotCodes.add(s.code));
+
+  // Dynamically find monthly MOTORBIKE floor
+  const motorbikeMonthlyFloor = floors.find(f => f.vehicleType === 'MOTORBIKE' && f.customerType === 'MONTHLY');
+  const motorbikeMonthlySlots = motorbikeMonthlyFloor
+    ? floorSlotsMap[motorbikeMonthlyFloor.floorCode]?.slots ?? []
+    : [];
+  const vip1Slots = motorbikeMonthlySlots.filter(s => s.tier === 'VIP').sort((a, b) => a.code.localeCompare(b.code));
+  const popular1Slots = motorbikeMonthlySlots.filter(s => s.tier === 'POPULAR').sort((a, b) => a.code.localeCompare(b.code));
+  const regular1Slots = motorbikeMonthlySlots.filter(s => s.tier === 'REGULAR').sort((a, b) => a.code.localeCompare(b.code));
+
+  // Determine MOTORBIKE quotas (fallback to default empty if not loaded)
+  const quotasMoto = quotas.MOTORBIKE || {
+    VIP: { capacity: 12, sold: 0, remaining: 12 },
+    POPULAR: { capacity: 16, sold: 0, remaining: 16 },
+    REGULAR: { capacity: 12, sold: 0, remaining: 12 }
+  };
+  const vipSoldM = quotasMoto.VIP?.sold || 0;
+  const popularSoldM = quotasMoto.POPULAR?.sold || 0;
+  const regularSoldM = quotasMoto.REGULAR?.sold || 0;
+
+  const soldQuotaSlotCodesM = new Set<string>();
+  vip1Slots.slice(0, vipSoldM).forEach(s => soldQuotaSlotCodesM.add(s.code));
+  popular1Slots.slice(0, popularSoldM).forEach(s => soldQuotaSlotCodesM.add(s.code));
+  regular1Slots.slice(0, regularSoldM).forEach(s => soldQuotaSlotCodesM.add(s.code));
 
   return (
     <div className={styles.container}>
@@ -290,13 +329,16 @@ export function FloorMapPage() {
         {floors.map(floor => {
           const floorData = floorSlotsMap[floor.floorCode];
           const slots = floorData?.slots ?? [];
+          const isCarMonthly = floor.customerType === 'MONTHLY' && floor.vehicleType === 'CAR';
+          const isMonthlyMotorbike = floor.customerType === 'MONTHLY' && floor.vehicleType === 'MOTORBIKE';
+
           const availCount = slots.filter(s => {
-            const isSoldQuota = floor.floorCode === 'G' && soldQuotaSlotCodes.has(s.code);
-            return !isSoldQuota && getSlotStatus(s, floor.floorCode) === 'AVAILABLE';
+            const isSoldQuota = (isCarMonthly && soldQuotaSlotCodes.has(s.code)) ||
+              (isMonthlyMotorbike && soldQuotaSlotCodesM.has(s.code));
+            return !isSoldQuota && getSlotStatus(s, floor.customerType === 'MONTHLY') === 'AVAILABLE';
           }).length;
           const rows = groupSlotsIntoDisplayRows(slots);
 
-          const isMonthlyMotorbike = floor.customerType === 'MONTHLY' && floor.vehicleType === 'MOTORBIKE';
           const vehicleIcon = floor.vehicleType === 'CAR' ? '🚗' : '🛵';
           const vehicleText = floor.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
           const customerText = floor.customerType === 'MONTHLY' ? 'Khách tháng' : 'Khách vãng lai';
@@ -312,7 +354,7 @@ export function FloorMapPage() {
                   </div>
                 </div>
                 <div className={styles.floorBadge}>
-                  {isMonthlyMotorbike 
+                  {isMonthlyMotorbike
                     ? `${slots.length}/${slots.length} sức chứa`
                     : `${availCount}/${slots.length} chỗ trống`
                   }
@@ -323,12 +365,12 @@ export function FloorMapPage() {
                 <div className={styles.floorNote}>
                   <span style={{ fontSize: '14px', lineHeight: 1 }}>ℹ️</span>
                   <p className={styles.floorNoteText}>
-                    Khách tháng được sử dụng khu vực này, không giữ cố định từng ô.
+                    Khách tháng được sử dụng khu vực theo gói đã đăng ký, không giữ cố định từng ô. Có thể đỗ tại vị trí trống bất kỳ trong phân hạng VIP, Phổ biến, hoặc Cơ bản.
                   </p>
                 </div>
               )}
 
-              {floor.floorCode === 'G' && floor.vehicleType === 'CAR' && floor.customerType === 'MONTHLY' && (
+              {isCarMonthly && (
                 <div className={styles.floorNote}>
                   <span style={{ fontSize: '14px', lineHeight: 1 }}>ℹ️</span>
                   <p className={styles.floorNoteText}>
@@ -356,9 +398,10 @@ export function FloorMapPage() {
                         <div className={styles.rowLabel}>{row.label}</div>
                         <div className={styles.slotsRow}>
                           {row.slots.map(slot => {
-                            const isSoldQuota = floor.floorCode === 'G' && soldQuotaSlotCodes.has(slot.code);
+                            const isSoldQuota = isCarMonthly && soldQuotaSlotCodes.has(slot.code);
+                            const isSoldQuotaM = isMonthlyMotorbike && soldQuotaSlotCodesM.has(slot.code);
                             return (
-                              <SlotCard key={slot.id} slot={slot} floor={floor} isSoldQuota={isSoldQuota} />
+                              <SlotCard key={slot.id} slot={slot} floor={floor} isSoldQuota={isSoldQuota || isSoldQuotaM} />
                             );
                           })}
                         </div>
@@ -368,8 +411,24 @@ export function FloorMapPage() {
                 </div>
               </div>
 
-              {/* Render Legend Card only on Floor G to match VIP/Popular indicators */}
-              {floor.floorCode === 'G' && floor.vehicleType === 'CAR' && floor.customerType === 'MONTHLY' && (
+              {/* Tier legend — motorbike monthly floor */}
+              {isMonthlyMotorbike && (
+                <div className={styles.tierLegend}>
+                  <div className={styles.tierLegendItem}>
+                    <span>👑 VIP — Vị trí ưu tiên</span>
+                  </div>
+                  <div className={styles.tierLegendItem}>
+                    <span>⭐ Phổ biến — Vị trí được ưa chuộng</span>
+                  </div>
+                  <div className={styles.tierLegendItem}>
+                    <span className={styles.tierIndicatorBasic} />
+                    <span>Cơ bản — Vị trí tiêu chuẩn</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tier legend — car monthly floor (floor G) */}
+              {isCarMonthly && (
                 <div className={styles.tierLegend}>
                   <div className={styles.tierLegendItem}>
                     <span>👑 VIP — Vị trí ưu tiên</span>
