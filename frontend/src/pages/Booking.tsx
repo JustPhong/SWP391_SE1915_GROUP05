@@ -106,7 +106,8 @@ export function BookingPage() {
   // ── Success screen ───────────────────────────────────────
   if (bookingSuccess) {
     const { booking, vehicle } = bookingSuccess;
-    const floorName = booking.slot?.floor?.name || '';
+    const rawFloor = booking.slot?.floor?.name || '';
+    const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, '');
     const slotCode = booking.slot?.code || '';
 
     return (
