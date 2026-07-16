@@ -1,5 +1,5 @@
 import api from './api';
-import type { OccupancyReport, RevenueReport } from '../types';
+import type { OccupancyReport, RevenueReport } from '../types/index';
 
 export const reportService = {
   getOccupancy: async (floor?: number) => {
