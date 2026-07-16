@@ -62,22 +62,7 @@ const InfoIcon = ({ size = 16, className }: { size?: number; className?: string 
 // ── License Plate Formatter ──
 function formatPlateNumber(plate: string | null | undefined): string {
   if (!plate) return '—';
-  const clean = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (clean.length < 4) return plate.toUpperCase();
-
-  const match = clean.match(/^([0-9]{2}[A-Z]{1,2}[0-9]?)([0-9]+)$/);
-  if (match) {
-    const prefix = match[1];
-    const suffix = match[2];
-    if (suffix.length === 5) {
-      return `${prefix}-${suffix.substring(0, 3)}.${suffix.substring(3)}`;
-    } else if (suffix.length === 4) {
-      return `${prefix}-${suffix.substring(0, 2)}.${suffix.substring(2)}`;
-    } else {
-      return `${prefix}-${suffix}`;
-    }
-  }
-  return plate.toUpperCase();
+  return plate.trim().toUpperCase();
 }
 
 // ── Currency Formatter ──
@@ -346,7 +331,7 @@ export function StaffHistoryPage() {
               </>
             )}
           </div>
-          <span className={styles.kpiSub}>Số xe đã check-out</span>
+          <span className={styles.kpiSub}>Số xe đã rời bãi</span>
         </div>
 
         {/* KPI 4: Đặt chỗ trong kỳ */}
@@ -610,7 +595,7 @@ export function StaffHistoryPage() {
           /* Actual History Data Table */
           <>
             <div className={styles.tableHeader}>
-              <h2 className={styles.tableTitle}>Danh sách lịch sử gửi xe &amp; Đặt chỗ</h2>
+              <h2 className={styles.tableTitle}>Danh sách lịch sử gửi xe và Đặt chỗ</h2>
               <span className={styles.tableCount}>
                 Hiển thị {startIndex + 1}–{endIndex} trong {totalResults} kết quả
               </span>
@@ -620,7 +605,7 @@ export function StaffHistoryPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th className={styles.th}>LOẠI BẢN GHI</th>
+                    <th className={`${styles.th} ${styles.colRecordType}`}>LOẠI BẢN GHI</th>
                     <th className={styles.th}>BIỂN SỐ</th>
                     <th className={styles.th}>LOẠI KHÁCH</th>
                     <th className={styles.th}>TÀI XẾ</th>
@@ -711,7 +696,7 @@ export function StaffHistoryPage() {
                     return (
                       <tr key={`${r.recordType}-${r.id}`} className={styles.tr}>
                         {/* 1. LOẠI BẢN GHI */}
-                        <td className={styles.td}>
+                        <td className={`${styles.td} ${styles.colRecordType}`}>
                           {isBooking ? (
                             <span className={`${styles.badgeRecordType} ${styles.badgeRecordBooking}`}>
                               <CalendarIcon size={14} />
@@ -756,7 +741,7 @@ export function StaffHistoryPage() {
                               <span style={{ fontWeight: 700, color: '#1E3A5F' }}>
                                 {r.driverName}
                               </span>
-                              <span style={{ fontSize: '11px', color: '#64748B' }}>
+                              <span className={styles.driverEmail}>
                                 {r.driverEmail}
                               </span>
                             </div>
