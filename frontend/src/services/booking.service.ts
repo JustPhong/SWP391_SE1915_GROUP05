@@ -1,5 +1,5 @@
 import api from './api';
-import type { Booking } from '../types';
+import type { Booking } from '../types/index';
 
 export const bookingService = {
   create: async (data: { vehicleId: string; slotId?: string; expiresAt: string }) => {
