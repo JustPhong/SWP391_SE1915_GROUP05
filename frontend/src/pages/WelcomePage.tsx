@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
 import {
   HomeIcon,
   CalendarIcon,
@@ -59,6 +60,36 @@ const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_
 export const WelcomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [purchasePlanId, setPurchasePlanId] = useState('');
+  const [purchaseVtype, setPurchaseVtype] = useState<'CAR' | 'MOTORBIKE'>('CAR');
+
+  useEffect(() => {
+    const state = location.state as { reopenPlanId?: string; reopenVtype?: 'CAR' | 'MOTORBIKE' } | null;
+    if (state?.reopenPlanId && state?.reopenVtype && user) {
+      setPurchasePlanId(state.reopenPlanId);
+      setPurchaseVtype(state.reopenVtype);
+      setPurchaseModalOpen(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location, user]);
+
+  const handleSelectPackage = (planId: string, vtype: 'CAR' | 'MOTORBIKE') => {
+    if (!user) {
+      navigate('/login', {
+        state: {
+          redirectFrom: '/',
+          selectedPlanId: planId,
+          selectedVtype: vtype
+        }
+      });
+    } else {
+      setPurchasePlanId(planId);
+      setPurchaseVtype(vtype);
+      setPurchaseModalOpen(true);
+    }
+  };
 
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
@@ -475,7 +506,7 @@ export const WelcomePage: React.FC = () => {
         />
         <ProcessSection />
         <FeaturesSection />
-        <PricingSection navigate={navigate} />
+        <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
@@ -491,6 +522,12 @@ export const WelcomePage: React.FC = () => {
             onClose={() => setBookingSuccess(null)}
           />
         )}
+        <PackagePurchaseModal
+          isOpen={purchaseModalOpen}
+          onClose={() => setPurchaseModalOpen(false)}
+          planId={purchasePlanId}
+          vehicleType={purchaseVtype}
+        />
       </div>
     );
   }
@@ -681,7 +718,7 @@ export const WelcomePage: React.FC = () => {
           />
           <ProcessSection />
           <FeaturesSection />
-          <PricingSection navigate={navigate} onSelectPackage={() => setActiveTab('monthly')} />
+          <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
         </>
       ) : activeTab === 'vehicles' ? (
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
@@ -709,15 +746,7 @@ export const WelcomePage: React.FC = () => {
 
       {activeTab === 'booking' && (
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
-          {hasPackage ? (
-            <BookingPage />
-          ) : (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.75rem' }}>Tính năng dành cho khách gói tháng</h2>
-              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Đặt chỗ trước chỉ áp dụng cho khách đã đăng ký gói tháng. Vui lòng mua gói tháng để sử dụng.</p>
-              <button className={styles.btnPrimary} onClick={() => setActiveTab('monthly')}>Xem gói tháng</button>
-            </div>
-          )}
+          <BookingPage />
         </div>
       )}
 
@@ -829,6 +858,12 @@ export const WelcomePage: React.FC = () => {
           onClose={() => setBookingSuccess(null)}
         />
       )}
+      <PackagePurchaseModal
+        isOpen={purchaseModalOpen}
+        onClose={() => setPurchaseModalOpen(false)}
+        planId={purchasePlanId}
+        vehicleType={purchaseVtype}
+      />
     </div>
   );
 };
@@ -1114,9 +1149,15 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
   );
 }
 
-function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: () => void }) {
+function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: (planId: string, vtype: VType) => void }) {
   const [vtype, setVtype] = useState<VType>('MOTORBIKE');
-  const handleSelect = onSelectPackage ?? (() => navigate('/monthly-package'));
+  const handleSelect = (planId: string, planVtype: VType) => {
+    if (onSelectPackage) {
+      onSelectPackage(planId, planVtype);
+    } else {
+      navigate('/monthly-package');
+    }
+  };
   return (
     <section id="pricing" className={styles.section}>
       <div className={styles.sectionInner}>
@@ -1366,31 +1407,34 @@ const MOTO_TIER_PERKS: TierPerk[][] = [
 const CAR_TIER_PERKS: TierPerk[][] = [
   // CƠ BẢN (1 tháng)
   [
-    { icon: 'parking', text: 'Đỗ trong khu ô tô tháng' },
-    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'location', text: 'Sử dụng Khu Cơ bản' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
-    { icon: 'support', text: 'Hỗ trợ cơ bản' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
   // PHỔ BIẾN (3 tháng)
   [
     { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
-    { icon: 'location', text: 'Vị trí ưu tiên gần lối ra' },
-    { icon: 'camera', text: 'Camera giám sát 24/7' },
-    { icon: 'zap', text: 'Hỗ trợ nhanh' },
+    { icon: 'location', text: 'Sử dụng Khu Phổ biến' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
   ],
   // VIP (1 năm)
   [
     { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
-    { icon: 'key', text: 'Chỗ đỗ cố định riêng' },
-    { icon: 'zap', text: 'Làn check-in ưu tiên' },
-    { icon: 'crown', text: 'Hỗ trợ VIP' },
+    { icon: 'crown', text: 'Sử dụng Khu VIP' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe tại bất kỳ chỗ trống trong khu' },
   ],
 ];
 
 const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'CAO CẤP'];
 const CAR_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 
-function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () => void }) {
+function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (planId: string, vtype: VType) => void }) {
   const isCar = vtype === 'CAR';
   const groupClass = isCar ? styles.pricingGroupIconGreen : styles.pricingGroupIconBlue;
   const cardFeatured = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
@@ -1432,11 +1476,9 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
             const perks = tierPerks[idx];
             const tierLabel = tierLabels[idx];
             return (
-              <button
+              <div
                 key={pkg.id}
-                type="button"
                 className={`${styles.planCard} ${isFeatured ? `${styles.planCardFeatured} ${cardFeatured}` : ''}`}
-                onClick={onClickCard}
               >
                 {isFeatured && (
                   <span className={styles.planBadge}>★ Tiết kiệm nhất</span>
@@ -1496,12 +1538,14 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: () =>
                   ))}
                 </ul>
 
-                <span className={`${styles.planCta} ${isFeatured ? styles.planCtaGold : styles.planCtaOutline}`}>
-                  {isFeatured ? (
-                    <>Đăng ký ngay <span style={{ marginLeft: 6 }}>→</span></>
-                  ) : 'Chọn gói này'}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onClickCard(pkg.id, vtype)}
+                  className={`${styles.planCta} ${isFeatured ? styles.planCtaGold : styles.planCtaOutline}`}
+                >
+                  {'Chọn gói này'}
+                </button>
+              </div>
             );
           })}
         </div>

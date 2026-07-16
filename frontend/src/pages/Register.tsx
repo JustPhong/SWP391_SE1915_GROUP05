@@ -231,7 +231,7 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-      const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType, otpCode);
+      const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType, otpCode, form.phone);
       navigate(getRoleHomePath(user.role), { replace: true });
     } catch (err: unknown) {
       const message =
@@ -517,7 +517,7 @@ export function RegisterPage() {
               ? 'Đang gửi mã...'
               : otpStep
                 ? 'Xác nhận & Tạo tài khoản'
-                : 'Gửi mã xác nhận'}
+                : 'Đăng kí tài khoản'}
         </button>
 
         {otpStep && (

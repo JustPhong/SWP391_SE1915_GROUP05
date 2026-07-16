@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
 import { PersonIcon, LockIcon, EyeIcon, EyeOffIcon } from '../components/ui/Icons';
@@ -13,6 +13,9 @@ interface FormErrors {
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const state = location.state as { redirectFrom?: string; selectedPlanId?: string; selectedVtype?: string } | null;
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -47,7 +50,16 @@ export function LoginPage() {
 
     try {
       await login(form.email, form.password);
-      navigate('/dashboard-home');
+      if (state?.redirectFrom) {
+        navigate(state.redirectFrom, {
+          state: {
+            reopenPlanId: state.selectedPlanId,
+            reopenVtype: state.selectedVtype
+          }
+        });
+      } else {
+        navigate('/dashboard-home');
+      }
     } catch (err: unknown) {
       const isNetwork =
         !err ||
