@@ -1,5 +1,5 @@
 import api from './api';
-import type { AuthResponse, User } from '../types';
+import type { AuthResponse, User } from '../types/index';
 
 export const authService = {
   login: async (data: { email: string; password: string }) => {
@@ -11,6 +11,7 @@ export const authService = {
     fullName: string;
     email: string;
     password: string;
+    phoneNumber: string;
     plateNumber: string;
     vehicleType: 'MOTORBIKE' | 'CAR';
     otp: string;
