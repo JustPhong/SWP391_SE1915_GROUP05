@@ -19,7 +19,7 @@ import { MonthlyPackagePage } from './MonthlyPackage';
 import { BookingPage } from './Booking';
 import { FloorMapPage } from './FloorMap';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
-import type { ParkingSlot } from '../types';
+import type { ParkingSlot } from '../types/index';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
