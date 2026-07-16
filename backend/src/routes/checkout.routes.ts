@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticate);
 router.use(authorize('STAFF', 'MANAGER', 'ADMIN'));
 
+router.get('/lookup', checkoutController.lookup);
 router.get('/lookup/:plate', checkoutController.lookup);
 router.get('/parked', checkoutController.parked);
 router.post('/', requirePermission('checkout.process'), checkoutController.submit);

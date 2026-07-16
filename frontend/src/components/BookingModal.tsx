@@ -33,10 +33,16 @@ const C = {
 const BOOKING_DEPOSIT = 15000;
 
 type VehicleType = 'CAR' | 'MOTORBIKE';
+type CustomerType = 'MONTHLY' | 'CASUAL';
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: 'CAR', label: 'Ô tô' },
   { value: 'MOTORBIKE', label: 'Xe máy' },
+];
+
+const CUSTOMER_TYPES: { value: CustomerType; label: string; desc: string }[] = [
+  { value: 'MONTHLY', label: 'Khách tháng (Cư dân)', desc: 'Đã đăng ký gói tháng' },
+  { value: 'CASUAL', label: 'Khách vãng lai', desc: 'Đặt chỗ 1 lần, có phí cọc' },
 ];
 
 const VEHICLE_PROFILE_OPTIONS: Record<VehicleType, { label: string; models: string[] }[]> = {
@@ -114,6 +120,8 @@ export function BookingModal({
   const [vYear, setVYear] = useState<number | ''>(VEHICLE_YEARS[0]);
   const [vSeats, setVSeats] = useState<number | ''>(5);
 
+  const [customerType, setCustomerType] = useState<CustomerType>('CASUAL');
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -145,7 +153,7 @@ export function BookingModal({
     (v) => v.plateNumber.replace(/[^A-Z0-9]/g, '') === normalizedInput
   );
   const isNewVehicle = plateNumber.trim() !== '' && !selectedVehicle;
-  const isMonthly = selectedVehicle ? selectedVehicle.isMonthly : false;
+  const isMonthly = customerType === 'MONTHLY' || Boolean(selectedVehicle?.isMonthly);
 
   const resetVehicleProfile = () => {
     setVType('CAR');
@@ -391,6 +399,36 @@ export function BookingModal({
               </div>
 
               {vehicleInfo && <VehicleInfoCard vehicle={vehicleInfo} />}
+
+              {/* Customer type selector */}
+              <div style={{ marginBottom: '1rem' }}>
+                <span style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Loại khách
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {CUSTOMER_TYPES.map((opt) => {
+                    const active = customerType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setCustomerType(opt.value)}
+                        style={{
+                          flex: 1, padding: '0.75rem 0.85rem', borderRadius: 12,
+                          border: `1.5px solid ${active ? C.navy : C.gray200}`,
+                          background: active ? C.navy : C.white,
+                          color: active ? C.white : C.gray600,
+                          fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.95rem', fontWeight: 800 }}>{opt.label}</div>
+                        <div style={{ fontSize: '0.72rem', opacity: 0.85, marginTop: '0.15rem' }}>{opt.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {vehicles.length > 0 && (
 

@@ -12,7 +12,6 @@ import {
   HelpIcon,
   CalendarIcon,
   HistoryIcon,
-  SettingsIcon,
 } from './ui/Icons';
 import styles from '../styles/staff.module.css';
 
@@ -29,7 +28,6 @@ const staffNavItems = [
   { label: 'Check-out', path: '/staff/checkout', icon: LogoutIcon },
   { label: 'Sơ đồ tầng', path: '/staff/floor-map', icon: LayoutIcon },
   { label: 'Đặt chỗ', path: '/staff/bookings', icon: CalendarIcon },
-  { label: 'Tài khoản', path: '/profile', icon: SettingsIcon },
   { label: 'Báo cáo ca', path: '/staff/reports', icon: BellIcon },
   { label: 'Lịch sử', path: '/staff/history', icon: HistoryIcon },
 ];
@@ -87,7 +85,7 @@ export function StaffLayout({ children, title = 'Trang tổng quan', showGreetin
         <div className={styles.sidebarLogo}>
           <img src="/logo.png" alt="ParkSmart Logo" className={styles.sidebarLogoIcon} />
           <div className={styles.sidebarLogoText}>
-            <span className={styles.sidebarLogoName}>ParkSmart Vietnam</span>
+            <span className={styles.sidebarLogoName}>PARKING SYSTEM</span>
             <span className={styles.sidebarLogoSub}>Nhân viên trực ca</span>
           </div>
         </div>

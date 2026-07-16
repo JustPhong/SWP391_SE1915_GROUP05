@@ -4,9 +4,12 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 
 export const checkoutController = {
-  // GET /api/checkout/lookup/:plate
+  // GET /api/checkout/lookup?plate=51A-222.22
   lookup: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { plate } = req.params;
+    const plate = (req.query.plate as string) || (req.params.plate as string);
+    if (!plate) {
+      return res.status(400).json({ success: false, message: 'plate là bắt buộc.' });
+    }
     const result = await checkoutService.lookupPlate(plate);
     return res.status(200).json({ success: true, data: result });
   }),
