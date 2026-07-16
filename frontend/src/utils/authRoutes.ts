@@ -1,4 +1,4 @@
-import type { UserRole } from '../types';
+import type { UserRole } from '../types/index';
 
 export function getRoleHomePath(role: UserRole): string {
   if (role === 'ADMIN') return '/admin/users';
