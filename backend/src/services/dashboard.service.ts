@@ -106,7 +106,7 @@ export const dashboardService = {
     const recentCheckinData: RecentCheckin[] = recentCheckins.map((r) => ({
       plate: r.vehicle.plateNumber,
       vehicleType: r.vehicle.type,
-      slotCode: r.slot.code,
+      slotCode: r.slot?.code ?? (r.allowedTier ? `Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       checkInTime: r.checkInTime.toISOString(),
       parked: r.checkOutTime === null,
     }));
