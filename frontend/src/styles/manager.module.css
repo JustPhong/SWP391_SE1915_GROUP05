@@ -123,7 +123,11 @@
 
 /* Active nav item — strong blue highlight */
 .navItemActive {
-  background: rgba(37, 99, 235, 0.22);
+  background: linear-gradient(
+    90deg,
+    rgba(54, 101, 205, 0.85) 0%,
+    rgba(61, 96, 220, 0.90) 100%
+  );
   color: #fff;
   border-left-color: #2563EB;
   font-weight: 600;
