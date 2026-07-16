@@ -231,7 +231,15 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-      const user = await register(form.fullName, form.email, form.password, form.licensePlate, form.vehicleType, otpCode);
+      const user = await register(
+        form.fullName,
+        form.email,
+        form.password,
+        form.phone,
+        form.licensePlate,
+        form.vehicleType,
+        otpCode
+      );
       navigate(getRoleHomePath(user.role), { replace: true });
     } catch (err: unknown) {
       const message =
