@@ -34,7 +34,7 @@ export const checkoutController = {
       });
     }
 
-    const result = await checkoutService.submit({ plate, method });
+    const result = await checkoutService.submit({ plate, method, staffId: req.user!.id });
 
     return res.status(200).json({
       success: true,
@@ -47,9 +47,11 @@ export const checkoutController = {
     const {
       plate,
       method,
+      reason,
     } = req.body as {
       plate?: string;
       method?: 'CASH' | 'CARD' | 'EWALLET';
+      reason?: string;
     };
 
     if (!plate) {
@@ -59,10 +61,18 @@ export const checkoutController = {
       });
     }
 
+    if (!reason || reason.trim().length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lý do sự cố mất thẻ phải tối thiểu 5 ký tự.',
+      });
+    }
+
     const result = await checkoutService.submitLostTicket({
       plate,
       method,
       staffId: req.user!.id,
+      reason,
     });
 
     return res.status(200).json({
