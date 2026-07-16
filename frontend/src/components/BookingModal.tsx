@@ -153,7 +153,7 @@ export function BookingModal({
     (v) => v.plateNumber.replace(/[^A-Z0-9]/g, '') === normalizedInput
   );
   const isNewVehicle = plateNumber.trim() !== '' && !selectedVehicle;
-  const isMonthly = customerType === 'MONTHLY';
+  const isMonthly = customerType === 'MONTHLY' || Boolean(selectedVehicle?.isMonthly);
 
   const resetVehicleProfile = () => {
     setVType('CAR');
