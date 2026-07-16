@@ -1,5 +1,5 @@
 import api from './api';
-import type { Payment } from '../types';
+import type { Payment } from '../types/index';
 
 export const paymentService = {
   record: async (data: {
