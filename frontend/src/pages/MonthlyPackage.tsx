@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService as _vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
-import type { MonthlyPackage } from '../types';
+import type { MonthlyPackage } from '../types/index';
 import { PACKAGES, type PackagePlan } from '../constants/packages';
 import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
 import styles from '../styles/driver.module.css';
