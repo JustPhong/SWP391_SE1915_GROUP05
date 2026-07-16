@@ -1,5 +1,5 @@
 import api from '../services/api';
-import type { User } from '../types';
+import type { User } from '../types/index';
 
 export interface UpdateProfileInput {
   fullName?: string;

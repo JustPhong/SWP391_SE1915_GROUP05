@@ -212,127 +212,14 @@ export const checkInService = {
   },
 };
 
+// Deactivated in favor of canonical checkoutService in checkout.service.ts
+/*
 export const checkOutService = {
   async previewFee(recordId: string) {
-    const record = await prisma.checkInRecord.findUnique({
-      where: { id: recordId },
-      include: { slot: true, vehicle: true },
-    });
-    if (!record) throw new AppError(404, 'Check-in record not found');
-    if (record.checkOutTime) throw new AppError(400, 'Vehicle already checked out');
-
-    const checkIn = new Date(record.checkInTime);
-    const checkOut = new Date();
-    const config = await feeRuleService.getFeeConfig();
-    const { total, breakdown } = buildFeeResult(checkIn, checkOut, record.vehicle.type as 'CAR' | 'MOTORBIKE', config);
-
-    const creditable = await findCreditableDeposit(record.vehicleId);
-    const depositCredit = creditable ? Number(creditable.depositAmount) : 0;
-    const finalFee = Math.max(0, total - depositCredit);
-
-    return {
-      recordId: record.id,
-      plate: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? null,
-      vehicleType: record.vehicle.type as 'CAR' | 'MOTORBIKE',
-      isMonthly: record.isMonthly,
-      checkInTime: record.checkInTime.toISOString(),
-      now: checkOut.toISOString(),
-      durationMinutes: Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000),
-      fee: total,
-      breakdown,
-      depositCredit,
-      amountDue: finalFee,
-    };
+    ...
   },
-
   async checkOut(input: CheckOutInput) {
-    const record = await prisma.checkInRecord.findUnique({
-      where: { id: input.checkInRecordId },
-      include: { slot: true, vehicle: true },
-    });
-    if (!record) throw new AppError(404, 'Check-in record not found');
-    if (record.checkOutTime) throw new AppError(400, 'Vehicle already checked out');
-
-    if (record.isMonthly) {
-      const ops: Prisma.PrismaPromise<unknown>[] = [
-        prisma.checkInRecord.update({
-          where: { id: record.id },
-          data: { checkOutTime: new Date() },
-        }),
-      ];
-      if (record.slotId) {
-        ops.push(
-          prisma.parkingSlot.update({
-            where: { id: record.slotId },
-            data: { status: SLOT_AVAILABLE },
-          })
-        );
-      }
-      await prisma.$transaction(ops);
-      return {
-        recordId: record.id,
-        paymentRequired: false,
-        amountDue: 0,
-        note: 'Đã bao gồm trong gói tháng',
-      };
-    }
-
-    const checkIn = new Date(record.checkInTime);
-    const checkOut = new Date();
-    const config = await feeRuleService.getFeeConfig();
-    const { total: amount, breakdown } = calcFee(
-      checkIn,
-      checkOut,
-      record.vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
-    );
-
-    const creditable = await findCreditableDeposit(record.vehicleId);
-    const depositCredit = creditable ? Number(creditable.depositAmount) : 0;
-    const finalAmount = Math.max(0, amount - depositCredit);
-
-    const ops: Prisma.PrismaPromise<unknown>[] = [
-      prisma.checkInRecord.update({
-        where: { id: record.id },
-        data: { checkOutTime: new Date() },
-      }),
-      prisma.payment.create({
-        data: {
-          checkInRecordId: record.id,
-          amount: finalAmount,
-          method: input.paymentMethod,
-          type: 'SESSION',
-        },
-      }),
-    ];
-    if (record.slotId) {
-      ops.push(
-        prisma.parkingSlot.update({
-          where: { id: record.slotId },
-          data: { status: SLOT_AVAILABLE },
-        })
-      );
-    }
-    if (creditable) {
-      ops.push(
-        prisma.booking.update({
-          where: { id: creditable.id },
-          data: { depositStatus: 'REFUNDED' },
-        })
-      );
-    }
-    await prisma.$transaction(ops);
-
-    return {
-      recordId: record.id,
-      paymentRequired: true,
-      amountDue: finalAmount,
-      grossFee: amount,
-      depositCredit,
-      fee: finalAmount,
-      breakdown,
-      durationHours: Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60) * 10) / 10,
-    };
+    ...
   },
 };
+*/

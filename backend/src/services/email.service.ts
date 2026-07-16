@@ -27,7 +27,6 @@ export async function sendEmail(to: string, subject: string, html: string) {
   if (error) {
     // Log the error but do NOT throw — OTP is already stored in memory.
     // In development / free Resend plan, emails can only be sent to the owner's address.
-    // Users can use the bypass code "123456" as a fallback.
     console.warn(`[Email] Resend could not deliver to ${to}:`, error.message);
     console.warn('[Email] Tip: verify a domain at resend.com/domains or send to the Resend account email only.');
     return;
@@ -37,7 +36,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
 }
 
 export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
-  console.log(`[OTP] Code for ${to}: ${otp}  ← (also works: 123456 as bypass)`);
+  console.log(`[OTP] Code for ${to}: ${otp}`);
   const subject = 'Mã xác thực OTP - ParkSmart';
   const greeting = fullName ? `Xin chào <strong>${fullName}</strong>,` : 'Xin chào,';
   const html = `

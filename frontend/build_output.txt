@@ -1,9 +1,0 @@
-
-> parking-system-frontend@1.0.0 build
-> tsc && vite build
-
-src/pages/CheckIn.tsx(221,10): error TS6133: 'IconPlate' is declared but its value is never read.
-src/pages/CheckIn.tsx(230,10): error TS6133: 'IconShipping' is declared but its value is never read.
-src/pages/CheckIn.tsx(685,9): error TS6133: 'handleSnapshotClick' is declared but its value is never read.
-src/pages/CheckIn.tsx(1210,45): error TS2322: Type '{ size: number; color: string; }' is not assignable to type 'IntrinsicAttributes & { size?: number | undefined; }'.
-  Property 'color' does not exist on type 'IntrinsicAttributes & { size?: number | undefined; }'.
