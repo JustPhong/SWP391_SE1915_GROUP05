@@ -11,6 +11,16 @@ export interface Vehicle {
   ownerName?: string;
   ownerPhone?: string;
   ownerEmail?: string;
+  monthlyPackage?: {
+    id: string;
+    status: string;
+    expiryDate: string;
+    startDate?: string;
+    planName?: string;
+    price?: number;
+    allowedTier?: string;
+    slot?: any;
+  };
 }
 
 export interface ParkingSlot {
@@ -30,3 +40,6 @@ export interface User {
   role: string;
   phone?: string;
 }
+
+export type UserRole = 'ADMIN' | 'MANAGER' | 'STAFF' | 'DRIVER';
+export type VehicleType = 'MOTORBIKE' | 'CAR';
