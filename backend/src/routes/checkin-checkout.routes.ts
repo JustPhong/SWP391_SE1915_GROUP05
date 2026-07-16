@@ -7,7 +7,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware';
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('STAFF', 'MANAGER'));
+router.use(authorize('STAFF', 'MANAGER', 'ADMIN'));
    
 router.post('/in', checkInSchema, validate, checkInController.checkIn);
 router.get('/active', checkInController.getActiveRecords);
