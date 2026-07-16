@@ -37,7 +37,7 @@
 .subtitle {
   margin: 4px 0 0 0;
   font-size: 14px;
-  color: #64748B;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   font-weight: 500;
 }
 
@@ -94,7 +94,7 @@
 .kpiLabel {
   font-size: 13px;
   font-weight: 700;
-  color: #64748B;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 8px;
@@ -128,7 +128,7 @@
 .kpiSub {
   margin-top: 6px;
   font-size: 12px;
-  color: #94A3B8;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   font-weight: 500;
 }
 
@@ -183,7 +183,7 @@
 .filterLabel {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -191,7 +191,7 @@
 .filterInput,
 .filterSelect {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: 10px;
   border: 1.5px solid #E2E8F0;
   font-size: 14px;
@@ -201,10 +201,11 @@
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.15s ease-in-out;
+  height: 38px; /* control height */
 }
 
 .filterInput::placeholder {
-  color: #94A3B8;
+  color: #A0AEC0; /* slightly lighter neutral gray placeholder */
 }
 
 .filterInput:focus,
@@ -219,7 +220,9 @@
 }
 
 .btnSubmit {
-  padding: 11px 20px;
+  height: 38px; /* control height */
+  box-sizing: border-box;
+  padding: 0 20px;
   border-radius: 10px;
   border: none;
   background-color: #1E3A5F;
@@ -229,6 +232,9 @@
   cursor: pointer;
   transition: background-color 0.15s ease-in-out;
   box-shadow: 0 2px 4px rgba(30, 58, 95, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btnSubmit:hover {
@@ -241,15 +247,20 @@
 }
 
 .btnReset {
-  padding: 10px 16px;
+  height: 38px; /* control height */
+  box-sizing: border-box;
+  padding: 0 16px;
   border-radius: 10px;
   border: 1.5px solid #E2E8F0;
   background-color: #FFFFFF;
-  color: #64748B;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btnReset:hover {
@@ -260,7 +271,7 @@
 
 .filterSupportText {
   font-size: 11px;
-  color: #94A3B8;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   font-weight: 500;
   margin-top: -4px;
 }
@@ -295,7 +306,7 @@
 
 .tableCount {
   font-size: 13px;
-  color: #64748B;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   font-weight: 500;
 }
 
@@ -314,7 +325,7 @@
   padding: 12px 16px;
   font-size: 11px;
   font-weight: 700;
-  color: #1E3A5F;
+  color: #5A6E85; /* slightly lighter neutral gray header text */
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1.5px solid #E2E8F0;
@@ -339,6 +350,11 @@
 }
 
 /* ── Custom Columns width rules to prevent wrapping ── */
+.colRecordType {
+  white-space: nowrap;
+  min-width: 125px; /* Prevent Lượt gửi xe/Đặt chỗ from wrapping */
+}
+
 .colPlate {
   white-space: nowrap;
   font-weight: 800;
@@ -362,6 +378,11 @@
   white-space: nowrap;
 }
 
+.driverEmail {
+  font-size: 11px;
+  color: #7C8B9E; /* slightly lighter neutral gray */
+}
+
 /* ── Badges ── */
 .plateBadge {
   font-family: monospace;
@@ -374,6 +395,7 @@
   border-radius: 6px;
   letter-spacing: 0.03em;
   display: inline-block;
+  white-space: nowrap; /* Prevent license plate wrapping */
 }
 
 .badgeRecordType {
@@ -384,6 +406,7 @@
   border-radius: 12px;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap; /* Prevent wrapping of record type labels */
 }
 
 .badgeRecordParking {
@@ -402,7 +425,7 @@
   padding: 2px 6px;
   border-radius: 4px;
   display: inline-block;
-  white-space: nowrap;
+  white-space: nowrap; /* Prevent wrapping of customer type */
 }
 
 .badgeMonthly {
@@ -423,6 +446,7 @@
   padding: 2px 6px;
   border-radius: 8px;
   display: inline-block;
+  white-space: nowrap; /* Prevent wrapping of vehicle type (Ô tô, Xe máy) */
 }
 
 .badgeCar {
@@ -444,7 +468,7 @@
   border-radius: 20px;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  white-space: nowrap; /* Prevent status badge wrapping */
 }
 
 .dot {
@@ -532,7 +556,7 @@
 }
 
 .legendDesc {
-  color: #64748B;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   font-weight: 500;
 }
 
@@ -650,7 +674,7 @@
 
 .stateDesc {
   font-size: 13.5px;
-  color: #64748B;
+  color: #7C8B9E; /* slightly lighter neutral gray */
   margin: 0;
   font-weight: 500;
 }
