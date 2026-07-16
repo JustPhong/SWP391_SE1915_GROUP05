@@ -20,9 +20,15 @@ export const submitCheckinSchema = [
     .isIn(['monthly', 'casual'])
     .withMessage('Loại khách không hợp lệ'),
   body('slotCode')
-    .trim()
-    .notEmpty()
-    .withMessage('Mã slot không được để trống'),
+    .custom((value, { req }) => {
+      if (req.body.customerType === 'monthly' && req.body.vehicleType === 'CAR') {
+        return true;
+      }
+      if (!value || value.trim() === '') {
+        throw new Error('Mã slot không được để trống');
+      }
+      return true;
+    }),
   body('isMonthly')
     .isBoolean()
     .withMessage('isMonthly phải là boolean'),

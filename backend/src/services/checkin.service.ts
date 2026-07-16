@@ -18,6 +18,7 @@ export interface LookupResult {
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
+  allowedTier?: string | null;
   // Owner / customer info
   ownerName?: string | null;
   ownerPhone?: string | null;
@@ -40,7 +41,7 @@ export interface SubmitCheckinInput {
   plate: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
   customerType: 'monthly' | 'casual';
-  slotCode: string;
+  slotCode?: string;
   isMonthly: boolean;
 }
 
@@ -49,6 +50,11 @@ export interface SubmitCheckinResult {
   plate: string;
   slotCode: string;
   checkInTime: string;
+  accessGranted?: boolean;
+  floorCode?: string;
+  allowedTier?: string | null;
+  zoneName?: string | null;
+  message?: string;
 }
 
 export const checkinService = {
@@ -107,7 +113,7 @@ export const checkinService = {
       return {
         ...baseResult,
         alreadyParked: true,
-        slotCode: activeRecord.slot.code,
+        slotCode: activeRecord.slot?.code ?? (activeRecord.allowedTier ? `Khu ${activeRecord.allowedTier === 'VIP' ? 'VIP' : activeRecord.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       };
     }
 
@@ -128,6 +134,7 @@ export const checkinService = {
       fixedSlot: pkg.slot?.code ?? null,
       packageExpiry: pkg.expiryDate.toISOString(),
       isExpired,
+      allowedTier: pkg.allowedTier ?? null,
     };
   },
 
@@ -182,13 +189,6 @@ export const checkinService = {
     const { plate, vehicleType, slotCode, isMonthly } = input;
     const normalizedPlate = normalizePlate(plate);
 
-
-    // Resolve slot by code
-    const slot = await prisma.parkingSlot.findUnique({ where: { code: slotCode } });
-    if (!slot) throw new AppError(404, 'Slot không tìm thấy');
-    if (slot.status !== SLOT_AVAILABLE) throw new AppError(409, 'Slot không còn trống');
-
-    // Resolve vehicle by plate; create walk-in vehicle if casual and not found
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-.\s]/g, '');
     let vehicle = await prisma.vehicle.findFirst({
@@ -198,16 +198,60 @@ export const checkinService = {
           { plateNumber: stripped },
         ],
       },
+      include: {
+        monthlyPackage: true,
+      },
     });
+
+    if (isMonthly && vehicleType === 'CAR') {
+      if (!vehicle) {
+        throw new AppError(400, 'Xe chưa đăng ký trong hệ thống');
+      }
+
+      const pkg = vehicle.monthlyPackage;
+      if (!pkg || pkg.status !== PKG_ACTIVE || new Date(pkg.expiryDate) < new Date()) {
+        throw new AppError(400, 'Gói tháng đã hết hạn hoặc không tồn tại');
+      }
+
+      const allowedTier = pkg.allowedTier;
+      const zoneName = allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
+
+      const checkInTime = new Date();
+      await prisma.checkInRecord.create({
+        data: {
+          vehicleId: vehicle.id,
+          slotId: null,
+          checkInTime,
+          isMonthly: true,
+          allowedTier,
+        },
+      });
+
+      return {
+        ok: true,
+        plate: normalizedPlate,
+        slotCode: `Khu ${allowedTier === 'VIP' ? 'VIP' : allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
+        checkInTime: checkInTime.toISOString(),
+        accessGranted: true,
+        floorCode: 'G',
+        allowedTier,
+        zoneName,
+        message: `Vui lòng di chuyển vào ${zoneName} và đỗ tại vị trí trống phù hợp.`,
+      };
+    }
+
+    if (!slotCode) throw new AppError(400, 'Mã slot không được để trống');
+    const slot = await prisma.parkingSlot.findUnique({ where: { code: slotCode } });
+    if (!slot) throw new AppError(404, 'Slot không tìm thấy');
+    if (slot.status !== SLOT_AVAILABLE) throw new AppError(409, 'Slot không còn trống');
 
     if (!vehicle) {
       if (isMonthly) {
         throw new AppError(400, 'Xe chưa đăng ký trong hệ thống');
       }
 
-      // Find or create the walk-in system user
       const walkinUser = await findOrCreateWalkinUser();
-      vehicle = await prisma.vehicle.create({
+      const newVehicle = await prisma.vehicle.create({
         data: {
           plateNumber: cleaned,
           type: vehicleType,
@@ -215,20 +259,19 @@ export const checkinService = {
           ownerId: walkinUser.id,
         },
       });
-
+      vehicle = { ...newVehicle, monthlyPackage: null } as any;
     }
 
-    // Create check-in record + mark slot occupied in a transaction
     const checkInTime = new Date();
 
     await prisma.$transaction([
       prisma.parkingSlot.update({
         where: { id: slot.id },
-        data: { status: 'OCCUPIED', assignedVehicleId: vehicle.id },
+        data: { status: 'OCCUPIED', assignedVehicleId: vehicle!.id },
       }),
       prisma.checkInRecord.create({
         data: {
-          vehicleId: vehicle.id,
+          vehicleId: vehicle!.id,
           slotId: slot.id,
           checkInTime,
           isMonthly,
@@ -242,7 +285,6 @@ export const checkinService = {
       slotCode,
       checkInTime: checkInTime.toISOString(),
     };
-
   },
 };
 
