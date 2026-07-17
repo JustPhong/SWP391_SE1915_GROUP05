@@ -83,13 +83,13 @@ export const monthlyPackageService = {
       let resolvedSlotId: string | null = null;
       let allowedTierValue: string | null = null;
 
+      const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
+      const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+      const resolvedTier = getTierFromPlan(input.planId ?? null, durationDays);
+
       if (vehicleType === VEHICLE_CAR) {
         // CAR monthly packages DO NOT pick a physical slot.
         // Determine zone tier based on planName/duration
-        const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
-        const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
-        const resolvedTier = getTierFromPlan(input.planId ?? null, durationDays);
-
         // Check quota: VIP: 4, POPULAR: 8, REGULAR: 8
         const soldCount = await tx.monthlyPackage.count({
           where: {
@@ -108,9 +108,27 @@ export const monthlyPackageService = {
         }
 
         allowedTierValue = resolvedTier;
+      } else if (vehicleType === VEHICLE_MOTORBIKE) {
+        // MOTORBIKE monthly packages also use tiered areas.
+        // Check quota: VIP: 12, POPULAR: 16, REGULAR: 12
+        const soldCount = await tx.monthlyPackage.count({
+          where: {
+            status: PKG_ACTIVE,
+            expiryDate: { gte: new Date() },
+            vehicle: { type: VEHICLE_MOTORBIKE },
+            allowedTier: resolvedTier,
+          },
+        });
+
+        const capacities = { VIP: 12, POPULAR: 16, REGULAR: 12 };
+        const capacity = capacities[resolvedTier];
+
+        if (soldCount >= capacity) {
+          throw new AppError(400, 'Hiện khu vực của gói này đã đủ số lượng đăng ký. Vui lòng chọn gói khác hoặc liên hệ hỗ trợ.');
+        }
+
+        allowedTierValue = resolvedTier;
       }
-      // MOTORBIKE branch: no fixed slot. resolvedSlotId stays null and
-      // input.slotId is intentionally ignored.
 
       const pkg = await tx.monthlyPackage.create({
         data: {
@@ -302,10 +320,15 @@ export const monthlyPackageService = {
   },
 
   async getZoneQuotas() {
-    const capacities = {
+    const capacitiesCAR = {
       VIP: 4,
       POPULAR: 8,
       REGULAR: 8,
+    };
+    const capacitiesMOTO = {
+      VIP: 12,
+      POPULAR: 16,
+      REGULAR: 12,
     };
 
     const activeCarPackages = await prisma.monthlyPackage.findMany({
@@ -320,7 +343,24 @@ export const monthlyPackageService = {
       },
     });
 
-    const soldCounts = {
+    const activeMotoPackages = await prisma.monthlyPackage.findMany({
+      where: {
+        status: PKG_ACTIVE,
+        expiryDate: { gte: new Date() },
+        vehicle: { type: VEHICLE_MOTORBIKE },
+      },
+      select: {
+        id: true,
+        allowedTier: true,
+      },
+    });
+
+    const soldCar = {
+      VIP: 0,
+      POPULAR: 0,
+      REGULAR: 0,
+    };
+    const soldMoto = {
       VIP: 0,
       POPULAR: 0,
       REGULAR: 0,
@@ -328,26 +368,67 @@ export const monthlyPackageService = {
 
     for (const pkg of activeCarPackages) {
       const tier = pkg.allowedTier as 'VIP' | 'POPULAR' | 'REGULAR';
-      if (tier && soldCounts[tier] !== undefined) {
-        soldCounts[tier]++;
+      if (tier && soldCar[tier] !== undefined) {
+        soldCar[tier]++;
+      }
+    }
+
+    for (const pkg of activeMotoPackages) {
+      const tier = pkg.allowedTier as 'VIP' | 'POPULAR' | 'REGULAR';
+      if (tier && soldMoto[tier] !== undefined) {
+        soldMoto[tier]++;
       }
     }
 
     return {
       VIP: {
-        capacity: capacities.VIP,
-        sold: soldCounts.VIP,
-        remaining: Math.max(0, capacities.VIP - soldCounts.VIP),
+        capacity: capacitiesCAR.VIP,
+        sold: soldCar.VIP,
+        remaining: Math.max(0, capacitiesCAR.VIP - soldCar.VIP),
       },
       POPULAR: {
-        capacity: capacities.POPULAR,
-        sold: soldCounts.POPULAR,
-        remaining: Math.max(0, capacities.POPULAR - soldCounts.POPULAR),
+        capacity: capacitiesCAR.POPULAR,
+        sold: soldCar.POPULAR,
+        remaining: Math.max(0, capacitiesCAR.POPULAR - soldCar.POPULAR),
       },
       REGULAR: {
-        capacity: capacities.REGULAR,
-        sold: soldCounts.REGULAR,
-        remaining: Math.max(0, capacities.REGULAR - soldCounts.REGULAR),
+        capacity: capacitiesCAR.REGULAR,
+        sold: soldCar.REGULAR,
+        remaining: Math.max(0, capacitiesCAR.REGULAR - soldCar.REGULAR),
+      },
+      CAR: {
+        VIP: {
+          capacity: capacitiesCAR.VIP,
+          sold: soldCar.VIP,
+          remaining: Math.max(0, capacitiesCAR.VIP - soldCar.VIP),
+        },
+        POPULAR: {
+          capacity: capacitiesCAR.POPULAR,
+          sold: soldCar.POPULAR,
+          remaining: Math.max(0, capacitiesCAR.POPULAR - soldCar.POPULAR),
+        },
+        REGULAR: {
+          capacity: capacitiesCAR.REGULAR,
+          sold: soldCar.REGULAR,
+          remaining: Math.max(0, capacitiesCAR.REGULAR - soldCar.REGULAR),
+        },
+      },
+      MOTORBIKE: {
+        VIP: {
+          capacity: capacitiesMOTO.VIP,
+          sold: soldMoto.VIP,
+          remaining: Math.max(0, capacitiesMOTO.VIP - soldMoto.VIP),
+        },
+        POPULAR: {
+          capacity: capacitiesMOTO.POPULAR,
+          sold: soldMoto.POPULAR,
+          remaining: Math.max(0, capacitiesMOTO.POPULAR - soldMoto.POPULAR),
+        },
+        REGULAR: {
+          capacity: capacitiesMOTO.REGULAR,
+          sold: soldMoto.REGULAR,
+          remaining: Math.max(0, capacitiesMOTO.REGULAR - soldMoto.REGULAR),
+        },
       },
     };
   },

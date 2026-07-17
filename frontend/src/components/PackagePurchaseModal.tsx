@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PACKAGES } from '../constants/packages';
+import { PACKAGES, getTierAreaLabel } from '../constants/packages';
 import { vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import { Link } from 'react-router-dom';
@@ -230,12 +230,7 @@ export function PackagePurchaseModal({
   };
 
   const getZoneText = () => {
-    if (vehicleType === 'MOTORBIKE') {
-      return 'Khu Xe máy (đỗ tự do tại các ô trống xe máy)';
-    }
-    if (planId === '1m') return 'Khu Cơ bản (Hạng REGULAR)';
-    if (planId === '3m') return 'Khu Phổ biến (Hạng POPULAR)';
-    return 'Khu VIP (Hạng VIP)';
+    return getTierAreaLabel(plan?.allowedTier);
   };
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);

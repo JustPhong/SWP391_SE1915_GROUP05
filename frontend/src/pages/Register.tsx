@@ -142,6 +142,7 @@ export function RegisterPage() {
 
   // Step 1: Send OTP
   const handleSendOtp = async () => {
+    if (otpSending) return;
     if (!validate()) return;
     setApiError('');
     setOtpSending(true);
@@ -167,6 +168,7 @@ export function RegisterPage() {
   // Resend OTP
   const handleResendOtp = async () => {
     if (otpCountdown > 0) return;
+    if (otpSending) return;
     setApiError('');
     setOtpSending(true);
     try {
@@ -218,6 +220,7 @@ export function RegisterPage() {
   // Step 2: Submit with OTP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!otpStep) {
       handleSendOtp();
       return;

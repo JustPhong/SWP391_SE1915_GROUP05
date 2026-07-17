@@ -2,6 +2,7 @@ import prisma from '../config/db';
 import { floorService } from './floor.service';
 import { slotSuggestionService } from './slotSuggestion.service';
 import { AppError } from '../utils/helpers';
+import { sendBookingEmail } from './email.service';
 
 const BOOKING_ACTIVE = 'ACTIVE';
 const BOOKING_FULFILLED = 'FULFILLED';
@@ -104,8 +105,28 @@ export const bookingService = {
     // 3. Transaction: tạo booking + payment cọc + reserve slot
     const booking = await prisma.$transaction(async (tx) => {
       const depositAmt = isVehicleMonthly ? 0 : BOOKING_DEPOSIT;
+
+      // Tạo mã đặt chỗ độc nhất dạng BK-XXXXXX
+      let bookingCode = '';
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      for (let attempt = 0; attempt < 5; attempt++) {
+        let tempCode = 'BK-';
+        for (let i = 0; i < 6; i++) {
+          tempCode += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const existing = await tx.booking.findUnique({ where: { id: tempCode } });
+        if (!existing) {
+          bookingCode = tempCode;
+          break;
+        }
+      }
+      if (!bookingCode) {
+        bookingCode = `BK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      }
+
       const newBooking = await tx.booking.create({
         data: {
+          id:              bookingCode,
           vehicleId:       vehicle.id,
           slotId:          suggestion.slotId,
           expectedArrival: input.expectedArrival,
@@ -127,7 +148,7 @@ export const bookingService = {
               },
             },
           },
-          vehicle: true,
+          vehicle: { include: { owner: true } },
           createdBy: { select: { id: true, fullName: true, email: true } },
         },
       });
@@ -155,6 +176,24 @@ export const bookingService = {
 
       return newBooking;
     });
+
+    // Gửi email xác nhận đặt chỗ (bất đồng bộ - fire-and-forget)
+    const emailTo = booking.vehicle?.owner?.email || booking.vehicle?.ownerEmail || booking.createdBy?.email;
+    const nameTo = booking.vehicle?.owner?.fullName || booking.vehicle?.ownerFullName || booking.createdBy?.fullName || 'Quý khách';
+
+    if (emailTo) {
+      sendBookingEmail(emailTo, nameTo, {
+        bookingId: booking.id,
+        plateNumber: booking.vehicle.plateNumber,
+        vehicleType: booking.vehicle.type as 'CAR' | 'MOTORBIKE',
+        slotCode: booking.slot.code,
+        floorName: booking.slot.floor.name,
+        expectedArrival: booking.expectedArrival,
+        depositAmount: Number(booking.depositAmount),
+      }).catch(err => {
+        console.error('[BookingEmail] Lỗi khi gửi email xác nhận đặt chỗ:', err);
+      });
+    }
 
     return booking;
   },

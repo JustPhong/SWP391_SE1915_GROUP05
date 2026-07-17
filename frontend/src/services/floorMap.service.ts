@@ -5,6 +5,22 @@ export interface FloorWithSlots extends Floor {
   slots: ParkingSlot[];
 }
 
+export interface TierQuota {
+  capacity: number;
+  sold: number;
+  remaining: number;
+}
+
+export type VehicleZoneQuotas = Record<'VIP' | 'POPULAR' | 'REGULAR' | string, TierQuota>;
+
+export interface ZoneQuotaResponse {
+  VIP: TierQuota;
+  POPULAR: TierQuota;
+  REGULAR: TierQuota;
+  CAR: VehicleZoneQuotas;
+  MOTORBIKE: VehicleZoneQuotas;
+}
+
 export const floorMapService = {
   getAllFloors: async (): Promise<Floor[]> => {
     const response = await api.get<{ success: boolean; data: Floor[] }>('/floors');
@@ -40,8 +56,8 @@ export const floorMapService = {
     return response.data.data;
   },
 
-  getZoneQuotas: async (): Promise<Record<string, { capacity: number; sold: number; remaining: number }>> => {
-    const response = await api.get<{ success: boolean; data: any }>('/monthly-packages/quotas');
+  getZoneQuotas: async (): Promise<ZoneQuotaResponse> => {
+    const response = await api.get<{ success: boolean; data: ZoneQuotaResponse }>('/monthly-packages/quotas');
     return response.data.data;
   },
 };

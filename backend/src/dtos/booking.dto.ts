@@ -28,5 +28,6 @@ export const createBookingSchema = [
 
 export const cancelBookingSchema = [
   param('id')
-    .isUUID().withMessage('Booking ID phải là UUID hợp lệ'),
+    .matches(/^(BK-[A-Z0-9]{6}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)
+    .withMessage('Mã đặt chỗ không hợp lệ'),
 ];

@@ -1406,26 +1406,30 @@ function PerkIcon({ name, color }: { name: string; color: string }) {
 interface TierPerk { icon: string; text: string; }
 
 const MOTO_TIER_PERKS: TierPerk[][] = [
-  // CƠ BẢN (1 tháng)
+  // 1 tháng
   [
-    { icon: 'parking', text: 'Đỗ ở ô trống bất kỳ' },
-    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'parking', text: 'Đỗ xe máy tại khu Cơ bản' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
-    { icon: 'support', text: 'Hỗ trợ cơ bản' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
-  // PHỔ BIẾN (3 tháng)
+  // 3 tháng
   [
-    { icon: 'star', text: 'Tất cả quyền lợi gói 1 tháng' },
-    { icon: 'shield', text: 'Khu xe ưu tiên' },
-    { icon: 'clock', text: 'Giữ chỗ giờ cao điểm' },
-    { icon: 'support', text: 'Hỗ trợ nhanh 24/7' },
+    { icon: 'parking', text: 'Đỗ xe máy tại khu Phổ biến' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
   ],
-  // CAO CẤP (1 năm)
+  // 1 năm
   [
-    { icon: 'star', text: 'Tất cả quyền lợi gói 3 tháng' },
-    { icon: 'shield', text: 'Khu xe có mái che' },
+    { icon: 'parking', text: 'Đỗ xe máy tại khu VIP' },
+    { icon: 'infinity', text: 'Ra vào không giới hạn' },
+    { icon: 'checklist', text: 'Không tính phí theo lượt' },
+    { icon: 'map', text: 'Xem sơ đồ tầng' },
+    { icon: 'camera', text: 'Camera giám sát 24/7' },
     { icon: 'zap', text: 'Ưu tiên check-in' },
-    { icon: 'refresh', text: 'Gia hạn giữ chỗ linh hoạt' },
   ],
 ];
 

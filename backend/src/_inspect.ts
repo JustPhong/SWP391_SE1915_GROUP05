@@ -10,4 +10,3 @@ import prisma from './config/db';
   }
   await prisma.$disconnect();
 })();
-   

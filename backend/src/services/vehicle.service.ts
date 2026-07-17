@@ -78,6 +78,7 @@ export const vehicleService = {
             id: true,
             status: true,
             expiryDate: true,
+            allowedTier: true,
           },
         },
         checkInRecords: {
