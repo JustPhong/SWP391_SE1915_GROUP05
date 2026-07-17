@@ -23,7 +23,7 @@ const C = {
 function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 
-function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { return `${getTierAreaLabel(pkg.allowedTier)} (Tầng G)`; } const rawFloor = pkg?.slot?.floor?.name || ''; const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, ''); const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
+function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { const tier = pkg.allowedTier; if (tier === 'VIP') return 'VIP'; if (tier === 'POPULAR') return 'Phổ biến'; if (tier === 'REGULAR') return 'Cơ bản'; } const rawFloor = pkg?.slot?.floor?.name || ''; const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, ''); const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 type VehicleType = 'CAR' | 'MOTORBIKE';
@@ -595,10 +595,10 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
                         <div>Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> – <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong></div>
-                        {detail.monthlyPackage.slot ? (
-                          <div>Vị trí cố định: <strong>Tầng {(detail.monthlyPackage.slot.floor?.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
-                        ) : detail.monthlyPackage.allowedTier ? (
+                        {detail.monthlyPackage.allowedTier ? (
                           <div>Khu vực đỗ xe: <strong>Tầng G · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
+                        ) : detail.monthlyPackage.slot ? (
+                          <div>Vị trí cố định: <strong>Tầng {(detail.monthlyPackage.slot.floor?.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
                         ) : null}
                         <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 800, color: '#FCD34D', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
                       </div>
