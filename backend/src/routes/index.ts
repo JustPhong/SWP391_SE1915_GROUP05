@@ -18,6 +18,7 @@ import parkingOverviewRoutes from './parking-overview.routes';
 import feeRuleRoutes from './fee-rule.routes';
 import auditLogRoutes from './audit-log.routes';
 import publicRoutes from './public.routes';
+import checkinImageRoutes from './checkin-image.routes';
 
 const router = Router();
    
@@ -33,6 +34,7 @@ router.use('/slots', slotRoutes);
 router.use('/floors', floorRoutes);
 router.use('/checkin', checkinRoutes);
 router.use('/checkout', checkoutRoutes);
+router.use('/checkin-media', checkinImageRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/admin/users', adminUserRoutes);
 router.use('/admin/permissions', permissionRoutes);

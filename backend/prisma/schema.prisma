@@ -112,11 +112,16 @@ model CheckInRecord {
   checkInTime    DateTime     @default(now())
   checkOutTime   DateTime?
   isMonthly      Boolean      @default(false)
+  frontImageUrl  String?      @db.NVarChar(500)
+  rearImageUrl   String?      @db.NVarChar(500)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   checkedInById  String?
   checkedOutById String?
   isLostTicket   Boolean      @default(false)
+  lostTicketReason    String?      @db.NVarChar(500)
+  lostTicketFullName  String?      @db.NVarChar(100)
+  lostTicketPhone     String?      @db.NVarChar(20)
   status         String       @default("PARKING") @db.NVarChar(30)
   allowedTier    String?      @db.NVarChar(30)
   checkedInBy    User?        @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -150,6 +155,8 @@ model Payment {
   @@index([paidAt])
   @@index([checkInRecordId])
   @@index([monthlyPackageId])
+  
+  @@unique([checkInRecordId, type])
 }
 
 model Permission {
