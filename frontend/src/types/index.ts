@@ -33,6 +33,7 @@ export interface Vehicle {
     id: string;
     status: string;
     expiryDate: string;
+    allowedTier?: 'VIP' | 'POPULAR' | 'REGULAR' | null;
     payments?: Array<{
       id: string;
       status: string;
