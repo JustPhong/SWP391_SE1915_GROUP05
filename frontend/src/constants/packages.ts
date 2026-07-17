@@ -25,6 +25,21 @@ export const getTierAreaLabel = (
   }
 };
 
+export const getPackageTierTitle = (
+  tier?: 'VIP' | 'POPULAR' | 'REGULAR' | null
+): string => {
+  switch (tier) {
+    case 'REGULAR':
+      return 'Gói Cơ bản';
+    case 'POPULAR':
+      return 'Gói Phổ biến';
+    case 'VIP':
+      return 'Gói VIP';
+    default:
+      return 'Gói tháng';
+  }
+};
+
 export interface CasualTimeBlock {
   label: string;
   hours: string;
