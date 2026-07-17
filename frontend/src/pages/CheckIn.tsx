@@ -5,6 +5,7 @@ import {
   getAvailableSlots,
   submitCheckIn,
   getCheckinStats,
+  uploadCheckinImage,
   type LookupResult,
   type AvailableSlot,
   type CheckinStats,
@@ -628,33 +629,75 @@ export function CheckInPage() {
     const plate = plateInput.trim().toUpperCase();
     if (!plate) return;
     const isCasual = pageState === 'casual';
+    const isMonthly = lookupData?.customerType === 'monthly' && !isCasual;
     const isMotorbikeCasual = isCasual && vehicleType === 'MOTORBIKE';
+
+    // Validation: casual customers need slot (except motorbike which auto-assigns)
     if (isCasual && !isMotorbikeCasual && !selectedSlot) return;
 
     setApiError('');
     setSubmitting(true);
 
     try {
-      const isMonthly = lookupData?.customerType === 'monthly' && !isCasual;
-      const slotCode = isCasual
-        ? (isMotorbikeCasual ? motorbikeAutoSlot : selectedSlot)
-        : (lookupData?.fixedSlot ?? 'G-01');
+      // Upload images first if any
+      let frontImageUrl: string | undefined;
+      let rearImageUrl: string | undefined;
+
+      if (frontImage) {
+        const frontUpload = await uploadCheckinImage({
+          image: frontImage,
+          plateNumber: plate,
+        });
+        frontImageUrl = frontUpload.imageUrl;
+      }
+
+      if (rearImage) {
+        const rearUpload = await uploadCheckinImage({
+          image: rearImage,
+          plateNumber: plate,
+        });
+        rearImageUrl = rearUpload.imageUrl;
+      }
+
+      // For monthly customers (CAR or MOTORBIKE), no slotCode needed - backend handles tier-based access
+      // For casual customers, slotCode is required
+      const slotCode = isMonthly
+        ? undefined
+        : (isMotorbikeCasual ? (motorbikeAutoSlot ?? undefined) : (selectedSlot ?? undefined));
       const result = await submitCheckIn({
         plateNumber: plate,
-        slotCode: slotCode ?? 'G-01',
+        slotCode,
         vehicleType,
         isMonthly,
+        frontImageUrl,
+        rearImageUrl,
       });
+
+      if (frontImageUrl || rearImageUrl) {
+        console.log('Check-in images saved:', { frontImageUrl, rearImageUrl });
+      }
+
       setSuccessData(result);
       setPageState('idle');
       setLookupData(null);
       setSelectedSlot(null);
       setMotorbikeAutoSlot(null);
       setPlateInput('');
+      setFrontImage(null);
+      setRearImage(null);
+      if (frontPreview) URL.revokeObjectURL(frontPreview);
+      if (rearPreview) URL.revokeObjectURL(rearPreview);
+      setFrontPreview(null);
+      setRearPreview(null);
       const fresh = await getCheckinStats();
       setStats(fresh);
-    } catch {
-      setApiError('Check-in thất bại. Vui lòng thử lại.');
+    } catch (error: any) {
+      // Handle expired monthly package when user tries to check in without converting to casual
+      if (error?.status === 400 && error?.message?.includes('hết hạn')) {
+        setApiError(`Gói tháng đã hết hạn (${expiryLabel}). Vui lòng chuyển sang khách lẻ hoặc gia hạn gói.`);
+      } else {
+        setApiError('Check-in thất bại. Vui lòng thử lại.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -840,10 +883,142 @@ export function CheckInPage() {
           {/* ══ LEFT — Workflow ═══════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* Step 1: Vehicle type */}
-            <Card title="Bước 1 · Chọn loại phương tiện">
+            {/* Step 1: Plate recognition/search */}
+            <Card title="Bước 1 · Nhận diện biển số">
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={plateInput}
+                  onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setApiError(''); setPlateError(''); }}
+                  onBlur={handleBlur}
+                  onKeyDown={handleKeyDown}
+                  placeholder="VD: 51A-11111"
+                  disabled={searching}
+                  style={{
+                    flex: 1,
+                    minWidth: 200,
+                    padding: '0.65rem 0.85rem',
+                    border: `1.5px solid ${plateError ? C.redBorder : C.border}`,
+                    borderRadius: 10,
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    fontFamily: "'Consolas','Courier New',monospace",
+                    color: C.gray800,
+                    background: C.white,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    letterSpacing: '0.04em',
+                  }}
+                />
+                {plateError && (
+                  <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: C.red }}>
+                    {plateError}
+                  </p>
+                )}
+                <button
+                  onClick={handleSearch}
+                  disabled={!isPlateValid(plateInput, vehicleType) || searching}
+                  style={{
+                    padding: '0.65rem 1rem',
+                    background: isPlateValid(plateInput, vehicleType) && !searching ? C.navy : '#E5E7EB',
+                    color: isPlateValid(plateInput, vehicleType) && !searching ? C.white : '#9CA3AF',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: isPlateValid(plateInput, vehicleType) && !searching ? 'pointer' : 'not-allowed',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {searching ? 'Đang tra...' : <><IconSearch size={14} />Tra cứu</>}
+                </button>
+              </div>
+
+              {/* Plate display box */}
+              <div style={{
+                border: `2px dashed ${C.gray200}`,
+                borderRadius: 12,
+                padding: '1rem 1.25rem',
+                background: '#FAFBFF',
+                textAlign: 'center',
+                minHeight: 70,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                flexDirection: 'column',
+              }}>
+                {lookupData ? (
+                  <>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '1.4rem',
+                      fontWeight: 800,
+                      fontFamily: "'Consolas','Courier New',monospace",
+                      color: C.navy,
+                      letterSpacing: '0.06em',
+                    }}>
+                      {plateInput.trim().toUpperCase()}
+                    </p>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
+                      {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
+                      {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
+                    </p>
+                    <div style={{
+                      background: '#F0F4F8',
+                      border: '1px solid #D1D9E6',
+                      borderRadius: 10,
+                      padding: '0.7rem 0.85rem',
+                      marginTop: '0.6rem',
+                    }}>
+                      <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Thông tin xe
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.model ?? '—'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.year ?? '—'}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.seats != null ? `${lookupData.seats} chỗ` : '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Show owner info card for found customers */}
+                    <div style={{ width: '100%', marginTop: '0.75rem' }}>
+                      <OwnerInfoCard data={lookupData} />
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#94A3B8' }}>
+                    Nhập biển số và nhấn Tra cứu
+                  </p>
+                )}
+              </div>
+            </Card>
+
+            {/* Step 2: Vehicle type */}
+            <Card title="Bước 2 · Chọn loại phương tiện">
               <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-                {(
+                {(  
                   [
                     { value: 'CAR', label: 'Ô tô', Icon: IconCar },
                     { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
@@ -883,8 +1058,8 @@ export function CheckInPage() {
               </p>
             </Card>
 
-            {/* Step 2: Front/rear image capture */}
-            <Card title="Bước 2 · Chụp ảnh xe">
+            {/* Step 3: Front/rear image capture */}
+            <Card title="Bước 3 · Chụp ảnh xe">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 {/* Front Image */}
                 <div style={{
@@ -1104,81 +1279,89 @@ export function CheckInPage() {
               </div>
             </Card>
 
-            {/* Recognition result placeholder */}
-            <Card title="Kết quả nhận diện">
-              <div style={{
-                border: `2px dashed ${C.gray200}`,
-                borderRadius: 14,
-                padding: '1.25rem',
-                textAlign: 'center',
-                background: '#FAFBFF',
-              }}>
-                <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa có kết quả nhận diện</p>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
-                  Biển số sẽ hiển thị tại đây sau khi tính năng camera và nhận diện được kết nối.
-                </p>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12 }}>
-                  <button disabled style={{
-                    padding: '0.55rem 1rem', borderRadius: 8,
-                    border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
-                    fontSize: '0.78rem', fontWeight: 700, cursor: 'not-allowed', opacity: 0.6,
-                  }}>Chụp lại</button>
-                  <button disabled style={{
-                    padding: '0.55rem 1rem', borderRadius: 8,
-                    border: `1.5px solid ${C.border}`, background: C.white, color: C.gray500,
-                    fontSize: '0.78rem', fontWeight: 700, cursor: 'not-allowed', opacity: 0.6,
-                  }}>Chỉnh sửa</button>
-                </div>
-              </div>
-            </Card>
-
-            {/* Vehicle result placeholder */}
-            <Card title="Thông tin phương tiện">
+            {/* Step 4: Recognition result */}
+            <Card title="Bước 4 · Kết quả nhận diện">
               {lookupData ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{
-                    background: C.greenBg,
-                    border: `1.5px solid ${C.greenBorder}`,
-                    borderRadius: 10,
-                    padding: '0.6rem 0.85rem',
-                    display: 'inline-flex',
-                    alignItems: 'center', gap: 6,
-                    width: 'fit-content',
-                  }}>
-                    <IconCheck size={13} color={C.green} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803D' }}>
-                      {lookupData.customerType === 'monthly' ? 'KHÁCH THÁNG' : lookupData.found ? 'KHÁCH QUEN' : 'KHÁCH LẺ'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: lookupData.customerType === 'monthly' ? C.greenBg : '#EFF6FF',
+                      border: `1.5px solid ${lookupData.customerType === 'monthly' ? C.greenBorder : '#BFDBFE'}`,
+                      borderRadius: 20,
+                      padding: '0.3rem 0.75rem',
+                    }}>
+                      <IconCheck size={13} color={lookupData.customerType === 'monthly' ? C.green : C.navy} />
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: lookupData.customerType === 'monthly' ? '#15803D' : C.navy }}>
+                        {lookupData.customerType === 'monthly' ? 'KHÁCH THÁNG' : 'KHÁCH LẺ'}
+                      </span>
                     </span>
+                    {lookupData.customerType === 'monthly' && lookupData.fixedSlot && (
+                      <span style={{
+                        background: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        borderRadius: 12,
+                        padding: '0.15rem 0.5rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        color: C.navy,
+                      }}>
+                        Cố định: {lookupData.fixedSlot}
+                      </span>
+                    )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'}</div>
+                  <div style={{
+                    background: '#F0F4F8',
+                    border: '1px solid #D1D9E6',
+                    borderRadius: 10,
+                    padding: '0.7rem 0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Biển số</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.navy, fontFamily: "'Consolas','Courier New',monospace" }}>{plateInput.trim().toUpperCase()}</span>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.model ?? '—'}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Loại xe</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'}</span>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hãng / Mẫu</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'} {lookupData.model ? `/ ${lookupData.model}` : ''}</span>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.year ?? '—'}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Màu / Năm</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'} {lookupData.year ? `/ ${lookupData.year}` : ''}</span>
                     </div>
+                    {lookupData.seats != null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                        <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Số chỗ</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.seats} chỗ</span>
+                      </div>
+                    )}
                   </div>
                   <OwnerInfoCard data={lookupData} />
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                  <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa có dữ liệu phương tiện</p>
+                <div style={{
+                  border: `2px dashed ${C.gray200}`,
+                  borderRadius: 14,
+                  padding: '1.25rem',
+                  textAlign: 'center',
+                  background: '#FAFBFF',
+                }}>
+                  <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa có kết quả nhận diện</p>
                   <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
-                    Hệ thống sẽ tra cứu thông tin sau khi nhận diện được biển số.
+                    Biển số sẽ hiển thị tại đây sau khi tính năng camera và nhận diện được kết nối.
                   </p>
                 </div>
               )}
             </Card>
+
           </div>
 
           {/* ══ RIGHT — Information & Actions ══════════════════ */}
@@ -1207,7 +1390,7 @@ export function CheckInPage() {
                   { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
                   { label: 'Nguồn nhận diện', value: lookupData ? 'Tra cứu hệ thống' : 'Chưa kết nối' },
                   { label: 'Loại khách', value: lookupData
-                    ? (lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ')
+                    ? (lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ')
                     : 'Chưa xác định'
                   },
                   { label: 'Tầng / Khu vực', value: 'Chưa xác định' },
@@ -1670,7 +1853,7 @@ export function CheckInPage() {
                   {plateInput.trim().toUpperCase()}
                 </p>
                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
-                  {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : lookupData.found ? 'Khách quen' : 'Khách lẻ'}
+                  {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
                   {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
                 </p>
                 <div style={{

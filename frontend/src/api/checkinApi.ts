@@ -36,9 +36,11 @@ export interface CheckinStats {
 
 export interface CheckinSubmitPayload {
   plateNumber: string;
-  slotCode: string;
+  slotCode?: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
   isMonthly: boolean;
+  frontImageUrl?: string;
+  rearImageUrl?: string;
 }
 
 export interface CheckinSubmitResult {
@@ -107,17 +109,49 @@ export async function getCheckinStats(): Promise<CheckinStats> {
   }
 }
 
+export interface CheckinImageUploadPayload {
+  image: File;
+  plateNumber: string;
+  recordId?: string;
+}
+
+export interface CheckinImageUploadResult {
+  imageUrl: string;
+  filename: string;
+  plateNumber: string;
+}
+
+export async function uploadCheckinImage(
+  payload: CheckinImageUploadPayload
+): Promise<CheckinImageUploadResult> {
+  const formData = new FormData();
+  formData.append('image', payload.image);
+  if (payload.recordId) formData.append('recordId', payload.recordId);
+  formData.append('plateNumber', payload.plateNumber);
+
+  const response = await api.post<{ success: boolean; data: CheckinImageUploadResult }>(
+    '/checkin-media/upload-image',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }
+  );
+  return unwrap(response);
+}
+
 export async function submitCheckIn(
   payload: CheckinSubmitPayload
 ): Promise<CheckinSubmitResult> {
   try {
-    const body = {
+    const body: Record<string, unknown> = {
       plate: payload.plateNumber,
       vehicleType: payload.vehicleType,
       customerType: payload.isMonthly ? 'monthly' : 'casual',
       slotCode: payload.slotCode,
       isMonthly: payload.isMonthly,
     };
+    if (payload.frontImageUrl) body.frontImageUrl = payload.frontImageUrl;
+    if (payload.rearImageUrl) body.rearImageUrl = payload.rearImageUrl;
     const response = await api.post<{ success: boolean; data: CheckinSubmitResult }>(
       '/checkin',
       body
