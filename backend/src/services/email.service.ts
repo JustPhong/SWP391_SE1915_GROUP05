@@ -1,7 +1,9 @@
+import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { config } from '../config';
 
 let resend: Resend | null = null;
+let nodemailerTransporter: any = null;
 
 function getResendClient(): Resend | null {
   if (!config.resendApiKey) return null;
@@ -9,30 +11,60 @@ function getResendClient(): Resend | null {
   return resend;
 }
 
+function getNodemailerTransporter() {
+  if (!config.gmailUser || !config.gmailAppPassword) return null;
+  if (!nodemailerTransporter) {
+    nodemailerTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: config.gmailUser,
+        pass: config.gmailAppPassword,
+      },
+    });
+  }
+  return nodemailerTransporter;
+}
+
 export async function sendEmail(to: string, subject: string, html: string) {
+  // 1. Try Gmail SMTP first if credentials are set
+  const transporter = getNodemailerTransporter();
+  if (transporter) {
+    try {
+      const info = await transporter.sendMail({
+        from: `"ParkSmart" <${config.gmailUser}>`,
+        to,
+        subject,
+        html,
+      });
+      console.log(`[Email] Sent successfully via Gmail SMTP to ${to}. MessageId: ${info.messageId}`);
+      return;
+    } catch (err: any) {
+      console.error(`[Email] Failed to send via Gmail SMTP to ${to}:`, err.message);
+      // Fallback to Resend or console log if Gmail fails
+    }
+  }
+
+  // 2. Fallback to Resend API
   const client = getResendClient();
+  if (client) {
+    const { data, error } = await client.emails.send({
+      from: 'ParkSmart <onboarding@resend.dev>',
+      to,
+      subject,
+      html,
+    });
 
-  if (!client) {
-    console.warn('[Email] RESEND_API_KEY is not configured; skipping email send. OTP logged to console only.');
+    if (error) {
+      console.warn(`[Email] Resend could not deliver to ${to}:`, error.message);
+      console.warn('[Email] Tip: verify a domain at resend.com/domains or send to the Resend account email only.');
+      return;
+    }
+
+    console.log(`[Email] Sent successfully via Resend. id=${data?.id}`);
     return;
   }
 
-  const { data, error } = await client.emails.send({
-    from: 'ParkSmart <onboarding@resend.dev>',
-    to,
-    subject,
-    html,
-  });
-
-  if (error) {
-    // Log the error but do NOT throw — OTP is already stored in memory.
-    // In development / free Resend plan, emails can only be sent to the owner's address.
-    console.warn(`[Email] Resend could not deliver to ${to}:`, error.message);
-    console.warn('[Email] Tip: verify a domain at resend.com/domains or send to the Resend account email only.');
-    return;
-  }
-
-  console.log(`[Email] Sent successfully. id=${data?.id}`);
+  console.warn('[Email] No email sending credentials (Gmail or Resend) configured; skipping email send. OTP logged to console only.');
 }
 
 export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
