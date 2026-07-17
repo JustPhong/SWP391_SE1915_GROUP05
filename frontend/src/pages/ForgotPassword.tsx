@@ -23,6 +23,7 @@ export function ForgotPasswordPage() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setApiError('');
 
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -44,6 +45,7 @@ export function ForgotPasswordPage() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setApiError('');
 
     if (!otp.trim()) {
