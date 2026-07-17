@@ -207,8 +207,11 @@ export function CheckOutPage() {
   const [lostTicketReason, setLostTicketReason] = useState('');
 
   // ── Load all active records (sidebar table) ───────────
+  const [loadError, setLoadError] = useState('');
+
   const loadAllRecords = async () => {
     setLoadingAll(true);
+    setLoadError('');
     try {
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
       const raw: CheckInRecord[] = res.data.data ?? [];
@@ -231,8 +234,12 @@ export function CheckOutPage() {
         slot: r.slot ? { code: r.slot.code, floor: r.slot.floorId } : undefined,
       }));
       setAllRecords(mapped);
-    } catch {
+    } catch (err: unknown) {
       setAllRecords([]);
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Không thể tải danh sách xe. Bạn có thể cần đăng nhập lại.';
+      setLoadError(msg);
     } finally {
       setLoadingAll(false);
     }
@@ -1031,6 +1038,22 @@ export function CheckOutPage() {
           </button>
         </div>
 
+        {loadError && (
+          <div style={{
+            background: C.redBg,
+            border: `1.5px solid ${C.redBorder}`,
+            borderRadius: 8,
+            padding: '0.6rem 0.85rem',
+            marginBottom: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}>
+            <IconAlert size={14} color={C.red} />
+            <span style={{ fontSize: '0.82rem', color: C.red }}>{loadError}</span>
+          </div>
+        )}
+
         {loadingAll ? (
           <p style={{ margin: 0, padding: '1rem 0', fontSize: '0.875rem', color: C.gray400, textAlign: 'center' }}>
             Đang tải...
@@ -1061,97 +1084,107 @@ export function CheckOutPage() {
                 </tr>
               </thead>
               <tbody>
-                {allRecords.map((r) => (
-                  <tr key={r.id} style={{ borderBottom: `1px solid ${C.gray100}` }}>
-                    <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'Consolas, monospace', fontWeight: 700, color: C.navy, letterSpacing: '0.02em' }}>
-                      {r.vehicle!.plateNumber}
-                    </td>
-                    <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray800 }}>
-                      {r.slot!.code}
-                    </td>
-                    <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
-                      {formatDateTime(r.checkInTime)}
-                    </td>
-                    <td style={{ padding: '0.65rem 0.75rem' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: 20,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        background: r.vehicle!.type === 'MOTORBIKE' ? '#FEF9C3' : '#EFF6FF',
-                        color: r.vehicle!.type === 'MOTORBIKE' ? '#854D0E' : C.navy,
-                      }}>
-                        {r.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.65rem 0.75rem' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: 20,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        background: r.isMonthly ? C.greenBg : '#EFF6FF',
-                        color: r.isMonthly ? '#15803D' : C.navy,
-                      }}>
-                        {r.isMonthly ? 'Tháng' : 'Lẻ'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.65rem 0.75rem' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button
-                          onClick={async () => { 
-                            setFoundRecord(r); 
-                            setPlateInput(r.vehicle!.plateNumber); 
-                            fetchFeePreview(r.id).then(setFeePreview);
-                            try {
-                              const lookup = await checkoutLookupPlate(r.vehicle!.plateNumber);
-                              if (lookup.found) {
-                                setOwnerInfo({
-                                  name: lookup.ownerName ?? null,
-                                  phone: lookup.ownerPhone ?? null,
-                                  email: lookup.ownerEmail ?? null,
-                                });
-                              } else {
+                {allRecords.map((r) => {
+                  if (!r.vehicle || !r.slot) return null;
+                  return (
+                    <tr key={r.id} style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                      <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'Consolas, monospace', fontWeight: 700, color: C.navy, letterSpacing: '0.02em' }}>
+                        {r.vehicle.plateNumber}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray800 }}>
+                        {r.slot.code}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
+                        {formatDateTime(r.checkInTime)}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: 20,
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: r.vehicle.type === 'MOTORBIKE' ? '#FEF9C3' : '#EFF6FF',
+                          color: r.vehicle.type === 'MOTORBIKE' ? '#854D0E' : C.navy,
+                        }}>
+                          {r.vehicle.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: 20,
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: r.isMonthly ? C.greenBg : '#EFF6FF',
+                          color: r.isMonthly ? '#15803D' : C.navy,
+                        }}>
+                          {r.isMonthly ? 'Tháng' : 'Lẻ'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button
+                            onClick={async () => { 
+                              const v = r.vehicle;
+                              const s = r.slot;
+                              if (!v || !s) return;
+                              setFoundRecord(r); 
+                              setPlateInput(v.plateNumber); 
+                              fetchFeePreview(r.id).then(setFeePreview);
+                              try {
+                                const lookup = await checkoutLookupPlate(v.plateNumber);
+                                if (lookup.found) {
+                                  setOwnerInfo({
+                                    name: lookup.ownerName ?? null,
+                                    phone: lookup.ownerPhone ?? null,
+                                    email: lookup.ownerEmail ?? null,
+                                  });
+                                } else {
+                                  setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+                                }
+                              } catch {
                                 setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
                               }
-                            } catch {
-                              setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
-                            }
-                          }}
-                          style={{
-                            background: C.navy,
-                            color: C.white,
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '0.35rem 0.85rem',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Check-out
-                        </button>
-                        <button
-                          onClick={async () => { openLostTicket(r); }}
-                          style={{
-                            background: '#DC2626',
-                            color: C.white,
-                            border: 'none',
-                            borderRadius: 8,
-                            padding: '0.35rem 0.85rem',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Mất thẻ
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            }}
+                            style={{
+                              background: C.navy,
+                              color: C.white,
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '0.35rem 0.85rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Check-out
+                          </button>
+                          <button
+                            onClick={() => { 
+                              const v = r.vehicle;
+                              const s = r.slot;
+                              if (v && s) openLostTicket(r); 
+                            }}
+                            style={{
+                              background: '#DC2626',
+                              color: C.white,
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '0.35rem 0.85rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Mất thẻ
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

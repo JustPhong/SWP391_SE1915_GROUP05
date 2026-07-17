@@ -88,8 +88,8 @@ type DateRange = 'today' | 'week' | 'month' | 'custom';
 //  HELPERS
 // ═══════════════════════════════════════════════════════════
 function fmtVnd(amount: number): string {
-  if (!amount && amount !== 0) return '0đ';
-  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+  if (!amount && amount !== 0) return '0 đ';
+  return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
 }
 
 function exportToExcel(data: RevenueDetail, from: string, to: string): void {
@@ -471,7 +471,7 @@ export function RevenueDetailPage() {
   const pieSourceData = [
     { name: 'Khách lẻ',  value: t.casualTotal,  color: C.casual  },
     { name: 'Gói tháng', value: t.monthlyTotal,  color: C.monthly },
-  ].filter(d => d.value > 0);
+  ];
 
   const methodColors: Record<string, string> = {
     'CASH':    '#2563EB',
@@ -494,8 +494,7 @@ export function RevenueDetailPage() {
         value: Number(value),
         color: methodColors[key] ?? methodColors[displayName] ?? '#8B5CF6',
       };
-    })
-    .filter(d => d.value > 0);
+    });
 
   const rangeOptions: { value: DateRange; label: string }[] = [
     { value: 'today',  label: 'Hôm nay'   },
@@ -742,7 +741,7 @@ export function RevenueDetailPage() {
                       </div>
                     </th>
                     <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
-                      Đạt được
+                      Tỷ lệ so với tháng trước
                     </th>
                   </tr>
                 </thead>
@@ -913,7 +912,7 @@ export function RevenueDetailPage() {
                       <p style={{ fontSize: 14, fontWeight: 800, color: entry.color, margin: 0, paddingLeft: 16 }}>
                         {fmtVnd(entry.value)}
                       </p>
-                      <p style={{ fontSize: 11, color: C.gray400, margin: '2px 0 0', paddingLeft: 16 }}>
+                      <p style={{ fontSize: 11, color: C.gray500, margin: '2px 0 0', paddingLeft: 16 }}>
                         {pctOf(t.total, entry.value)} tổng
                       </p>
                     </div>
@@ -1016,11 +1015,11 @@ export function RevenueDetailPage() {
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={t.series} barGap={4} barCategoryGap="32%">
-              <CartesianGrid strokeDasharray="3 4" stroke={C.gray200} vertical={false} />
+              <CartesianGrid strokeDasharray="3 4" stroke="#CBD5E1" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={fmtShortDate}
-                tick={{ fontSize: 11, fill: C.gray400 }}
+                tick={{ fontSize: 11, fill: '#475569' }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -1030,7 +1029,7 @@ export function RevenueDetailPage() {
                   if (v >= 1_000)     return `${Math.round(v / 1_000)}K`;
                   return String(v);
                 }}
-                tick={{ fontSize: 11, fill: C.gray400 }}
+                tick={{ fontSize: 11, fill: '#475569' }}
                 axisLine={false}
                 tickLine={false}
               />
