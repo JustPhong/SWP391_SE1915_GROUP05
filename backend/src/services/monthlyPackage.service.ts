@@ -83,13 +83,13 @@ export const monthlyPackageService = {
       let resolvedSlotId: string | null = null;
       let allowedTierValue: string | null = null;
 
+      const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
+      const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+      const resolvedTier = getTierFromPlan(input.planId ?? null, durationDays);
+
       if (vehicleType === VEHICLE_CAR) {
         // CAR monthly packages DO NOT pick a physical slot.
         // Determine zone tier based on planName/duration
-        const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
-        const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
-        const resolvedTier = getTierFromPlan(input.planId ?? null, durationDays);
-
         // Check quota: VIP: 4, POPULAR: 8, REGULAR: 8
         const soldCount = await tx.monthlyPackage.count({
           where: {
@@ -108,9 +108,27 @@ export const monthlyPackageService = {
         }
 
         allowedTierValue = resolvedTier;
+      } else if (vehicleType === VEHICLE_MOTORBIKE) {
+        // MOTORBIKE monthly packages also use tiered areas.
+        // Check quota: VIP: 12, POPULAR: 16, REGULAR: 12
+        const soldCount = await tx.monthlyPackage.count({
+          where: {
+            status: PKG_ACTIVE,
+            expiryDate: { gte: new Date() },
+            vehicle: { type: VEHICLE_MOTORBIKE },
+            allowedTier: resolvedTier,
+          },
+        });
+
+        const capacities = { VIP: 12, POPULAR: 16, REGULAR: 12 };
+        const capacity = capacities[resolvedTier];
+
+        if (soldCount >= capacity) {
+          throw new AppError(400, 'Hiện khu vực của gói này đã đủ số lượng đăng ký. Vui lòng chọn gói khác hoặc liên hệ hỗ trợ.');
+        }
+
+        allowedTierValue = resolvedTier;
       }
-      // MOTORBIKE branch: no fixed slot. resolvedSlotId stays null and
-      // input.slotId is intentionally ignored.
 
       const pkg = await tx.monthlyPackage.create({
         data: {

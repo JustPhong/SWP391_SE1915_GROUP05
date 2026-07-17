@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle } from '../types/index';
 import { PlateInput } from '../components/PlateInput';
+import { getTierAreaLabel } from '../constants/packages';
 
 
 const C = {
@@ -22,7 +23,7 @@ const C = {
 function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 
-function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { return `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'} (Tầng G)`; } const rawFloor = pkg?.slot?.floor?.name || ''; const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, ''); const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
+function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { return `${getTierAreaLabel(pkg.allowedTier)} (Tầng G)`; } const rawFloor = pkg?.slot?.floor?.name || ''; const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, ''); const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 type VehicleType = 'CAR' | 'MOTORBIKE';
@@ -597,7 +598,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                         {detail.monthlyPackage.slot ? (
                           <div>Vị trí cố định: <strong>Tầng {(detail.monthlyPackage.slot.floor?.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
                         ) : detail.monthlyPackage.allowedTier ? (
-                          <div>Khu vực đỗ xe: <strong>Tầng G · Khu {detail.monthlyPackage.allowedTier === 'VIP' ? 'VIP' : detail.monthlyPackage.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}</strong></div>
+                          <div>Khu vực đỗ xe: <strong>Tầng G · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
                         ) : null}
                         <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 800, color: '#FCD34D', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
                       </div>
@@ -625,9 +626,9 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                           const isCurrentlyParked = !r.checkOutTime;
                           const locationText = r.slot?.floor?.name && r.slot?.code
                             ? `Tầng ${r.slot.floor.name} · Ô ${r.slot.code}`
-                            : (r.allowedTier ? `Tầng G · Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Chưa phân vị trí');
+                            : (r.allowedTier ? `Tầng G · ${getTierAreaLabel(r.allowedTier)}` : 'Chưa phân vị trí');
                           const activeStatusText = isCurrentlyParked
-                            ? (r.allowedTier ? `Đang đỗ - Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Đang đỗ')
+                            ? (r.allowedTier ? `Đang đỗ - ${getTierAreaLabel(r.allowedTier)}` : 'Đang đỗ')
                             : 'Đã ra';
                           return (
                             <div key={r.id} style={{ position: 'relative', paddingLeft: '14px' }}>

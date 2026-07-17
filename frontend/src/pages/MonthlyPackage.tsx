@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { vehicleService as _vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import type { MonthlyPackage } from '../types/index';
-import { PACKAGES, type PackagePlan } from '../constants/packages';
+import { PACKAGES, type PackagePlan, getTierAreaLabel } from '../constants/packages';
 import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
 import styles from '../styles/driver.module.css';
 import newStyles from '../styles/monthlyPackage.module.css';
@@ -728,7 +728,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                           <span className={newStyles.detailValue}>
                             {pkg.slot?.floor?.name && pkg.slot?.code
                               ? `Tầng ${pkg.slot.floor.name} · Ô ${pkg.slot.code}`
-                              : (isMotorbike ? 'Khu tự do (Xe máy)' : (pkg.allowedTier ? `Tầng G · Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Chưa phân vị trí'))}
+                              : (pkg.allowedTier ? `Tầng G · ${getTierAreaLabel(pkg.allowedTier)}` : 'Chưa phân vị trí')}
                           </span>
                         </div>
                       </div>
@@ -896,7 +896,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 <span className={newStyles.ticketValue}>
                   {selectedDetailPkg.slot?.floor?.name && selectedDetailPkg.slot?.code
                     ? `Tầng ${selectedDetailPkg.slot.floor.name} · Ô ${selectedDetailPkg.slot.code}`
-                    : (selectedDetailPkg.vehicle?.type === 'MOTORBIKE' ? 'Khu tự do (Xe máy)' : (selectedDetailPkg.allowedTier ? `Tầng G · Khu ${selectedDetailPkg.allowedTier === 'VIP' ? 'VIP' : selectedDetailPkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Chưa phân vị trí'))}
+                    : (selectedDetailPkg.allowedTier ? `Tầng G · ${getTierAreaLabel(selectedDetailPkg.allowedTier)}` : 'Chưa phân vị trí')}
                 </span>
               </div>
               <div className={newStyles.ticketRow}>
