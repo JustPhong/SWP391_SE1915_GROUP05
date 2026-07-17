@@ -21,13 +21,15 @@ export const checkinController = {
 
   // POST /api/checkin
   submit: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { plate, vehicleType, customerType, slotCode, isMonthly } = req.body;
+    const { plate, vehicleType, customerType, slotCode, isMonthly, frontImageUrl, rearImageUrl } = req.body;
     const result = await checkinService.submit({
       plate,
       vehicleType,
       customerType,
       slotCode,
       isMonthly,
+      frontImageUrl,
+      rearImageUrl,
     });
     return res.status(201).json({ success: true, data: result });
   }),
