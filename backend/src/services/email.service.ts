@@ -1,38 +1,63 @@
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { config } from '../config';
 
 let resend: Resend | null = null;
 
 function getResendClient(): Resend | null {
-  if (!config.resendApiKey) return null;
+  if (!config.resendApiKey || config.resendApiKey === 'your-resend-api-key-here') {
+    return null;
+  }
   if (!resend) resend = new Resend(config.resendApiKey);
   return resend;
 }
 
 export async function sendEmail(to: string, subject: string, html: string) {
+  // Try Resend first
   const client = getResendClient();
-
-  if (!client) {
-    console.warn('[Email] RESEND_API_KEY is not configured; skipping email send. OTP logged to console only.');
-    return;
+  if (client) {
+    try {
+      const { data, error } = await client.emails.send({
+        from: 'ParkSmart <onboarding@resend.dev>',
+        to,
+        subject,
+        html,
+      });
+      if (data && !error) {
+        console.log(`[Email] Resend sent successfully to ${to}, id=${data.id}`);
+        return;
+      }
+      console.warn('[Email] Resend error:', error?.message || JSON.stringify(error));
+    } catch (err: any) {
+      console.warn('[Email] Resend exception:', err?.message || err);
+    }
   }
 
-  const { data, error } = await client.emails.send({
-    from: 'ParkSmart <onboarding@resend.dev>',
-    to,
-    subject,
-    html,
-  });
-
-  if (error) {
-    // Log the error but do NOT throw — OTP is already stored in memory.
-    // In development / free Resend plan, emails can only be sent to the owner's address.
-    console.warn(`[Email] Resend could not deliver to ${to}:`, error.message);
-    console.warn('[Email] Tip: verify a domain at resend.com/domains or send to the Resend account email only.');
-    return;
+  // Fallback to Nodemailer if configured
+  if (config.emailHost && config.emailUser && config.emailPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.emailHost,
+        port: config.emailPort,
+        secure: config.emailPort === 465,
+        auth: { user: config.emailUser, pass: config.emailPass },
+      });
+      const info = await transporter.sendMail({
+        from: config.emailFrom,
+        to,
+        subject,
+        html,
+      });
+      console.log(`[Email] Nodemailer sent successfully to ${to}, id=${info.messageId}`);
+      return;
+    } catch (err: any) {
+      console.warn('[Email] Nodemailer error:', err?.message || err);
+    }
   }
 
-  console.log(`[Email] Sent successfully. id=${data?.id}`);
+  console.warn('[Email] No email provider configured. OTP logged to console only.');
+  console.log(`[Email] TO: ${to} | SUBJECT: ${subject}`);
+  console.log(`[Email] HTML: ${html}`);
 }
 
 export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
