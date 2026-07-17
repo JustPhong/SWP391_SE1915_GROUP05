@@ -12,6 +12,8 @@ export const config = {
   emailPass: process.env.EMAIL_PASS || '',
   emailFrom: process.env.EMAIL_FROM || 'no-reply@parkingsmart.local',
   resendApiKey: process.env.RESEND_API_KEY || '',
+  gmailUser: process.env.GMAIL_USER || '',
+  gmailAppPassword: process.env.GMAIL_APP_PASSWORD || '',
   vietqr: {
     bankId: process.env.VIETQR_BANK_ID || '',
     accountNo: process.env.VIETQR_ACCOUNT_NO || '',
