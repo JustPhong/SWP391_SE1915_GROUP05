@@ -43,6 +43,8 @@ export interface SubmitCheckinInput {
   customerType: 'monthly' | 'casual';
   slotCode?: string;
   isMonthly: boolean;
+  frontImageUrl?: string;
+  rearImageUrl?: string;
 }
 
 export interface SubmitCheckinResult {
@@ -186,7 +188,7 @@ export const checkinService = {
 
   // ── POST /api/checkin ─────────────────────────────────────────────────
   async submit(input: SubmitCheckinInput): Promise<SubmitCheckinResult> {
-    const { plate, vehicleType, slotCode, isMonthly } = input;
+    const { plate, vehicleType, slotCode, isMonthly, frontImageUrl, rearImageUrl } = input;
     const normalizedPlate = normalizePlate(plate);
 
     const cleaned = plate.trim().toUpperCase();
@@ -203,7 +205,7 @@ export const checkinService = {
       },
     });
 
-    if (isMonthly && vehicleType === 'CAR') {
+    if (isMonthly) {
       if (!vehicle) {
         throw new AppError(400, 'Xe chưa đăng ký trong hệ thống');
       }
@@ -224,6 +226,8 @@ export const checkinService = {
           checkInTime,
           isMonthly: true,
           allowedTier,
+          frontImageUrl: frontImageUrl ?? null,
+          rearImageUrl: rearImageUrl ?? null,
         },
       });
 
@@ -275,6 +279,8 @@ export const checkinService = {
           slotId: slot.id,
           checkInTime,
           isMonthly,
+          frontImageUrl: frontImageUrl ?? null,
+          rearImageUrl: rearImageUrl ?? null,
         },
       }),
     ]);

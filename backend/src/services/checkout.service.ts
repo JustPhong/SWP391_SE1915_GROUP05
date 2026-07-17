@@ -333,8 +333,17 @@ export const checkoutService = {
         throw new AppError(409, 'Phiên gửi xe này đã được thanh toán hoặc đã kết thúc.');
       }
 
-      // 2. Create Payment only if total > 0 (if guest monthly, no payment created)
+      // 2. Idempotency check: prevent duplicate payment for regular checkout
       if (!record.isMonthly && finalAmountDue > 0) {
+        const existingPayment = await tx.payment.findFirst({
+          where: {
+            checkInRecordId: record.id,
+            type: 'SESSION',
+          },
+        });
+        if (existingPayment) {
+          throw new AppError(409, 'Giao dịch thanh toán cho lượt gửi xe này đã được xử lý trước đó.');
+        }
         await tx.payment.create({
           data: {
             checkInRecordId: record.id,
@@ -360,8 +369,10 @@ export const checkoutService = {
         const updateData: { status: string; assignedVehicleId?: string | null } = {
           status: 'AVAILABLE',
         };
-        // Preserving assignedVehicleId for fixed monthly slots
-        if (!record.isMonthly && !record.slot.isFixed) {
+        // For monthly vehicles with assigned slot, keep it reserved
+        if (record.isMonthly && record.slot.assignedVehicleId) {
+          updateData.status = 'RESERVED';
+        } else if (!record.isMonthly && !record.slot.isFixed) {
           updateData.assignedVehicleId = null;
         }
         await tx.parkingSlot.update({
@@ -479,6 +490,7 @@ export const checkoutService = {
           checkedOutById: staffId,
           status: 'COMPLETED',
           isLostTicket: true,
+          lostTicketReason: reason,
         },
       });
 
@@ -486,8 +498,17 @@ export const checkoutService = {
         throw new AppError(409, 'Phiên gửi xe này đã được thanh toán hoặc đã kết thúc.');
       }
 
-      // 2. Create Payment
+      // 2. Idempotency check: prevent duplicate payment
       if (!record.isMonthly && finalAmountDue > 0) {
+        const existingPayment = await tx.payment.findFirst({
+          where: {
+            checkInRecordId: record.id,
+            type: 'SESSION',
+          },
+        });
+        if (existingPayment) {
+          throw new AppError(409, 'Giao dịch thanh toán cho lượt gửi xe này đã được xử lý trước đó.');
+        }
         await tx.payment.create({
           data: {
             checkInRecordId: record.id,

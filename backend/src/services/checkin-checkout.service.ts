@@ -212,14 +212,3 @@ export const checkInService = {
   },
 };
 
-// Deactivated in favor of canonical checkoutService in checkout.service.ts
-/*
-export const checkOutService = {
-  async previewFee(recordId: string) {
-    ...
-  },
-  async checkOut(input: CheckOutInput) {
-    ...
-  },
-};
-*/
