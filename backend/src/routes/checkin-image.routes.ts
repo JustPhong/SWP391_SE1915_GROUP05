@@ -9,5 +9,6 @@ router.use(authenticate);
 router.use(authorize('STAFF', 'MANAGER', 'ADMIN'));
 
 router.post('/upload-image', uploadCheckinImage.single('image'), checkinImageController.upload);
+router.post('/delete-images', checkinImageController.deleteImages);
 
 export default router;
