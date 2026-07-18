@@ -6,6 +6,7 @@ import {
   submitCheckIn,
   getCheckinStats,
   uploadCheckinImage,
+  deleteCheckinImages,
   type LookupResult,
   type AvailableSlot,
   type CheckinStats,
@@ -643,54 +644,65 @@ export function CheckInPage() {
       let frontImageUrl: string | undefined;
       let rearImageUrl: string | undefined;
 
-      if (frontImage) {
-        const frontUpload = await uploadCheckinImage({
-          image: frontImage,
+      try {
+        if (frontImage) {
+          const frontUpload = await uploadCheckinImage({
+            image: frontImage,
+            plateNumber: plate,
+          });
+          frontImageUrl = frontUpload.imageUrl;
+        }
+
+        if (rearImage) {
+          const rearUpload = await uploadCheckinImage({
+            image: rearImage,
+            plateNumber: plate,
+          });
+          rearImageUrl = rearUpload.imageUrl;
+        }
+
+        // For monthly customers (CAR or MOTORBIKE), no slotCode needed - backend handles tier-based access
+        // For casual customers, slotCode is required
+        const slotCode = isMonthly
+          ? undefined
+          : (isMotorbikeCasual ? (motorbikeAutoSlot ?? undefined) : (selectedSlot ?? undefined));
+        const result = await submitCheckIn({
           plateNumber: plate,
+          slotCode,
+          vehicleType,
+          isMonthly,
+          frontImageUrl,
+          rearImageUrl,
         });
-        frontImageUrl = frontUpload.imageUrl;
+
+        if (frontImageUrl || rearImageUrl) {
+          console.log('Check-in images saved:', { frontImageUrl, rearImageUrl });
+        }
+
+        setSuccessData(result);
+        setPageState('idle');
+        setLookupData(null);
+        setSelectedSlot(null);
+        setMotorbikeAutoSlot(null);
+        setPlateInput('');
+        setFrontImage(null);
+        setRearImage(null);
+        if (frontPreview) URL.revokeObjectURL(frontPreview);
+        if (rearPreview) URL.revokeObjectURL(rearPreview);
+        setFrontPreview(null);
+        setRearPreview(null);
+        const fresh = await getCheckinStats();
+        setStats(fresh);
+      } catch (err: any) {
+        // Clean up orphan files if checkin process failed
+        const filesToClean: string[] = [];
+        if (frontImageUrl) filesToClean.push(frontImageUrl);
+        if (rearImageUrl) filesToClean.push(rearImageUrl);
+        if (filesToClean.length > 0) {
+          await deleteCheckinImages(filesToClean).catch(e => console.error('Failed to cleanup images:', e));
+        }
+        throw err;
       }
-
-      if (rearImage) {
-        const rearUpload = await uploadCheckinImage({
-          image: rearImage,
-          plateNumber: plate,
-        });
-        rearImageUrl = rearUpload.imageUrl;
-      }
-
-      // For monthly customers (CAR or MOTORBIKE), no slotCode needed - backend handles tier-based access
-      // For casual customers, slotCode is required
-      const slotCode = isMonthly
-        ? undefined
-        : (isMotorbikeCasual ? (motorbikeAutoSlot ?? undefined) : (selectedSlot ?? undefined));
-      const result = await submitCheckIn({
-        plateNumber: plate,
-        slotCode,
-        vehicleType,
-        isMonthly,
-        frontImageUrl,
-        rearImageUrl,
-      });
-
-      if (frontImageUrl || rearImageUrl) {
-        console.log('Check-in images saved:', { frontImageUrl, rearImageUrl });
-      }
-
-      setSuccessData(result);
-      setPageState('idle');
-      setLookupData(null);
-      setSelectedSlot(null);
-      setMotorbikeAutoSlot(null);
-      setPlateInput('');
-      setFrontImage(null);
-      setRearImage(null);
-      if (frontPreview) URL.revokeObjectURL(frontPreview);
-      if (rearPreview) URL.revokeObjectURL(rearPreview);
-      setFrontPreview(null);
-      setRearPreview(null);
-      const fresh = await getCheckinStats();
-      setStats(fresh);
     } catch (error: any) {
       // Handle expired monthly package when user tries to check in without converting to casual
       if (error?.status === 400 && error?.message?.includes('hết hạn')) {

@@ -3,7 +3,31 @@ import { checkinService } from '../services/checkin.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { slotSuggestionService } from '../services/slotSuggestion.service';
+import path from 'path';
+import fs from 'fs';
 
+const checkinDir = path.join(__dirname, '../../uploads/checkin');
+
+function cleanupFiles(urls: (string | undefined)[]) {
+  for (const url of urls) {
+    if (!url || typeof url !== 'string' || !url.startsWith('/uploads/checkin/')) {
+      continue;
+    }
+    const filename = path.basename(url);
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      continue;
+    }
+    const filePath = path.join(checkinDir, filename);
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`[Cleanup] Deleted orphan checkin file: ${filePath}`);
+      }
+    } catch (err) {
+      console.error(`[Cleanup] Failed to delete checkin file: ${filePath}`, err);
+    }
+  }
+}
 
 export const checkinController = {
   // GET /api/checkin/lookup/:plate
@@ -22,16 +46,21 @@ export const checkinController = {
   // POST /api/checkin
   submit: asyncHandler(async (req: AuthRequest, res: Response) => {
     const { plate, vehicleType, customerType, slotCode, isMonthly, frontImageUrl, rearImageUrl } = req.body;
-    const result = await checkinService.submit({
-      plate,
-      vehicleType,
-      customerType,
-      slotCode,
-      isMonthly,
-      frontImageUrl,
-      rearImageUrl,
-    });
-    return res.status(201).json({ success: true, data: result });
+    try {
+      const result = await checkinService.submit({
+        plate,
+        vehicleType,
+        customerType,
+        slotCode,
+        isMonthly,
+        frontImageUrl,
+        rearImageUrl,
+      });
+      return res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      cleanupFiles([frontImageUrl, rearImageUrl]);
+      throw error;
+    }
   }),
   // GET /api/checkin/suggest?vehicleType=CAR&zone=CASUAL&top=3
 suggest: asyncHandler(async (req: AuthRequest, res: Response) => {
