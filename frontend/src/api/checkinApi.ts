@@ -139,6 +139,11 @@ export async function uploadCheckinImage(
   return unwrap(response);
 }
 
+export async function deleteCheckinImages(urls: string[]): Promise<{ success: boolean }> {
+  const response = await api.post<{ success: boolean }>('/checkin-media/delete-images', { urls });
+  return response.data;
+}
+
 export async function submitCheckIn(
   payload: CheckinSubmitPayload
 ): Promise<CheckinSubmitResult> {
