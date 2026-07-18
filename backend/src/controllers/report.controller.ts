@@ -187,7 +187,20 @@ export const reportController = {
   }),
 
   getRevenueComparison: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const data = await reportService.getRevenueComparison();
+    let from: Date | undefined;
+    let to: Date | undefined;
+    const range = req.query.range as string | undefined;
+
+    if (req.query.from) {
+      from = new Date(req.query.from as string);
+      from.setHours(0, 0, 0, 0);
+    }
+    if (req.query.to) {
+      to = new Date(req.query.to as string);
+      to.setHours(23, 59, 59, 999);
+    }
+
+    const data = await reportService.getRevenueComparison(from, to, range);
     return res.status(200).json({ success: true, data });
   }),
 

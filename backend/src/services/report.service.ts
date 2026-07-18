@@ -1,5 +1,12 @@
 import prisma from '../config/db';
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_OCCUPIED = 'OCCUPIED';
 const SLOT_RESERVED = 'RESERVED';
@@ -230,7 +237,7 @@ export const reportService = {
 
     const byDayMap: Record<string, number> = {};
     for (const p of payments) {
-      const day = new Date(p.paidAt).toISOString().split('T')[0];
+      const day = formatLocalDate(new Date(p.paidAt));
       byDayMap[day] = (byDayMap[day] || 0) + Number(p.amount);
     }
 
@@ -241,7 +248,7 @@ export const reportService = {
     endDay.setHours(23, 59, 59, 999);
 
     while (cursor <= endDay) {
-      const day = cursor.toISOString().split('T')[0];
+      const day = formatLocalDate(cursor);
       result.push({ date: day, amount: byDayMap[day] ?? 0 });
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -284,7 +291,7 @@ export const reportService = {
       if (source === 'CASUAL') casualTotal += amount;
       else monthlyTotal += amount;
 
-      const day = new Date(p.paidAt).toISOString().split('T')[0];
+      const day = formatLocalDate(new Date(p.paidAt));
       if (!byDayMap[day]) byDayMap[day] = { casual: 0, monthly: 0 };
       byDayMap[day][source.toLowerCase() as 'casual' | 'monthly'] += amount;
 
@@ -309,7 +316,7 @@ export const reportService = {
     const endDay = new Date(to);
     endDay.setHours(23, 59, 59, 999);
     while (cursor <= endDay) {
-      const day = cursor.toISOString().split('T')[0];
+      const day = formatLocalDate(cursor);
       series.push({ date: day, ...(byDayMap[day] ?? { casual: 0, monthly: 0 }) });
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -333,43 +340,109 @@ export const reportService = {
 
   // ─── NEW: Revenue comparison (this month vs last month) ───────────────────
 
-  async getRevenueComparison() {
+  async getRevenueComparison(from?: Date, to?: Date, rangeType?: string) {
+    let thisPeriodStart: Date;
+    let thisPeriodEnd: Date;
+    let prevPeriodStart: Date;
+    let prevPeriodEnd: Date;
+    let fullPrevStart: Date | null = null;
+    let fullPrevEnd: Date | null = null;
+
+    let thisMonthName = '';
+    let lastMonthName = '';
+    let thisPeriodRangeLabel = '';
+    let prevPeriodRangeLabel = '';
+
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-indexed: 6 = July
+    const padZero = (n: number) => String(n).padStart(2, '0');
+    const fmtDate = (d: Date) => `${padZero(d.getDate())}/${padZero(d.getMonth() + 1)}/${d.getFullYear()}`;
 
-    // This month (from start of current month to current time)
-    const thisMonthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-    const thisMonthEnd = new Date(currentYear, currentMonth, now.getDate(), 23, 59, 59, 999);
-
-    // Last month
-    let lastMonthYear = currentYear;
-    let lastMonth = currentMonth - 1;
-    if (lastMonth < 0) {
-      lastMonth = 11;
-      lastMonthYear -= 1;
+    // Standardize current range
+    if (from && to) {
+      thisPeriodStart = from;
+      thisPeriodEnd = to;
+    } else {
+      // Default to month
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      thisPeriodStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+      thisPeriodEnd = new Date(currentYear, currentMonth, now.getDate(), 23, 59, 59, 999);
     }
 
-    const lastMonthStart = new Date(lastMonthYear, lastMonth, 1, 0, 0, 0, 0);
-    
-    // Same period last month (e.g. from 1st of last month to the same day of last month)
-    const lastDayOfLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
-    const sameDayOfLastMonth = Math.min(now.getDate(), lastDayOfLastMonth);
-    const lastMonthSamePeriodEnd = new Date(lastMonthYear, lastMonth, sameDayOfLastMonth, 23, 59, 59, 999);
+    const type = rangeType || 'month';
 
-    // Full last month
-    const lastMonthFullEnd = new Date(lastMonthYear, lastMonth + 1, 0, 23, 59, 59, 999);
+    if (type === 'today') {
+      prevPeriodStart = new Date(thisPeriodStart);
+      prevPeriodStart.setDate(prevPeriodStart.getDate() - 1);
+      prevPeriodStart.setHours(0, 0, 0, 0);
 
-    const [thisMonthPayments, lastMonthSamePeriodPayments, lastMonthFullPayments] = await Promise.all([
+      prevPeriodEnd = new Date(thisPeriodEnd);
+      prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
+      prevPeriodEnd.setHours(23, 59, 59, 999);
+
+      thisMonthName = 'Hôm nay';
+      lastMonthName = 'Hôm qua';
+      thisPeriodRangeLabel = fmtDate(thisPeriodStart);
+      prevPeriodRangeLabel = fmtDate(prevPeriodStart);
+    } else if (type === 'week') {
+      prevPeriodStart = new Date(thisPeriodStart);
+      prevPeriodStart.setDate(prevPeriodStart.getDate() - 7);
+      prevPeriodStart.setHours(0, 0, 0, 0);
+
+      prevPeriodEnd = new Date(thisPeriodEnd);
+      prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 7);
+      prevPeriodEnd.setHours(23, 59, 59, 999);
+
+      fullPrevStart = new Date(thisPeriodStart);
+      fullPrevStart.setDate(fullPrevStart.getDate() - 7);
+      fullPrevStart.setHours(0, 0, 0, 0);
+
+      fullPrevEnd = new Date(thisPeriodStart);
+      fullPrevEnd.setDate(fullPrevEnd.getDate() - 1);
+      fullPrevEnd.setHours(23, 59, 59, 999);
+
+      thisMonthName = 'Tuần này';
+      lastMonthName = 'Tuần trước';
+      thisPeriodRangeLabel = `${fmtDate(thisPeriodStart)} - ${fmtDate(thisPeriodEnd)}`;
+      prevPeriodRangeLabel = `${fmtDate(prevPeriodStart)} - ${fmtDate(prevPeriodEnd)}`;
+    } else {
+      // month
+      const currentYear = thisPeriodStart.getFullYear();
+      const currentMonth = thisPeriodStart.getMonth();
+
+      let lastMonthYear = currentYear;
+      let lastMonth = currentMonth - 1;
+      if (lastMonth < 0) {
+        lastMonth = 11;
+        lastMonthYear -= 1;
+      }
+
+      prevPeriodStart = new Date(lastMonthYear, lastMonth, thisPeriodStart.getDate(), 0, 0, 0, 0);
+      const lastDayOfLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+      const sameDayOfLastMonth = Math.min(thisPeriodEnd.getDate(), lastDayOfLastMonth);
+      prevPeriodEnd = new Date(lastMonthYear, lastMonth, sameDayOfLastMonth, 23, 59, 59, 999);
+
+      fullPrevStart = new Date(lastMonthYear, lastMonth, 1, 0, 0, 0, 0);
+      fullPrevEnd = new Date(lastMonthYear, lastMonth + 1, 0, 23, 59, 59, 999);
+
+      thisMonthName = `Tháng ${currentMonth + 1} / ${currentYear}`;
+      lastMonthName = `Tháng ${lastMonth + 1} / ${lastMonthYear}`;
+      thisPeriodRangeLabel = `${fmtDate(thisPeriodStart)} - ${fmtDate(thisPeriodEnd)}`;
+      prevPeriodRangeLabel = `${fmtDate(prevPeriodStart)} - ${fmtDate(prevPeriodEnd)}`;
+    }
+
+    const [thisPeriodPayments, prevPeriodPayments, fullPrevPayments] = await Promise.all([
       prisma.payment.findMany({
-        where: { paidAt: { gte: thisMonthStart, lte: thisMonthEnd } },
+        where: { paidAt: { gte: thisPeriodStart, lte: thisPeriodEnd } },
       }),
       prisma.payment.findMany({
-        where: { paidAt: { gte: lastMonthStart, lte: lastMonthSamePeriodEnd } },
+        where: { paidAt: { gte: prevPeriodStart, lte: prevPeriodEnd } },
       }),
-      prisma.payment.findMany({
-        where: { paidAt: { gte: lastMonthStart, lte: lastMonthFullEnd } },
-      }),
+      fullPrevStart && fullPrevEnd
+        ? prisma.payment.findMany({
+            where: { paidAt: { gte: fullPrevStart, lte: fullPrevEnd } },
+          })
+        : Promise.resolve([]),
     ]);
 
     const calculateTotals = (payments: any[]) => {
@@ -393,19 +466,19 @@ export const reportService = {
       return { total, casual, monthly };
     };
 
-    const thisMonth = calculateTotals(thisMonthPayments);
-    const lastMonthSamePeriod = calculateTotals(lastMonthSamePeriodPayments);
-    const lastMonthFull = calculateTotals(lastMonthFullPayments);
+    const thisMonth = calculateTotals(thisPeriodPayments);
+    const lastMonthSamePeriod = calculateTotals(prevPeriodPayments);
+    const lastMonthFull = calculateTotals(fullPrevPayments);
 
     return {
       thisMonth,
       lastMonthSamePeriod,
       lastMonthFull,
       metadata: {
-        thisMonthName: `Tháng ${currentMonth + 1}`,
-        lastMonthName: `Tháng ${lastMonth + 1}`,
-        thisMonthSamePeriodRange: `01/${String(currentMonth + 1).padStart(2, '0')} - ${String(now.getDate()).padStart(2, '0')}/${String(currentMonth + 1).padStart(2, '0')}`,
-        lastMonthSamePeriodRangeLabel: `01/${String(lastMonth + 1).padStart(2, '0')} - ${String(sameDayOfLastMonth).padStart(2, '0')}/${String(lastMonth + 1).padStart(2, '0')}`,
+        thisMonthName,
+        lastMonthName,
+        thisMonthSamePeriodRange: thisPeriodRangeLabel,
+        lastMonthSamePeriodRangeLabel: prevPeriodRangeLabel,
       }
     };
   },
