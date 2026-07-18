@@ -68,7 +68,7 @@ function formatPlateNumber(plate: string | null | undefined): string {
 // ── Currency Formatter ──
 function formatCurrency(amount: number | string): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('vi-VN').format(num) + 'đ';
+  return new Intl.NumberFormat('vi-VN').format(num) + ' đ';
 }
 
 // ── Duration Formatter ──

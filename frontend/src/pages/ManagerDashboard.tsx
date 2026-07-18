@@ -95,8 +95,8 @@ const FLOORS = [
 //  HELPERS
 // ═══════════════════════════════════════════════════════════
 function fmtVnd(amount: number): string {
-  if (!amount && amount !== 0) return '0đ';
-  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+  if (!amount && amount !== 0) return '0 đ';
+  return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
 }
 
 function fmtShortDate(iso: string): string {

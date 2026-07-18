@@ -124,43 +124,41 @@ function pctOf(total: number, part: number): string {
   return `${Math.round((part / total) * 100)}%`;
 }
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function dateRangeToIso(range: DateRange, custom?: { from: string; to: string }): { from: string; to: string } {
-  const now      = new Date();
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const now = new Date();
 
   if (range === 'custom' && custom) return { from: custom.from, to: custom.to };
 
   switch (range) {
     case 'today': {
-      const t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return { from: t.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+      const formatted = formatLocalDate(now);
+      return { from: formatted, to: formatted };
     }
     case 'week': {
       const start = new Date(now);
-      const day   = start.getDay();
-      const diff  = day === 0 ? -6 : 1 - day;
+      const day = start.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
       start.setDate(start.getDate() + diff);
-      start.setHours(0, 0, 0, 0);
-      return { from: start.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+      return { from: formatLocalDate(start), to: formatLocalDate(now) };
     }
     case 'month': {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: start.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+      return { from: formatLocalDate(start), to: formatLocalDate(now) };
     }
     default:
-      return { from: todayEnd.toISOString().split('T')[0], to: todayEnd.toISOString().split('T')[0] };
+      const formatted = formatLocalDate(now);
+      return { from: formatted, to: formatted };
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  RANGE LABEL MAP
-// ═══════════════════════════════════════════════════════════
-const RANGE_LABELS: Record<DateRange, string> = {
-  today:  'Hôm nay',
-  week:   'Tuần này',
-  month:  'Tháng này',
-  custom: 'Tùy chọn',
-};
+
 
 // ═══════════════════════════════════════════════════════════
 //  ICONS
@@ -389,60 +387,52 @@ export function RevenueDetailPage() {
   const [loadingComp,    setLoadingComp]    = useState(false);
   const [activePieTab,   setActivePieTab]   = useState<'source' | 'method'>('source');
 
-  // ── Fetch comparison (month-level, no date filter) ──
-  const fetchComparison = useCallback(async () => {
-    setLoadingComp(true);
-    try {
-      const resp = await api.get<{ success: boolean; data: RevenueComparison }>(
-        '/reports/revenue-comparison'
-      );
-      setComparisonData(resp.data.data);
-    } catch (err) {
-      console.error('[Comparison] fetch error', err);
-    } finally {
-      setLoadingComp(false);
-    }
-  }, []);
 
-  useEffect(() => { fetchComparison(); }, [fetchComparison]);
 
   // ── Fetch detail by date range ──
   const fetchData = useCallback(async (from: string, to: string) => {
     setLoading(true);
+    setData(null);
+    setComparisonData(null);
     setCurrentFrom(from);
     setCurrentTo(to);
-    console.log('[Revenue] fetchData → GET /reports/revenue-detail', { from, to });
+
     try {
-      const resp = await api.get<{ success: boolean; data: RevenueDetail }>(
-        '/reports/revenue-detail',
-        { params: { from, to } }
-      );
-      console.log('[Revenue] fetchData ←', {
-        total:   resp.data.data.total,
-        casual:  resp.data.data.casualTotal,
-        monthly: resp.data.data.monthlyTotal,
-        txCount: resp.data.data.transactions.length,
-      });
-      setData(resp.data.data);
+      if (range === 'custom') {
+        setLoadingComp(false);
+        const resp = await api.get<{ success: boolean; data: RevenueDetail }>('/reports/revenue-detail', { params: { from, to } });
+        setData(resp.data.data);
+      } else {
+        setLoadingComp(true);
+        const [detailResponse, comparisonResponse] = await Promise.all([
+          api.get<{ success: boolean; data: RevenueDetail }>('/reports/revenue-detail', { params: { from, to } }),
+          api.get<{ success: boolean; data: RevenueComparison }>('/reports/revenue-comparison', { params: { from, to, range } }),
+        ]);
+        setData(detailResponse.data.data);
+        setComparisonData(comparisonResponse.data.data);
+      }
     } catch (err) {
       console.error('[Revenue] fetchData ERROR', err);
       setData({ total: 0, casualTotal: 0, monthlyTotal: 0, series: [], transactions: [] });
+      setComparisonData(null);
     } finally {
       setLoading(false);
+      setLoadingComp(false);
     }
-  }, []);
+  }, [range]);
 
   useEffect(() => {
-    const { from, to } = dateRangeToIso(
-      range,
-      range === 'custom' && customFrom && customTo
-        ? { from: customFrom, to: customTo }
-        : undefined,
-    );
-    console.log('[Revenue] useEffect triggered → range:', range, '| from:', from, '| to:', to);
+    if (range === 'custom') {
+      setData(null);
+      setComparisonData(null);
+      setCurrentFrom('');
+      setCurrentTo('');
+      return;
+    }
+    const { from, to } = dateRangeToIso(range);
     fetchData(from, to);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, customFrom, customTo]);
+  }, [range]);
 
   const handleCustomApply = () => {
     if (!customFrom || !customTo || customFrom > customTo) {
@@ -454,18 +444,67 @@ export function RevenueDetailPage() {
 
   // ── Derived values ──
   const t            = data ?? { total: 0, casualTotal: 0, monthlyTotal: 0, series: [], transactions: [] };
+  const filteredSeries = t.series.filter((row) => row.date >= currentFrom && row.date <= currentTo);
   const shareCasual  = pctOf(t.total, t.casualTotal);
   const shareMonthly = pctOf(t.total, t.monthlyTotal);
 
   const renderCompGrowth = (current: number, previous: number) => {
-    if (!previous) return <span style={{ color: C.gray400 }}>—</span>;
-    const pct        = Math.round(((current - previous) / previous) * 100);
-    const isPositive = pct >= 0;
+    if (current === 0 && previous === 0) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <span style={{ color: C.gray400, fontWeight: 600, fontSize: 13 }}>Không thay đổi</span>
+        </div>
+      );
+    }
+    if (current > 0 && previous === 0) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <span style={{ color: C.greenMid, fontWeight: 700, fontSize: 13 }}>Phát sinh mới</span>
+        </div>
+      );
+    }
+
+    const diff = current - previous;
+
+    if (diff === 0) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <span style={{ color: C.gray400, fontWeight: 600, fontSize: 13 }}>Không thay đổi</span>
+        </div>
+      );
+    }
+
+    const isPositive = diff > 0;
+    const arrow = isPositive ? '↑' : '↓';
+    const absDiffStr = fmtVnd(Math.abs(diff));
+    const color = isPositive ? C.greenMid : C.red;
+
+    const pct = Math.round((diff / previous) * 100);
+    const pctStr = isPositive ? `+${pct}%` : `${pct}%`;
+
     return (
-      <span style={{ color: isPositive ? C.greenMid : C.red, fontWeight: 700, fontSize: 13 }}>
-        {isPositive ? `+${pct}%` : `${pct}%`}
-      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', lineHeight: '1.3' }}>
+        <span style={{ color, fontWeight: 600, fontSize: 13 }}>
+          {arrow} {absDiffStr}
+        </span>
+        <span style={{ color, fontSize: 11, fontWeight: 500 }}>
+          {pctStr}
+        </span>
+      </div>
     );
+  };
+
+  const renderFullPeriodRatio = (current: number, previousFull: number) => {
+    if (current === 0 && previousFull === 0) {
+      return 'Không thay đổi';
+    }
+    if (current > 0 && previousFull === 0) {
+      return 'Phát sinh mới';
+    }
+    if (current === 0 && previousFull > 0) {
+      return '0%';
+    }
+    return `${Math.round((current / previousFull) * 100)}%`;
   };
 
   const pieSourceData = [
@@ -503,10 +542,64 @@ export function RevenueDetailPage() {
     { value: 'custom', label: 'Tùy chọn' },
   ];
 
-  // Comparison title changes with selected range
-  const compTitle = range === 'month'
-    ? 'So sánh doanh thu Tháng này vs Tháng trước'
-    : `So sánh doanh thu ${RANGE_LABELS[range]} vs Kỳ trước`;
+  const getCol1Label = () => {
+    switch (range) {
+      case 'today':  return 'Hôm nay';
+      case 'week':   return 'Tuần này';
+      case 'month':  return 'Tháng này';
+      case 'custom': return 'Kỳ đang chọn';
+      default:       return 'Kỳ đang chọn';
+    }
+  };
+
+  const getCol2Label = () => {
+    switch (range) {
+      case 'today':  return 'Hôm qua';
+      case 'week':   return 'Cùng kỳ tuần trước';
+      case 'month':  return 'Cùng kỳ tháng trước';
+      case 'custom': return 'Kỳ trước';
+      default:       return 'Kỳ trước';
+    }
+  };
+
+  const getCol3Label = () => {
+    switch (range) {
+      case 'today':  return 'So với hôm qua';
+      case 'week':   return 'Thay đổi so với cùng kỳ';
+      case 'month':  return 'Thay đổi so với cùng kỳ';
+      case 'custom': return 'So với kỳ trước';
+      default:       return 'Thay đổi so với cùng kỳ';
+    }
+  };
+
+  const getCol4Label = () => {
+    switch (range) {
+      case 'week':   return 'Cả tuần trước';
+      case 'month':  return 'Cả tháng trước';
+      default:       return '';
+    }
+  };
+
+  const getCol5Label = () => {
+    switch (range) {
+      case 'week':   return 'So với cả tuần trước';
+      case 'month':  return 'So với cả tháng trước';
+      default:       return '';
+    }
+  };
+
+  const showFull = range === 'week' || range === 'month';
+
+  const getCompTitle = () => {
+    switch (range) {
+      case 'today':  return 'So sánh doanh thu hôm nay với hôm qua';
+      case 'week':   return 'So sánh doanh thu tuần này với tuần trước';
+      case 'month':  return 'So sánh doanh thu tháng này với tháng trước';
+      case 'custom': return 'Tổng hợp doanh thu theo khoảng đã chọn';
+      default:       return 'So sánh doanh thu';
+    }
+  };
+  const compTitle = getCompTitle();
 
   // ── Render ──
   return (
@@ -691,12 +784,20 @@ export function RevenueDetailPage() {
           flexDirection: 'column',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: C.gray800, margin: 0 }}>
-              {compTitle}
-            </h2>
-            <span style={{ fontSize: 11, color: C.gray400, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-              Đơn vị: đồng
-            </span>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.gray800, margin: 0 }}>
+                {compTitle}
+              </h2>
+              {range === 'custom' && currentFrom && currentTo && (
+                <div style={{ fontSize: 11, color: C.gray400, marginTop: 4, fontWeight: 500 }}>
+                  {(() => {
+                    const [y1, m1, d1] = currentFrom.split('-');
+                    const [y2, m2, d2] = currentTo.split('-');
+                    return `${d1}/${m1}/${y1} – ${d2}/${m2}/${y2}`;
+                  })()}
+                </div>
+              )}
+            </div>
           </div>
 
           {loadingComp ? (
@@ -706,6 +807,66 @@ export function RevenueDetailPage() {
               <Skeleton height={36} />
               <Skeleton height={36} />
             </div>
+          ) : range === 'custom' ? (
+            !currentFrom || !currentTo ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10 }}>
+                <IconEmptyDoc size={40} />
+                <p style={{ color: C.gray400, fontSize: 14, margin: 0, fontWeight: 600 }}>Chọn khoảng thời gian và nhấn Áp dụng</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: `2px solid ${C.gray200}` }}>
+                      <th style={{ textAlign: 'left', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
+                        Khoản mục
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
+                        Doanh thu
+                      </th>
+                      <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
+                        Tỷ trọng trong tổng doanh thu
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                      <td style={{ padding: '11px 8px', fontWeight: 700, color: C.gray800, whiteSpace: 'nowrap' }}>Tổng doanh thu</td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 700, color: C.navy, whiteSpace: 'nowrap' }}>
+                        {fmtVnd(t.total)}
+                      </td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, color: C.gray800, whiteSpace: 'nowrap' }}>
+                        100%
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
+                      <td style={{ padding: '11px 8px', paddingLeft: 20, color: C.gray800, whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: C.casual, marginRight: 7 }} />
+                        Khách lẻ
+                      </td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, color: C.gray800, whiteSpace: 'nowrap' }}>
+                        {fmtVnd(t.casualTotal)}
+                      </td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray800, whiteSpace: 'nowrap' }}>
+                        {shareCasual}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '11px 8px', paddingLeft: 20, color: C.gray800, whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: C.monthly, marginRight: 7 }} />
+                        Gói tháng
+                      </td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, color: C.gray800, whiteSpace: 'nowrap' }}>
+                        {fmtVnd(t.monthlyTotal)}
+                      </td>
+                      <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray800, whiteSpace: 'nowrap' }}>
+                        {shareMonthly}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : !comparisonData ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10 }}>
               <IconEmptyDoc size={40} />
@@ -720,29 +881,33 @@ export function RevenueDetailPage() {
                       Khoản mục
                     </th>
                     <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
-                      <div>Tháng này</div>
+                      <div>{getCol1Label()}</div>
                       <div style={{ fontSize: 10, fontWeight: 500, color: C.gray400, textTransform: 'none', letterSpacing: 0 }}>
                         {comparisonData.metadata.thisMonthSamePeriodRange}
                       </div>
                     </th>
                     <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
-                      <div>Cùng kỳ</div>
+                      <div>{getCol2Label()}</div>
                       <div style={{ fontSize: 10, fontWeight: 500, color: C.gray400, textTransform: 'none', letterSpacing: 0 }}>
                         {comparisonData.metadata.lastMonthSamePeriodRangeLabel}
                       </div>
                     </th>
                     <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
-                      Tăng/Giảm
+                      {getCol3Label()}
                     </th>
-                    <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
-                      <div>Cả tháng trước</div>
-                      <div style={{ fontSize: 10, fontWeight: 500, color: C.gray400, textTransform: 'none', letterSpacing: 0 }}>
-                        Full {comparisonData.metadata.lastMonthName}
-                      </div>
-                    </th>
-                    <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
-                      Tỷ lệ so với tháng trước
-                    </th>
+                    {showFull && (
+                      <>
+                        <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
+                          <div>{getCol4Label()}</div>
+                          <div style={{ fontSize: 10, fontWeight: 500, color: C.gray400, textTransform: 'none', letterSpacing: 0 }}>
+                            {range === 'month' ? `Full ${comparisonData.metadata.lastMonthName}` : ''}
+                          </div>
+                        </th>
+                        <th style={{ textAlign: 'right', padding: '0 8px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.gray500, whiteSpace: 'nowrap' }}>
+                          {getCol5Label()}
+                        </th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -758,12 +923,16 @@ export function RevenueDetailPage() {
                     <td style={{ padding: '11px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {renderCompGrowth(comparisonData.thisMonth.total, comparisonData.lastMonthSamePeriod.total)}
                     </td>
-                    <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray600, whiteSpace: 'nowrap' }}>
-                      {fmtVnd(comparisonData.lastMonthFull.total)}
-                    </td>
-                    <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, color: C.gray800, whiteSpace: 'nowrap' }}>
-                      {pctOf(comparisonData.lastMonthFull.total, comparisonData.thisMonth.total)}
-                    </td>
+                    {showFull && (
+                      <>
+                        <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray600, whiteSpace: 'nowrap' }}>
+                          {fmtVnd(comparisonData.lastMonthFull.total)}
+                        </td>
+                        <td style={{ padding: '11px 8px', textAlign: 'right', fontWeight: 600, color: C.gray800, whiteSpace: 'nowrap' }}>
+                          {renderFullPeriodRatio(comparisonData.thisMonth.total, comparisonData.lastMonthFull.total)}
+                        </td>
+                      </>
+                    )}
                   </tr>
                   {/* Khách lẻ */}
                   <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
@@ -780,12 +949,16 @@ export function RevenueDetailPage() {
                     <td style={{ padding: '11px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {renderCompGrowth(comparisonData.thisMonth.casual, comparisonData.lastMonthSamePeriod.casual)}
                     </td>
-                    <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray600, whiteSpace: 'nowrap' }}>
-                      {fmtVnd(comparisonData.lastMonthFull.casual)}
-                    </td>
-                    <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray800, whiteSpace: 'nowrap' }}>
-                      {pctOf(comparisonData.lastMonthFull.casual, comparisonData.thisMonth.casual)}
-                    </td>
+                    {showFull && (
+                      <>
+                        <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray600, whiteSpace: 'nowrap' }}>
+                          {fmtVnd(comparisonData.lastMonthFull.casual)}
+                        </td>
+                        <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray800, whiteSpace: 'nowrap' }}>
+                          {renderFullPeriodRatio(comparisonData.thisMonth.casual, comparisonData.lastMonthFull.casual)}
+                        </td>
+                      </>
+                    )}
                   </tr>
                   {/* Gói tháng */}
                   <tr>
@@ -802,12 +975,16 @@ export function RevenueDetailPage() {
                     <td style={{ padding: '11px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {renderCompGrowth(comparisonData.thisMonth.monthly, comparisonData.lastMonthSamePeriod.monthly)}
                     </td>
-                    <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray600, whiteSpace: 'nowrap' }}>
-                      {fmtVnd(comparisonData.lastMonthFull.monthly)}
-                    </td>
-                    <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray800, whiteSpace: 'nowrap' }}>
-                      {pctOf(comparisonData.lastMonthFull.monthly, comparisonData.thisMonth.monthly)}
-                    </td>
+                    {showFull && (
+                      <>
+                        <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray600, whiteSpace: 'nowrap' }}>
+                          {fmtVnd(comparisonData.lastMonthFull.monthly)}
+                        </td>
+                        <td style={{ padding: '11px 8px', textAlign: 'right', color: C.gray800, whiteSpace: 'nowrap' }}>
+                          {renderFullPeriodRatio(comparisonData.thisMonth.monthly, comparisonData.lastMonthFull.monthly)}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 </tbody>
               </table>
@@ -854,7 +1031,7 @@ export function RevenueDetailPage() {
                   transition: 'all 0.15s',
                 }}
               >
-                Theo PTTT
+                Theo phương thức
               </button>
             </div>
           </div>
@@ -1007,15 +1184,15 @@ export function RevenueDetailPage() {
           <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <IconSpinner size={32} />
           </div>
-        ) : t.series.length === 0 || t.series.every((r) => r.casual === 0 && r.monthly === 0) ? (
+        ) : filteredSeries.length === 0 || filteredSeries.every((r) => r.casual === 0 && r.monthly === 0) ? (
           <div style={{ height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
             <IconBarChart size={48} />
             <p style={{ color: C.gray400, fontSize: 14, margin: 0 }}>Chưa có doanh thu trong kỳ này</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={t.series} barGap={4} barCategoryGap="32%">
-              <CartesianGrid strokeDasharray="3 4" stroke="#CBD5E1" vertical={false} />
+            <BarChart data={filteredSeries} barGap={4} barCategoryGap="32%">
+              <CartesianGrid strokeDasharray="3 4" stroke={C.gray200} vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={fmtShortDate}
