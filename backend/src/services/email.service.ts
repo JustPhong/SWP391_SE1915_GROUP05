@@ -17,7 +17,9 @@ function getNodemailerTransporter() {
   if (!config.gmailUser || !config.gmailAppPassword) return null;
   if (!nodemailerTransporter) {
     nodemailerTransporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
         user: config.gmailUser,
         pass: config.gmailAppPassword,
@@ -27,23 +29,54 @@ function getNodemailerTransporter() {
   return nodemailerTransporter;
 }
 
-export async function sendEmail(to: string, subject: string, html: string) {
+export async function verifyOtpSmtpConnection(): Promise<void> {
+  const transporter = getNodemailerTransporter();
+  if (!transporter) {
+    throw new Error('Gmail SMTP credentials are not configured in environment variables.');
+  }
+  await transporter.verify();
+}
+
+export function closeOtpGmailTransporter(): void {
+  if (nodemailerTransporter) {
+    nodemailerTransporter.close();
+  }
+}
+
+export type EmailDeliveryResult = {
+  messageId?: string;
+  accepted: string[];
+  rejected: string[];
+  response?: string;
+};
+
+export async function sendEmail(to: string, subject: string, html: string): Promise<EmailDeliveryResult> {
   // 1. Try Gmail SMTP first if credentials are set
   const transporter = getNodemailerTransporter();
   if (transporter) {
-    try {
-      const info = await transporter.sendMail({
-        from: `"ParkSmart" <${config.gmailUser}>`,
-        to,
-        subject,
-        html,
-      });
-      console.log(`[Email] Sent successfully via Gmail SMTP to ${to}. MessageId: ${info.messageId}`);
-      return;
-    } catch (err: any) {
-      console.error(`[Email] Failed to send via Gmail SMTP to ${to}:`, err.message);
-      // Fallback to Resend or console log if Gmail fails
-    }
+    const info = await transporter.sendMail({
+      from: `"ParkSmart" <${config.gmailUser}>`,
+      to,
+      subject,
+      html,
+    });
+
+    const accepted = (info.accepted ?? []).map(String);
+    const rejected = (info.rejected ?? []).map(String);
+
+    console.log('OTP email delivery result', {
+      messageId: info.messageId,
+      accepted,
+      rejected,
+      response: info.response,
+    });
+
+    return {
+      messageId: info.messageId,
+      accepted,
+      rejected,
+      response: info.response,
+    };
   }
 
   // 2. Fallback to Resend API
@@ -57,22 +90,73 @@ export async function sendEmail(to: string, subject: string, html: string) {
     });
 
     if (error) {
-      console.warn(`[Email] Resend could not deliver to ${to}:`, error.message);
-      console.warn('[Email] Tip: verify a domain at resend.com/domains or send to the Resend account email only.');
-      return;
+      throw new Error(`Resend could not deliver: ${error.message}`);
     }
 
-    console.log(`[Email] Sent successfully via Resend. id=${data?.id}`);
-    return;
+    console.log('OTP email delivery result (Resend)', {
+      messageId: data?.id,
+      accepted: [to],
+      rejected: [],
+      response: 'Delivered via Resend API',
+    });
+
+    return {
+      messageId: data?.id,
+      accepted: [to],
+      rejected: [],
+      response: 'Delivered via Resend API',
+    };
   }
 
-  console.warn('[Email] No email sending credentials (Gmail or Resend) configured; skipping email send. OTP logged to console only.');
+  throw new Error('No email sending credentials (Gmail or Resend) configured');
 }
 
-export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
-  console.log(`[OTP] Code for ${to}: ${otp}`);
-  const subject = 'Mã xác thực OTP - ParkSmart';
-  const greeting = fullName ? `Xin chào <strong>${fullName}</strong>,` : 'Xin chào,';
+export type OtpPurpose = 'REGISTER' | 'RESET_PASSWORD';
+
+export type OtpEmailDeliveryResult = {
+  messageId?: string;
+  accepted: string[];
+  rejected: string[];
+  response?: string;
+};
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+export async function sendOtpEmail(
+  to: string,
+  otp: string,
+  fullName: string,
+  purpose: OtpPurpose
+): Promise<OtpEmailDeliveryResult> {
+  const transporter = getNodemailerTransporter();
+  if (!transporter) {
+    throw new Error('Gmail SMTP credentials are not configured in environment variables.');
+  }
+
+  const normalizedRecipient = to.trim().toLowerCase();
+
+  const subject = purpose === 'REGISTER'
+    ? 'ParkSmart – Mã xác nhận đăng ký tài khoản'
+    : 'ParkSmart – Mã xác nhận đặt lại mật khẩu';
+
+  const plainText = purpose === 'REGISTER'
+    ? `Mã xác nhận đăng ký ParkSmart của bạn là: ${otp}.\nMã có hiệu lực trong 5 phút.\nKhông chia sẻ mã này với bất kỳ ai.`
+    : `Mã xác nhận đặt lại mật khẩu ParkSmart của bạn là: ${otp}.\nMã có hiệu lực trong 5 phút.\nKhông chia sẻ mã này với bất kỳ ai.`;
+
+  const escapedName = escapeHtml(fullName || '');
+  const greeting = escapedName ? `Xin chào <strong>${escapedName}</strong>,` : 'Xin chào,';
+  
+  const greetingWording = purpose === 'REGISTER'
+    ? 'Chúng tôi đã nhận được yêu cầu xác thực tài khoản đăng ký của bạn. Vui lòng sử dụng mã OTP dưới đây:'
+    : 'Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu tài khoản của bạn. Vui lòng sử dụng mã OTP dưới đây:';
+
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #f8fafc; border-radius: 16px; overflow: hidden;">
       <div style="background: linear-gradient(135deg, #1E3A5F 0%, #2C4F78 100%); padding: 28px 32px; text-align: center;">
@@ -82,7 +166,7 @@ export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
       <div style="padding: 32px; background: #ffffff;">
         <p style="margin: 0 0 12px; color: #374151; font-size: 15px;">${greeting}</p>
         <p style="margin: 0 0 24px; color: #6B7280; font-size: 14px; line-height: 1.6;">
-          Chúng tôi đã nhận được yêu cầu xác thực tài khoản của bạn. Vui lòng sử dụng mã OTP dưới đây:
+          ${greetingWording}
         </p>
         <div style="background: #F0F9FF; border: 2px dashed #BAE6FD; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
           <p style="margin: 0 0 8px; font-size: 12px; color: #0284C7; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;">Mã xác nhận OTP</p>
@@ -94,12 +178,62 @@ export async function sendOtpEmail(to: string, otp: string, fullName?: string) {
         </p>
       </div>
       <div style="padding: 16px 32px; background: #F9FAFB; border-top: 1px solid #E5E7EB; text-align: center;">
-        <p style="margin: 0; font-size: 12px; color: #9CA3AF;">© 2026 ParkSmart DevTeam — SWP391 SE1915 FPT University</p>
+        <p style="margin: 0; font-size: 12px; color: #9CA3AF;">© 2026 ParkSmart. All rights reserved.<br/>Email này được gửi tự động, vui lòng không trả lời.</p>
       </div>
     </div>
   `;
 
-  return sendEmail(to, subject, html);
+  try {
+    const info = await transporter.sendMail({
+      from: `"ParkSmart" <${config.gmailUser}>`,
+      to: normalizedRecipient,
+      subject,
+      text: plainText,
+      html,
+    });
+
+    const accepted: string[] = (info.accepted ?? []).map(
+      (recipient: unknown) => String(recipient)
+    );
+
+    const rejected: string[] = (info.rejected ?? []).map(
+      (recipient: unknown) => String(recipient)
+    );
+
+    const wasAccepted = accepted.some(
+      (recipient: string) =>
+        recipient.trim().toLowerCase() === normalizedRecipient
+    );
+
+    if (!wasAccepted) {
+      throw new Error(
+        'Recipient was not accepted by the SMTP server'
+      );
+    }
+
+    console.log('Email provider submission result', {
+      emailType: 'OTP',
+      purpose,
+      messageId: info.messageId,
+      accepted,
+      rejected,
+      response: info.response,
+    });
+
+    return {
+      messageId: info.messageId,
+      accepted,
+      rejected,
+      response: info.response,
+    };
+  } catch (err: any) {
+    console.error('Email provider submission failure', {
+      emailType: 'OTP',
+      purpose,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
 
 export async function sendBookingEmail(

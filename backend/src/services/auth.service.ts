@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { AppError } from '../utils/helpers';
 import { sendOtpEmail } from './email.service';
+import { randomInt } from 'crypto';
 
 export interface RegisterInput {
   fullName: string;
@@ -32,195 +33,323 @@ export interface AuthResult {
   };
 }
 
-// ── OTP Store (in-memory) ──────────────────────────────
+// ── OTP types ──────────────────────────────────────────
 interface OtpEntry {
   code: string;
   expiresAt: number; // timestamp ms
   fullName: string;
+  attempts: number;
 }
-const otpStore = new Map<string, OtpEntry>();          // used for registration
-const resetOtpStore = new Map<string, OtpEntry>();     // used for forgot-password
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const OTP_COOLDOWN_MS = 60 * 1000; // 1 minute between sends
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+type AuthServiceDependencies = {
+  prisma: typeof prisma;
+  sendOtpEmail: typeof sendOtpEmail;
+};
+
+export function createAuthService(deps: AuthServiceDependencies) {
+  const otpStore = new Map<string, OtpEntry>();          // used for registration
+  const resetOtpStore = new Map<string, OtpEntry>();     // used for forgot-password
+  const registrationOtpSendInProgress = new Set<string>();
+  const resetOtpSendInProgress = new Set<string>();
+
+  function generateOtp(): string {
+    return randomInt(100000, 1000000).toString();
+  }
+
+  return {
+    async sendOtp(input: { email: string; fullName: string }): Promise<void> {
+      if (!input.email || typeof input.email !== 'string') {
+        throw new AppError(400, 'Vui lòng cung cấp email hợp lệ');
+      }
+      if (!input.fullName || typeof input.fullName !== 'string') {
+        throw new AppError(400, 'Vui lòng cung cấp họ tên hợp lệ');
+      }
+      const email = input.email.trim().toLowerCase();
+      const fullName = input.fullName.trim();
+
+      if (!email || !fullName) {
+        throw new AppError(400, 'Email và họ tên không được để trống');
+      }
+
+      if (registrationOtpSendInProgress.has(email)) {
+        throw new AppError(429, 'Yêu cầu gửi mã OTP đang được xử lý. Vui lòng đợi.');
+      }
+      registrationOtpSendInProgress.add(email);
+
+      try {
+        const existing = await deps.prisma.user.findUnique({ where: { email } });
+        if (existing) {
+          throw new AppError(409, 'Email đã được sử dụng');
+        }
+
+        const prev = otpStore.get(email);
+        if (prev && prev.expiresAt - OTP_TTL_MS + OTP_COOLDOWN_MS > Date.now()) {
+          throw new AppError(429, 'Vui lòng đợi 60 giây trước khi gửi lại mã');
+        }
+
+        const code = generateOtp();
+
+        try {
+          const delivery = await deps.sendOtpEmail(email, code, fullName, 'REGISTER');
+          const accepted = delivery.accepted.some(
+            (recipient) => recipient.trim().toLowerCase() === email
+          );
+          if (!accepted) {
+            throw new Error('Recipient was not accepted by the SMTP server');
+          }
+        } catch (error) {
+          console.error('OTP email delivery failed', {
+            error: error instanceof Error ? error.message : 'Unknown email delivery error',
+          });
+          throw new AppError(502, 'Không thể gửi email xác nhận. Vui lòng thử lại sau.');
+        }
+
+        // Persist OTP only after delivery succeeds (Option A)
+        otpStore.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS, fullName, attempts: 0 });
+
+        setTimeout(() => {
+          const entry = otpStore.get(email);
+          if (entry && entry.code === code) {
+            otpStore.delete(email);
+          }
+        }, OTP_TTL_MS + 1000);
+      } finally {
+        registrationOtpSendInProgress.delete(email);
+      }
+    },
+
+    async forgotPasswordSendOtp(input: { email: string }): Promise<void> {
+      if (!input.email || typeof input.email !== 'string') {
+        throw new AppError(400, 'Vui lòng cung cấp email hợp lệ');
+      }
+      const email = input.email.trim().toLowerCase();
+      if (!email) {
+        throw new AppError(400, 'Vui lòng nhập email');
+      }
+
+      if (resetOtpSendInProgress.has(email)) {
+        throw new AppError(429, 'Yêu cầu gửi mã OTP đang được xử lý. Vui lòng đợi.');
+      }
+      resetOtpSendInProgress.add(email);
+
+      try {
+        const user = await deps.prisma.user.findUnique({ where: { email } });
+        if (!user) {
+          throw new AppError(404, 'Email này chưa được đăng ký trong hệ thống');
+        }
+
+        const prev = resetOtpStore.get(email);
+        if (prev && prev.expiresAt - OTP_TTL_MS + OTP_COOLDOWN_MS > Date.now()) {
+          throw new AppError(429, 'Vui lòng đợi 60 giây trước khi gửi lại mã');
+        }
+
+        const code = generateOtp();
+
+        try {
+          const delivery = await deps.sendOtpEmail(email, code, user.fullName, 'RESET_PASSWORD');
+          const accepted = delivery.accepted.some(
+            (recipient) => recipient.trim().toLowerCase() === email
+          );
+          if (!accepted) {
+            throw new Error('Recipient was not accepted by the SMTP server');
+          }
+        } catch (error) {
+          console.error('Reset OTP email delivery failed', {
+            error: error instanceof Error ? error.message : 'Unknown email delivery error',
+          });
+          throw new AppError(502, 'Không thể gửi email xác nhận. Vui lòng thử lại sau.');
+        }
+
+        // Persist Reset OTP only after delivery succeeds (Option A)
+        resetOtpStore.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS, fullName: user.fullName, attempts: 0 });
+
+        setTimeout(() => {
+          const entry = resetOtpStore.get(email);
+          if (entry && entry.code === code) {
+            resetOtpStore.delete(email);
+          }
+        }, OTP_TTL_MS + 1000);
+      } finally {
+        resetOtpSendInProgress.delete(email);
+      }
+    },
+
+    async resetPassword(input: { email: string; otp: string; newPassword: string }): Promise<void> {
+      if (!input.email || typeof input.email !== 'string') {
+        throw new AppError(400, 'Vui lòng cung cấp email hợp lệ');
+      }
+      const email = input.email.trim().toLowerCase();
+
+      if (!input.otp) {
+        throw new AppError(400, 'Vui lòng nhập mã xác nhận OTP');
+      }
+      if (!input.newPassword || input.newPassword.length < 6) {
+        throw new AppError(400, 'Mật khẩu mới phải có ít nhất 6 ký tự');
+      }
+
+      const entry = resetOtpStore.get(email);
+      if (!entry) {
+        throw new AppError(400, 'Mã xác nhận không tồn tại hoặc đã hết hạn. Vui lòng gửi lại mã.');
+      }
+      if (Date.now() > entry.expiresAt) {
+        resetOtpStore.delete(email);
+        throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
+      }
+      if (entry.code !== input.otp.trim()) {
+        entry.attempts += 1;
+        if (entry.attempts >= 5) {
+          resetOtpStore.delete(email);
+          throw new AppError(400, 'Bạn đã nhập sai mã OTP quá 5 lần. Vui lòng gửi lại mã mới.');
+        }
+        throw new AppError(400, `Mã xác nhận không chính xác. Bạn còn ${5 - entry.attempts} lần thử.`);
+      }
+
+      const user = await deps.prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        throw new AppError(404, 'Không tìm thấy tài khoản');
+      }
+
+      const passwordHash = await bcrypt.hash(input.newPassword, 12);
+      await deps.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+      
+      // Only delete OTP after password update succeeds
+      resetOtpStore.delete(email);
+    },
+
+    async register(input: RegisterInput): Promise<AuthResult> {
+      if (!input.email || typeof input.email !== 'string') {
+        throw new AppError(400, 'Vui lòng cung cấp email hợp lệ');
+      }
+      const email = input.email.trim().toLowerCase();
+
+      // 1. Validate inputs (except database checks)
+      if (!input.otp) {
+        throw new AppError(400, 'Vui lòng nhập mã xác nhận OTP');
+      }
+      if (!input.fullName || input.fullName.trim().length === 0) {
+        throw new AppError(400, 'Họ tên không được để trống');
+      }
+      if (!input.password || input.password.length < 6) {
+        throw new AppError(400, 'Mật khẩu phải có ít nhất 6 ký tự');
+      }
+      if (!input.plateNumber) {
+        throw new AppError(400, 'Biển số xe không được để trống');
+      }
+
+      // 2. Validate OTP exists
+      const entry = otpStore.get(email);
+      if (!entry) {
+        throw new AppError(400, 'Mã xác nhận không tồn tại hoặc đã hết hạn. Vui lòng gửi lại mã.');
+      }
+
+      // 3. Validate OTP is not expired
+      if (Date.now() > entry.expiresAt) {
+        otpStore.delete(email);
+        throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
+      }
+
+      // 4. Validate OTP matches (with attempts check)
+      if (entry.code !== input.otp.trim()) {
+        entry.attempts += 1;
+        if (entry.attempts >= 5) {
+          otpStore.delete(email);
+          throw new AppError(400, 'Bạn đã nhập sai mã OTP quá 5 lần. Vui lòng gửi lại mã mới.');
+        }
+        throw new AppError(400, `Mã xác nhận không chính xác. Bạn còn ${5 - entry.attempts} lần thử.`);
+      }
+
+      // 5. Validate email is not registered
+      const existingEmail = await deps.prisma.user.findUnique({ where: { email } });
+      if (existingEmail) {
+        throw new AppError(409, 'Email đã được sử dụng');
+      }
+
+      // 6. Validate plate is not registered
+      const existingPlate = await deps.prisma.vehicle.findUnique({ where: { plateNumber: input.plateNumber } });
+      if (existingPlate) {
+        throw new AppError(409, 'Biển số xe này đã được đăng ký trong hệ thống');
+      }
+
+      // 7. Validate role exists
+      const roleName = input.role ?? 'DRIVER';
+      const role = await deps.prisma.role.findUnique({ where: { name: roleName } });
+      if (!role) {
+        throw new AppError(400, 'Vai trò không hợp lệ');
+      }
+
+      // 8. Hash password
+      const passwordHash = await bcrypt.hash(input.password, 12);
+
+      // 9. Create user and vehicle safely using Prisma transaction
+      let userResult;
+      try {
+        userResult = await deps.prisma.$transaction(async (tx) => {
+          const user = await tx.user.create({
+            data: {
+              fullName: input.fullName.trim(),
+              email,
+              phoneNumber: input.phoneNumber ?? null,
+              passwordHash,
+              roleId: role.id,
+            },
+          });
+
+          await tx.vehicle.create({
+            data: {
+              plateNumber: input.plateNumber.trim().toUpperCase(),
+              type: input.vehicleType,
+              ownerId: user.id,
+              isMonthly: false,
+              brand: (input as any).brand || undefined,
+              model: (input as any).model || undefined,
+              color: (input as any).color || undefined,
+              year: (input as any).year || undefined,
+            },
+          });
+
+          return user;
+        });
+      } catch (dbErr: any) {
+        console.error('Registration database transaction failed:', dbErr instanceof Error ? dbErr.message : String(dbErr));
+        throw new AppError(500, 'Đăng ký tài khoản thất bại. Vui lòng thử lại.');
+      }
+
+      // 10. Delete OTP only after registration succeeds!
+      otpStore.delete(email);
+
+      // 11. Generate JWT token
+      const token = jwt.sign(
+        { id: userResult.id, email: userResult.email, role: roleName },
+        config.jwtSecret,
+        { expiresIn: '7d' }
+      );
+
+      return {
+        token,
+        user: {
+          id: userResult.id,
+          fullName: userResult.fullName,
+          email: userResult.email,
+          role: roleName,
+          phoneNumber: userResult.phoneNumber ?? null,
+        },
+      };
+    }
+  };
 }
-// ───────────────────────────────────────────────────────
+
+const productionAuthService = createAuthService({
+  prisma,
+  sendOtpEmail,
+});
 
 export const authService = {
-  async sendOtp(input: { email: string; fullName: string }): Promise<void> {
-    const email = input.email.trim().toLowerCase();
-    const fullName = input.fullName.trim();
-
-    if (!email || !fullName) {
-      throw new AppError(400, 'Email và họ tên không được để trống');
-    }
-
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      throw new AppError(409, 'Email đã được sử dụng');
-    }
-
-    const prev = otpStore.get(email);
-    if (prev && prev.expiresAt - OTP_TTL_MS + OTP_COOLDOWN_MS > Date.now()) {
-      throw new AppError(429, 'Vui lòng đợi 60 giây trước khi gửi lại mã');
-    }
-
-    const code = generateOtp();
-    otpStore.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS, fullName });
-
-    setTimeout(() => {
-      const entry = otpStore.get(email);
-      if (entry && entry.code === code) {
-        otpStore.delete(email);
-      }
-    }, OTP_TTL_MS + 1000);
-
-    await sendOtpEmail(email, code, fullName);
-    console.log(`[OTP] Sent to ${email}: ${code}`);
-  },
-
-  async forgotPasswordSendOtp(input: { email: string }): Promise<void> {
-    const email = input.email.trim().toLowerCase();
-    if (!email) {
-      throw new AppError(400, 'Vui lòng nhập email');
-    }
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new AppError(404, 'Email này chưa được đăng ký trong hệ thống');
-    }
-
-    const prev = resetOtpStore.get(email);
-    if (prev && prev.expiresAt - OTP_TTL_MS + OTP_COOLDOWN_MS > Date.now()) {
-      throw new AppError(429, 'Vui lòng đợi 60 giây trước khi gửi lại mã');
-    }
-
-    const code = generateOtp();
-    resetOtpStore.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS, fullName: user.fullName });
-
-    setTimeout(() => {
-      const entry = resetOtpStore.get(email);
-      if (entry && entry.code === code) {
-        resetOtpStore.delete(email);
-      }
-    }, OTP_TTL_MS + 1000);
-
-    await sendOtpEmail(email, code, user.fullName);
-    console.log(`[Reset-OTP] Sent to ${email}: ${code}`);
-  },
-
-  async resetPassword(input: { email: string; otp: string; newPassword: string }): Promise<void> {
-    const email = input.email.trim().toLowerCase();
-
-    if (!input.otp) {
-      throw new AppError(400, 'Vui lòng nhập mã xác nhận OTP');
-    }
-    if (!input.newPassword || input.newPassword.length < 6) {
-      throw new AppError(400, 'Mật khẩu mới phải có ít nhất 6 ký tự');
-    }
-
-    const entry = resetOtpStore.get(email);
-    if (!entry) {
-      throw new AppError(400, 'Mã xác nhận không tồn tại hoặc đã hết hạn. Vui lòng gửi lại mã.');
-    }
-    if (Date.now() > entry.expiresAt) {
-      resetOtpStore.delete(email);
-      throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
-    }
-    if (entry.code !== input.otp.trim()) {
-      throw new AppError(400, 'Mã xác nhận không chính xác');
-    }
-    resetOtpStore.delete(email);
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new AppError(404, 'Không tìm thấy tài khoản');
-    }
-
-    const passwordHash = await bcrypt.hash(input.newPassword, 12);
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
-  },
-
-  async register(input: RegisterInput): Promise<AuthResult> {
-    const email = input.email.trim().toLowerCase();
-
-    // ── Verify OTP ──
-    if (!input.otp) {
-      throw new AppError(400, 'Vui lòng nhập mã xác nhận OTP');
-    }
-    const entry = otpStore.get(email);
-    if (!entry) {
-      throw new AppError(400, 'Mã xác nhận không tồn tại hoặc đã hết hạn. Vui lòng gửi lại mã.');
-    }
-    if (Date.now() > entry.expiresAt) {
-      otpStore.delete(email);
-      throw new AppError(400, 'Mã xác nhận đã hết hạn. Vui lòng gửi lại mã.');
-    }
-    if (entry.code !== input.otp.trim()) {
-      throw new AppError(400, 'Mã xác nhận không chính xác');
-    }
-    // OTP valid → consume it
-    otpStore.delete(email);
-
-    // ── Existing checks ──
-    const existingEmail = await prisma.user.findUnique({ where: { email } });
-    if (existingEmail) {
-      throw new AppError(409, 'Email already in use');
-    }
-
-    const existingPlate = await prisma.vehicle.findUnique({ where: { plateNumber: input.plateNumber } });
-    if (existingPlate) {
-      throw new AppError(409, 'This license plate is already registered');
-    }
-
-    const passwordHash = await bcrypt.hash(input.password, 12);
-
-    const roleName = input.role ?? 'DRIVER';
-    const role = await prisma.role.findUnique({ where: { name: roleName } });
-    if (!role) throw new AppError(400, 'Invalid role');
-
-    const user = await prisma.user.create({
-      data: {
-        fullName: input.fullName,
-        email,
-        phoneNumber: input.phoneNumber ?? null,
-        passwordHash,
-        roleId: role.id,
-      },
-    });
-
-    await prisma.vehicle.create({
-      data: {
-        plateNumber: input.plateNumber,
-        type: input.vehicleType,
-        ownerId: user.id,
-        isMonthly: false,
-        brand: (input as any).brand || undefined,
-        model: (input as any).model || undefined,
-        color: (input as any).color || undefined,
-        year: (input as any).year || undefined,
-      },
-    });
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: roleName },
-      config.jwtSecret,
-      { expiresIn: '7d' }
-    );
-
-    return {
-      token,
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        role: roleName,
-        phoneNumber: user.phoneNumber ?? null,
-      },
-    };
-  },
+  sendOtp: (input: { email: string; fullName: string }) => productionAuthService.sendOtp(input),
+  forgotPasswordSendOtp: (input: { email: string }) => productionAuthService.forgotPasswordSendOtp(input),
+  resetPassword: (input: { email: string; otp: string; newPassword: string }) => productionAuthService.resetPassword(input),
+  register: (input: RegisterInput) => productionAuthService.register(input),
 
   async login(input: LoginInput): Promise<AuthResult> {
     const user = await prisma.user.findUnique({
