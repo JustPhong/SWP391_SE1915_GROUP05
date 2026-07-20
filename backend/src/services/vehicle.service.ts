@@ -148,12 +148,12 @@ export const vehicleService = {
           orderBy: { createdAt: 'desc' },
           take: 5,
           include: {
-            slot: { include: { floor: true } },
+            floor: true,
           },
         },
         monthlyPackage: {
           include: {
-            slot: { include: { floor: true } },
+            floor: true,
           },
         },
         checkInRecords: {

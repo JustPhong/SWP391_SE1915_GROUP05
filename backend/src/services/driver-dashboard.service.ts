@@ -93,7 +93,7 @@ export const driverDashboardService = {
       orderBy: { expectedArrival: 'desc' },
       include: {
         vehicle: true,
-        slot: true,
+        floor: true,
       },
     });
 
@@ -110,7 +110,7 @@ export const driverDashboardService = {
     const bookingEntries = bookings.map((b) => ({
       id: b.id,
       plateNumber: b.vehicle.plateNumber,
-      slotCode: b.slot.code,
+      slotCode: b.floor.name,
       date: formatISODate(b.expectedArrival),
       duration: 'Chờ xe vào',
       amount: Number(b.depositAmount),

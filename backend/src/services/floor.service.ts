@@ -242,7 +242,7 @@ export const floorService = {
       },
       include: {
         vehicle: { select: { plateNumber: true } },
-        slot:    { select: { code: true } },
+        floor:   { select: { name: true } },
       },
     });
 
@@ -254,12 +254,6 @@ export const floorService = {
           data: { status: "NO_SHOW", depositStatus: "FORFEITED" },
         });
 
-        // 2. Nhả slot về AVAILABLE
-        await tx.parkingSlot.update({
-          where: { id: booking.slotId },
-          data: { status: SLOT_AVAILABLE },
-        });
-
         // 3. Ghi AuditLog
         await tx.auditLog.create({
           data: {
@@ -269,11 +263,11 @@ export const floorService = {
             action:      "booking.no_show",
             targetType:  "Booking",
             targetId:    String(booking.id),
-            description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại ô ${booking.slot.code} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
+            description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại tầng ${booking.floor.name} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
             metadata:    JSON.stringify({
               bookingId:        booking.id,
               plate:            booking.vehicle.plateNumber,
-              slotCode:         booking.slot.code,
+              floorName:        booking.floor.name,
               expectedArrival:  booking.expectedArrival,
               depositForfeited: true,
             }),
