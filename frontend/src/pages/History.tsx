@@ -4,19 +4,23 @@ import styles from '../styles/history.module.css';
 
 interface HistoryEntry {
   id: string;
+  recordType?: 'CHECKIN' | 'BOOKING';
   plateNumber?: string;
   licensePlate?: string;
   vehiclePlate?: string;
   vehicle?: {
     licensePlate: string;
   };
-  slotCode?: string;
+  slotCode?: string | null;
   slot?: {
     code: string;
   };
   parkingSlot?: {
     code: string;
   };
+  floorId?: number;
+  floorName?: string | null;
+  parkingArea?: string | null;
   date?: string;
   entryTime?: string;
   createdAt?: string;
@@ -149,8 +153,13 @@ export function HistoryPage() {
     return record.plateNumber || record.licensePlate || record.vehicle?.licensePlate || record.vehiclePlate || '-';
   };
 
-  const getSlotCode = (record: HistoryEntry) => {
-    return record.slotCode || record.slot?.code || record.parkingSlot?.code || '-';
+  const getLocationLabel = (record: HistoryEntry): string => {
+    return (
+      record.floorName ||
+      record.parkingArea ||
+      (record.slotCode || record.slot?.code || record.parkingSlot?.code || '') ||
+      'Chưa xác định'
+    );
   };
 
   const getDate = (record: HistoryEntry) => {
@@ -393,7 +402,7 @@ export function HistoryPage() {
                 <tbody>
                   {paginatedHistory.map((entry) => {
                     const plate = getPlate(entry);
-                    const slot = getSlotCode(entry);
+                    const slot = getLocationLabel(entry);
                     const date = getDate(entry);
                     const duration = getDuration(entry);
                     const amount = getAmount(entry);
@@ -512,8 +521,10 @@ export function HistoryPage() {
               </div>
 
               <div className={styles.modalField}>
-                <span className={styles.modalLabel}>Mã chỗ đỗ</span>
-                <span className={styles.modalValue}>{getSlotCode(selectedEntry)}</span>
+                <span className={styles.modalLabel}>
+                  {selectedEntry.floorName || selectedEntry.parkingArea ? 'Khu vực đỗ' : 'Mã chỗ đỗ'}
+                </span>
+                <span className={styles.modalValue}>{getLocationLabel(selectedEntry)}</span>
               </div>
 
               <div className={styles.modalField}>

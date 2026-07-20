@@ -16,10 +16,12 @@ export interface BookingItem {
   expectedArrival: string;
   depositAmount: string;
   depositStatus: string;
-  slot: {
-    id: string;
-    code: string;
-    floor?: FloorInfo;
+  floor: {
+    id: number;
+    floorCode: string;
+    name: string;
+    vehicleType: string;
+    customerType: string;
   };
   vehicle: {
     id: string;

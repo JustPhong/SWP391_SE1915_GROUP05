@@ -4,7 +4,6 @@ import {
   listBookings,
   markNoShow,
   type BookingItem,
-  type FloorInfo,
 } from '../api/bookingApi';
 
 // ═════════════════════════════════════════════════════
@@ -123,19 +122,11 @@ function deriveStatus(
   return 'QUA_GIO';
 }
 
-function getAreaDisplay(slot: BookingItem['slot']): string {
-  const floor: FloorInfo | undefined = (slot as any).floor;
-  if (floor) {
-    return `${floor.name}`;
-  }
-  // Fallback: just show the floor code extracted from slot code
-  const code = slot.code;
-  const floorCode = code.split('-')[0] ?? '';
-  return `Tầng ${floorCode}`;
+function getAreaDisplay(floor: BookingItem['floor']): string {
+  return floor ? floor.name : 'Chưa xác định';
 }
 
-function getCustomerTypeDisplay(slot: BookingItem['slot']): string {
-  const floor: FloorInfo | undefined = (slot as any).floor;
+function getCustomerTypeDisplay(floor: BookingItem['floor']): string {
   if (floor) {
     const vType = floor.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
     const cType = floor.customerType === 'MONTHLY' ? 'khách tháng' : 'khách lẻ';
@@ -320,9 +311,9 @@ function PlateDisplay({ plate }: { plate: string }) {
   );
 }
 
-function AreaDisplay({ slot }: { slot: BookingItem['slot'] }) {
-  const area = getAreaDisplay(slot);
-  const sub = getCustomerTypeDisplay(slot);
+function AreaDisplay({ floor }: { floor: BookingItem['floor'] }) {
+  const area = getAreaDisplay(floor);
+  const sub = getCustomerTypeDisplay(floor);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{area}</span>
@@ -553,7 +544,7 @@ export function BookingManagementPage() {
     // Area filter
     if (areaFilter) {
       result = result.filter((b) => {
-        const area = getAreaDisplay(b.slot).toLowerCase();
+        const area = getAreaDisplay(b.floor).toLowerCase();
         return area.includes(areaFilter.toLowerCase());
       });
     }
@@ -632,7 +623,7 @@ export function BookingManagementPage() {
   const areaOptions = useMemo(() => {
     const areas = new Set<string>();
     bookings.forEach((b) => {
-      areas.add(getAreaDisplay(b.slot));
+      areas.add(getAreaDisplay(b.floor));
     });
     return Array.from(areas).sort();
   }, [bookings]);
@@ -1027,7 +1018,7 @@ export function BookingManagementPage() {
 
                       {/* Khu vực đặt */}
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <AreaDisplay slot={b.slot} />
+                        <AreaDisplay floor={b.floor} />
                       </td>
 
                       {/* Giờ hẹn đến */}
