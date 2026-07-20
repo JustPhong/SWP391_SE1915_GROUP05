@@ -5,7 +5,6 @@ export const monthlyPackageService = {
   create: async (data: {
     userId: string;
     vehicleId: string;
-    slotId?: string;
     planId?: string;
     startDate: string;
     expiryDate: string;
@@ -14,6 +13,14 @@ export const monthlyPackageService = {
     vehicleType?: string;
   }) => {
     const response = await api.post<{ success: boolean; data: MonthlyPackage }>('/monthly-packages', data);
+    return response.data.data;
+  },
+
+  createCheckoutSession: async (data: {
+    vehicleId: string;
+    planId: string;
+  }) => {
+    const response = await api.post<{ success: boolean; data: { sessionId: string; url: string } }>('/monthly-packages/checkout-session', data);
     return response.data.data;
   },
 

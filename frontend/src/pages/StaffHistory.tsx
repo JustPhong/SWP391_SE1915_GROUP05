@@ -8,7 +8,10 @@ interface CheckInRecord {
   recordType: 'CHECKIN' | 'BOOKING';
   plateNumber: string;
   vehicleType: string;
-  slotCode: string;
+  slotCode: string | null;
+  floorId?: number | null;
+  floorName?: string | null;
+  parkingArea?: string | null;
   timeIn: string | null;
   timeOut: string | null;
   status: string; // COMPLETED, PARKING, ACTIVE, CANCELLED, NO_SHOW
@@ -762,7 +765,9 @@ export function StaffHistoryPage() {
                         </td>
 
                         {/* 6. TẦNG / VỊ TRÍ */}
-                        <td className={`${styles.td} ${styles.colLocation}`}>{r.slotCode}</td>
+                        <td className={`${styles.td} ${styles.colLocation}`}>
+                          {r.floorName || r.parkingArea || r.slotCode || 'Chưa xác định'}
+                        </td>
 
                         {/* 7. THỜI GIAN VÀO / HẸN */}
                         <td className={styles.td}>

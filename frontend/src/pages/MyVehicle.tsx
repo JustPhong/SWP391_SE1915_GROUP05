@@ -23,7 +23,20 @@ const C = {
 function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 
-function getParkingAreaText(vehicle: Vehicle): string { try { const pkg = (vehicle as any).monthlyPackage; if (pkg?.allowedTier) { const tier = pkg.allowedTier; if (tier === 'VIP') return 'VIP'; if (tier === 'POPULAR') return 'Phổ biến'; if (tier === 'REGULAR') return 'Cơ bản'; } const rawFloor = pkg?.slot?.floor?.name || ''; const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, ''); const slotCode = pkg?.slot?.code; if (floorName && slotCode) return `Tầng ${floorName} · Ô ${slotCode}`; if (floorName) return `Tầng ${floorName}`; if (slotCode) return `Ô ${slotCode}`; return 'Chưa phân khu'; } catch { return 'Chưa phân khu'; } }
+function getParkingAreaText(vehicle: Vehicle): string {
+  try {
+    const pkg = (vehicle as any).monthlyPackage;
+    if (!pkg) return 'Chưa phân khu';
+    const tierName = pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản';
+    const floorName = (pkg.floor?.name || '').replace(/^(tầng|tang)\s*/i, '');
+    if (floorName) {
+      return `Tầng ${floorName} · Khu ${tierName}`;
+    }
+    return `Khu ${tierName}`;
+  } catch {
+    return 'Chưa phân khu';
+  }
+}
 function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 const formatParkingArea = (
@@ -621,10 +634,10 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
                         <div>Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> – <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong></div>
-                        {detail.monthlyPackage.allowedTier ? (
+                        {detail.monthlyPackage.floor ? (
+                          <div>Khu vực đỗ xe: <strong>Tầng {(detail.monthlyPackage.floor.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
+                        ) : detail.monthlyPackage.allowedTier ? (
                           <div>Khu vực đỗ xe: <strong>Tầng G · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
-                        ) : detail.monthlyPackage.slot ? (
-                          <div>Vị trí cố định: <strong>Tầng {(detail.monthlyPackage.slot.floor?.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · Ô {detail.monthlyPackage.slot.code}</strong></div>
                         ) : null}
                         <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 800, color: '#FCD34D', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
                       </div>
@@ -640,7 +653,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                     <div>
                       <h4 style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lịch đặt chỗ gần đây</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {detail.bookings.map((b: any) => (<div key={b.id} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>{formatParkingArea(b.slot?.floor?.name, detail.type)}</div><div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}</div></div><BookingStatusBadge status={b.status} /></div>))}
+                        {detail.bookings.map((b: any) => (<div key={b.id} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>{formatParkingArea(b.floor?.name, detail.type)}</div><div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>Dự kiến đến: {b.expectedArrival ? fmtDatetime(b.expectedArrival) : '—'}</div></div><BookingStatusBadge status={b.status} /></div>))}
                       </div>
                     </div>
                   )}
@@ -650,7 +663,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                       <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '10px', borderLeft: '2px solid #E2E8F0', gap: '16px', marginLeft: '6px', marginTop: '6px' }}>
                         {detail.checkInRecords.map((r: any) => {
                           const isCurrentlyParked = !r.checkOutTime;
-                          const locationText = formatParkingArea(r.slot?.floor?.name, detail.type);
+                          const locationText = formatParkingArea(r.floor?.name || r.slot?.floor?.name, detail.type);
                           const activeStatusText = isCurrentlyParked
                             ? (r.allowedTier ? `Đang đỗ - ${getTierAreaLabel(r.allowedTier)}` : 'Đang đỗ')
                             : 'Đã ra';

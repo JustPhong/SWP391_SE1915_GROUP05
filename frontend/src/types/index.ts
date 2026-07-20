@@ -69,7 +69,7 @@ export interface MonthlyPackage {
   id: string;
   userId: string;
   vehicleId: string;
-  slotId: string | null;
+  floorId: number;
   planName?: string | null;
   autoRenew: boolean;
   startDate: string;
@@ -78,22 +78,22 @@ export interface MonthlyPackage {
   status: PackageStatus;
   user?: User;
   vehicle?: Vehicle;
-  slot?: ParkingSlot;
+  floor?: Floor;
   payments?: Payment[];
   allowedTier?: 'VIP' | 'POPULAR' | 'REGULAR' | null;
   createdAt: string;
 }
 
 export interface Booking {
-  id: number;
+  id: string;
   vehicleId: string;
-  slotId: string;
+  floorId: number;
   bookingTime: string;
   expectedArrival: string;
   status: BookingStatus;
   createdById: string;
   vehicle?: Vehicle;
-  slot?: ParkingSlot;
+  floor?: Floor;
   createdBy?: User;
   createdAt: string;
 }

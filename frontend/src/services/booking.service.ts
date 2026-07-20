@@ -1,8 +1,23 @@
 import api from './api';
 import type { Booking } from '../types/index';
 
+export interface CreateBookingRequest {
+  plateNumber: string;
+  expectedArrival: string;
+  floorId?: number;
+  ownerFullName?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
+  type?: 'CAR' | 'MOTORBIKE';
+  brand?: string;
+  model?: string;
+  color?: string;
+  year?: number;
+  seats?: number;
+}
+
 export const bookingService = {
-  create: async (data: { vehicleId: string; slotId?: string; expiresAt: string }) => {
+  create: async (data: CreateBookingRequest) => {
     const response = await api.post<{ success: boolean; data: Booking }>('/bookings', data);
     return response.data.data;
   },

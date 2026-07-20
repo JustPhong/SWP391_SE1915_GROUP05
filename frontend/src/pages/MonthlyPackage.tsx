@@ -411,6 +411,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
   const [packageActionSuccess, setPackageActionSuccess] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [pkgToCancel, setPkgToCancel] = useState<MonthlyPackage | null>(null);
+  const [stripeStatus, setStripeStatus] = useState<'IDLE' | 'POLLING' | 'SUCCESS' | 'FAILED'>('IDLE');
 
   // Detail Modal
   const [selectedDetailPkg, setSelectedDetailPkg] = useState<MonthlyPackage | null>(null);
@@ -434,6 +435,47 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     if (authLoading || !user) return;
     loadMyPackages();
   }, [authLoading, user, loadMyPackages]);
+
+  // Stripe success polling
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isSuccess = params.get('success') === 'true';
+    const sessionId = params.get('session_id');
+
+    if (isSuccess && sessionId && user) {
+      setStripeStatus('POLLING');
+      let attempts = 0;
+      const maxAttempts = 6;
+
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const pkgs = await monthlyPackageService.getMyPackages();
+          const activePkg = pkgs.find(p => p.status === 'ACTIVE');
+          if (activePkg) {
+            clearInterval(poll);
+            setMyPackages(pkgs);
+            setStripeStatus('SUCCESS');
+            setPackageActionSuccess('Thanh toán và kích hoạt gói tháng thành công!');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else if (attempts >= maxAttempts) {
+            clearInterval(poll);
+            setStripeStatus('FAILED');
+            setPackageActionError('Giao dịch đang xử lý. Vui lòng làm mới lại trang sau vài phút.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (err) {
+          if (attempts >= maxAttempts) {
+            clearInterval(poll);
+            setStripeStatus('FAILED');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      }, 2500);
+
+      return () => clearInterval(poll);
+    }
+  }, [user]);
 
   // Detail Modal QR Code generation
   useEffect(() => {
@@ -545,6 +587,12 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
       </div>
 
       {/* Action Notification Banners */}
+      {stripeStatus === 'POLLING' && (
+        <div style={{ background: C.blueBg, border: `1.5px solid ${C.blue}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: C.blue, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ width: 16, height: 16, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          Đang xác nhận thanh toán với Stripe. Vui lòng đợi trong giây lát...
+        </div>
+      )}
       {packageActionError && (
         <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 600 }}>
           {packageActionError}
@@ -724,11 +772,11 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                           <IconPin size={18} />
                         </div>
                         <div className={newStyles.detailInfo}>
-                          <span className={newStyles.detailLabel}>Vị trí</span>
+                          <span className={newStyles.detailLabel}>Khu vực đỗ</span>
                           <span className={newStyles.detailValue}>
-                            {pkg.slot?.floor?.name && pkg.slot?.code
-                              ? `Tầng ${pkg.slot.floor.name} · Ô ${pkg.slot.code}`
-                              : (pkg.allowedTier ? `Tầng G · ${getTierAreaLabel(pkg.allowedTier)}` : 'Chưa phân vị trí')}
+                            {pkg.floor?.name
+                              ? `Tầng ${pkg.floor.name} · ${getTierAreaLabel(pkg.allowedTier)}`
+                              : (pkg.allowedTier ? `Tầng G · ${getTierAreaLabel(pkg.allowedTier)}` : 'Chưa phân khu')}
                           </span>
                         </div>
                       </div>
@@ -894,9 +942,9 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
               <div className={newStyles.ticketRow}>
                 <span className={newStyles.ticketLabel}>Vị trí / Khu vực</span>
                 <span className={newStyles.ticketValue}>
-                  {selectedDetailPkg.slot?.floor?.name && selectedDetailPkg.slot?.code
-                    ? `Tầng ${selectedDetailPkg.slot.floor.name} · Ô ${selectedDetailPkg.slot.code}`
-                    : (selectedDetailPkg.allowedTier ? `Tầng G · ${getTierAreaLabel(selectedDetailPkg.allowedTier)}` : 'Chưa phân vị trí')}
+                  {selectedDetailPkg.floor?.name && selectedDetailPkg.allowedTier
+                    ? `Tầng ${selectedDetailPkg.floor.name} · ${getTierAreaLabel(selectedDetailPkg.allowedTier)}`
+                    : 'Chưa phân vị trí'}
                 </span>
               </div>
               <div className={newStyles.ticketRow}>

@@ -19,7 +19,7 @@ import { MonthlyPackagePage } from './MonthlyPackage';
 import { BookingPage } from './Booking';
 import { FloorMapPage } from './FloorMap';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
-import type { ParkingSlot } from '../types/index';
+import type { Floor } from '../types/index';
 import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
@@ -155,15 +155,15 @@ export const WelcomePage: React.FC = () => {
 
   // ── Booking modal state ─────────────────────────────────────
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState<{ bookingId: string; slotCode: string } | null>(null);
+  const [bookingSuccess, setBookingSuccess] = useState<{ bookingId: string; areaName: string } | null>(null);
 
   useEffect(() => {
     sessionStorage.setItem('welcomeActiveTab', activeTab);
   }, [activeTab]);
 
-  const handleBookingSuccess = (slot: ParkingSlot, bookingId: string) => {
+  const handleBookingSuccess = (floor: Floor, bookingId: string) => {
     setBookingOpen(false);
-    setBookingSuccess({ bookingId, slotCode: slot.code });
+    setBookingSuccess({ bookingId, areaName: floor.name });
   };
 
   const toggleFaq = (index: number) => {
@@ -528,7 +528,7 @@ export const WelcomePage: React.FC = () => {
         {bookingSuccess && (
           <BookingSuccess
             bookingId={bookingSuccess.bookingId}
-            slotCode={bookingSuccess.slotCode}
+            areaName={bookingSuccess.areaName}
             onClose={() => setBookingSuccess(null)}
           />
         )}
@@ -870,7 +870,7 @@ export const WelcomePage: React.FC = () => {
       {bookingSuccess && (
         <BookingSuccess
           bookingId={bookingSuccess.bookingId}
-          slotCode={bookingSuccess.slotCode}
+          areaName={bookingSuccess.areaName}
           onClose={() => setBookingSuccess(null)}
         />
       )}

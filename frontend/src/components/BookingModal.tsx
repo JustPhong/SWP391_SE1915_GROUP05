@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { ParkingSlot } from '../types/index';
+import type { Floor } from '../types/index';
 import { useAuth } from '../context/AuthContext';
 import { getMyVehicles, lookupVehicleByPlate } from '../api/vehicleApi';
 import type { Vehicle } from '../api/vehicleApi';
@@ -84,7 +84,7 @@ function IconShare({ size = 16, color = C.white }: { size?: number; color?: stri
 interface BookingModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (slot: ParkingSlot, bookingId: string) => void;
+  onSuccess: (floor: Floor, bookingId: string) => void;
 
   // Optional: allow parent to redirect user to vehicle tab after closing/success.
   onRedirectToVehicles?: () => void;
@@ -202,7 +202,7 @@ export function BookingModal({
     setErrorMsg('');
     try {
       const expectedArrival = new Date(arrivalTime).toISOString();
-      const res = await api.post<{ success: boolean; data: { id: string; slot: ParkingSlot } }>('/bookings', {
+      const res = await api.post<{ success: boolean; data: { id: string; floor: Floor } }>('/bookings', {
         plateNumber: plate,
         expectedArrival,
         ...(isNewVehicle && {
@@ -218,9 +218,9 @@ export function BookingModal({
         }),
       });
 
-      const slot = res.data.data.slot;
+      const floor = res.data.data.floor;
       const bid = `PKS-${String(res.data.data.id).slice(0, 8).toUpperCase()}`;
-      onSuccess(slot, bid);
+      onSuccess(floor, bid);
 
       setPlateNumber('');
       setArrivalTime('');
@@ -742,11 +742,11 @@ export function BookingModal({
 // ── Booking Success ────────────────────────────────────────
 interface BookingSuccessProps {
   bookingId: string;
-  slotCode: string;
+  areaName: string;
   onClose: () => void;
 }
 
-export function BookingSuccess({ bookingId, slotCode, onClose }: BookingSuccessProps) {
+export function BookingSuccess({ bookingId, areaName, onClose }: BookingSuccessProps) {
   return (
     <div style={{
       background: C.white,
@@ -789,10 +789,10 @@ export function BookingSuccess({ bookingId, slotCode, onClose }: BookingSuccessP
           textAlign: 'center',
         }}>
           <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#15803D', marginBottom: '0.2rem' }}>
-            Vị trí đã xếp
+            Khu vực đỗ xe
           </p>
-          <p style={{ margin: 0, fontSize: '2.5rem', fontWeight: 900, color: C.green, letterSpacing: '0.04em', lineHeight: 1 }}>
-            {slotCode}
+          <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: C.green, letterSpacing: '0.04em', lineHeight: 1 }}>
+            {areaName || 'Chưa xác định'}
           </p>
           <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: '#166534' }}>
             Hết hạn sau 30 phút kể từ khi đặt

@@ -106,9 +106,7 @@ export function BookingPage() {
   // ── Success screen ───────────────────────────────────────
   if (bookingSuccess) {
     const { booking, vehicle } = bookingSuccess;
-    const rawFloor = booking.slot?.floor?.name || '';
-    const floorName = rawFloor.replace(/^(tầng|tang)\s*/i, '');
-    const slotCode = booking.slot?.code || '';
+    const floorName = booking.floor?.name || '';
 
     return (
       <div className={styles.container} style={{ minHeight: 'auto', paddingBottom: '5rem' }}>
@@ -184,12 +182,14 @@ export function BookingPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'center', padding: '0.5rem 0' }}>
                 <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 600 }}>
-                  {floorName && slotCode ? (
+                  {floorName ? (
                     <>
-                      Vị trí được bố trí: <strong style={{ color: '#1E3A5F', fontWeight: 800 }}>Tầng {floorName} · Ô {slotCode}</strong>
+                      Khu vực đỗ xe: <strong style={{ color: '#1E3A5F', fontWeight: 800 }}>{floorName}</strong>
                     </>
                   ) : (
-                    'Vị trí cụ thể sẽ được bố trí khi bạn đến bãi.'
+                    <>
+                      Khu vực đỗ xe: <strong style={{ color: '#1E3A5F', fontWeight: 800 }}>Chưa xác định</strong>
+                    </>
                   )}
                 </span>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5, fontWeight: 500 }}>
