@@ -13,10 +13,6 @@ export const createMonthlyPackageSchema = [
   body('vehicleId')
     .isUUID()
     .withMessage('Vehicle ID must be a valid UUID'),
-  body('slotId')
-    .optional()
-    .isUUID()
-    .withMessage('Slot ID must be a valid UUID'),
   body('startDate')
     .isISO8601()
     .withMessage('Start date must be a valid ISO 8601 date'),

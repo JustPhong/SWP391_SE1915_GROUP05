@@ -1,18 +1,47 @@
 import { Response } from 'express';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { asyncHandler } from '../utils/helpers';
+import { asyncHandler, AppError } from '../utils/helpers';
+import { stripe } from '../config/stripe';
 
 export const monthlyPackageController = {
   create: asyncHandler(async (req: AuthRequest, res: Response) => {
     const pkg = await monthlyPackageService.create({
       ...req.body,
-      userId: req.user!.id,   // server-pinned; ignore any client-sent userId
+      userId: req.user!.id,
       startDate: new Date(req.body.startDate),
       expiryDate: new Date(req.body.expiryDate),
     });
     return res.status(201).json({ success: true, data: pkg });
-  }),    
+  }),
+
+  createCheckoutSession: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { vehicleId, planId } = req.body;
+    const result = await monthlyPackageService.createCheckoutSession({
+      userId: req.user!.id,
+      vehicleId,
+      planId,
+    });
+    return res.status(200).json({ success: true, data: result });
+  }),
+
+  handleWebhook: asyncHandler(async (req: any, res: Response) => {
+    const signature = req.headers['stripe-signature'] as string;
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err: any) {
+      throw new AppError(400, `Webhook Error: ${err.message}`);
+    }
+
+    const result = await monthlyPackageService.handleStripeWebhook(event);
+    return res.status(200).json({ success: true, data: result });
+  }),
 
   getActivePackages: asyncHandler(async (_req: AuthRequest, res: Response) => {
     const packages = await monthlyPackageService.getActivePackages();

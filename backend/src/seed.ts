@@ -312,12 +312,13 @@ async function main() {
     create: {
       userId: driverA.id,
       vehicleId: vehicleA.id,
-      slotId: (await prisma.parkingSlot.findUnique({ where: { code: 'G-01' } }))!.id,
+      floorId: (await prisma.floor.findUnique({ where: { floorCode: 'G' } }))!.id,
       planName: 'Gói tháng',
       startDate: new Date(),
       expiryDate: validExpiry,
       price: 600000,
       status: 'ACTIVE',
+      allowedTier: 'VIP',
     },
   });
   console.log('Monthly customer seeded: Nguyen Van A / 51A11111 / G-01 (VALID, expires', validExpiry.toLocaleDateString('vi-VN'), ')');
@@ -362,12 +363,13 @@ async function main() {
     create: {
       userId: driverB.id,
       vehicleId: vehicleB.id,
-      slotId: (await prisma.parkingSlot.findUnique({ where: { code: 'G-02' } }))!.id,
+      floorId: (await prisma.floor.findUnique({ where: { floorCode: 'G' } }))!.id,
       planName: 'Gói tháng',
       startDate: new Date(Date.now() - 10 * 86400000),
       expiryDate: expiredExpiry,
       price: 600000,
       status: 'EXPIRED',
+      allowedTier: 'REGULAR',
     },
   });
   console.log('Monthly customer seeded: Tran Thi B / 51B22222 / G-02 (EXPIRED since', expiredExpiry.toLocaleDateString('vi-VN'), ')');
