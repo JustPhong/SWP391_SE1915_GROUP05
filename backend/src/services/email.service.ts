@@ -243,8 +243,10 @@ export async function sendBookingEmail(
     bookingId: string;
     plateNumber: string;
     vehicleType: 'CAR' | 'MOTORBIKE';
-    slotCode: string;
+    floorId: number;
+    floorCode: string;
     floorName: string;
+    parkingArea: string;
     expectedArrival: Date;
     depositAmount: number;
   }
@@ -256,9 +258,8 @@ export async function sendBookingEmail(
 
   const formattedDeposit = new Intl.NumberFormat('vi-VN').format(bookingDetails.depositAmount) + ' ₫';
 
-  const floorText = bookingDetails.floorName.toLowerCase().startsWith('tầng') || bookingDetails.floorName.toLowerCase().startsWith('tang')
-    ? bookingDetails.floorName
-    : `Tầng ${bookingDetails.floorName}`;
+  const cleanedFloor = bookingDetails.floorName.replace(/^(tầng|tang)\s*/i, '').trim();
+  const areaDisplay = `Tầng ${cleanedFloor} · Khu ô tô`;
 
   const html = `
     <table style="width: 100%; border-collapse: collapse; background-color: #F3F6FA; margin: 0; padding: 0;">
@@ -353,7 +354,7 @@ export async function sendBookingEmail(
                         <!-- Row 2: Khu vực đỗ -->
                         <tr style="border-bottom: 1px solid #D9E2EE;">
                           <td style="padding: 14px 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #475467; font-weight: 500; text-align: left; width: 35%; white-space: nowrap !important;">Khu vực đỗ</td>
-                          <td style="padding: 14px 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #101828; font-weight: 700; text-align: right; width: 65%; white-space: nowrap !important;">${floorText} · ${bookingDetails.vehicleType === 'CAR' ? 'Khu ô tô' : 'Khu xe máy'}</td>
+                          <td style="padding: 14px 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #101828; font-weight: 700; text-align: right; width: 65%; white-space: nowrap !important;">${areaDisplay}</td>
                         </tr>
 
                         <!-- Row 3: Hạn đến bãi -->

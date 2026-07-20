@@ -63,12 +63,54 @@ export const checkInService = {
       throw new AppError(400, 'Vehicle already has an active parking session');
     }
 
-    let targetSlotId: string;
-    const zone: 'MONTHLY' | 'CASUAL' = isMonthly ? 'MONTHLY' : 'CASUAL';
+    if (isMonthly && pkg) {
+      const floorId = pkg.floorId;
+      if (!floorId) {
+        throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe. Vui lòng liên hệ ban quản lý.');
+      }
+      const allowedTier = pkg.allowedTier;
 
-    if (isMonthly && pkg?.slotId) {
-      targetSlotId = pkg.slotId;
-    } else if (input.slotId) {
+      // Validate capacity
+      const physicalCapacity = await prisma.parkingSlot.count({
+        where: {
+          floorId,
+          type: activeVehicle.type,
+          tier: allowedTier,
+        },
+      });
+
+      const currentOccupancy = await prisma.checkInRecord.count({
+        where: {
+          floorId,
+          allowedTier,
+          checkOutTime: null,
+        },
+      });
+
+      if (currentOccupancy >= physicalCapacity) {
+        const zoneName = allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
+        throw new AppError(400, `Khu vực đỗ xe ${zoneName} tại tầng đã hết chỗ trống.`);
+      }
+
+      // Create CheckInRecord (no slotId)
+      const record = await prisma.checkInRecord.create({
+        data: {
+          vehicleId: activeVehicle.id,
+          slotId: null,
+          floorId,
+          isMonthly: true,
+          allowedTier,
+        },
+        include: { slot: true, vehicle: { include: { owner: true } } },
+      });
+
+      return record;
+    }
+
+    let targetSlotId: string;
+    const zone: 'MONTHLY' | 'CASUAL' = 'CASUAL';
+
+    if (input.slotId) {
       const manualSlot = await prisma.parkingSlot.findUnique({
         where: { id: input.slotId },
         include: { floor: true },
@@ -103,6 +145,7 @@ export const checkInService = {
         data: {
           vehicleId: activeVehicle.id,
           slotId: targetSlotId,
+          floorId: slot.floorId,
           isMonthly,
         },
       }),
@@ -140,7 +183,12 @@ export const checkInService = {
         take: limit,
         orderBy: { checkInTime: 'desc' },
         include: {
-          slot: true,
+          slot: {
+            include: {
+              floor: true,
+            },
+          },
+          floor: true,
           vehicle: { include: { owner: true } },
           payments: true,
         },
@@ -159,7 +207,7 @@ export const checkInService = {
         take: limit,
         orderBy: { expectedArrival: 'desc' },
         include: {
-          slot: true,
+          floor: true,
           vehicle: { include: { owner: true } },
         },
       }),
@@ -171,6 +219,9 @@ export const checkInService = {
       plateNumber: r.vehicle.plateNumber,
       vehicleType: r.vehicle.type,
       slotCode: r.slot?.code ?? null,
+      floorId: r.floorId ?? r.slot?.floorId ?? null,
+      floorName: r.floor?.name ?? r.slot?.floor?.name ?? null,
+      parkingArea: r.floor?.name ?? r.slot?.floor?.name ?? null,
       timeIn: r.checkInTime.toISOString(),
       timeOut: r.checkOutTime ? r.checkOutTime.toISOString() : null,
       status: r.checkOutTime ? 'COMPLETED' : 'PARKING',
@@ -188,7 +239,10 @@ export const checkInService = {
       recordType: 'BOOKING',
       plateNumber: b.vehicle.plateNumber,
       vehicleType: b.vehicle.type,
-      slotCode: b.slot?.code ?? null,
+      slotCode: null,
+      floorId: b.floorId,
+      floorName: b.floor?.name ?? null,
+      parkingArea: b.floor?.name ?? null,
       timeIn: null,
       timeOut: null,
       status: b.status,

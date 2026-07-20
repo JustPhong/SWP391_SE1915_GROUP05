@@ -370,9 +370,9 @@ export const checkoutService = {
           status: 'AVAILABLE',
         };
         // For monthly vehicles with assigned slot, keep it reserved
-        if (record.isMonthly && record.slot.assignedVehicleId) {
+        if (record.isMonthly && record.slot?.assignedVehicleId) {
           updateData.status = 'RESERVED';
-        } else if (!record.isMonthly && !record.slot.isFixed) {
+        } else if (!record.isMonthly && !record.slot?.isFixed) {
           updateData.assignedVehicleId = null;
         }
         await tx.parkingSlot.update({
@@ -534,7 +534,7 @@ export const checkoutService = {
         const updateData: { status: string; assignedVehicleId?: string | null } = {
           status: 'AVAILABLE',
         };
-        if (!record.isMonthly && !record.slot.isFixed) {
+        if (!record.isMonthly && !record.slot?.isFixed) {
           updateData.assignedVehicleId = null;
         }
         await tx.parkingSlot.update({

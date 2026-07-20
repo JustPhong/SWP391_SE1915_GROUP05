@@ -73,7 +73,7 @@ export const checkinService = {
       },
       include: {
         monthlyPackage: {
-          include: { slot: true },
+          include: { floor: true },
         },
         owner: {
           select: {
@@ -133,7 +133,7 @@ export const checkinService = {
     return {
       ...baseResult,
       alreadyParked: false,
-      fixedSlot: pkg.slot?.code ?? null,
+      fixedSlot: null,
       packageExpiry: pkg.expiryDate.toISOString(),
       isExpired,
       allowedTier: pkg.allowedTier ?? null,
@@ -201,7 +201,11 @@ export const checkinService = {
         ],
       },
       include: {
-        monthlyPackage: true,
+        monthlyPackage: {
+          include: {
+            floor: true,
+          },
+        },
       },
     });
 
@@ -215,14 +219,49 @@ export const checkinService = {
         throw new AppError(400, 'Gói tháng đã hết hạn hoặc không tồn tại');
       }
 
+      const floorId = pkg.floorId;
+      if (!floorId) {
+        throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe. Vui lòng liên hệ ban quản lý.');
+      }
+
+      // Check that no currently active CheckInRecord already exists for the vehicle
+      const existing = await prisma.checkInRecord.findFirst({
+        where: { vehicleId: vehicle.id, checkOutTime: null },
+      });
+      if (existing) {
+        throw new AppError(400, 'Xe đã có lượt gửi đang hoạt động');
+      }
+
       const allowedTier = pkg.allowedTier;
       const zoneName = allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
+
+      // Check current zone occupancy is below physical zone capacity
+      const physicalCapacity = await prisma.parkingSlot.count({
+        where: {
+          floorId,
+          type: vehicle.type,
+          tier: allowedTier,
+        },
+      });
+
+      const currentOccupancy = await prisma.checkInRecord.count({
+        where: {
+          floorId,
+          allowedTier,
+          checkOutTime: null,
+        },
+      });
+
+      if (currentOccupancy >= physicalCapacity) {
+        throw new AppError(400, `Khu vực đỗ xe ${zoneName} tại tầng đã hết chỗ trống.`);
+      }
 
       const checkInTime = new Date();
       await prisma.checkInRecord.create({
         data: {
           vehicleId: vehicle.id,
           slotId: null,
+          floorId,
           checkInTime,
           isMonthly: true,
           allowedTier,
@@ -237,7 +276,7 @@ export const checkinService = {
         slotCode: `Khu ${allowedTier === 'VIP' ? 'VIP' : allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
         checkInTime: checkInTime.toISOString(),
         accessGranted: true,
-        floorCode: 'G',
+        floorCode: pkg.floor?.floorCode ?? 'G',
         allowedTier,
         zoneName,
         message: `Vui lòng di chuyển vào ${zoneName} và đỗ tại vị trí trống phù hợp.`,
@@ -277,6 +316,7 @@ export const checkinService = {
         data: {
           vehicleId: vehicle!.id,
           slotId: slot.id,
+          floorId: slot.floorId,
           checkInTime,
           isMonthly,
           frontImageUrl: frontImageUrl ?? null,

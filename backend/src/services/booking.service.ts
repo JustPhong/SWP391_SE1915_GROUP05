@@ -1,6 +1,5 @@
 import prisma from '../config/db';
 import { floorService } from './floor.service';
-import { slotSuggestionService } from './slotSuggestion.service';
 import { AppError } from '../utils/helpers';
 import { sendBookingEmail } from './email.service';
 
@@ -8,9 +7,6 @@ const BOOKING_ACTIVE = 'ACTIVE';
 const BOOKING_FULFILLED = 'FULFILLED';
 const BOOKING_CANCELLED = 'CANCELLED';
 const BOOKING_NO_SHOW = 'NO_SHOW';
-const SLOT_AVAILABLE = 'AVAILABLE';
-const SLOT_RESERVED = 'RESERVED';
-const SLOT_OCCUPIED = 'OCCUPIED';
 const BOOKING_DEPOSIT = 15000;
 
 export interface CreateBookingInput {
@@ -26,8 +22,8 @@ export interface CreateBookingInput {
   color?: string;
   year?: number;
   seats?: number;
+  floorId?: number;
 }
-
 
 export interface FulfillBookingInput {
   bookingId: string;
@@ -35,21 +31,40 @@ export interface FulfillBookingInput {
 }
 
 const bookingInclude = {
-  slot: {
-    include: {
-      floor: {
-        select: {
-          floorCode: true,
-          name: true,
-          vehicleType: true,
-          customerType: true,
-        },
-      },
+  floor: {
+    select: {
+      id: true,
+      floorCode: true,
+      name: true,
+      vehicleType: true,
+      customerType: true,
     },
   },
   vehicle: { include: { owner: true } },
   createdBy: { select: { id: true, fullName: true, email: true } },
 } as const;
+
+async function runWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 100): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error: unknown) {
+      let isSerializationError = false;
+      if (error && typeof error === 'object') {
+        const errObj = error as Record<string, unknown>;
+        if (errObj.code === 'P2034' || (typeof errObj.message === 'string' && errObj.message.includes('serialization'))) {
+          isSerializationError = true;
+        }
+      }
+      if (isSerializationError && i < retries - 1) {
+        await new Promise(res => setTimeout(res, delay * (i + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new AppError(500, 'Transaction conflict retry limit reached');
+}
 
 export const bookingService = {
   async create(input: CreateBookingInput) {
@@ -96,85 +111,170 @@ export const bookingService = {
     const vType = vehicle.type;
     const zone = isVehicleMonthly ? 'MONTHLY' : 'CASUAL';
 
-    // 2. Auto-assign best slot using the existing Greedy algorithm
-    const suggestion = await slotSuggestionService.suggestSlot(vType, zone);
-    if (!suggestion) {
-      throw new AppError(409, `Hiện không còn chỗ trống cho ${isVehicleMonthly ? 'cư dân' : 'khách vãng lai'} (${vType === 'CAR' ? 'ô tô' : 'xe máy'}). Vui lòng thử lại sau.`);
+    // Public/casual booking is available for CAR vehicles only.
+    if (vType !== 'CAR') {
+      throw new AppError(400, 'Dịch vụ đặt chỗ trước chỉ áp dụng cho xe ô tô (CAR).');
     }
 
-    // 3. Transaction: tạo booking + payment cọc + reserve slot
-    const booking = await prisma.$transaction(async (tx) => {
-      const depositAmt = isVehicleMonthly ? 0 : BOOKING_DEPOSIT;
+    // Determine target floor safely
+    let targetFloorId = input.floorId;
+    let floor: { id: number; floorCode: string; name: string; capacity: number; vehicleType: string; customerType: string } | null = null;
+    let eligibleFloors: { id: number; floorCode: string; name: string; capacity: number; vehicleType: string; customerType: string }[] = [];
 
-      // Tạo mã đặt chỗ độc nhất dạng BK-XXXXXX
-      let bookingCode = '';
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      for (let attempt = 0; attempt < 5; attempt++) {
-        let tempCode = 'BK-';
-        for (let i = 0; i < 6; i++) {
-          tempCode += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        const existing = await tx.booking.findUnique({ where: { id: tempCode } });
-        if (!existing) {
-          bookingCode = tempCode;
-          break;
-        }
+    if (targetFloorId) {
+      floor = await prisma.floor.findUnique({ where: { id: targetFloorId } });
+      if (!floor) {
+        throw new AppError(404, 'Khu vực đỗ xe không tồn tại');
       }
-      if (!bookingCode) {
-        bookingCode = `BK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      if (floor.vehicleType.toUpperCase() !== vType.toUpperCase()) {
+        throw new AppError(400, 'Khu vực đỗ xe không khớp với loại phương tiện');
       }
-
-      const newBooking = await tx.booking.create({
-        data: {
-          id:              bookingCode,
-          vehicleId:       vehicle.id,
-          slotId:          suggestion.slotId,
-          expectedArrival: input.expectedArrival,
-          status:          BOOKING_ACTIVE,
-          depositAmount:   depositAmt,
-          depositStatus:   'PAID',
-          createdById:     input.createdById,
+      if (floor.customerType !== zone) {
+        throw new AppError(400, 'Khu vực đỗ xe không khớp với loại khách hàng');
+      }
+    } else {
+      eligibleFloors = await prisma.floor.findMany({
+        where: {
+          vehicleType: vType.toUpperCase(),
+          customerType: zone,
         },
-        include: {
-          slot: {
-            include: {
-              floor: {
-                select: {
-                  floorCode: true,
-                  name: true,
-                  vehicleType: true,
-                  customerType: true,
-                },
+        orderBy: { id: 'asc' },
+      });
+      if (eligibleFloors.length === 0) {
+        throw new AppError(
+          404,
+          `Không tìm thấy khu vực đỗ xe phù hợp cho xe ${vType === 'CAR' ? 'ô tô' : 'xe máy'} (${zone === 'MONTHLY' ? 'cư dân' : 'khách vãng lai'})`
+        );
+      }
+    }
+
+    // 3. Transaction: tạo booking + payment cọc + check capacity
+    const booking = await runWithRetry(async () => {
+      return prisma.$transaction(async (tx) => {
+        let chosenFloorId: number;
+
+        if (targetFloorId) {
+          chosenFloorId = targetFloorId;
+
+          const activeCheckIns = await tx.checkInRecord.count({
+            where: {
+              status: 'PARKING',
+              OR: [
+                { floorId: chosenFloorId },
+                { slot: { floorId: chosenFloorId } }
+              ]
+            }
+          });
+
+          const activeBookingsCount = await tx.booking.count({
+            where: {
+              floorId: chosenFloorId,
+              status: BOOKING_ACTIVE,
+            },
+          });
+
+          if (activeCheckIns + activeBookingsCount >= floor!.capacity) {
+            throw new AppError(409, `Khu vực đỗ xe ${floor!.name} đã hết chỗ trống dự kiến.`);
+          }
+        } else {
+          let foundFloor = null;
+          for (const ef of eligibleFloors) {
+            const activeCheckIns = await tx.checkInRecord.count({
+              where: {
+                status: 'PARKING',
+                OR: [
+                  { floorId: ef.id },
+                  { slot: { floorId: ef.id } }
+                ]
+              }
+            });
+
+            const activeBookingsCount = await tx.booking.count({
+              where: {
+                floorId: ef.id,
+                status: BOOKING_ACTIVE,
+              },
+            });
+
+            if (activeCheckIns + activeBookingsCount < ef.capacity) {
+              foundFloor = ef;
+              break;
+            }
+          }
+
+          if (!foundFloor) {
+            throw new AppError(409, 'Tất cả khu vực đỗ xe phù hợp đã hết chỗ trống dự kiến.');
+          }
+
+          chosenFloorId = foundFloor.id;
+        }
+
+        const depositAmt = isVehicleMonthly ? 0 : BOOKING_DEPOSIT;
+
+        // Tạo mã đặt chỗ độc nhất dạng BK-XXXXXX
+        let bookingCode = '';
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        for (let attempt = 0; attempt < 5; attempt++) {
+          let tempCode = 'BK-';
+          for (let i = 0; i < 6; i++) {
+            tempCode += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          const existing = await tx.booking.findUnique({ where: { id: tempCode } });
+          if (!existing) {
+            bookingCode = tempCode;
+            break;
+          }
+        }
+        if (!bookingCode) {
+          bookingCode = `BK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        }
+
+        const newBooking = await tx.booking.create({
+          data: {
+            id:              bookingCode,
+            vehicleId:       vehicle!.id,
+            floorId:         chosenFloorId,
+            expectedArrival: input.expectedArrival,
+            status:          BOOKING_ACTIVE,
+            depositAmount:   depositAmt,
+            depositStatus:   'PAID',
+            createdById:     input.createdById,
+          },
+          include: {
+            floor: {
+              select: {
+                id: true,
+                floorCode: true,
+                name: true,
+                vehicleType: true,
+                customerType: true,
               },
             },
-          },
-          vehicle: { include: { owner: true } },
-          createdBy: { select: { id: true, fullName: true, email: true } },
-        },
-      });
-
-      // Chỉ ghi nhận thu cọc 15.000đ nếu không phải cư dân (BR-BK-01)
-      if (!isVehicleMonthly) {
-        await tx.payment.create({
-          data: {
-            amount:          BOOKING_DEPOSIT,
-            method:          'CASH',
-            type:            'SESSION',
-            status:          'SUCCESS',
-            paidAt:          new Date(),
-            collectedById:   input.createdById,
-            transactionCode: `DEP-${newBooking.id}`,
+            vehicle: { include: { owner: true } },
+            createdBy: { select: { id: true, fullName: true, email: true } },
           },
         });
-      }
 
-      // Giữ slot
-      await tx.parkingSlot.update({
-        where: { id: suggestion.slotId },
-        data: { status: SLOT_RESERVED },
+        // Chỉ ghi nhận thu cọc 15.000đ nếu không phải cư dân (BR-BK-01)
+        if (!isVehicleMonthly) {
+          await tx.payment.create({
+            data: {
+              amount:          BOOKING_DEPOSIT,
+              method:          'CASH',
+              type:            'BOOKING_DEPOSIT',
+              status:          'SUCCESS',
+              paidAt:          new Date(),
+              collectedById:   input.createdById,
+              transactionCode: `DEP-${newBooking.id}`,
+              bookingId:       newBooking.id,
+            },
+          });
+        }
+
+        return newBooking;
+      }, {
+        isolationLevel: 'Serializable',
       });
-
-      return newBooking;
     });
 
     // Gửi email xác nhận đặt chỗ (bất đồng bộ - fire-and-forget)
@@ -186,8 +286,10 @@ export const bookingService = {
         bookingId: booking.id,
         plateNumber: booking.vehicle.plateNumber,
         vehicleType: booking.vehicle.type as 'CAR' | 'MOTORBIKE',
-        slotCode: booking.slot.code,
-        floorName: booking.slot.floor.name,
+        floorId: booking.floor.id,
+        floorCode: booking.floor.floorCode,
+        floorName: booking.floor.name,
+        parkingArea: 'Khu ô tô',
         expectedArrival: booking.expectedArrival,
         depositAmount: Number(booking.depositAmount),
       }).catch(err => {
@@ -199,77 +301,77 @@ export const bookingService = {
   },
 
   async fulfill(input: FulfillBookingInput) {
-    const booking = await prisma.booking.findUnique({
-      where: { id: input.bookingId },
-      include: { slot: true },
-    });
-    if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
-    if (booking.status !== BOOKING_ACTIVE) {
-      throw new AppError(400, `Không thể xác nhận đặt chỗ ở trạng thái "${booking.status}"`);
-    }
+    return runWithRetry(async () => {
+      return prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          where: { id: input.bookingId },
+          include: { vehicle: true },
+        });
+        if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
 
-    return prisma.$transaction([
-      prisma.booking.update({
-        where: { id: input.bookingId },
-        data: { status: BOOKING_FULFILLED },
-      }),
-      prisma.parkingSlot.update({
-        where: { id: booking.slotId },
-        data: { status: SLOT_OCCUPIED },
-      }),
-      prisma.checkInRecord.create({
-        data: {
-          vehicleId: booking.vehicleId,
-          slotId:    booking.slotId,
-          isMonthly: false,
-        },
-      }),
-    ]);
+        // Idempotency: if already FULFILLED, return existing check-in record
+        if (booking.status === BOOKING_FULFILLED) {
+          const existingRecord = await tx.checkInRecord.findFirst({
+            where: { bookingId: booking.id },
+          });
+          return [booking, existingRecord];
+        }
+
+        if (booking.status !== BOOKING_ACTIVE) {
+          throw new AppError(400, `Không thể xác nhận đặt chỗ ở trạng thái "${booking.status}"`);
+        }
+
+        const updatedBooking = await tx.booking.update({
+          where: { id: input.bookingId },
+          data: { status: BOOKING_FULFILLED },
+        });
+
+        const newRecord = await tx.checkInRecord.create({
+          data: {
+            vehicleId: booking.vehicleId,
+            floorId:   booking.floorId,
+            bookingId: booking.id,
+            slotId:    null, // No slot auto-assignment at check-in
+            isMonthly: false,
+          },
+        });
+
+        return [updatedBooking, newRecord];
+      }, {
+        isolationLevel: 'Serializable',
+      });
+    });
   },
 
   async markNoShow(bookingId: string) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { slot: true, vehicle: { select: { plateNumber: true } } },
+      include: { vehicle: { select: { plateNumber: true } } },
     });
     if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
     if (booking.status !== BOOKING_ACTIVE) {
       throw new AppError(400, `Không thể đánh dấu vắng mặt đặt chỗ ở trạng thái "${booking.status}"`);
     }
 
-    return prisma.$transaction([
-      prisma.booking.update({
-        where: { id: bookingId },
-        data: { status: BOOKING_NO_SHOW, depositStatus: 'FORFEITED' },
-      }),
-      prisma.parkingSlot.update({
-        where: { id: booking.slotId },
-        data: { status: SLOT_AVAILABLE },
-      }),
-    ]);
+    return prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BOOKING_NO_SHOW, depositStatus: 'FORFEITED' },
+    });
   },
 
   async cancel(bookingId: string) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { slot: true },
     });
     if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
     if (booking.status === BOOKING_CANCELLED) {
       throw new AppError(400, 'Đặt chỗ đã được hủy trước đó');
     }
 
-    // BR07: khi hủy → nhả slot về AVAILABLE
-    return prisma.$transaction([
-      prisma.booking.update({
-        where: { id: bookingId },
-        data: { status: BOOKING_CANCELLED, depositStatus: 'FORFEITED' },
-      }),
-      prisma.parkingSlot.update({
-        where: { id: booking.slotId },
-        data: { status: SLOT_AVAILABLE },
-      }),
-    ]);
+    return prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BOOKING_CANCELLED, depositStatus: 'FORFEITED' },
+    });
   },
 
   async getActiveBookings() {
@@ -293,7 +395,7 @@ export const bookingService = {
     return prisma.booking.findMany({
       where: { vehicleId },
       orderBy: { bookingTime: 'desc' },
-      include: { slot: { include: { floor: { select: { floorCode: true, name: true, vehicleType: true, customerType: true } } } } },
+      include: { floor: { select: { id: true, floorCode: true, name: true, vehicleType: true, customerType: true } } },
     });
   },
 };

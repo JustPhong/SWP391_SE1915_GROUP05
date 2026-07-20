@@ -5,7 +5,7 @@ import { validate } from '../middleware/error.middleware';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
-   
+
 router.use(authenticate);
 
 /**
@@ -130,6 +130,11 @@ router.post(
   createMonthlyPackageSchema,
   validate,
   monthlyPackageController.create
+);
+
+router.post(
+  '/checkout-session',
+  monthlyPackageController.createCheckoutSession
 );
 
 /**
