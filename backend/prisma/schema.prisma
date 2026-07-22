@@ -95,12 +95,18 @@ model Booking {
   floorId         Int
   bookingTime     DateTime @default(now())
   expectedArrival DateTime
-  status          String   @default("ACTIVE") @db.NVarChar(30)
+  status          String   @default("PENDING_PAYMENT") @db.NVarChar(30)
   createdById     String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   depositAmount   Decimal  @default(0) @db.Decimal(10, 2)
   depositStatus   String   @default("PENDING") @db.NVarChar(30)
+  expiresAt       DateTime?
+  stripeCheckoutSessionId String? @db.NVarChar(100)
+  confirmedAt     DateTime?
+  bookingDepositAppliedAt DateTime?
+  bookingDepositAppliedToSessionId String? @db.NVarChar(100)
+  bookingDepositEmailSentAt DateTime?
 
   createdBy      User            @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   floor          Floor           @relation(fields: [floorId], references: [id], onUpdate: NoAction)
@@ -155,13 +161,13 @@ model Payment {
   bookingId        String?
   amount           Decimal         @db.Decimal(10, 2)
   method           String          @db.NVarChar(30)
-  paidAt           DateTime        @default(now())
+  paidAt           DateTime?
   type             String          @db.NVarChar(30)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   collectedById    String?
-  status           String          @default("SUCCESS") @db.NVarChar(30)
-  transactionCode  String?         @unique @db.NVarChar(50)
+  status           String          @default("PENDING") @db.NVarChar(30)
+  transactionCode  String?         @unique @db.NVarChar(255)
   checkInRecord    CheckInRecord?  @relation(fields: [checkInRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   collectedBy      User?           @relation(fields: [collectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   monthlyPackage   MonthlyPackage? @relation(fields: [monthlyPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
