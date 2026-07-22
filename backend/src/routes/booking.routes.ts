@@ -107,7 +107,9 @@ router.get('/vehicle/:vehicleId', bookingController.getByVehicle);
  *       '403':
  *         description: Forbidden — insufficient role (requires DRIVER)
  */
-router.post('/', authorize('DRIVER'), createBookingSchema, validate, bookingController.create);
+router.post('/', authorize('STAFF', 'MANAGER', 'ADMIN', 'DRIVER'), createBookingSchema, validate, bookingController.create);
+router.post('/checkout-session', authorize('DRIVER'), bookingController.createCheckoutSession);
+router.get('/:id', bookingController.getById);
 
 /**
  * @swagger

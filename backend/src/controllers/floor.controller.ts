@@ -8,9 +8,7 @@ import { floorService } from "../services/floor.service";
  */
 export const getAllFloors = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const data = await prisma.floor.findMany({
-      orderBy: { id: "asc" },
-    });
+    const data = await floorService.getAllFloors();
     res.json({ success: true, data });
   }
 );       

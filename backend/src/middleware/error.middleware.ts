@@ -25,9 +25,10 @@ export const errorHandler = (
   }
 
   console.error('[Error]', err);
+  const isDev = process.env.NODE_ENV !== 'production';
   return res.status(500).json({
     success: false,
-    message: 'Internal server error',
+    message: isDev ? err.message : 'Internal server error',
   });
 };
 
