@@ -126,7 +126,7 @@ export function SupportPage() {
                   <option value="Sự cố thanh toán">Sự cố thanh toán</option>
                   <option value="Lỗi đặt chỗ (Booking)">Lỗi đặt chỗ (Booking)</option>
                   <option value="Thẻ/Vé đỗ xe">Thẻ/Vé đỗ xe</option>
-                  <option value="Gói tháng cố định">Gói tháng cố định</option>
+                  <option value="Gói tháng">Gói tháng</option>
                   <option value="Đóng góp ý kiến">Đóng góp ý kiến</option>
                   <option value="Khác">Khác</option>
                 </select>

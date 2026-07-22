@@ -285,8 +285,8 @@ export const WelcomePage: React.FC = () => {
                     a: "ParkSmart hỗ trợ các hình thức thanh toán đa dạng bao gồm: tiền mặt trực tiếp tại quầy, quẹt thẻ ngân hàng (ATM/Visa/Mastercard), hoặc quét mã QR thanh toán qua MoMo, ZaloPay, VNPAY."
                   },
                   {
-                    q: "Tôi mua vé tháng có được chọn chỗ đỗ cố định không?",
-                    a: "Khi bạn đăng ký gói vé tháng cố định (Fixed Slot), hệ thống sẽ sử dụng thuật toán phân vùng tối ưu để tự động chọn và gán một vị trí đỗ xe riêng biệt dành cho bạn. Bạn có thể yêu cầu Manager thay đổi vị trí này nếu khu vực đó còn trống."
+                    q: "Tôi mua vé tháng có được đỗ vị trí cố định không?",
+                    a: "Gói tháng cấp quyền sử dụng tầng và phân hạng tương ứng. Khách hàng không sở hữu một ô đỗ cố định và có thể đỗ tại vị trí còn trống bất kỳ trong khu vực được phân bổ."
                   }
                 ].map((item, index) => (
                   <div key={index} className={`${styles.faqItem} ${expandedFaq === index ? styles.faqItemOpen : ''}`}>
@@ -361,7 +361,7 @@ export const WelcomePage: React.FC = () => {
                       <option value="Sự cố thanh toán">Sự cố thanh toán</option>
                       <option value="Lỗi đặt chỗ (Booking)">Lỗi đặt chỗ (Booking)</option>
                       <option value="Thẻ/Vé đỗ xe">Thẻ/Vé đỗ xe</option>
-                      <option value="Gói tháng cố định">Gói tháng cố định</option>
+                      <option value="Gói tháng">Gói tháng</option>
                       <option value="Đóng góp ý kiến">Đóng góp ý kiến</option>
                       <option value="Khác">Khác</option>
                     </select>

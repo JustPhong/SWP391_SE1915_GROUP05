@@ -627,8 +627,7 @@ export function RegisterPage() {
                   1. Quy định chung về đỗ xe
                 </h4>
                 <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-                  <li>Tài xế phải đỗ đúng vị trí ô (slot) được chỉ định bởi thuật toán tối ưu của hệ thống hoặc theo hướng dẫn trực tiếp từ nhân viên trực ca trực bãi xe.</li>
-                  <li>Tuyệt đối không đỗ chiếm dụng ô đỗ cố định của cư dân khác (các slot có đăng ký gói cước tháng đặc quyền).</li>
+                  <li>Khách hàng được sử dụng khu vực đỗ xe tương ứng với loại gói hoặc đặt chỗ đã đăng ký. Hệ thống không gán hoặc xác lập quyền sở hữu riêng đối với một ô đỗ cố định. Khi vào bãi, khách hàng có thể đỗ tại bất kỳ vị trí còn trống nào trong khu vực được phân bổ hoặc theo hướng dẫn an toàn từ nhân viên trực ca trực bãi xe.</li>
                   <li>Tuân thủ tốc độ giới hạn (tối đa 10km/h) và các biển chỉ dẫn an toàn, biển cảnh báo giao thông trong khu vực hầm đỗ xe.</li>
                 </ul>
 
@@ -636,8 +635,8 @@ export function RegisterPage() {
                   2. Quy định đặt chỗ trước (Booking) và phí đặt cọc
                 </h4>
                 <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-                  <li>Khách vãng lai khi đặt chỗ trước qua ứng dụng phải nộp khoản tiền đặt cọc là <strong>15.000đ</strong>. Khoản cọc này sẽ được khấu trừ vào phí gửi xe thực tế khi khách hàng check-out.</li>
-                  <li>Nếu quá giờ hẹn dự kiến <strong>30 phút</strong> mà xe chưa vào bãi (No-show), lượt đặt chỗ sẽ bị hủy tự động và tiền đặt cọc sẽ bị tịch thu phục vụ phí giữ slot ảo.</li>
+                  <li>Đặt chỗ trước giúp hệ thống giữ một suất chứa trong khu vực phù hợp. Vị trí đỗ cụ thể được lựa chọn theo tình trạng chỗ trống thực tế khi khách đến bãi. Khách vãng lai khi đặt chỗ trước qua ứng dụng phải nộp khoản tiền đặt cọc là <strong>15.000đ</strong>. Khoản cọc này sẽ được khấu trừ vào phí gửi xe thực tế khi khách hàng check-out.</li>
+                  <li>Nếu quá giờ hẹn dự kiến <strong>30 phút</strong> mà xe chưa vào bãi (No-show), lượt đặt chỗ sẽ bị hủy tự động và tiền đặt cọc sẽ không được hoàn lại nhằm bù đắp chi phí giữ chỗ của hệ thống.</li>
                   <li>Cư dân đã đăng ký gói tháng được miễn phí tiền đặt cọc đặt chỗ, nhưng lượt đặt chỗ cũng sẽ tự động hủy sau 30 phút quá hạn để bảo đảm tối ưu hóa công suất khai thác bãi đỗ.</li>
                 </ul>
 

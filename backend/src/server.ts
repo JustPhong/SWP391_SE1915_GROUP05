@@ -8,15 +8,22 @@ import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { startNoShowCleanupJob } from './jobs/noShowCleanup.job';
 import { monthlyPackageController } from './controllers/monthlyPackage.controller';
+import { paymentController } from './controllers/payment.controller';
 
 const app = express();
 
 app.use(cors());
 
 app.post(
+  '/api/payments/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  paymentController.handleStripeWebhook
+);
+
+app.post(
   '/api/monthly-packages/webhook',
   express.raw({ type: 'application/json' }),
-  monthlyPackageController.handleWebhook
+  paymentController.handleStripeWebhook
 );
 
 app.use(

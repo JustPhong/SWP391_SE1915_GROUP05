@@ -2,19 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getStaffDashboard } from '../api/dashboardApi';
-import type { DashboardData } from '../api/dashboardApi';
+import type { DashboardData, StaffRecentActivity } from '../api/dashboardApi';
 import { PlateInput } from '../components/PlateInput';
 
 type Accent = 'green' | 'orange' | 'gray' | 'blue';
-
-// ── Types ────────────────────────────────────────────────
-interface RecentVehicle {
-  plate: string;
-  vehicleType: string;
-  slotCode: string;
-  checkInTime: string;
-  parked: boolean;
-}
 
 // ── Style tokens ────────────────────────────────────────
 const C = {
@@ -46,6 +37,16 @@ const ACCENT_COLORS: Record<Accent, { bar: string; bg: string; text: string; ico
 };
 
 // ── Helpers ─────────────────────────────────────────────
+function getStatusLabelAndStyles(status: string): { label: string; dotColor: string } {
+  if (['PARKING', 'ACTIVE', 'IN_PROGRESS'].includes(status)) {
+    return { label: 'Đang đỗ', dotColor: C.green };
+  }
+  if (['COMPLETED', 'PAID', 'DONE'].includes(status)) {
+    return { label: 'Đã ra', dotColor: C.gray400 };
+  }
+  return { label: 'Không xác định', dotColor: C.orange };
+}
+
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 11) return 'Chào buổi sáng';
@@ -189,26 +190,37 @@ interface FloorGridProps {
   percent: number;
   occupied: number;
   capacity: number;
+  activeBookingCount: number;
+  receivableCapacity: number;
 }
 
-function FloorGrid({ label, percent, occupied, capacity }: FloorGridProps) {
+function FloorGrid({ label, percent, occupied, capacity, activeBookingCount, receivableCapacity }: FloorGridProps) {
   const filled = occupied;
-  const empty  = capacity - occupied;
+  const empty  = Math.max(0, capacity - occupied);
 
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.6rem', gap: '8px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{label}</span>
-        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: percent >= 85 ? C.red : percent >= 60 ? C.orange : C.green }}>
-          {percent}% đầy
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.75rem', color: C.gray600 }}>
+          <span>{filled}/{capacity} xe trong bãi</span>
+          {activeBookingCount > 0 && (
+            <span style={{ background: C.orangeBg, color: '#B45309', fontSize: '0.72rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4 }}>
+              {activeBookingCount} suất đang giữ
+            </span>
+          )}
+          <span>Có thể nhận thêm {receivableCapacity} xe</span>
+          <span style={{ fontWeight: 700, color: percent >= 85 ? C.red : percent >= 60 ? C.orange : C.green }}>
+            {percent}% đầy
+          </span>
+        </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-        {Array.from({ length: empty }, (_, i) => (
-          <div key={`e-${i}`} style={{ width: 14, height: 14, borderRadius: 3, background: C.green, opacity: 0.7 }} />
-        ))}
         {Array.from({ length: filled }, (_, i) => (
           <div key={`f-${i}`} style={{ width: 14, height: 14, borderRadius: 3, background: C.pink, opacity: 0.7 }} />
+        ))}
+        {Array.from({ length: empty }, (_, i) => (
+          <div key={`e-${i}`} style={{ width: 14, height: 14, borderRadius: 3, background: C.green, opacity: 0.7 }} />
         ))}
       </div>
     </div>
@@ -216,18 +228,24 @@ function FloorGrid({ label, percent, occupied, capacity }: FloorGridProps) {
 }
 
 interface VehicleRowProps {
-  v: RecentVehicle;
+  v: StaffRecentActivity;
 }
 
 function VehicleRow({ v }: VehicleRowProps) {
   const isCar = v.vehicleType === 'CAR';
+  const { label: statusLabel, dotColor } = getStatusLabelAndStyles(v.status);
+  
+  const vehicleTypeText = v.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
+  const customerTypeText = v.customerType === 'CASUAL' ? 'khách vãng lai' : 'khách tháng';
+  const locationText = `${v.floorName || 'Chưa xác định'} · ${vehicleTypeText} ${customerTypeText}`;
+
   return (
     <tr style={{ borderBottom: `1px solid ${C.gray200}` }}>
       <td style={{ padding: '0.7rem 1rem', fontSize: '0.82rem', fontWeight: 700, color: C.navy, letterSpacing: '0.02em' }}>
         {v.plate}
       </td>
       <td style={{ padding: '0.7rem 1rem', fontSize: '0.82rem', color: C.gray600 }}>
-        {formatDateTime(v.checkInTime)}
+        {formatDateTime(v.time)}
       </td>
       <td style={{ padding: '0.7rem 1rem' }}>
         <span style={{
@@ -243,12 +261,12 @@ function VehicleRow({ v }: VehicleRowProps) {
         </span>
       </td>
       <td style={{ padding: '0.7rem 1rem', fontSize: '0.82rem', color: C.gray600 }}>
-        {v.slotCode}
+        {locationText}
       </td>
       <td style={{ padding: '0.7rem 1rem' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.82rem', color: C.gray600 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: v.parked ? C.green : C.gray400, display: 'inline-block' }} />
-          {v.parked ? 'Đã đỗ' : 'Đã ra'}
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, display: 'inline-block' }} />
+          {statusLabel}
         </span>
       </td>
       <td style={{ padding: '0.7rem 1rem', textAlign: 'center' }}>
@@ -277,11 +295,9 @@ export function StaffDashboardPage() {
   }, []);
 
   const navigateWithPlate = (path: string) => {
-    navigate(plate.trim() ? `${path}?plate=${encodeURIComponent(plate.trim())}` : path);
+    if (!plate.trim()) return;
+    navigate(`${path}?plate=${encodeURIComponent(plate.trim())}`);
   };
-
-  const freeCarFmt = data ? String(data.freeCar) : '—';
-  const freeMotoFmt = data ? String(data.freeMotorbike) : '—';
 
   return (
     <div style={{
@@ -310,27 +326,28 @@ export function StaffDashboardPage() {
         marginBottom: '1.25rem',
       }}>
         <KpiCard
-          label="Tổng xe hiện có"
-          value={data ? String(data.vehiclesInLot) : '…'}
+          label="Tổng xe trong bãi"
+          value={data ? String(data.activeParkingCount) : '…'}
           accent="green"
           Icon={(p) => <IconCar {...p} />}
+          sub="Xe hiện đang gửi"
         />
         <KpiCard
-          label="Chỗ trống"
-          value={`${freeCarFmt} / ${freeMotoFmt}`}
-          accent="green"
+          label="Có thể nhận thêm"
+          value={data ? `${data.receivableCapacity} / ${data.totalCapacity}` : '…'}
+          accent="blue"
           Icon={(p) => <IconP {...p} />}
-          sub="Ô tô trống / Xe máy trống"
+          sub={data ? `${data.physicalAvailableCapacity} sức chứa vật lý · ${data.activeBookingCount} suất đang giữ` : '…'}
         />
         <KpiCard
           label="Số xe đã vào trong ca"
-          value={data ? String(data.checkedInToday) : '…'}
+          value={data ? String(data.shiftCheckInCount) : '…'}
           accent="orange"
           Icon={(p) => <IconEnter {...p} />}
         />
         <KpiCard
-          label="Số xe đã ra"
-          value={data ? String(data.checkedOutToday) : '…'}
+          label="Số xe đã ra trong ca"
+          value={data ? String(data.shiftCheckOutCount) : '…'}
           accent="gray"
           Icon={(p) => <IconExit {...p} />}
         />
@@ -472,10 +489,12 @@ export function StaffDashboardPage() {
                 {data!.floors.map((f) => (
                   <FloorGrid
                     key={f.floorCode}
-                    label={`${f.name} (${f.floorCode})`}
-                    percent={f.percent}
-                    occupied={f.occupied}
-                    capacity={f.capacity}
+                    label={`${f.floorName} (${f.floorCode})`}
+                    percent={f.occupancyPercent}
+                    occupied={f.activeParkingCount}
+                    capacity={f.totalCapacity}
+                    activeBookingCount={f.activeBookingCount}
+                    receivableCapacity={f.receivableCapacity}
                   />
                 ))}
             </div>
@@ -492,7 +511,7 @@ export function StaffDashboardPage() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: C.gray800 }}>
-            Xe mới vào bãi
+            Hoạt động gần đây
           </p>
           <button style={{
             background: 'none',
@@ -514,15 +533,15 @@ export function StaffDashboardPage() {
             </div>
           ) : fetchError ? (
             <p style={{ margin: 0, padding: '1rem 0', fontSize: '0.82rem', color: C.red }}>{fetchError}</p>
-          ) : data!.recentCheckins.length === 0 ? (
+          ) : data!.recentActivities.length === 0 ? (
             <p style={{ margin: 0, padding: '1.5rem 0', fontSize: '0.875rem', color: C.gray400, textAlign: 'center' }}>
-              Chưa có xe nào check-in trong ca này.
+              Chưa có hoạt động nào trong ca này.
             </p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${C.gray200}` }}>
-                  {['Biển số', 'Giờ vào', 'Loại xe', 'Vị trí', 'Trạng thái', ''].map((col) => (
+                  {['Biển số', 'Thời gian', 'Loại xe', 'Tầng / Khu vực', 'Trạng thái', ''].map((col) => (
                     <th key={col} style={{
                       padding: '0.6rem 1rem',
                       textAlign: 'left',
@@ -539,7 +558,7 @@ export function StaffDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {data!.recentCheckins.map((v, i) => (
+                {data!.recentActivities.map((v, i) => (
                   <VehicleRow key={i} v={v} />
                 ))}
               </tbody>

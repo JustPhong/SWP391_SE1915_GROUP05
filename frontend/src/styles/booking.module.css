@@ -18,18 +18,19 @@
 
 .pageTitle {
   margin: 0;
-  font-size: 2.25rem;
-  font-weight: 800;
+  font-size: 32px;
+  font-weight: 700;
   color: #1E3A5F;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .pageSubtitle {
   margin: 0.5rem 0 0;
-  font-size: 1rem;
+  font-size: 14px;
   color: #475569;
-  font-weight: 500;
-  line-height: 1.5;
+  font-weight: 400;
+  line-height: 1.6;
 }
 
 /* Info Banner */
@@ -75,17 +76,18 @@
 
 .bannerTitle {
   margin: 0;
-  font-size: 1.2rem;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 700;
   color: #1E3A5F;
+  line-height: 1.35;
 }
 
 .bannerDesc {
   margin: 4px 0 0;
-  font-size: 0.925rem;
+  font-size: 13px;
   color: #2C4F78;
-  line-height: 1.5;
-  font-weight: 500;
+  line-height: 1.55;
+  font-weight: 400;
 }
 
 .bannerDecor {
@@ -153,19 +155,22 @@
 
 .cardTitle {
   margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 700;
   color: #1E293B;
   display: flex;
   align-items: center;
   gap: 10px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .cardSubtitle {
   margin: 6px 0 20px;
-  font-size: 0.875rem;
+  font-size: 13px;
   color: #64748B;
-  font-weight: 500;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 /* Vehicle Grid */
@@ -277,21 +282,22 @@
 
 .plateNumber {
   font-family: 'JetBrains Mono', monospace, 'Courier New';
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 700;
   color: #0F172A;
   letter-spacing: 0.02em;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .vehicleDesc {
-  font-size: 0.8rem;
+  font-size: 12px;
   color: #64748B;
   margin-top: 4px;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.4;
 }
 
 /* Active Badge */
@@ -360,30 +366,32 @@
 
 .summaryColLabel {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 11px;
   color: #64748B;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.035em;
+  line-height: 1.35;
 }
 
 .summaryColValue {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: #0F172A;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .summaryColValueGreen {
   color: #10B981;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .summaryColValueLong {
-  font-size: 0.85rem;
+  font-size: 12px;
   color: #475569;
-  font-weight: 600;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 /* disclaimer text */
@@ -393,11 +401,11 @@
   background: #F1F5F9;
   border-radius: 12px;
   border: 1px solid #E2E8F0;
-  font-size: 0.825rem;
+  font-size: 12px;
   color: #475569;
   text-align: center;
   line-height: 1.5;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* Warning block */
@@ -413,21 +421,22 @@
 
 .warningHeader {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 700;
   color: #92400E;
   display: flex;
   align-items: center;
   gap: 8px;
+  line-height: 1.35;
 }
 
 .warningList {
   margin: 0;
   padding-left: 1.25rem;
-  font-size: 0.875rem;
+  font-size: 12.5px;
   color: #92400E;
-  line-height: 1.6;
-  font-weight: 500;
+  line-height: 1.55;
+  font-weight: 400;
 }
 
 .warningList li {
@@ -526,9 +535,10 @@
 
 .sidebarTitle {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 700;
   color: #1E293B;
+  line-height: 1.35;
 }
 
 /* Rows styling */
@@ -546,25 +556,28 @@
 }
 
 .rowLabel {
-  font-size: 0.8rem;
+  font-size: 11px;
   color: #64748B;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.035em;
   margin-top: 2px;
+  line-height: 1.35;
 }
 
 .rowValue {
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   color: #0F172A;
   text-align: right;
+  line-height: 1.4;
 }
 
 .rowValueGreen {
   color: #10B981;
-  font-weight: 800;
-  font-size: 0.95rem;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .rowDivider {
@@ -608,11 +621,11 @@
   background: #EFF6FF;
   border-radius: 12px;
   padding: 12px 16px;
-  font-size: 0.8rem;
+  font-size: 12px;
   color: #1E3A5F;
-  line-height: 1.45;
+  line-height: 1.5;
   text-align: center;
-  font-weight: 600;
+  font-weight: 400;
   border: 1px solid #DBEAFE;
 }
 
@@ -630,10 +643,10 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 0.85rem;
+  font-size: 12.5px;
   color: #475569;
-  line-height: 1.5;
-  font-weight: 500;
+  line-height: 1.55;
+  font-weight: 400;
 }
 
 .ruleCheck {
