@@ -11,8 +11,19 @@ export const vehicleController = {
 
     if (ownerId === req.user!.id) {
       const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
-      if (!currentUser?.phoneNumber) {
-        throw new AppError(400, 'Vui lòng cập nhật số điện thoại trong Hồ sơ trước khi thêm xe.');
+      let phoneNumber = currentUser?.phoneNumber;
+
+      const inputPhone = req.body.phoneNumber || req.body.phone || req.body.ownerPhone;
+      if (inputPhone && typeof inputPhone === 'string' && inputPhone.trim()) {
+        const updatedUser = await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { phoneNumber: inputPhone.trim() },
+        });
+        phoneNumber = updatedUser.phoneNumber;
+      }
+
+      if (!phoneNumber) {
+        throw new AppError(400, 'Vui lòng cung cấp số điện thoại trước khi thêm xe.');
       }
     }
 

@@ -756,6 +756,7 @@ function AddVehicleForm({
     color?: string,
     year?: number,
     seats?: number,
+    ownerPhone?: string,
   ) => Promise<void>;
 }) {
   const { user } = useAuth();
@@ -766,6 +767,7 @@ function AddVehicleForm({
   const [color, setColor] = useState(VEHICLE_COLORS[0]);
   const [year, setYear] = useState<number | ''>(VEHICLE_YEARS[0]);
   const [seats, setSeats] = useState<number | ''>(CAR_SEAT_OPTIONS[2] ?? 5);
+  const [userPhone, setUserPhone] = useState(user?.phoneNumber || '');
   const [localError, setLocalError] = useState('');
 
   useEffect(() => {
@@ -786,6 +788,11 @@ function AddVehicleForm({
       return;
     }
 
+    if (!user?.phoneNumber && !userPhone.trim()) {
+      setLocalError('Vui lòng nhập số điện thoại liên hệ');
+      return;
+    }
+
     if (type === 'CAR' && seats === '') {
       setLocalError('Vui lòng chọn số chỗ cho ô tô');
       return;
@@ -803,38 +810,12 @@ function AddVehicleForm({
       color?.trim() || undefined,
       yearVal,
       seatsVal,
+      userPhone.trim() || undefined,
     );
   };
 
   const displayError = localError || error;
   const sel: React.CSSProperties = { padding: '0.65rem 0.85rem', border: '1px solid rgba(100, 116, 139, 0.24)', borderRadius: 12, background: C.white, fontSize: '0.9rem', color: C.gray900, width: '100%', fontFamily: 'inherit', transition: 'all 0.15s ease' };
-
-  /* ── No phone → show compact warning inside modal ── */
-  if (!user?.phoneNumber) {
-    return (
-      <>
-        {/* Fixed header */}
-        <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <p id="add-vehicle-title" style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.white }}>Thêm xe mới</p>
-          <button type="button" onClick={onCancel} aria-label="Đóng" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
-            <IconClose size={16} color={C.white} />
-          </button>
-        </div>
-        {/* Scrollable body */}
-        <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '2.5rem 1.5rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
-          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Yêu cầu thông tin số điện thoại</p>
-          <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: C.gray600, lineHeight: 1.5 }}>
-            Vui lòng cập nhật số điện thoại trong <Link to="/profile" style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Hồ sơ</Link> trước khi thêm xe.
-          </p>
-        </div>
-        {/* Fixed footer */}
-        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end', padding: '1rem 1.5rem', borderTop: `1px solid ${C.gray200}`, background: C.white }}>
-          <button type="button" onClick={onCancel} style={{ padding: '0.6rem 1.5rem', background: C.gray100, border: `1px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.88rem', fontWeight: 700, color: C.gray900, cursor: 'pointer' }}>Đóng</button>
-        </div>
-      </>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
@@ -859,6 +840,20 @@ function AddVehicleForm({
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
             <PlateInput value={plateNumber} onChange={setPlateNumber} placeholder="VD: 51A-12345" disabled={submitting} autoFocus style={{ ...sel, fontFamily: "'Consolas',monospace", fontWeight: 600 }} />
           </label>
+
+          {!user?.phoneNumber && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số điện thoại liên hệ <span style={{ color: C.red }}>*</span></span>
+              <input
+                type="tel"
+                value={userPhone}
+                onChange={(e) => setUserPhone(e.target.value)}
+                placeholder="VD: 0987654321"
+                disabled={submitting}
+                style={sel}
+              />
+            </label>
+          )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Loại xe</span>
@@ -944,7 +939,7 @@ const styles = {
 };
 
 export function MyVehiclePage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, setUser, isLoading: authLoading } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -1011,6 +1006,7 @@ export function MyVehiclePage() {
     color?: string,
     year?: number,
     seats?: number,
+    ownerPhone?: string,
   ) => {
     setSubmitting(true);
     setFormError('');
@@ -1024,7 +1020,14 @@ export function MyVehiclePage() {
         color,
         year,
         seats,
+        ownerPhone,
       });
+
+      if (ownerPhone && user && setUser) {
+        const updatedUser = { ...user, phoneNumber: ownerPhone };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
 
       handleCloseModal();
       await loadVehicles();
