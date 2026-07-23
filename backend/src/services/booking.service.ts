@@ -374,10 +374,12 @@ export const bookingService = {
     });
   },
 
-  async getActiveBookings() {
+  async getActiveBookings(userId?: string) {
     await floorService.cleanupNoShowBookings();
+    const where: Record<string, unknown> = { status: BOOKING_ACTIVE };
+    if (userId) where.createdById = userId;
     return prisma.booking.findMany({
-      where: { status: BOOKING_ACTIVE },
+      where,
       include: bookingInclude,
       orderBy: { bookingTime: 'desc' },
     });
@@ -397,5 +399,28 @@ export const bookingService = {
       orderBy: { bookingTime: 'desc' },
       include: { floor: { select: { id: true, floorCode: true, name: true, vehicleType: true, customerType: true } } },
     });
+  },
+
+  async getById(bookingId: string) {
+    return prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: bookingInclude,
+    });
+  },
+
+  async createCheckoutSession(_input: { userId: string; vehicleId: string; expectedArrival: Date }) {
+    throw new AppError(501, 'Chức năng thanh toán online chưa được cấu hình.');
+  },
+
+  async finalizePaidBookingCheckout(_sessionId: string) {
+    throw new AppError(501, 'Chức năng xác nhận thanh toán chưa được cấu hình.');
+  },
+
+  async handleStripeWebhook(_event: any) {
+    throw new AppError(501, 'Chức năng Stripe webhook chưa được cấu hình.');
+  },
+
+  async handleStripeExpired(_event: any) {
+    throw new AppError(501, 'Chức năng Stripe expired chưa được cấu hình.');
   },
 };
