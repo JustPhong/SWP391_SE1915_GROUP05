@@ -32,6 +32,7 @@ import { BookingPage } from './pages/Booking';
 import { MonthlyPackagePage } from './pages/MonthlyPackage';
 import { StaffHistoryPage } from './pages/StaffHistory';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
+import { GuestParkingPage } from './pages/GuestParking';
 
 function LoadingScreen() {
   return (
@@ -143,6 +144,8 @@ function AppRoutes() {
       <Route path="/login" element={user ? <RedirectToRoleHome /> : <LoginPage />} />
       <Route path="/register" element={user ? <RedirectToRoleHome /> : <RegisterPage />} />
       <Route path="/forgot-password" element={user ? <RedirectToRoleHome /> : <ForgotPasswordPage />} />
+      {/* Public guest parking page — no auth required */}
+      <Route path="/guest-parking" element={<GuestParkingPage />} />
       <Route
         path="/"
         element={

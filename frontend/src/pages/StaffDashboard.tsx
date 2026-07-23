@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getStaffDashboard } from '../api/dashboardApi';
-import type { DashboardData, StaffRecentActivity } from '../api/dashboardApi';
+import type { DashboardData, DashboardRecentCheckin } from '../api/dashboardApi';
 import { PlateInput } from '../components/PlateInput';
 
 type Accent = 'green' | 'orange' | 'gray' | 'blue';
@@ -36,17 +36,6 @@ const ACCENT_COLORS: Record<Accent, { bar: string; bg: string; text: string; ico
   blue:   { bar: '#3B82F6', bg: '#EFF6FF',  text: '#1D4ED8', icon: '#3B82F6' },
 };
 
-// ── Helpers ─────────────────────────────────────────────
-function getStatusLabelAndStyles(status: string): { label: string; dotColor: string } {
-  if (['PARKING', 'ACTIVE', 'IN_PROGRESS'].includes(status)) {
-    return { label: 'Đang đỗ', dotColor: C.green };
-  }
-  if (['COMPLETED', 'PAID', 'DONE'].includes(status)) {
-    return { label: 'Đã ra', dotColor: C.gray400 };
-  }
-  return { label: 'Không xác định', dotColor: C.orange };
-}
-
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 11) return 'Chào buổi sáng';
@@ -56,6 +45,7 @@ function getGreeting() {
 }
 
 function formatDateTime(iso: string): string {
+  if (!iso) return '—';
   const d = new Date(iso);
   const dd = String(d.getDate()).padStart(2, '0');
   const MM = String(d.getMonth() + 1).padStart(2, '0');
@@ -100,84 +90,89 @@ function IconExit({ size = 20, color = C.navy }: { size?: number; color?: string
   );
 }
 
-function IconSearch({ size = 18, color = C.navy }: { size?: number; color?: string }) {
+function IconPlus({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7" />
-      <line x1="16.5" y1="16.5" x2="22" y2="22" />
-    </svg>
-  );
-}
-
-function IconPlus({ size = 16, color = C.white }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }
 
-function IconMinus({ size = 16, color = C.gray600 }: { size?: number; color?: string }) {
+function IconMinus({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }
 
-function IconDots({ size = 18, color = C.gray400 }: { size?: number; color?: string }) {
+function IconSearch({ size = 16, color = C.gray600 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <circle cx="12" cy="5" r="1.5" />
-      <circle cx="12" cy="12" r="1.5" />
-      <circle cx="12" cy="19" r="1.5" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   );
 }
 
-function IconSpinner({ size = 20, color = C.gray400 }: { size?: number; color?: string }) {
+function IconSpinner({ size = 20, color = C.navy }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </svg>
   );
 }
 
-// ── Sub-components ──────────────────────────────────────
+function IconDots({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={C.gray400} strokeWidth="2">
+      <circle cx="12" cy="5" r="1" fill={C.gray400} />
+      <circle cx="12" cy="12" r="1" fill={C.gray400} />
+      <circle cx="12" cy="19" r="1" fill={C.gray400} />
+    </svg>
+  );
+}
 
+// ── Sub-components ───────────────────────────────────────
 interface KpiCardProps {
   label: string;
   value: string;
+  sub?: string;
   accent: Accent;
   Icon: (props: { size?: number; color?: string }) => JSX.Element;
-  sub?: string;
 }
 
-function KpiCard({ label, value, accent, Icon, sub }: KpiCardProps) {
+function KpiCard({ label, value, sub, accent, Icon }: KpiCardProps) {
   const c = ACCENT_COLORS[accent];
+
   return (
     <div style={{
       background: C.white,
       borderRadius: C.radius,
       boxShadow: C.shadow,
-      borderLeft: `4px solid ${c.bar}`,
       padding: '1.1rem 1.25rem',
+      position: 'relative',
+      overflow: 'hidden',
       display: 'flex',
-      flexDirection: 'column',
-      gap: '0.3rem',
-      minWidth: 0,
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
     }}>
-      <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: c.text }}>
-        {label}
-      </span>
-      <span style={{ fontSize: '1.75rem', fontWeight: 800, color: c.text, lineHeight: 1 }}>
-        {value}
-      </span>
-      {sub && (
-        <span style={{ fontSize: '0.7rem', color: C.gray400 }}>{sub}</span>
-      )}
+      <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 4, background: c.bar }} />
+      <div style={{ paddingLeft: '0.35rem' }}>
+        <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 600, color: C.gray600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {label}
+        </p>
+        <p style={{ margin: '0.2rem 0 0', fontSize: '1.75rem', fontWeight: 800, color: C.navy, lineHeight: 1.1 }}>
+          {value}
+        </p>
+        {sub && (
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: C.gray600 }}>
+            {sub}
+          </p>
+        )}
+      </div>
       <div style={{ marginTop: '0.25rem' }}>
         <Icon size={28} color={c.icon} />
       </div>
@@ -190,11 +185,9 @@ interface FloorGridProps {
   percent: number;
   occupied: number;
   capacity: number;
-  activeBookingCount: number;
-  receivableCapacity: number;
 }
 
-function FloorGrid({ label, percent, occupied, capacity, activeBookingCount, receivableCapacity }: FloorGridProps) {
+function FloorGrid({ label, percent, occupied, capacity }: FloorGridProps) {
   const filled = occupied;
   const empty  = Math.max(0, capacity - occupied);
 
@@ -204,22 +197,16 @@ function FloorGrid({ label, percent, occupied, capacity, activeBookingCount, rec
         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.75rem', color: C.gray600 }}>
           <span>{filled}/{capacity} xe trong bãi</span>
-          {activeBookingCount > 0 && (
-            <span style={{ background: C.orangeBg, color: '#B45309', fontSize: '0.72rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4 }}>
-              {activeBookingCount} suất đang giữ
-            </span>
-          )}
-          <span>Có thể nhận thêm {receivableCapacity} xe</span>
           <span style={{ fontWeight: 700, color: percent >= 85 ? C.red : percent >= 60 ? C.orange : C.green }}>
             {percent}% đầy
           </span>
         </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-        {Array.from({ length: filled }, (_, i) => (
+        {Array.from({ length: Math.min(filled, 40) }, (_, i) => (
           <div key={`f-${i}`} style={{ width: 14, height: 14, borderRadius: 3, background: C.pink, opacity: 0.7 }} />
         ))}
-        {Array.from({ length: empty }, (_, i) => (
+        {Array.from({ length: Math.min(empty, 40) }, (_, i) => (
           <div key={`e-${i}`} style={{ width: 14, height: 14, borderRadius: 3, background: C.green, opacity: 0.7 }} />
         ))}
       </div>
@@ -228,16 +215,13 @@ function FloorGrid({ label, percent, occupied, capacity, activeBookingCount, rec
 }
 
 interface VehicleRowProps {
-  v: StaffRecentActivity;
+  v: DashboardRecentCheckin;
 }
 
 function VehicleRow({ v }: VehicleRowProps) {
   const isCar = v.vehicleType === 'CAR';
-  const { label: statusLabel, dotColor } = getStatusLabelAndStyles(v.status);
-  
-  const vehicleTypeText = v.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
-  const customerTypeText = v.customerType === 'CASUAL' ? 'khách vãng lai' : 'khách tháng';
-  const locationText = `${v.floorName || 'Chưa xác định'} · ${vehicleTypeText} ${customerTypeText}`;
+  const statusLabel = v.parked ? 'Đang đỗ' : 'Đã ra';
+  const dotColor = v.parked ? C.green : C.gray400;
 
   return (
     <tr style={{ borderBottom: `1px solid ${C.gray200}` }}>
@@ -245,7 +229,7 @@ function VehicleRow({ v }: VehicleRowProps) {
         {v.plate}
       </td>
       <td style={{ padding: '0.7rem 1rem', fontSize: '0.82rem', color: C.gray600 }}>
-        {formatDateTime(v.time)}
+        {formatDateTime(v.checkInTime)}
       </td>
       <td style={{ padding: '0.7rem 1rem' }}>
         <span style={{
@@ -261,7 +245,7 @@ function VehicleRow({ v }: VehicleRowProps) {
         </span>
       </td>
       <td style={{ padding: '0.7rem 1rem', fontSize: '0.82rem', color: C.gray600 }}>
-        {locationText}
+        {v.slotCode || 'Chưa gán slot'}
       </td>
       <td style={{ padding: '0.7rem 1rem' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.82rem', color: C.gray600 }}>
@@ -327,27 +311,27 @@ export function StaffDashboardPage() {
       }}>
         <KpiCard
           label="Tổng xe trong bãi"
-          value={data ? String(data.activeParkingCount) : '…'}
+          value={data ? String(data.vehiclesInLot) : '…'}
           accent="green"
           Icon={(p) => <IconCar {...p} />}
-          sub="Xe hiện đang gửi"
+          sub="Xe hiện đang đỗ"
         />
         <KpiCard
-          label="Có thể nhận thêm"
-          value={data ? `${data.receivableCapacity} / ${data.totalCapacity}` : '…'}
+          label="Chỗ trống khả dụng"
+          value={data ? `${data.freeCar + data.freeMotorbike} / ${data.totalSlots}` : '…'}
           accent="blue"
           Icon={(p) => <IconP {...p} />}
-          sub={data ? `${data.physicalAvailableCapacity} sức chứa vật lý · ${data.activeBookingCount} suất đang giữ` : '…'}
+          sub={data ? `Ô tô: ${data.freeCar} · Xe máy: ${data.freeMotorbike}` : '…'}
         />
         <KpiCard
-          label="Số xe đã vào trong ca"
-          value={data ? String(data.shiftCheckInCount) : '…'}
+          label="Số xe vào hôm nay"
+          value={data ? String(data.checkedInToday) : '…'}
           accent="orange"
           Icon={(p) => <IconEnter {...p} />}
         />
         <KpiCard
-          label="Số xe đã ra trong ca"
-          value={data ? String(data.shiftCheckOutCount) : '…'}
+          label="Số xe ra hôm nay"
+          value={data ? String(data.checkedOutToday) : '…'}
           accent="gray"
           Icon={(p) => <IconExit {...p} />}
         />
@@ -361,10 +345,8 @@ export function StaffDashboardPage() {
         marginBottom: '1.25rem',
       }}>
 
-        {/* Left: Quick Action + Vị trí hiện tại */}
+        {/* Left: Quick Action */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-          {/* A) Xử lý nhanh */}
           <div style={{
             background: C.white,
             borderRadius: C.radius,
@@ -486,23 +468,21 @@ export function StaffDashboardPage() {
             <p style={{ margin: 0, padding: '1rem 0', fontSize: '0.82rem', color: C.red }}>{fetchError}</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-                {data!.floors.map((f) => (
-                  <FloorGrid
-                    key={f.floorCode}
-                    label={`${f.floorName} (${f.floorCode})`}
-                    percent={f.occupancyPercent}
-                    occupied={f.activeParkingCount}
-                    capacity={f.totalCapacity}
-                    activeBookingCount={f.activeBookingCount}
-                    receivableCapacity={f.receivableCapacity}
-                  />
-                ))}
+              {data!.floors.map((f) => (
+                <FloorGrid
+                  key={f.floorCode}
+                  label={`${f.name} (${f.floorCode})`}
+                  percent={f.percent}
+                  occupied={f.occupied}
+                  capacity={f.capacity}
+                />
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* ── BOTTOM: Xe mới vào bãi ── */}
+      {/* ── BOTTOM: Hoạt động gần đây ── */}
       <div style={{
         background: C.white,
         borderRadius: C.radius,
@@ -513,17 +493,6 @@ export function StaffDashboardPage() {
           <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: C.gray800 }}>
             Hoạt động gần đây
           </p>
-          <button style={{
-            background: 'none',
-            border: 'none',
-            color: C.navy,
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            padding: 0,
-          }}>
-            Xem tất cả lịch sử
-          </button>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
@@ -533,15 +502,15 @@ export function StaffDashboardPage() {
             </div>
           ) : fetchError ? (
             <p style={{ margin: 0, padding: '1rem 0', fontSize: '0.82rem', color: C.red }}>{fetchError}</p>
-          ) : data!.recentActivities.length === 0 ? (
+          ) : data!.recentCheckins.length === 0 ? (
             <p style={{ margin: 0, padding: '1.5rem 0', fontSize: '0.875rem', color: C.gray400, textAlign: 'center' }}>
-              Chưa có hoạt động nào trong ca này.
+              Chưa có hoạt động nào hôm nay.
             </p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${C.gray200}` }}>
-                  {['Biển số', 'Thời gian', 'Loại xe', 'Tầng / Khu vực', 'Trạng thái', ''].map((col) => (
+                  {['Biển số', 'Thời gian vào', 'Loại xe', 'Vị trí', 'Trạng thái', ''].map((col) => (
                     <th key={col} style={{
                       padding: '0.6rem 1rem',
                       textAlign: 'left',
@@ -558,7 +527,7 @@ export function StaffDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {data!.recentActivities.map((v, i) => (
+                {data!.recentCheckins.map((v, i) => (
                   <VehicleRow key={i} v={v} />
                 ))}
               </tbody>

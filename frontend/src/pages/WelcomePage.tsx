@@ -514,6 +514,7 @@ export const WelcomePage: React.FC = () => {
           availLoading={availLoading}
           availError={availError}
         />
+        <GuestBannerSection />
         <ProcessSection />
         <FeaturesSection />
         <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
@@ -732,6 +733,7 @@ export const WelcomePage: React.FC = () => {
             availLoading={availLoading}
             availError={availError}
           />
+          <GuestBannerSection />
           <ProcessSection />
           <FeaturesSection />
           <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
@@ -942,7 +944,152 @@ function HeroSection() {
   );
 }
 
-// ── Personalised hero for logged-in users ──────────
+// ── Guest walk-in banner — shown on landing page for quick access ──────────
+function GuestBannerSection() {
+  return (
+    <section style={{
+      background: 'linear-gradient(135deg, #0B2F6B 0%, #1F5EFF 100%)',
+      padding: '3rem 1.5rem',
+    }}>
+      <div style={{
+        maxWidth: 1100,
+        margin: '0 auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '2rem',
+        flexWrap: 'wrap',
+      }}>
+        {/* Left: info */}
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'rgba(255,255,255,0.15)',
+            borderRadius: 999,
+            padding: '4px 14px',
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            color: '#93C5FD',
+            letterSpacing: '0.04em',
+            marginBottom: '0.85rem',
+          }}>
+            <img src="/logo.png" alt="ParkSmart Logo" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+            KHÁCH VÃNG LAI
+          </div>
+          <h2 style={{
+            margin: '0 0 0.65rem',
+            fontSize: 'clamp(1.35rem, 3vw, 1.75rem)',
+            fontWeight: 900,
+            color: '#FFFFFF',
+            lineHeight: 1.2,
+          }}>
+            Gửi xe ngay — không cần đăng ký
+          </h2>
+          <p style={{
+            margin: 0,
+            fontSize: '0.95rem',
+            color: 'rgba(255,255,255,0.75)',
+            lineHeight: 1.6,
+            maxWidth: 480,
+          }}>
+            Chỉ cần biển số xe và số điện thoại. Chọn vị trí đỗ, nhận xác nhận ngay lập tức — không cần tài khoản.
+          </p>
+
+          {/* Feature pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: '1.1rem' }}>
+            {[
+              { icon: '⚡', text: 'Xử lý trong 30 giây' },
+              { icon: '🚗', text: 'Ô tô & Xe máy' },
+              { icon: '💰', text: 'Trả phí khi ra xe' },
+            ].map(item => (
+              <span key={item.text} style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 999,
+                padding: '5px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: '#E0EAFF',
+              }}>
+                <span>{item.icon}</span>
+                {item.text}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: CTA card */}
+        <div style={{
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.18)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: 20,
+          padding: '1.75rem 1.75rem',
+          minWidth: 260,
+          maxWidth: 320,
+          textAlign: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
+            <img src="/logo.png" alt="ParkSmart Logo" style={{ width: 42, height: 42, objectFit: 'contain' }} />
+            <span style={{ fontSize: '1.45rem', fontWeight: 900, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
+              Park<span style={{ color: '#93C5FD' }}>Smart</span>
+            </span>
+          </div>
+          <p style={{ margin: '0 0 1.25rem', fontSize: '0.88rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>
+            Bấm vào đây để gửi xe ngay bây giờ. Hoàn tất chỉ trong vài bước.
+          </p>
+          <a
+            href="/guest-parking"
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '0.85rem 1.5rem',
+              background: '#FFFFFF',
+              color: '#0B2F6B',
+              borderRadius: 12,
+              fontSize: '1rem',
+              fontWeight: 800,
+              textDecoration: 'none',
+              boxSizing: 'border-box',
+              transition: 'all 0.15s',
+              letterSpacing: '0.01em',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#E8EEFF'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#FFFFFF'; }}
+          >
+            🚀 Gửi xe ngay
+          </a>
+          <a
+            href="/guest-parking"
+            style={{
+              display: 'block',
+              marginTop: '0.6rem',
+              padding: '0.65rem 1.5rem',
+              background: 'transparent',
+              color: 'rgba(255,255,255,0.75)',
+              borderRadius: 12,
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              border: '1px solid rgba(255,255,255,0.25)',
+              boxSizing: 'border-box',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.55)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.25)'; }}
+          >
+            🔍 Tra cứu phí ra xe
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
 function HeroLoggedIn({
   user,
   session,
