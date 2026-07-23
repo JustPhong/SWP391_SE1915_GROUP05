@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
+import { RevenueChatbotWidget } from '../components/RevenueChatbotWidget';
 
 // ═══════════════════════════════════════════════════════════
 //  DESIGN TOKENS — aligned with ParkSmart design system
@@ -1316,6 +1317,9 @@ export function RevenueDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── REVENUE AI CHATBOT ASSISTANT ── */}
+      <RevenueChatbotWidget onExportReport={() => exportToExcel(t, currentFrom, currentTo)} />
     </div>
   );
 }
