@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
 import type { FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService } from '../services/vehicle.service';
