@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
+import { RevenueChatbotWidget } from '../components/RevenueChatbotWidget';
 
 // ═══════════════════════════════════════════════════════════
 //  DESIGN TOKENS
@@ -1180,6 +1181,9 @@ export function ManagerDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── FLOATING REVENUE AI CHATBOT ── */}
+      <RevenueChatbotWidget />
     </div>
   );
 }
