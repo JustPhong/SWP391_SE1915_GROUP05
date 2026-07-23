@@ -19,6 +19,7 @@ import feeRuleRoutes from './fee-rule.routes';
 import auditLogRoutes from './audit-log.routes';
 import publicRoutes from './public.routes';
 import checkinImageRoutes from './checkin-image.routes';
+import chatbotRoutes from './chatbot.routes';
 
 const router = Router();
    
@@ -42,5 +43,7 @@ router.use('/admin/parking', parkingOverviewRoutes);
 router.use('/admin/fee-rules', feeRuleRoutes);
 router.use('/admin/audit-logs', auditLogRoutes);
 router.use('/public', publicRoutes);
+router.use('/chatbot', chatbotRoutes);
+router.use('/chat', chatbotRoutes);
 
 export default router;
