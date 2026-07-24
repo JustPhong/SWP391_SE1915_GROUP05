@@ -99,14 +99,6 @@ function IconPlus({ size = 16 }: { size?: number }) {
   );
 }
 
-function IconMinus({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
 function IconSearch({ size = 16, color = C.gray600 }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -267,7 +259,7 @@ export function StaffDashboardPage() {
   const [plate, setPlate] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState('');
+  const [fetchError, setFetchError] = useState('Không thể tải dữ liệu tổng quan.');
   const { user } = useAuth();
   const displayName = user?.fullName ?? 'Nhân viên';
   const navigate = useNavigate();
@@ -317,20 +309,20 @@ export function StaffDashboardPage() {
           sub="Xe hiện đang đỗ"
         />
         <KpiCard
-          label="Chỗ trống khả dụng"
+          label="Có thể nhận thêm"
           value={data ? `${data.freeCar + data.freeMotorbike} / ${data.totalSlots}` : '…'}
           accent="blue"
           Icon={(p) => <IconP {...p} />}
-          sub={data ? `Ô tô: ${data.freeCar} · Xe máy: ${data.freeMotorbike}` : '…'}
+          sub={data ? `${data.freeCar + data.freeMotorbike} chỗ trống · ${data.checkedInToday} lượt vào hôm nay` : '…'}
         />
         <KpiCard
-          label="Số xe vào hôm nay"
+          label="Số xe đã vào trong ca"
           value={data ? String(data.checkedInToday) : '…'}
           accent="orange"
           Icon={(p) => <IconEnter {...p} />}
         />
         <KpiCard
-          label="Số xe ra hôm nay"
+          label="Số xe đã ra trong ca"
           value={data ? String(data.checkedOutToday) : '…'}
           accent="gray"
           Icon={(p) => <IconExit {...p} />}
@@ -412,27 +404,6 @@ export function StaffDashboardPage() {
                 <IconPlus size={15} />
                 Check-in
               </button>
-              <button
-                style={{
-                  flex: 1,
-                  padding: '0.6rem',
-                  background: C.white,
-                  color: C.gray600,
-                  border: `1.5px solid ${C.gray200}`,
-                  borderRadius: 10,
-                  fontSize: '0.875rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                }}
-                onClick={() => navigateWithPlate('/staff/checkout')}
-              >
-                <IconMinus size={15} />
-                Check-out
-              </button>
             </div>
           </div>
         </div>
@@ -468,7 +439,7 @@ export function StaffDashboardPage() {
             <p style={{ margin: 0, padding: '1rem 0', fontSize: '0.82rem', color: C.red }}>{fetchError}</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-              {data!.floors.map((f) => (
+              {data!.floors.map((f: DashboardData['floors'][number]) => (
                 <FloorGrid
                   key={f.floorCode}
                   label={`${f.name} (${f.floorCode})`}
@@ -527,7 +498,7 @@ export function StaffDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {data!.recentCheckins.map((v, i) => (
+                {data!.recentCheckins.map((v: DashboardRecentCheckin, i: number) => (
                   <VehicleRow key={i} v={v} />
                 ))}
               </tbody>
@@ -539,3 +510,4 @@ export function StaffDashboardPage() {
     </div>
   );
 }
+

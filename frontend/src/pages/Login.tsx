@@ -62,14 +62,26 @@ export function LoginPage() {
         navigate('/dashboard-home');
       }
     } catch (err: unknown) {
-      const isNetwork =
-        !err ||
-        (err as { response?: unknown }).response === undefined;
+      const axiosErr = err as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+        code?: string;
+      };
 
-      if (isNetwork) {
+      // 1. Network error — không có response từ server (timeout, mất mạng...)
+      if (!err || !axiosErr.response) {
         setApiError('Không thể kết nối tới máy chủ. Vui lòng thử lại.');
-      } else {
-        setApiError('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
+      }
+      // 2. Lỗi server (>=500) — lỗi hệ thống, database...
+      else if (axiosErr.response.status && axiosErr.response.status >= 500) {
+        const serverMsg = axiosErr.response.data?.message;
+        console.error('[Login Error 500]', serverMsg || axiosErr.message);
+        setApiError(serverMsg || 'Lỗi hệ thống. Vui lòng thử lại sau.');
+      }
+      // 3. Lỗi xác thực (401/403) — sai email/password, tài khoản bị khóa
+      else {
+        const authMsg = axiosErr.response.data?.message;
+        setApiError(authMsg || 'Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.');
       }
       setForm((prev) => ({ ...prev, password: '' }));
     } finally {
