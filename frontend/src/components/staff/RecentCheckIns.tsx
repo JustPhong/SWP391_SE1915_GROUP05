@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import type { CheckInRecord } from '../../types/index';
 import styles from '../../styles/staff.module.css';
 
@@ -66,9 +65,7 @@ export function RecentCheckIns({ records, isLoading, onViewAll }: RecentCheckIns
                   <td>{r.slot?.code ?? '—'}</td>
                   <td>{r.checkedInBy ?? '—'}</td>
                   <td>
-                    <Link to="/staff/checkout" className={styles.linkBtn} style={{ fontSize: '0.8rem' }}>
-                      Check-out
-                    </Link>
+                    <span style={{ fontSize: '0.8rem', color: '#9BA8B4' }}>—</span>
                   </td>
                 </tr>
               ))}
