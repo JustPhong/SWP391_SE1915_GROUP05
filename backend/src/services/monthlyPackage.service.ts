@@ -85,7 +85,7 @@ export const monthlyPackageService = {
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
     if (vehicle.ownerId !== input.userId) {
-      throw new AppError(403, 'Báº¡n khÃ´ng cÃ³ quyá»n vá»›i xe nÃ y');
+      throw new AppError(403, 'Bạn không có quyền với xe này');
     }
 
     const now = new Date();
@@ -97,7 +97,7 @@ export const monthlyPackageService = {
       },
     });
     if (existingActive) {
-      throw new AppError(400, 'PhÆ°Æ¡ng tiá»‡n nÃ y Ä‘ang cÃ³ gÃ³i thÃ¡ng cÃ²n hiá»‡u lá»±c.');
+      throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
     }
 
     const allowedTier = getTierFromPlan(input.planId);
@@ -105,13 +105,13 @@ export const monthlyPackageService = {
     // Derive price server-side from stable config
     const price = PACKAGE_PRICES[vehicle.type]?.[input.planId];
     if (!price) {
-      throw new AppError(400, 'MÃ£ gÃ³i Ä‘Äƒng kÃ½ khÃ´ng há»£p lá»‡.');
+      throw new AppError(400, 'Mã gói đăng ký không hợp lệ.');
     }
 
     // Dry-run capacity verification
     const floor = await selectFloorForPackage(vehicle.type, allowedTier, prisma);
     if (!floor) {
-      throw new AppError(400, 'Hiá»‡n khu vá»±c cá»§a gÃ³i nÃ y Ä‘Ã£ háº¿t chá»—.');
+      throw new AppError(400, 'Hiện khu vực của gói này đã hết chỗ.');
     }
 
     const stripeSecret = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
@@ -137,7 +137,7 @@ export const monthlyPackageService = {
           price_data: {
             currency: 'vnd',
             product_data: {
-              name: `ÄÄƒng kÃ½ gÃ³i thÃ¡ng - ${input.planId} (${allowedTier})`,
+              name: `Đăng ký gói tháng - ${input.planId === '1y' ? '1 năm' : input.planId === '3m' ? '3 tháng' : '1 tháng'} (${allowedTier})`,
             },
             unit_amount: price,
           },
@@ -230,7 +230,7 @@ export const monthlyPackageService = {
           // 5. Resolve Floor capacity
           const floor = await selectFloorForPackage(vehicle.type, allowedTier, tx);
           if (!floor) {
-            throw new AppError(400, 'Khu vá»±c Ä‘á»— xe hiá»‡n táº¡i Ä‘Ã£ Ä‘á»§ sá»‘ lÆ°á»£ng Ä‘Äƒng kÃ½.');
+            throw new AppError(400, 'Khu vực đỗ xe hiện tại đã đủ số lượng đăng ký.');
           }
 
           const durationDays = planId === '1y' ? 365 : planId === '3m' ? 90 : 30;
@@ -257,6 +257,8 @@ export const monthlyPackageService = {
           await tx.payment.create({
             data: {
               monthlyPackageId: pkg.id,
+              bookingId: null,
+              checkInRecordId: null,
               amount: expectedPrice,
               method: 'CARD',
               type: 'MONTHLY',
@@ -277,8 +279,8 @@ export const monthlyPackageService = {
           if (user?.email) {
             await sendEmail(
               user.email,
-              'XÃ¡c nháº­n Ä‘Äƒng kÃ½ gÃ³i thÃ¡ng thÃ nh cÃ´ng',
-              `ChÃ o báº¡n,<br/><br/>GÃ³i thÃ¡ng cho xe <strong>${vehicle.plateNumber}</strong> Ä‘Ã£ Ä‘Æ°á»£c kÃ­ch hoáº¡t thÃ nh cÃ´ng.<br/>Khu vá»±c Ä‘á»—: <strong>Táº§ng ${floor.name} (${allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phá»• biáº¿n' : 'Khu CÆ¡ báº£n'})</strong>.<br/>Háº¡n sá»­ dá»¥ng: <strong>${expiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cáº£m Æ¡n báº¡n Ä‘Ã£ tin dÃ¹ng.`
+              'Xác nhận đăng ký gói tháng thành công',
+              `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${vehicle.plateNumber}</strong> đã được kích hoạt thành công.<br/>Khu vực đỗ: <strong>Tầng ${floor.name} (${allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản'})</strong>.<br/>Hạn sử dụng: <strong>${expiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã tin dùng.`
             );
           }
 
@@ -314,11 +316,11 @@ export const monthlyPackageService = {
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
     if (vehicle.ownerId !== input.userId) {
-      throw new AppError(403, 'Báº¡n khÃ´ng cÃ³ quyá»n vá»›i xe nÃ y');
+      throw new AppError(403, 'Bạn không có quyền với xe này');
     }
 
     if (input.vehicleType && vehicle.type !== input.vehicleType) {
-      throw new AppError(400, 'PhÆ°Æ¡ng tiá»‡n khÃ´ng khá»›p vá»›i loáº¡i gÃ³i Ä‘Äƒng kÃ½');
+      throw new AppError(400, 'Phương tiện không khớp với loại gói đăng ký');
     }
 
     const now = new Date();
@@ -330,7 +332,7 @@ export const monthlyPackageService = {
       },
     });
     if (existingActive) {
-      throw new AppError(400, 'PhÆ°Æ¡ng tiá»‡n nÃ y Ä‘ang cÃ³ gÃ³i thÃ¡ng cÃ²n hiá»‡u lá»±c.');
+      throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
     }
 
     const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
@@ -340,7 +342,7 @@ export const monthlyPackageService = {
     return prisma.$transaction(async (tx) => {
       const floor = await selectFloorForPackage(vehicle.type, resolvedTier, tx);
       if (!floor) {
-        throw new AppError(400, 'Hiá»‡n khu vá»±c cá»§a gÃ³i nÃ y Ä‘Ã£ Ä‘á»§ sá»‘ lÆ°á»£ng Ä‘Äƒng kÃ½. Vui lÃ²ng chá»n gÃ³i khÃ¡c.');
+        throw new AppError(400, 'Hiện khu vực của gói này đã đủ số lượng đăng ký. Vui lòng chọn gói khác.');
       }
 
       const pkg = await tx.monthlyPackage.create({
@@ -360,10 +362,13 @@ export const monthlyPackageService = {
       await tx.payment.create({
         data: {
           monthlyPackageId: pkg.id,
+          bookingId: null,
+          checkInRecordId: null,
           amount: input.price,
           method: input.paymentMethod,
           type: 'MONTHLY',
           status: 'SUCCESS',
+          paidAt: new Date(),
         },
       });
 
@@ -417,13 +422,13 @@ export const monthlyPackageService = {
       where: { id: packageId },
       include: { user: true, vehicle: { select: { type: true, plateNumber: true } } },
     });
-    if (!pkg) throw new AppError(404, 'GÃ³i thÃ¡ng khÃ´ng tá»“n táº¡i');
-    if (pkg.userId !== userId) throw new AppError(403, 'KhÃ´ng cÃ³ quyá»n gia háº¡n gÃ³i nÃ y');
+    if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
+    if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền gia hạn gói này');
 
     const now = new Date();
     const durationMs = pkg.expiryDate.getTime() - pkg.startDate.getTime();
     if (durationMs <= 0) {
-      throw new AppError(400, 'KhÃ´ng thá»ƒ xÃ¡c Ä‘á»‹nh thá»i háº¡n gÃ³i Ä‘á»ƒ gia háº¡n');
+      throw new AppError(400, 'Không thể xác định thời hạn gói để gia hạn');
     }
 
     const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
@@ -435,7 +440,7 @@ export const monthlyPackageService = {
     // Check capacity before renewal
     const floor = await selectFloorForPackage(pkg.vehicle.type, pkg.allowedTier, prisma);
     if (!floor) {
-      throw new AppError(400, 'KhÃ´ng thá»ƒ gia háº¡n: Khu vá»±c hiá»‡n táº¡i Ä‘Ã£ háº¿t chá»— trá»‘ng.');
+      throw new AppError(400, 'Không thể gia hạn: Khu vực hiện tại đã hết chỗ trống.');
     }
 
     const updated = await prisma.monthlyPackage.update({
@@ -452,8 +457,8 @@ export const monthlyPackageService = {
     if (updated.user?.email) {
       await sendEmail(
         updated.user.email,
-        'XÃ¡c nháº­n gia háº¡n gÃ³i thÃ¡ng',
-        `ChÃ o báº¡n,<br/><br/>GÃ³i thÃ¡ng cho xe <strong>${pkg.vehicle.plateNumber}</strong> Ä‘Ã£ Ä‘Æ°á»£c gia háº¡n thÃ nh cÃ´ng. NgÃ y háº¿t háº¡n má»›i lÃ  <strong>${newExpiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cáº£m Æ¡n báº¡n Ä‘Ã£ sá»­ dá»¥ng dá»‹ch vá»¥.`
+        'Xác nhận gia hạn gói tháng',
+        `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${pkg.vehicle.plateNumber}</strong> đã được gia hạn thành công. Ngày hết hạn mới là <strong>${newExpiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
       );
     }
 
@@ -465,8 +470,8 @@ export const monthlyPackageService = {
       where: { id: packageId },
       include: { user: true },
     });
-    if (!pkg) throw new AppError(404, 'GÃ³i thÃ¡ng khÃ´ng tá»“n táº¡i');
-    if (pkg.userId !== userId) throw new AppError(403, 'KhÃ´ng cÃ³ quyá»n thay Ä‘á»•i cÃ i Ä‘áº·t nÃ y');
+    if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
+    if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền thay đổi cài đặt này');
 
     const updated = await prisma.monthlyPackage.update({
       where: { id: packageId },
@@ -477,8 +482,8 @@ export const monthlyPackageService = {
     if (enabled && updated.user?.email) {
       await sendEmail(
         updated.user.email,
-        'Gia háº¡n gÃ³i thÃ¡ng Ä‘Æ°á»£c báº­t',
-        `ChÃ o báº¡n,<br/><br/>Báº¡n Ä‘Ã£ báº­t cháº¿ Ä‘á»™ gia háº¡n tá»± Ä‘á»™ng cho gÃ³i thÃ¡ng. ChÃºng tÃ´i sáº½ thÃ´ng bÃ¡o khi gÃ³i Ä‘Æ°á»£c gia háº¡n.<br/><br/>Cáº£m Æ¡n báº¡n Ä‘Ã£ sá»­ dá»¥ng dá»‹ch vá»¥.`
+        'Gia hạn gói tháng được bật',
+        `Chào bạn,<br/><br/>Bạn đã bật chế độ gia hạn tự động cho gói tháng. Chúng tôi sẽ thông báo khi gói được gia hạn.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
       );
     }
 
@@ -490,9 +495,9 @@ export const monthlyPackageService = {
       where: { id: packageId },
       include: { user: true, vehicle: true },
     });
-    if (!pkg) throw new AppError(404, 'GÃ³i thÃ¡ng khÃ´ng tá»“n táº¡i');
-    if (pkg.userId !== userId) throw new AppError(403, 'KhÃ´ng cÃ³ quyá»n há»§y gÃ³i nÃ y');
-    if (pkg.status !== PKG_ACTIVE) throw new AppError(400, 'GÃ³i thÃ¡ng khÃ´ng á»Ÿ tráº¡ng thÃ¡i hoáº¡t Ä‘á»™ng');
+    if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
+    if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền hủy gói này');
+    if (pkg.status !== PKG_ACTIVE) throw new AppError(400, 'Gói tháng không ở trạng thái hoạt động');
 
     return prisma.$transaction(async (tx) => {
       // 1. Update package status to CANCELLED and disable auto-renew
@@ -511,8 +516,8 @@ export const monthlyPackageService = {
       if (updated.user?.email) {
         await sendEmail(
           updated.user.email,
-          'XÃ¡c nháº­n há»§y gÃ³i thÃ¡ng',
-          `ChÃ o báº¡n,<br/><br/>GÃ³i thÃ¡ng cho xe <strong>${pkg.vehicle?.plateNumber ?? pkg.vehicleId}</strong> Ä‘Ã£ Ä‘Æ°á»£c há»§y thÃ nh cÃ´ng.<br/><br/>Cáº£m Æ¡n báº¡n Ä‘Ã£ sá»­ dá»¥ng dá»‹ch vá»¥.`
+          'Xác nhận hủy gói tháng',
+          `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${pkg.vehicle?.plateNumber ?? pkg.vehicleId}</strong> đã được hủy thành công.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
         );
       }
 
@@ -561,5 +566,35 @@ export const monthlyPackageService = {
     result.REGULAR = result.CAR.REGULAR;
 
     return result;
+  },
+
+  async getFloorQuotas(floorId: number): Promise<{
+    floorId: number;
+    quotas: { tier: 'VIP' | 'POPULAR' | 'REGULAR'; limit: number; sold: number; remaining: number }[];
+  }> {
+    const tiers: Array<'VIP' | 'POPULAR' | 'REGULAR'> = ['VIP', 'POPULAR', 'REGULAR'];
+    const now = new Date();
+
+    const quotas = await Promise.all(
+      tiers.map(async (tier) => {
+        const [limit, sold] = await Promise.all([
+          prisma.parkingSlot.count({
+            where: { floorId, tier },
+          }),
+          prisma.monthlyPackage.count({
+            where: {
+              floorId,
+              allowedTier: tier,
+              status: 'ACTIVE',
+              expiryDate: { gte: now },
+            },
+          }),
+        ]);
+        const remaining = Math.max(0, limit - sold);
+        return { tier, limit, sold, remaining };
+      })
+    );
+
+    return { floorId, quotas };
   },
 };

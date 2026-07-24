@@ -1,14 +1,24 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
+import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const PKG_ACTIVE = 'ACTIVE';
+
+export interface ActiveBookingSummary {
+  id: string;
+  floorId: number;
+  floorName: string;
+  floorCode: string;
+  depositAmount: number;
+  expiresAt: string;
+}
 
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;
   slotCode?: string;
-  customerType: 'monthly' | 'casual';
+  customerType: 'monthly' | 'casual' | 'booking';
   vehicleType?: 'CAR' | 'MOTORBIKE';
   brand?: string | null;
   model?: string | null;
@@ -19,6 +29,16 @@ export interface LookupResult {
   packageExpiry?: string;
   isExpired?: boolean;
   allowedTier?: string | null;
+  // Floor information determined by backend lookup
+  floorId?: number | null;
+  floorName?: string | null;
+  floorCode?: string | null;
+  totalCapacity?: number | null;
+  activeParkingCount?: number | null;
+  activeBookingCount?: number | null;
+  receivableCapacity?: number | null;
+  // Active booking (CAR only)
+  activeBooking?: ActiveBookingSummary | null;
   // Owner / customer info
   ownerName?: string | null;
   ownerPhone?: string | null;
@@ -41,7 +61,8 @@ export interface SubmitCheckinInput {
   plate: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
   customerType: 'monthly' | 'casual';
-  slotCode?: string;
+  floorId: number;
+  slotCode?: string | null;
   isMonthly: boolean;
   frontImageUrl?: string;
   rearImageUrl?: string;
@@ -61,9 +82,12 @@ export interface SubmitCheckinResult {
 
 export const checkinService = {
   // ── GET /api/checkin/lookup/:plate ─────────────────────────────────────
-  async lookupPlate(plate: string): Promise<LookupResult> {
+  async lookupPlate(
+    plate: string,
+    vehicleType?: 'CAR' | 'MOTORBIKE'
+  ): Promise<LookupResult> {
     const cleaned = plate.trim().toUpperCase();
-    const stripped = cleaned.replace(/[-.\s]/g, '');
+    const stripped = cleaned.replace(/[-. \s]/g, '');
     const vehicle = await prisma.vehicle.findFirst({
       where: {
         OR: [
@@ -85,9 +109,62 @@ export const checkinService = {
       },
     });
 
+    const vType = (vehicle?.type || vehicleType || 'CAR') as 'CAR' | 'MOTORBIKE';
+
+    const getCapacityInfo = async (fId?: number, custType?: 'MONTHLY' | 'CASUAL') => {
+      let floor;
+      if (fId) {
+        floor = await prisma.floor.findUnique({ where: { id: fId } });
+      } else {
+        floor = await prisma.floor.findFirst({
+          where: { vehicleType: vType, customerType: custType || 'CASUAL' },
+        });
+      }
+      if (!floor) {
+        return {
+          floorId: null,
+          floorName: null,
+          floorCode: null,
+          totalCapacity: 0,
+          activeParkingCount: 0,
+          activeBookingCount: 0,
+          receivableCapacity: 0,
+        };
+      }
+      const now = new Date();
+      const activeParkingCount = await prisma.checkInRecord.count({
+        where: { floorId: floor.id, checkOutTime: null },
+      });
+      const activeBookingCount = await prisma.booking.count({
+        where: {
+          floorId: floor.id,
+          status: 'ACTIVE',
+          depositStatus: 'PAID',
+          expiresAt: { gt: now },
+          checkInRecords: { none: {} },
+        },
+      });
+      const receivableCapacity = Math.max(0, floor.capacity - activeParkingCount - activeBookingCount);
+      return {
+        floorId: floor.id,
+        floorName: floor.name,
+        floorCode: floor.floorCode,
+        totalCapacity: floor.capacity,
+        activeParkingCount,
+        activeBookingCount,
+        receivableCapacity,
+      };
+    };
+
     // No vehicle at all → casual
     if (!vehicle) {
-      return { found: false, customerType: 'casual' };
+      const capInfo = await getCapacityInfo(undefined, 'CASUAL');
+      return {
+        found: false,
+        customerType: 'casual',
+        vehicleType: vType,
+        ...capInfo,
+      };
     }
 
     // Active check-in record? → already parked
@@ -96,47 +173,103 @@ export const checkinService = {
       include: { slot: true },
     });
 
-    const baseResult = {
+    const baseResult: LookupResult = {
       found: true,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
       brand: vehicle.brand ?? null,
       model: vehicle.model ?? null,
       color: vehicle.color ?? null,
       year: vehicle.year ?? null,
-      seats: (vehicle as any).seats ?? null,
+      seats: (vehicle as Record<string, unknown>).seats as number | null ?? null,
       customerType: vehicle.isMonthly ? 'monthly' : 'casual',
       ownerName: vehicle.owner?.fullName ?? null,
       ownerPhone: vehicle.owner?.phoneNumber ?? null,
       ownerEmail: vehicle.owner?.email ?? null,
       note: null,
-    } as LookupResult;
+    };
 
     if (activeRecord) {
+      const activeFloor = activeRecord.floorId
+        ? await prisma.floor.findUnique({ where: { id: activeRecord.floorId } })
+        : null;
       return {
         ...baseResult,
         alreadyParked: true,
-        slotCode: activeRecord.slot?.code ?? (activeRecord.allowedTier ? `Khu ${activeRecord.allowedTier === 'VIP' ? 'VIP' : activeRecord.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+        slotCode: activeRecord.slot?.code ?? (
+          activeRecord.allowedTier
+            ? `Khu ${
+                activeRecord.allowedTier === 'VIP' ? 'VIP'
+                  : activeRecord.allowedTier === 'POPULAR' ? 'Phổ biến'
+                  : 'Cơ bản'
+              }`
+            : 'Không cố định'
+        ),
+        floorId: activeRecord.floorId,
+        floorName: activeFloor?.name ?? null,
+        floorCode: activeFloor?.floorCode ?? null,
+        receivableCapacity: 0,
       };
     }
 
-    if (!vehicle.isMonthly || !vehicle.monthlyPackage) {
+    // ── Active Booking check (CAR only) ─────────────────────────────────
+    if (vType === 'CAR') {
+      const now = new Date();
+      const activeBooking = await prisma.booking.findFirst({
+        where: {
+          vehicleId: vehicle.id,
+          status: 'ACTIVE',
+          depositStatus: 'PAID',
+          expiresAt: { gt: now },
+          checkInRecords: { none: {} },
+        },
+        include: { floor: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (activeBooking) {
+        const capInfo = await getCapacityInfo(activeBooking.floorId);
+        return {
+          ...baseResult,
+          alreadyParked: false,
+          customerType: 'booking',
+          activeBooking: {
+            id: activeBooking.id,
+            floorId: activeBooking.floorId,
+            floorName: activeBooking.floor.name,
+            floorCode: activeBooking.floor.floorCode,
+            depositAmount: Number(activeBooking.depositAmount),
+            expiresAt: activeBooking.expiresAt!.toISOString(),
+          },
+          ...capInfo,
+        };
+      }
+    }
+
+    // Monthly Package Check
+    if (vehicle.isMonthly && vehicle.monthlyPackage) {
+      const pkg = vehicle.monthlyPackage;
+      const isExpired =
+        new Date(pkg.expiryDate) < new Date() || pkg.status !== PKG_ACTIVE;
+
+      const capInfo = await getCapacityInfo(pkg.floorId, 'MONTHLY');
       return {
         ...baseResult,
         alreadyParked: false,
+        fixedSlot: null,
+        packageExpiry: pkg.expiryDate.toISOString(),
+        isExpired,
+        allowedTier: pkg.allowedTier ?? null,
+        ...capInfo,
       };
     }
 
-    const pkg = vehicle.monthlyPackage;
-    const isExpired =
-      new Date(pkg.expiryDate) < new Date() || pkg.status !== PKG_ACTIVE;
-
+    // Default to Casual
+    const capInfo = await getCapacityInfo(undefined, 'CASUAL');
     return {
       ...baseResult,
+      customerType: 'casual',
       alreadyParked: false,
-      fixedSlot: null,
-      packageExpiry: pkg.expiryDate.toISOString(),
-      isExpired,
-      allowedTier: pkg.allowedTier ?? null,
+      ...capInfo,
     };
   },
 
@@ -188,83 +321,206 @@ export const checkinService = {
 
   // ── POST /api/checkin ─────────────────────────────────────────────────
   async submit(input: SubmitCheckinInput): Promise<SubmitCheckinResult> {
-    const { plate, vehicleType, slotCode, isMonthly, frontImageUrl, rearImageUrl } = input;
+    const { plate, vehicleType, floorId, isMonthly, frontImageUrl, rearImageUrl } = input;
     const normalizedPlate = normalizePlate(plate);
+
+    if (floorId === undefined || floorId === null) {
+      throw new AppError(400, 'Tầng/khu vực không được để trống');
+    }
 
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-.\s]/g, '');
-    let vehicle = await prisma.vehicle.findFirst({
-      where: {
-        OR: [
-          { plateNumber: cleaned },
-          { plateNumber: stripped },
-        ],
-      },
-      include: {
-        monthlyPackage: {
-          include: {
-            floor: true,
+
+    return await prisma.$transaction(async (tx) => {
+      const now = new Date();
+
+      // 1. Resolve vehicle
+      let vehicle = await tx.vehicle.findFirst({
+        where: {
+          OR: [
+            { plateNumber: cleaned },
+            { plateNumber: stripped },
+          ],
+        },
+        include: {
+          monthlyPackage: {
+            include: { floor: true },
           },
         },
-      },
-    });
+      });
 
-    if (isMonthly) {
+      // 2. Concurrency Lock
+      await acquireVehicleOrPlateLock(tx, vehicle?.id, plate);
+
+      // 3. Resolve authoritative operational state
+      const state = await getVehicleOperationalState(tx, {
+        vehicleId: vehicle?.id,
+        plateNumber: plate
+      });
+
+      // 4. Duplicate Check-in guard (must return 409)
+      if (state.activeCheckIn) {
+        throw new AppError(
+          409,
+          `Xe này đang có một lượt gửi chưa hoàn tất. Vui lòng Check-out lượt hiện tại trước khi Check-in lại.`
+        );
+      }
+
+      // 5. Inconsistency Check
+      if (state.activeBooking && state.activeMonthlyPackage) {
+        throw new AppError(
+          409,
+          'Trạng thái xe không nhất quán. Vui lòng kiểm tra lượt đặt chỗ và gói tháng.'
+        );
+      }
+
+      // Flow A: Active Booking exists
+      if (state.activeBooking) {
+        const activeBooking = state.activeBooking;
+        if (activeBooking.floorId !== floorId) {
+          throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin đặt chỗ');
+        }
+
+        const totalCapacity = activeBooking.floor.capacity;
+        const activeParkingCount = await tx.checkInRecord.count({
+          where: { floorId: activeBooking.floorId, checkOutTime: null },
+        });
+
+        if (activeParkingCount >= totalCapacity) {
+          throw new AppError(400, `Tầng ${activeBooking.floor.name} đã đầy xe, không thể nhận thêm.`);
+        }
+
+        const checkInTime = new Date();
+        await tx.checkInRecord.create({
+          data: {
+            vehicleId: activeBooking.vehicleId,
+            slotId: null,
+            floorId: activeBooking.floorId,
+            bookingId: activeBooking.id,
+            checkInTime,
+            isMonthly: false,
+            frontImageUrl: frontImageUrl ?? null,
+            rearImageUrl: rearImageUrl ?? null,
+          },
+        });
+
+        await tx.booking.update({
+          where: { id: activeBooking.id },
+          data: { status: 'FULFILLED' },
+        });
+
+        return {
+          ok: true,
+          plate: normalizedPlate,
+          slotCode: 'Tự chọn',
+          checkInTime: checkInTime.toISOString(),
+          floorCode: activeBooking.floor.floorCode,
+          zoneName: `Đặt chỗ - ${activeBooking.floor.name}`,
+          message: `Đặt chỗ hợp lệ. Vui lòng di chuyển vào ${activeBooking.floor.name} và tự chọn vị trí trống phù hợp.`,
+        };
+      }
+
+      // Flow B: No Active Booking, Monthly Package exists
+      if (state.activeMonthlyPackage) {
+        const pkg = state.activeMonthlyPackage;
+        const pkgFloorId = pkg.floorId;
+        if (!pkgFloorId) {
+          throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe.');
+        }
+
+        if (pkgFloorId !== floorId) {
+          throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin gói tháng');
+        }
+
+        const totalCapacity = pkg.floor.capacity;
+        const activeParkingCount = await tx.checkInRecord.count({
+          where: { floorId: pkgFloorId, checkOutTime: null },
+        });
+
+        if (totalCapacity - activeParkingCount <= 0) {
+          throw new AppError(400, `Khu vực đỗ xe của gói tháng tại ${pkg.floor.name} đã hết chỗ trống.`);
+        }
+
+        const checkInTime = new Date();
+        await tx.checkInRecord.create({
+          data: {
+            vehicleId: pkg.vehicleId,
+            slotId: null,
+            floorId: pkgFloorId,
+            checkInTime,
+            isMonthly: true,
+            allowedTier: pkg.allowedTier,
+            frontImageUrl: frontImageUrl ?? null,
+            rearImageUrl: rearImageUrl ?? null,
+          },
+        });
+
+        return {
+          ok: true,
+          plate: normalizedPlate,
+          slotCode: `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
+          checkInTime: checkInTime.toISOString(),
+          floorCode: pkg.floor.floorCode,
+          allowedTier: pkg.allowedTier,
+          zoneName: `Khách tháng - ${pkg.floor.name}`,
+          message: `Vui lòng di chuyển vào tầng ${pkg.floor.name} và đỗ tại vị trí trống phù hợp.`,
+        };
+      }
+
+      // Flow C: Casual Walk-in
+      const floor = await tx.floor.findFirst({
+        where: { vehicleType, customerType: 'CASUAL' },
+      });
+      if (!floor) {
+        throw new AppError(400, 'Không tìm thấy tầng đỗ xe phù hợp cho khách vãng lai.');
+      }
+
+      if (floor.id !== floorId) {
+        throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin khách vãng lai');
+      }
+
+      const activeParkingCount = await tx.checkInRecord.count({
+        where: { floorId: floor.id, checkOutTime: null },
+      });
+      const activeBookingCount = await tx.booking.count({
+        where: {
+          floorId: floor.id,
+          status: 'ACTIVE',
+          depositStatus: 'PAID',
+          expiresAt: { gt: now },
+          checkInRecords: { none: {} },
+        },
+      });
+
+      const receivableCapacity = floor.capacity - activeParkingCount - activeBookingCount;
+      if (receivableCapacity <= 0) {
+        throw new AppError(400, `Bãi đỗ xe đã hết chỗ trống tại ${floor.name}.`);
+      }
+
+      let effectiveVehicleId: string;
       if (!vehicle) {
-        throw new AppError(400, 'Xe chưa đăng ký trong hệ thống');
-      }
-
-      const pkg = vehicle.monthlyPackage;
-      if (!pkg || pkg.status !== PKG_ACTIVE || new Date(pkg.expiryDate) < new Date()) {
-        throw new AppError(400, 'Gói tháng đã hết hạn hoặc không tồn tại');
-      }
-
-      const floorId = pkg.floorId;
-      if (!floorId) {
-        throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe. Vui lòng liên hệ ban quản lý.');
-      }
-
-      // Check that no currently active CheckInRecord already exists for the vehicle
-      const existing = await prisma.checkInRecord.findFirst({
-        where: { vehicleId: vehicle.id, checkOutTime: null },
-      });
-      if (existing) {
-        throw new AppError(400, 'Xe đã có lượt gửi đang hoạt động');
-      }
-
-      const allowedTier = pkg.allowedTier;
-      const zoneName = allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
-
-      // Check current zone occupancy is below physical zone capacity
-      const physicalCapacity = await prisma.parkingSlot.count({
-        where: {
-          floorId,
-          type: vehicle.type,
-          tier: allowedTier,
-        },
-      });
-
-      const currentOccupancy = await prisma.checkInRecord.count({
-        where: {
-          floorId,
-          allowedTier,
-          checkOutTime: null,
-        },
-      });
-
-      if (currentOccupancy >= physicalCapacity) {
-        throw new AppError(400, `Khu vực đỗ xe ${zoneName} tại tầng đã hết chỗ trống.`);
+        const walkinUser = await findOrCreateWalkinUser();
+        const newVehicle = await tx.vehicle.create({
+          data: {
+            plateNumber: cleaned,
+            type: vehicleType,
+            isMonthly: false,
+            ownerId: walkinUser.id,
+          },
+        });
+        effectiveVehicleId = newVehicle.id;
+      } else {
+        effectiveVehicleId = vehicle.id;
       }
 
       const checkInTime = new Date();
-      await prisma.checkInRecord.create({
+      await tx.checkInRecord.create({
         data: {
-          vehicleId: vehicle.id,
+          vehicleId: effectiveVehicleId,
           slotId: null,
-          floorId,
+          floorId: floor.id,
           checkInTime,
-          isMonthly: true,
-          allowedTier,
+          isMonthly: false,
           frontImageUrl: frontImageUrl ?? null,
           rearImageUrl: rearImageUrl ?? null,
         },
@@ -273,64 +529,13 @@ export const checkinService = {
       return {
         ok: true,
         plate: normalizedPlate,
-        slotCode: `Khu ${allowedTier === 'VIP' ? 'VIP' : allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
+        slotCode: 'Tự chọn',
         checkInTime: checkInTime.toISOString(),
-        accessGranted: true,
-        floorCode: pkg.floor?.floorCode ?? 'G',
-        allowedTier,
-        zoneName,
-        message: `Vui lòng di chuyển vào ${zoneName} và đỗ tại vị trí trống phù hợp.`,
+        floorCode: floor.floorCode,
+        zoneName: `Khách vãng lai - ${floor.name}`,
+        message: `Vui lòng di chuyển vào ${floor.name} và tự chọn vị trí trống phù hợp.`,
       };
-    }
-
-    if (!slotCode) throw new AppError(400, 'Mã slot không được để trống');
-    const slot = await prisma.parkingSlot.findUnique({ where: { code: slotCode } });
-    if (!slot) throw new AppError(404, 'Slot không tìm thấy');
-    if (slot.status !== SLOT_AVAILABLE) throw new AppError(409, 'Slot không còn trống');
-
-    if (!vehicle) {
-      if (isMonthly) {
-        throw new AppError(400, 'Xe chưa đăng ký trong hệ thống');
-      }
-
-      const walkinUser = await findOrCreateWalkinUser();
-      const newVehicle = await prisma.vehicle.create({
-        data: {
-          plateNumber: cleaned,
-          type: vehicleType,
-          isMonthly: false,
-          ownerId: walkinUser.id,
-        },
-      });
-      vehicle = { ...newVehicle, monthlyPackage: null } as any;
-    }
-
-    const checkInTime = new Date();
-
-    await prisma.$transaction([
-      prisma.parkingSlot.update({
-        where: { id: slot.id },
-        data: { status: 'OCCUPIED', assignedVehicleId: vehicle!.id },
-      }),
-      prisma.checkInRecord.create({
-        data: {
-          vehicleId: vehicle!.id,
-          slotId: slot.id,
-          floorId: slot.floorId,
-          checkInTime,
-          isMonthly,
-          frontImageUrl: frontImageUrl ?? null,
-          rearImageUrl: rearImageUrl ?? null,
-        },
-      }),
-    ]);
-
-    return {
-      ok: true,
-      plate: normalizedPlate,
-      slotCode,
-      checkInTime: checkInTime.toISOString(),
-    };
+    });
   },
 };
 

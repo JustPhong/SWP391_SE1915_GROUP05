@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { floorService } from './floor.service';
 
 const SESSION_RATE = 5000;
 
@@ -77,50 +78,28 @@ export const driverDashboardService = {
       include: {
         vehicle: true,
         slot: true,
-        payments: {
-          where: { type: 'SESSION' },
-          orderBy: { paidAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
-
-    const bookings = await prisma.booking.findMany({
-      where: {
-        createdById: userId,
-        status: 'ACTIVE',
-      },
-      orderBy: { expectedArrival: 'desc' },
-      include: {
-        vehicle: true,
         floor: true,
+        payments: {
+          where: {
+            type: 'PARKING_FEE',
+            status: 'SUCCESS',
+          },
+          orderBy: { paidAt: 'desc' },
+        },
       },
     });
 
     const recordEntries = records.map((record) => ({
       id: record.id,
+      recordType: 'PARKING_SESSION',
       plateNumber: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+      slotCode: record.slot?.code ?? record.floor?.name ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
       date: formatISODate(record.checkOutTime ?? record.checkInTime),
       duration: formatDuration(record.checkInTime, record.checkOutTime ?? new Date()),
-      amount: Number(record.payments[0]?.amount ?? 0),
-      status: record.checkOutTime ? 'Hoàn thành' : 'Đang đỗ',
+      amount: record.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+      status: record.status,
     }));
 
-    const bookingEntries = bookings.map((b) => ({
-      id: b.id,
-      plateNumber: b.vehicle.plateNumber,
-      slotCode: b.floor.name,
-      date: formatISODate(b.expectedArrival),
-      duration: 'Chờ xe vào',
-      amount: Number(b.depositAmount),
-      status: 'Đã đặt chỗ',
-    }));
-
-    const combined = [...recordEntries, ...bookingEntries].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-
-    return combined;
+    return recordEntries;
   },
 };
