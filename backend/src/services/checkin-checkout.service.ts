@@ -68,7 +68,7 @@ export const checkInService = {
       if (!floorId) {
         throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe. Vui lòng liên hệ ban quản lý.');
       }
-      const allowedTier = pkg.allowedTier;
+      const allowedTier = pkg.allowedTier ?? 'REGULAR';
 
       // Validate capacity
       const physicalCapacity = await prisma.parkingSlot.count({

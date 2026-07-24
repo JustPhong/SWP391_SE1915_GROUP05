@@ -401,6 +401,7 @@ export const bookingService = {
     });
   },
 
+
   async getById(bookingId: string) {
     return prisma.booking.findUnique({
       where: { id: bookingId },
@@ -416,11 +417,102 @@ export const bookingService = {
     throw new AppError(501, 'Chức năng xác nhận thanh toán chưa được cấu hình.');
   },
 
-  async handleStripeWebhook(_event: any) {
-    throw new AppError(501, 'Chức năng Stripe webhook chưa được cấu hình.');
+  // Stripe Webhook: handle checkout.session.completed for booking fee payments
+  async handleStripeWebhook(event: any) {
+    if (event.type !== 'checkout.session.completed') {
+      return { received: true };
+    }
+    const session = event.data?.object;
+    if (!session) throw new AppError(400, 'Invalid Stripe webhook object format.');
+
+    const metadata = session.metadata;
+    if (!metadata || !metadata.bookingId) {
+      throw new AppError(400, 'Missing required metadata: bookingId.');
+    }
+
+    const bookingId = metadata.bookingId;
+
+    // Idempotency: if deposit already paid, return early
+    const existingPayment = await prisma.payment.findFirst({
+      where: { bookingId, status: 'SUCCESS' },
+    });
+    if (existingPayment) {
+      return { success: true, alreadyProcessed: true };
+    }
+
+    // Find the booking
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { vehicle: true, floor: true },
+    });
+    if (!booking) throw new AppError(404, 'Booking not found');
+
+    // Verify payment status
+    if (session.payment_status !== 'paid') {
+      throw new AppError(400, 'Session has not been paid.');
+    }
+
+    // Verify amount matches deposit
+    if (session.amount_total !== Number(booking.depositAmount)) {
+      throw new AppError(
+        400,
+        `Invalid payment amount: expected ${Number(booking.depositAmount)}, got ${session.amount_total}`
+      );
+    }
+
+    // Update booking deposit status and create payment record
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          depositStatus: 'PAID',
+          status: 'ACTIVE',
+          confirmedAt: new Date(),
+        },
+      });
+
+      await tx.payment.create({
+        data: {
+          bookingId,
+          amount: Number(booking.depositAmount),
+          method: 'CARD',
+          type: 'BOOKING_DEPOSIT',
+          status: 'SUCCESS',
+          transactionCode: session.id,
+          paidAt: new Date(),
+        },
+      });
+    });
+
+    return { success: true, bookingId };
   },
 
-  async handleStripeExpired(_event: any) {
-    throw new AppError(501, 'Chức năng Stripe expired chưa được cấu hình.');
+  // Stripe Webhook: handle checkout.session.expired for booking fee payments
+  async handleStripeExpired(event: any) {
+    const session = event.data?.object;
+    if (!session) throw new AppError(400, 'Invalid Stripe webhook object format.');
+
+    const metadata = session.metadata;
+    if (!metadata || !metadata.bookingId) {
+      throw new AppError(400, 'Missing required metadata: bookingId.');
+    }
+
+    const bookingId = metadata.bookingId;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+    if (!booking) throw new AppError(404, 'Booking not found');
+
+    // Only update if deposit is still pending
+    if (booking.depositStatus === 'PENDING') {
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { depositStatus: 'EXPIRED' },
+      });
+    }
+
+    return { success: true, bookingId, message: 'Session expired, deposit status updated' };
   },
 };
+
