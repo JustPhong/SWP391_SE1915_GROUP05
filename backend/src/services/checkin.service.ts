@@ -232,7 +232,7 @@ export const checkinService = {
         throw new AppError(400, 'Xe đã có lượt gửi đang hoạt động');
       }
 
-      const allowedTier = pkg.allowedTier;
+      const allowedTier = pkg.allowedTier ?? 'REGULAR';
       const zoneName = allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
 
       // Check current zone occupancy is below physical zone capacity
