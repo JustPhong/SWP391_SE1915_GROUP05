@@ -80,9 +80,8 @@ export const bookingController = {
     return res.status(200).json({ success: true, data: result });
   }),
 
-  getActiveBookings: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user?.role === 'DRIVER' ? req.user.id : undefined;
-    const bookings = await bookingService.getActiveBookings(userId);
+  getActiveBookings: asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const bookings = await bookingService.getActiveBookings();
     return res.status(200).json({ success: true, data: bookings });
   }),
 
@@ -96,56 +95,20 @@ export const bookingController = {
     return res.status(200).json({ success: true, data: bookings });
   }),
 
-  createCheckoutSession: asyncHandler(async (req: AuthRequest, res: Response) => {
-    if (!req.user) throw new Error('Not authenticated');
-
-    const { vehicleId, expectedArrival: expectedArrivalStr } = req.body;
-    if (!vehicleId) {
-      throw new AppError(400, 'vehicleId là bắt buộc.');
-    }
-    if (!expectedArrivalStr) {
-      throw new AppError(400, 'Thời gian đến dự kiến không được để trống.');
-    }
-    const expectedArrival = new Date(expectedArrivalStr);
-    if (isNaN(expectedArrival.getTime())) {
-      throw new AppError(400, 'Thời gian đến dự kiến không hợp lệ.');
-    }
-
-    const result = await bookingService.createCheckoutSession({
-      userId: req.user.id,
-      vehicleId,
-      expectedArrival,
-    });
-
-    return res.status(200).json({ success: true, data: result });
+  createCheckoutSession: asyncHandler(async (_req: AuthRequest, res: Response) => {
+    return res.status(501).json({ success: false, message: 'Tính năng chưa được triển khai.' });
   }),
 
   getById: asyncHandler(async (req: AuthRequest, res: Response) => {
-    let booking = await bookingService.getById(req.params.id);
+    const id = req.params.id;
+    const all = await bookingService.getAll();
+    const booking = all.find(b => b.id === id);
     if (!booking) {
       throw new AppError(404, 'Không tìm thấy đặt chỗ');
     }
     if (req.user?.role === 'DRIVER' && booking.createdById !== req.user.id) {
       throw new AppError(403, 'Bạn không có quyền truy cập thông tin đặt chỗ này.');
     }
-
-    if (booking.status === 'PENDING_PAYMENT' && booking.stripeCheckoutSessionId) {
-      const bookingIdForLog = booking.id;
-      const sessionId = booking.stripeCheckoutSessionId;
-      try {
-        console.log(`[Reconciliation] Auto-reconciling booking ID ${bookingIdForLog} with session ${sessionId}`);
-        await bookingService.finalizePaidBookingCheckout(sessionId);
-
-        const refreshedBooking = await bookingService.getById(bookingIdForLog);
-        if (refreshedBooking) {
-          booking = refreshedBooking;
-        }
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown reconciliation error';
-        console.warn(`[Reconciliation] Auto-reconcile failed for booking ID ${bookingIdForLog}:`, message);
-      }
-    }
-
     return res.status(200).json({ success: true, data: booking });
   }),
 };
