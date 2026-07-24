@@ -5,6 +5,7 @@ import {
   markNoShow,
   type BookingItem,
 } from '../api/bookingApi';
+import { normalize as normalizePlate } from '../utils/plate';
 
 // ═════════════════════════════════════════════════════
 //  DESIGN TOKENS  (approved palette matching CheckIn)
@@ -122,18 +123,7 @@ function deriveStatus(
   return 'QUA_GIO';
 }
 
-function getAreaDisplay(floor: BookingItem['floor']): string {
-  return floor ? floor.name : 'Chưa xác định';
-}
 
-function getCustomerTypeDisplay(floor: BookingItem['floor']): string {
-  if (floor) {
-    const vType = floor.vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
-    const cType = floor.customerType === 'MONTHLY' ? 'khách tháng' : 'khách lẻ';
-    return `${vType} ${cType}`;
-  }
-  return '';
-}
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -282,22 +272,7 @@ function StatusBadge({ derivedStatus }: { derivedStatus: DerivedStatus }) {
   );
 }
 
-function VehicleTypeBadge({ type }: { type: string }) {
-  const isCar = type === 'CAR';
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: '0.2rem 0.55rem', borderRadius: 6,
-      fontSize: '0.75rem', fontWeight: 600,
-      background: isCar ? '#EFF6FF' : '#FEF3C7',
-      color: isCar ? '#1E40AF' : '#92400E',
-      border: `1px solid ${isCar ? '#BFDBFE' : '#FDE68A'}`,
-      whiteSpace: 'nowrap',
-    }}>
-      {isCar ? '🚗' : '🛵'} {isCar ? 'Ô tô' : 'Xe máy'}
-    </span>
-  );
-}
+
 
 function PlateDisplay({ plate }: { plate: string }) {
   return (
@@ -311,16 +286,7 @@ function PlateDisplay({ plate }: { plate: string }) {
   );
 }
 
-function AreaDisplay({ floor }: { floor: BookingItem['floor'] }) {
-  const area = getAreaDisplay(floor);
-  const sub = getCustomerTypeDisplay(floor);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{area}</span>
-      {sub && <span style={{ fontSize: '0.68rem', color: C.gray400 }}>{sub}</span>}
-    </div>
-  );
-}
+
 
 function CountdownCell({ expectedArrival, tick }: { expectedArrival: string; tick: number }) {
   void tick; // force re-render
@@ -421,18 +387,7 @@ function SkeletonRows({ count = 5 }: { count?: number }) {
   );
 }
 
-function EmptyState({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
-  return (
-    <div style={{
-      textAlign: 'center', padding: '3rem 1rem',
-      color: C.gray400,
-    }}>
-      <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>{icon}</div>
-      <p style={{ margin: '0 0 0.3rem', fontSize: '0.95rem', fontWeight: 700, color: C.gray600 }}>{title}</p>
-      {subtitle && <p style={{ margin: 0, fontSize: '0.82rem' }}>{subtitle}</p>}
-    </div>
-  );
-}
+
 
 // ═════════════════════════════════════════════════════
 //  MAIN COMPONENT
@@ -454,10 +409,7 @@ export function BookingManagementPage() {
 
   // Filter state
   const [searchPlate, setSearchPlate] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [areaFilter, setAreaFilter] = useState('');
-  const [vehicleTypeFilter, setVehicleTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -524,43 +476,12 @@ export function BookingManagementPage() {
 
     // Search by plate
     if (searchPlate.trim()) {
-      const q = searchPlate.trim().toUpperCase();
-      result = result.filter((b) => b.vehicle.plateNumber.toUpperCase().includes(q));
-    }
-
-    // Date filter
-    if (dateFilter) {
-      const filterDate = new Date(dateFilter);
-      if (!isNaN(filterDate.getTime())) {
-        const fdStart = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate()).getTime();
-        const fdEnd = fdStart + 86400000;
-        result = result.filter((b) => {
-          const ad = new Date(b.expectedArrival).getTime();
-          return ad >= fdStart && ad < fdEnd;
-        });
-      }
-    }
-
-    // Area filter
-    if (areaFilter) {
-      result = result.filter((b) => {
-        const area = getAreaDisplay(b.floor).toLowerCase();
-        return area.includes(areaFilter.toLowerCase());
-      });
-    }
-
-    // Vehicle type filter
-    if (vehicleTypeFilter) {
-      result = result.filter((b) => b.vehicle.type === vehicleTypeFilter);
-    }
-
-    // Status filter
-    if (statusFilter) {
-      result = result.filter((b) => b._derivedStatus === statusFilter);
+      const q = normalizePlate(searchPlate);
+      result = result.filter((b) => normalizePlate(b.vehicle.plateNumber).includes(q));
     }
 
     return result;
-  }, [tabFiltered, searchPlate, dateFilter, areaFilter, vehicleTypeFilter, statusFilter]);
+  }, [tabFiltered, searchPlate]);
 
   // Pagination
   const totalCount = filtered.length;
@@ -572,7 +493,7 @@ export function BookingManagementPage() {
   }, [filtered, safePage, pageSize]);
 
   // Reset page when filters or tab change
-  useEffect(() => { setPage(1); }, [searchPlate, dateFilter, areaFilter, vehicleTypeFilter, statusFilter, tab]);
+  useEffect(() => { setPage(1); }, [searchPlate, tab]);
 
   // Tab counts
   const tabCounts = useMemo(() => {
@@ -609,37 +530,9 @@ export function BookingManagementPage() {
     }
   };
 
-  const handleClearFilters = () => {
-    setSearchPlate('');
-    setDateFilter('');
-    setAreaFilter('');
-    setVehicleTypeFilter('');
-    setStatusFilter('');
-  };
 
-  const hasFilters = searchPlate || dateFilter || areaFilter || vehicleTypeFilter || statusFilter;
+  const timeHeaderLabel = tab === 'DA_VAO' ? 'Thời gian Check-in' : 'Hết hạn lúc';
 
-  // Area options for filter
-  const areaOptions = useMemo(() => {
-    const areas = new Set<string>();
-    bookings.forEach((b) => {
-      areas.add(getAreaDisplay(b.floor));
-    });
-    return Array.from(areas).sort();
-  }, [bookings]);
-
-  // Filter status options based on active tab
-  const statusOptions = useMemo(() => {
-    if (tab === 'DANG_CHO') {
-      return [
-        { value: 'SAP_DEN', label: 'Sắp đến' },
-        { value: 'QUA_GIO', label: 'Quá giờ' },
-      ];
-    }
-    return [];
-  }, [tab]);
-
-  // ── Render ─────────────────────────────────────────
   return (
     <div style={{
       fontFamily: "'Segoe UI', Arial, sans-serif",
@@ -656,7 +549,7 @@ export function BookingManagementPage() {
         <p style={{
           margin: '0.2rem 0 0', fontSize: '0.875rem', color: C.gray500,
         }}>
-          Xem, xác nhận khách đến và theo dõi trạng thái các lượt đặt trước.
+          Tiếp nhận và theo dõi các lượt đặt chỗ của khách hàng.
         </p>
       </div>
 
@@ -664,6 +557,7 @@ export function BookingManagementPage() {
       <div style={{
         display: 'flex', gap: 4, background: C.gray100, padding: 4,
         borderRadius: 12, marginBottom: '1rem', width: 'fit-content',
+        boxShadow: 'none', border: '1px solid #E3EAF5',
       }}>
         {TAB_CONFIG.map((t) => {
           const isActive = tab === t.key;
@@ -676,10 +570,11 @@ export function BookingManagementPage() {
                 padding: '0.55rem 1.1rem',
                 background: isActive ? C.white : 'transparent',
                 color: isActive ? C.navy : C.gray600,
-                border: 'none', borderRadius: 8,
+                border: isActive ? '1px solid #E3EAF5' : '1px solid transparent',
+                borderRadius: 8,
                 fontSize: '0.85rem', fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 transition: 'all 0.15s',
               }}
@@ -700,211 +595,98 @@ export function BookingManagementPage() {
         })}
       </div>
 
-      {/* ══ FILTER TOOLBAR ═══════════════════════════════ */}
+      {/* ══ COMPACT SEARCH TOOLBAR ════════════════════════ */}
       <div style={{
-        background: C.white, borderRadius: C.radius, boxShadow: C.cardShadow,
-        border: `1px solid ${C.border}`, padding: '1rem 1.25rem',
+        background: C.white,
+        borderRadius: C.radius,
+        boxShadow: C.cardShadow,
+        border: `1px solid ${C.border}`,
+        padding: '0.85rem 1.25rem',
         marginBottom: '1rem',
+        display: 'flex',
+        gap: '0.75rem',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
       }}>
-        <div style={{
-          display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end',
-        }}>
-          {/* Search by plate */}
-          <div style={{ flex: '1 1 160px', minWidth: 140 }}>
-            <label style={{
-              display: 'block', fontSize: '0.7rem', fontWeight: 700,
-              color: C.gray500, marginBottom: 4, textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}>
-              Tìm theo biển số
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                value={searchPlate}
-                onChange={(e) => setSearchPlate(e.target.value)}
-                placeholder="Tìm theo biển số"
-                style={{
-                  width: '100%', padding: '0.5rem 0.75rem 0.5rem 2rem',
-                  border: `1.5px solid ${C.border}`, borderRadius: 8,
-                  fontSize: '0.82rem', color: C.gray800,
-                  background: C.white, outline: 'none',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.15s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = C.activeBlue}
-                onBlur={(e) => e.target.style.borderColor = C.border}
-              />
-              <span style={{
-                position: 'absolute', left: 8, top: '50%',
+        {/* Search by plate */}
+        <div style={{ flex: 1, minWidth: 260, position: 'relative' }}>
+          <span style={{
+            position: 'absolute',
+            left: '0.75rem',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: C.gray400,
+            display: 'flex',
+            alignItems: 'center',
+          }}>
+            <IconSearch size={16} />
+          </span>
+          <input
+            type="text"
+            value={searchPlate}
+            onChange={(e) => setSearchPlate(e.target.value)}
+            placeholder="Nhập biển số xe..."
+            style={{
+              width: '100%',
+              padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 10,
+              fontSize: '0.875rem',
+              color: C.gray800,
+              background: C.white,
+              outline: 'none',
+              boxSizing: 'border-box',
+              transition: 'border-color 0.15s',
+            }}
+            onFocus={(e) => e.target.style.borderColor = C.activeBlue}
+            onBlur={(e) => e.target.style.borderColor = C.border}
+          />
+          {searchPlate && (
+            <button
+              onClick={() => setSearchPlate('')}
+              style={{
+                position: 'absolute',
+                right: '0.75rem',
+                top: '50%',
                 transform: 'translateY(-50%)',
-                color: C.gray400, display: 'flex',
-              }}>
-                <IconSearch size={14} />
-              </span>
-            </div>
-          </div>
-
-          {/* Date filter */}
-          <div style={{ flex: '0 1 150px' }}>
-            <label style={{
-              display: 'block', fontSize: '0.7rem', fontWeight: 700,
-              color: C.gray500, marginBottom: 4, textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}>
-              Ngày hẹn đến
-            </label>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              style={{
-                width: '100%', padding: '0.5rem 0.75rem',
-                border: `1.5px solid ${C.border}`, borderRadius: 8,
-                fontSize: '0.82rem', color: C.gray800,
-                background: C.white, outline: 'none',
-                boxSizing: 'border-box',
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => e.target.style.borderColor = C.activeBlue}
-              onBlur={(e) => e.target.style.borderColor = C.border}
-            />
-          </div>
-
-          {/* Area filter */}
-          <div style={{ flex: '0 1 160px' }}>
-            <label style={{
-              display: 'block', fontSize: '0.7rem', fontWeight: 700,
-              color: C.gray500, marginBottom: 4, textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}>
-              Khu vực
-            </label>
-            <select
-              value={areaFilter}
-              onChange={(e) => setAreaFilter(e.target.value)}
-              style={{
-                width: '100%', padding: '0.5rem 0.75rem',
-                border: `1.5px solid ${C.border}`, borderRadius: 8,
-                fontSize: '0.82rem', color: C.gray800,
-                background: C.white, outline: 'none',
-                boxSizing: 'border-box',
-                cursor: 'pointer',
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => e.target.style.borderColor = C.activeBlue}
-              onBlur={(e) => e.target.style.borderColor = C.border}
-            >
-              <option value="">Tất cả khu vực</option>
-              {areaOptions.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Vehicle type filter */}
-          <div style={{ flex: '0 1 130px' }}>
-            <label style={{
-              display: 'block', fontSize: '0.7rem', fontWeight: 700,
-              color: C.gray500, marginBottom: 4, textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}>
-              Loại xe
-            </label>
-            <select
-              value={vehicleTypeFilter}
-              onChange={(e) => setVehicleTypeFilter(e.target.value)}
-              style={{
-                width: '100%', padding: '0.5rem 0.75rem',
-                border: `1.5px solid ${C.border}`, borderRadius: 8,
-                fontSize: '0.82rem', color: C.gray800,
-                background: C.white, outline: 'none',
-                boxSizing: 'border-box',
-                cursor: 'pointer',
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => e.target.style.borderColor = C.activeBlue}
-              onBlur={(e) => e.target.style.borderColor = C.border}
-            >
-              <option value="">Tất cả</option>
-              <option value="CAR">Ô tô</option>
-              <option value="MOTORBIKE">Xe máy</option>
-            </select>
-          </div>
-
-          {/* Status filter (tab-specific) */}
-          {tab === 'DANG_CHO' && (
-            <div style={{ flex: '0 1 130px' }}>
-              <label style={{
-                display: 'block', fontSize: '0.7rem', fontWeight: 700,
-                color: C.gray500, marginBottom: 4, textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}>
-                Trạng thái
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{
-                  width: '100%', padding: '0.5rem 0.75rem',
-                  border: `1.5px solid ${C.border}`, borderRadius: 8,
-                  fontSize: '0.82rem', color: C.gray800,
-                  background: C.white, outline: 'none',
-                  boxSizing: 'border-box',
-                  cursor: 'pointer',
-                  transition: 'border-color 0.15s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = C.activeBlue}
-                onBlur={(e) => e.target.style.borderColor = C.border}
-              >
-                <option value="">Tất cả</option>
-                {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', paddingBottom: 1 }}>
-            <button
-              onClick={handleClearFilters}
-              disabled={!hasFilters}
-              style={{
-                padding: '0.5rem 0.85rem',
-                background: C.white,
-                color: hasFilters ? C.navy : C.gray400,
-                border: `1.5px solid ${hasFilters ? C.border : C.gray200}`,
-                borderRadius: 8,
-                fontSize: '0.78rem', fontWeight: 600,
-                cursor: hasFilters ? 'pointer' : 'not-allowed',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s',
-              }}
-            >
-              <IconX size={12} /> Xóa bộ lọc
-            </button>
-            <button
-              onClick={load}
-              disabled={loading}
-              style={{
-                padding: '0.5rem 0.85rem',
-                background: C.navy,
-                color: C.white,
+                background: 'none',
                 border: 'none',
-                borderRadius: 8,
-                fontSize: '0.78rem', fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                whiteSpace: 'nowrap',
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                opacity: loading ? 0.6 : 1,
-                transition: 'all 0.15s',
+                color: C.gray400,
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
               }}
             >
-              <IconRefresh size={14} /> Làm mới
+              <IconX size={14} />
             </button>
-          </div>
+          )}
         </div>
+
+        {/* Refresh button */}
+        <button
+          onClick={load}
+          disabled={loading}
+          style={{
+            padding: '0.55rem 1.25rem',
+            background: C.navy,
+            color: C.white,
+            border: 'none',
+            borderRadius: 10,
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            opacity: loading ? 0.6 : 1,
+            transition: 'all 0.15s',
+          }}
+        >
+          <IconRefresh size={14} /> Làm mới
+        </button>
       </div>
 
       {/* ══ TABLE CARD ════════════════════════════════════ */}
@@ -934,7 +716,7 @@ export function BookingManagementPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ background: C.gray50, borderBottom: `2px solid ${C.gray200}` }}>
-                  {['Biển số', 'Loại xe', 'Khu vực đặt', 'Giờ hẹn đến', 'Thời gian còn lại', 'Trạng thái', 'Thao tác'].map((h) => (
+                  {['Mã đặt chỗ', 'Biển số', 'Khách hàng', 'Khu vực', timeHeaderLabel, 'Trạng thái', 'Thao tác'].map((h) => (
                     <th key={h} style={{
                       padding: '0.75rem 1rem', textAlign: 'left',
                       fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
@@ -951,25 +733,38 @@ export function BookingManagementPage() {
             </table>
           </div>
         ) : paginated.length === 0 ? (
-          <div>
-            {tab === 'DANG_CHO' && (
-              <EmptyState
-                icon="🕐"
-                title={hasFilters ? 'Không tìm thấy lượt đặt trước phù hợp với bộ lọc.' : 'Không có lượt đặt trước đang chờ.'}
-                subtitle={hasFilters ? undefined : 'Khi khách đặt chỗ trước, thông tin sẽ hiển thị tại đây.'}
-              />
-            )}
-            {tab === 'DA_VAO' && (
-              <EmptyState
-                icon="✅"
-                title={hasFilters ? 'Không tìm thấy lượt đặt trước phù hợp với bộ lọc.' : 'Chưa có lượt đặt trước nào đã check-in.'}
-              />
-            )}
-            {tab === 'VANG_MAT' && (
-              <EmptyState
-                icon="🚫"
-                title={hasFilters ? 'Không tìm thấy lượt đặt trước phù hợp với bộ lọc.' : 'Không có lượt đặt trước nào được ghi nhận vắng mặt.'}
-              />
+          <div style={{
+            textAlign: 'center',
+            padding: '2.5rem 1rem',
+            color: C.gray500,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}>
+            <div style={{ fontSize: '2rem' }}>🔍</div>
+            <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: C.gray600 }}>
+              {searchPlate.trim()
+                ? 'Không tìm thấy lượt đặt trước phù hợp với biển số đã nhập.'
+                : 'Không có lượt đặt trước trong trạng thái này.'}
+            </p>
+            {searchPlate.trim() && (
+              <button
+                type="button"
+                onClick={() => setSearchPlate('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: C.activeBlue,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  textDecoration: 'underline',
+                }}
+              >
+                Xóa tìm kiếm
+              </button>
             )}
           </div>
         ) : (
@@ -982,8 +777,7 @@ export function BookingManagementPage() {
                 <thead>
                   <tr style={{ background: C.gray50, borderBottom: `2px solid ${C.gray200}` }}>
                     {[
-                      'Biển số', 'Loại xe', 'Khu vực đặt',
-                      'Giờ hẹn đến', 'Thời gian còn lại', 'Trạng thái', 'Thao tác',
+                      'Mã đặt chỗ', 'Biển số', 'Khách hàng', 'Khu vực', timeHeaderLabel, 'Trạng thái', 'Thao tác'
                     ].map((h) => (
                       <th key={h} style={{
                         padding: '0.75rem 1rem', textAlign: 'left',
@@ -996,108 +790,164 @@ export function BookingManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((b) => (
-                    <tr
-                      key={b.id}
-                      style={{
-                        borderBottom: `1px solid ${C.gray100}`,
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = C.gray50; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                    >
-                      {/* Biển số */}
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        <PlateDisplay plate={b.vehicle.plateNumber} />
-                      </td>
+                  {paginated.map((b) => {
+                    let timeVal: string | null = null;
+                    if (tab === 'DA_VAO') {
+                      timeVal = b.checkInRecords?.[0]?.checkInTime ?? null;
+                    } else {
+                      if (b.expiresAt) {
+                        timeVal = b.expiresAt;
+                      } else if (b.confirmedAt) {
+                        timeVal = new Date(new Date(b.confirmedAt).getTime() + 30 * 60 * 1000).toISOString();
+                      } else {
+                        timeVal = null;
+                      }
+                    }
 
-                      {/* Loại xe */}
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        <VehicleTypeBadge type={b.vehicle.type} />
-                      </td>
+                    return (
+                      <tr
+                        key={b.id}
+                        style={{
+                          borderBottom: `1px solid ${C.gray100}`,
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = C.gray50; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      >
+                        {/* Mã đặt chỗ */}
+                        <td style={{ padding: '0.75rem 1rem', fontFamily: 'Consolas, monospace', fontWeight: 600, color: C.navy, fontSize: '0.8rem' }}>
+                          {b.id.substring(0, 8).toUpperCase()}
+                        </td>
 
-                      {/* Khu vực đặt */}
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        <AreaDisplay floor={b.floor} />
-                      </td>
+                        {/* Biển số */}
+                        <td style={{ padding: '0.75rem 1rem' }}>
+                          <PlateDisplay plate={b.vehicle.plateNumber} />
+                        </td>
 
-                      {/* Giờ hẹn đến */}
-                      <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>
-                          {formatDate(b.expectedArrival)}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: C.gray400 }}>
-                          {formatTime(b.expectedArrival)}
-                        </div>
-                      </td>
+                        {/* Khách hàng */}
+                        <td style={{ padding: '0.75rem 1rem', fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>
+                          {b.vehicle.owner?.fullName ?? b.createdBy?.fullName ?? 'Khách vãng lai'}
+                        </td>
 
-                      {/* Thời gian còn lại */}
-                      <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
-                        {b._derivedStatus === 'DA_VAO' || b._derivedStatus === 'VANG_MAT' ? (
-                          <span style={{ fontSize: '0.82rem', color: C.gray400 }}>—</span>
-                        ) : (
-                          <CountdownCell expectedArrival={b.expectedArrival} tick={tick} />
-                        )}
-                      </td>
+                        {/* Khu vực */}
+                        <td style={{ padding: '0.75rem 1rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>
+                              {b.floor ? `${b.floor.name} · Khu ${b.floor.vehicleType === 'CAR' ? 'ô tô' : 'xe máy'}` : 'Chưa xác định'}
+                            </span>
+                            {b.floor?.floorCode?.toUpperCase() === 'G' && (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                fontSize: '0.68rem',
+                                color: C.warning,
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em',
+                              }}>
+                                ⚠️ Dữ liệu lịch sử (Tầng G)
+                              </span>
+                            )}
+                          </div>
+                        </td>
 
-                      {/* Trạng thái */}
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        <StatusBadge derivedStatus={b._derivedStatus} />
-                      </td>
+                        {/* Thời gian hiệu lực / Hết hạn lúc / Thời gian Check-in */}
+                        <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
+                          {timeVal ? (
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>
+                              {formatDate(timeVal)} {formatTime(timeVal)}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: '0.82rem', color: C.gray400 }}>—</span>
+                              {tab === 'DA_VAO' && (
+                                <span
+                                  title="Không có dữ liệu Check-in liên kết"
+                                  style={{
+                                    cursor: 'help',
+                                    fontSize: '0.7rem',
+                                    color: C.warning,
+                                    background: C.warningBg,
+                                    border: `1px solid ${C.warningBorder}`,
+                                    borderRadius: 999,
+                                    width: 14,
+                                    height: 14,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 'bold',
+                                  }}
+                                >
+                                  i
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {tab === 'DANG_CHO' && (
+                            <div style={{ fontSize: '0.75rem', marginTop: 2 }}>
+                              <CountdownCell expectedArrival={b.expectedArrival} tick={tick} />
+                            </div>
+                          )}
+                        </td>
 
-                      {/* Thao tác */}
-                      <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
-                        {b._derivedStatus === 'SAP_DEN' && (
-                          <button
-                            onClick={() => handleConfirmArrival(b)}
-                            disabled={busyId === b.id}
-                            style={{
-                              padding: '0.4rem 0.85rem',
-                              background: busyId === b.id ? C.gray200 : C.activeBlue,
-                              color: busyId === b.id ? C.gray400 : C.white,
-                              border: 'none', borderRadius: 8,
-                              fontSize: '0.75rem', fontWeight: 700,
-                              cursor: busyId === b.id ? 'not-allowed' : 'pointer',
-                              whiteSpace: 'nowrap',
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            <IconCheck size={12} /> Xác nhận khách đến
-                          </button>
-                        )}
-                        {b._derivedStatus === 'QUA_GIO' && (
-                          <button
-                            onClick={() => setConfirm({ kind: 'noShow', booking: b })}
-                            disabled={busyId === b.id}
-                            style={{
-                              padding: '0.4rem 0.85rem',
-                              background: busyId === b.id ? C.gray200 : C.danger,
-                              color: busyId === b.id ? C.gray400 : C.white,
-                              border: 'none', borderRadius: 8,
-                              fontSize: '0.75rem', fontWeight: 700,
-                              cursor: busyId === b.id ? 'not-allowed' : 'pointer',
-                              whiteSpace: 'nowrap',
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            <IconUserX size={12} /> Đánh dấu vắng mặt
-                          </button>
-                        )}
-                        {b._derivedStatus === 'DA_VAO' && (
-                          <span style={{ fontSize: '0.78rem', color: C.gray400 }}>
-                            —
-                          </span>
-                        )}
-                        {b._derivedStatus === 'VANG_MAT' && (
-                          <span style={{ fontSize: '0.78rem', color: C.gray400 }}>
-                            —
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        {/* Trạng thái */}
+                        <td style={{ padding: '0.75rem 1rem' }}>
+                          <StatusBadge derivedStatus={b._derivedStatus} />
+                        </td>
+
+                        {/* Thao tác */}
+                        <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            {(b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO') && (
+                              <button
+                                onClick={() => handleConfirmArrival(b)}
+                                disabled={busyId === b.id}
+                                style={{
+                                  padding: '0.4rem 0.85rem',
+                                  background: busyId === b.id ? C.gray200 : C.activeBlue,
+                                  color: busyId === b.id ? C.gray400 : C.white,
+                                  border: 'none', borderRadius: 8,
+                                  fontSize: '0.75rem', fontWeight: 700,
+                                  cursor: busyId === b.id ? 'not-allowed' : 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                <IconCheck size={12} /> Tiếp nhận xe
+                              </button>
+                            )}
+                            {b._derivedStatus === 'QUA_GIO' && (
+                              <button
+                                onClick={() => setConfirm({ kind: 'noShow', booking: b })}
+                                disabled={busyId === b.id}
+                                style={{
+                                  padding: '0.4rem 0.85rem',
+                                  background: busyId === b.id ? C.gray200 : C.white,
+                                  color: busyId === b.id ? C.gray400 : C.danger,
+                                  border: `1px solid ${C.dangerBorder}`,
+                                  borderRadius: 8,
+                                  fontSize: '0.75rem', fontWeight: 700,
+                                  cursor: busyId === b.id ? 'not-allowed' : 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                <IconUserX size={12} /> Đánh dấu vắng mặt
+                              </button>
+                            )}
+                            {b._derivedStatus === 'DA_VAO' && (
+                              <span style={{ fontSize: '0.78rem', color: C.gray400 }}>—</span>
+                            )}
+                            {b._derivedStatus === 'VANG_MAT' && (
+                              <span style={{ fontSize: '0.78rem', color: C.gray400 }}>—</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1170,67 +1020,87 @@ export function BookingManagementPage() {
       </div>
 
       {/* ══ GUIDANCE PANEL ════════════════════════════════ */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '1rem',
-        marginTop: '1.25rem',
-      }}>
-        {/* Hướng dẫn */}
-        <div style={{
-          background: C.white, borderRadius: C.radius,
-          border: `1px solid ${C.border}`, padding: '1rem 1.25rem',
-          boxShadow: C.cardShadow,
-        }}>
-          <h3 style={{
-            margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 800,
-            color: C.navy, display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            📖 Hướng dẫn sử dụng
-          </h3>
-          <ul style={{
-            margin: 0, padding: '0 0 0 1.1rem',
-            fontSize: '0.78rem', color: C.gray600, lineHeight: 1.7,
-          }}>
-            <li><strong>Sắp đến:</strong> Khách dự kiến đến trong thời gian sắp tới.</li>
-            <li><strong>Quá giờ:</strong> Khách đã vượt thời gian hẹn đến nhưng chưa được xử lý.</li>
-            <li>Khi xác nhận khách đến, hệ thống mở trang Check-in với thông tin đặt trước đã điền sẵn.</li>
-            <li>Sau khi Check-in thành công, lượt đặt trước chuyển sang trạng thái <strong>"Đã vào"</strong>.</li>
-            <li>Chỉ đánh dấu <strong>Vắng mặt</strong> sau khi đã xác minh khách không đến.</li>
-          </ul>
-        </div>
+      <div style={{ marginTop: '1.25rem' }}>
+        <button
+          type="button"
+          onClick={() => setIsHelpOpen(!isHelpOpen)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: C.navy,
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <span>📖 Hướng dẫn sử dụng & Chú thích</span>
+          <svg
+            width="14"
+            height="14"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            style={{
+              transform: isHelpOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s',
+            }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-        {/* Chú thích */}
-        <div style={{
-          background: C.white, borderRadius: C.radius,
-          border: `1px solid ${C.border}`, padding: '1rem 1.25rem',
-          boxShadow: C.cardShadow,
-        }}>
-          <h3 style={{
-            margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 800,
-            color: C.navy, display: 'flex', alignItems: 'center', gap: 6,
+        {isHelpOpen && (
+          <div style={{
+            background: C.white,
+            borderRadius: C.radius,
+            border: `1px solid ${C.border}`,
+            padding: '1.25rem',
+            boxShadow: C.cardShadow,
+            marginTop: '0.5rem',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1.5rem',
           }}>
-            🏷️ Chú thích trạng thái
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StatusBadge derivedStatus="SAP_DEN" />
-              <span style={{ fontSize: '0.78rem', color: C.gray500 }}>Khách đặt trước và đang trong thời gian chờ</span>
+            <div>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', fontWeight: 800, color: C.navy }}>
+                Quy trình xử lý
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.78rem', color: C.gray600, lineHeight: 1.7 }}>
+                <li><strong>Tiếp nhận xe:</strong> Mở trang Check-in để nhân viên xác minh biển số và hình ảnh.</li>
+                <li>Sau khi Check-in thành công, lượt đặt trước sẽ tự động chuyển sang trạng thái <strong>"Đã vào"</strong>.</li>
+                <li>Chỉ đánh dấu vắng mặt sau khi đã hết hạn thời gian chờ và xác minh khách không đến.</li>
+              </ul>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StatusBadge derivedStatus="QUA_GIO" />
-              <span style={{ fontSize: '0.78rem', color: C.gray500 }}>Đã quá giờ hẹn nhưng chưa xử lý</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StatusBadge derivedStatus="DA_VAO" />
-              <span style={{ fontSize: '0.78rem', color: C.gray500 }}>Khách đã check-in thành công</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StatusBadge derivedStatus="VANG_MAT" />
-              <span style={{ fontSize: '0.78rem', color: C.gray500 }}>Khách không đến, đã hủy đặt chỗ</span>
+            <div>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', fontWeight: 800, color: C.navy }}>
+                Chú thích trạng thái
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: C.gray500 }}>
+                  <StatusBadge derivedStatus="SAP_DEN" />
+                  <span>Khách đã thanh toán cọc và lượt đặt chỗ vẫn còn hiệu lực.</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: C.gray500 }}>
+                  <StatusBadge derivedStatus="QUA_GIO" />
+                  <span>Đã quá giờ hẹn nhưng khách chưa Check-in.</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: C.gray500 }}>
+                  <StatusBadge derivedStatus="DA_VAO" />
+                  <span>Khách đã hoàn tất Check-in.</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: C.gray500 }}>
+                  <StatusBadge derivedStatus="VANG_MAT" />
+                  <span>Lượt đặt chỗ đã hết hạn nhưng khách chưa Check-in.</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ══ CONFIRM DIALOG ════════════════════════════════ */}

@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import {
   HomeIcon,
-  SearchIcon,
   CheckCircleIcon,
   LogoutIcon,
   LayoutIcon,
@@ -23,7 +22,6 @@ interface StaffLayoutProps {
 
 const staffNavItems = [
   { label: 'Tổng quan', path: '/staff/dashboard', icon: HomeIcon },
-  { label: 'Tra cứu xe', path: '/staff/search', icon: SearchIcon },
   { label: 'Check-in', path: '/staff/checkin', icon: CheckCircleIcon },
   { label: 'Check-out', path: '/staff/checkout', icon: LogoutIcon },
   { label: 'Sơ đồ tầng', path: '/staff/floor-map', icon: LayoutIcon },

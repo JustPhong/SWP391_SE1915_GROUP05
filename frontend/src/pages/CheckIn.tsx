@@ -1,20 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   lookupPlate,
-  getAvailableSlots,
   submitCheckIn,
-  getCheckinStats,
   uploadCheckinImage,
   deleteCheckinImages,
+  runOcrApi,
   type LookupResult,
-  type AvailableSlot,
-  type CheckinStats,
+  type CheckinSubmitResult,
 } from '../api/checkinApi';
-import { lookupVehicleByPlate } from '../api/vehicleApi';
+import { normalizePlateForLookup } from '../utils/plate';
 
 // ═════════════════════════════════════════════════════
-//  DESIGN TOKENS  (approved palette)
+//  DESIGN TOKENS
 // ═════════════════════════════════════════════════════
 const C = {
   navy: '#0B2F6B',
@@ -31,6 +29,7 @@ const C = {
   red: '#DC2626',
   redBg: '#FEE2E2',
   redBorder: '#FECACA',
+  orange: '#EA580C',
   gray50: '#F8FAFC',
   gray100: '#F1F5F9',
   gray200: '#E3EAF5',
@@ -38,91 +37,33 @@ const C = {
   gray500: '#64748B',
   gray800: '#10264F',
   border: '#E3EAF5',
-  shadow: '0 8px 30px rgba(11,47,107,0.08)',
   cardShadow: '0 1px 3px rgba(11,47,107,0.04), 0 6px 18px rgba(11,47,107,0.06)',
 };
 
-const VALID_PROVINCE_CODES = [
-  11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-  30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
-  43,
-  47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-  60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
-  70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-  81, 82, 83, 84, 85, 86, 88, 89, 90,
-  92, 93, 94, 95, 97, 98, 99,
+// ═════════════════════════════════════════════════════
+//  TYPES
+// ═════════════════════════════════════════════════════
+type VehicleType = 'CAR' | 'MOTORBIKE';
+type OcrStatus = 'idle' | 'processing' | 'success' | 'low_confidence' | 'failed';
+
+
+
+// ─── Step index 1-4 ─────────────────────────────────
+//  1 = Chọn loại xe
+//  2 = Chụp và nhận diện biển số
+//  3 = Kiểm tra thông tin
+//  4 = Xác nhận check-in (uses confirm button in right panel)
+
+const STEP_LABELS = [
+  'Chọn loại xe',
+  'Chụp và nhận diện biển số',
+  'Kiểm tra thông tin',
+  'Xác nhận check-in',
 ];
 
-function normalizePlate(raw: string): string {
-  return raw.replace(/[\s.\-]/g, '').toUpperCase();
-}
-
-type VehicleTypeFmt = 'CAR' | 'MOTORBIKE';
-
-function formatPlate(raw: string, vehicleType: VehicleTypeFmt): { valid: boolean; formatted: string } {
-  const upper = raw.toUpperCase().trim();
-  if (!upper) return { valid: false, formatted: '' };
-
-  const dashIndex = upper.indexOf('-');
-  let prefix: string;
-  let suffix: string;
-
-  if (dashIndex !== -1) {
-    prefix = upper.slice(0, dashIndex).replace(/[\s.]/g, '');
-    suffix = upper.slice(dashIndex + 1).replace(/[\s.\-]/g, '');
-  } else {
-    const s = upper.replace(/[\s.]/g, '');
-    if (vehicleType === 'CAR') {
-      const m = s.match(/^(\d{2}[A-Z])(\d{4,5})$/);
-      if (!m) return { valid: false, formatted: '' };
-      prefix = m[1];
-      suffix = m[2];
-    } else {
-      const m = s.match(/^(\d{2}C[0-9A-Z])(\d{4,5})$/);
-      if (!m) return { valid: false, formatted: '' };
-      prefix = m[1];
-      suffix = m[2];
-    }
-  }
-
-  if (!/^\d{4,5}$/.test(suffix)) return { valid: false, formatted: '' };
-
-  let prov: string;
-  let letterPart: string;
-
-  if (vehicleType === 'CAR') {
-    const m = prefix.match(/^(\d{2})([A-Z])$/);
-    if (!m) return { valid: false, formatted: '' };
-    prov = m[1];
-    letterPart = m[2];
-  } else {
-    const m = prefix.match(/^(\d{2})C([0-9A-Z])$/);
-    if (!m) return { valid: false, formatted: '' };
-    prov = m[1];
-    letterPart = 'C' + m[2];
-  }
-
-  const provNum = parseInt(prov, 10);
-  if (!VALID_PROVINCE_CODES.includes(provNum)) {
-    return { valid: false, formatted: '' };
-  }
-
-  const numbers = suffix;
-  let formatted: string;
-  if (numbers.length === 5) {
-    formatted = `${prov}${letterPart}-${numbers.slice(0, 3)}.${numbers.slice(3)}`;
-  } else {
-    formatted = `${prov}${letterPart}-${numbers}`;
-  }
-  return { valid: true, formatted };
-}
-
-function isPlateValid(raw: string, vehicleType: VehicleTypeFmt): boolean {
-  return formatPlate(raw, vehicleType).valid;
-}
-
-type PageState = 'idle' | 'monthly_valid' | 'monthly_expired' | 'casual';
-
+// ═════════════════════════════════════════════════════
+//  UTILITY HELPERS
+// ═════════════════════════════════════════════════════
 const formatDateTime = (dateInput: string | Date | null | undefined): string => {
   if (!dateInput) return '';
   const d = new Date(dateInput);
@@ -130,33 +71,25 @@ const formatDateTime = (dateInput: string | Date | null | undefined): string => 
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+const formatVND = (amount: number): string =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+
+const timeUntil = (iso: string): string => {
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return 'Đã hết hạn';
+  const h = Math.floor(diff / 3_600_000);
+  const m = Math.floor((diff % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m` : `${m} phút`;
+};
+
 // ═════════════════════════════════════════════════════
 //  ICONS
 // ═════════════════════════════════════════════════════
-function IconCar({ size = 16 }: { size?: number }) {
-  return (
-    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🚗</span>
-  );
+function IconCar({ size = 48 }: { size?: number }) {
+  return <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-block' }}>🚗</span>;
 }
-function IconMoto({ size = 16 }: { size?: number }) {
-  return (
-    <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🛵</span>
-  );
-}
-function IconLock({ size = 14, color = '#94A3B8' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0110 0v4" />
-    </svg>
-  );
-}
-function IconStar({ size = 12, color }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
-  );
+function IconMoto({ size = 48 }: { size?: number }) {
+  return <span style={{ fontSize: `${size}px`, lineHeight: 1, display: 'inline-block' }}>🛵</span>;
 }
 function IconCheck({ size = 14, color = C.green }: { size?: number; color?: string }) {
   return (
@@ -180,12 +113,11 @@ function IconAlert({ size = 16, color = C.red }: { size?: number; color?: string
     </svg>
   );
 }
-function IconUsers({ size = 14, color = '#64748B' }: { size?: number; color?: string }) {
+function IconCamera({ size = 32, color = '#94A3B8' }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
     </svg>
   );
 }
@@ -193,14 +125,6 @@ function IconSearch({ size = 16, color = '#fff' }: { size?: number; color?: stri
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-function IconGrid({ size = 14, color = '#64748B' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
     </svg>
   );
 }
@@ -212,66 +136,40 @@ function IconRefresh({ size = 16, color = C.gray800 }: { size?: number; color?: 
     </svg>
   );
 }
-function IconCamera({ size = 24, color = '#94A3B8' }: { size?: number; color?: string }) {
+function IconChevronRight({ size = 16, color = C.gray400 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-      <circle cx="12" cy="13" r="4" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
     </svg>
   );
 }
-// ═══════════════════════════════════════════════════
+
+// ═════════════════════════════════════════════════════
 //  SUB-COMPONENTS
 // ═════════════════════════════════════════════════════
 
-function OwnerInfoCard({ data }: { data: LookupResult }) {
-  if (data.customerType === 'casual' && !data.ownerName && !data.ownerPhone && !data.ownerEmail) return null;
-  return (
-    <div style={{
-      background: '#F0F4F8',
-      border: '1px solid #D1D9E6',
-      borderRadius: 10,
-      padding: '0.7rem 0.85rem',
-    }}>
-      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
-        Thông tin chủ xe
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
-        <div>
-          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Họ tên</span>
-          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{data.ownerName ?? '—'}</div>
-        </div>
-        <div>
-          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>SĐT</span>
-          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{data.ownerPhone ?? '—'}</div>
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Email</span>
-          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{data.ownerEmail ?? '—'}</div>
-        </div>
-        {data.note && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Ghi chú</span>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#D97706' }}>{data.note}</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Card({ title, children, style }: { title?: string; children: React.ReactNode; style?: React.CSSProperties }) {
+function Card({
+  title,
+  children,
+  style,
+  accent,
+}: {
+  title?: string;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  accent?: string;
+}) {
   return (
     <div style={{
       background: C.white,
       borderRadius: 16,
       boxShadow: C.cardShadow,
-      border: `1px solid ${C.border}`,
+      border: `1px solid ${accent ?? C.border}`,
       padding: '1.25rem 1.5rem',
       ...style,
     }}>
       {title && (
-        <p style={{ margin: '0 0 1rem', fontSize: '0.92rem', fontWeight: 800, color: C.navy, letterSpacing: '0.01em' }}>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.88rem', fontWeight: 800, color: C.navy, letterSpacing: '0.01em' }}>
           {title}
         </p>
       )}
@@ -280,57 +178,6 @@ function Card({ title, children, style }: { title?: string; children: React.Reac
   );
 }
 
-// Slot selector chip row
-function SlotChipRow({
-  slots,
-  selectedCode,
-  onSelect,
-}: {
-  slots: AvailableSlot[];
-  selectedCode: string | null;
-  onSelect: (code: string) => void;
-}) {
-  if (slots.length === 0) {
-    return (
-      <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: C.red }}>
-        Chưa có dữ liệu ô trống.
-      </p>
-    );
-  }
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
-      {slots.map((s) => {
-        const active = selectedCode === s.code;
-        return (
-          <button
-            key={s.code}
-            onClick={() => onSelect(s.code)}
-            style={{
-              padding: '0.4rem 0.85rem',
-              borderRadius: 20,
-              border: `1.5px solid ${active ? C.navy : s.suggested ? '#93C5FD' : C.gray200}`,
-              background: active ? C.navy : s.suggested ? '#EFF6FF' : C.white,
-              color: active ? C.white : s.suggested ? '#1D4ED8' : C.gray800,
-              fontSize: '0.78rem',
-              fontWeight: active || s.suggested ? 700 : 500,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              transition: 'all 0.15s',
-              position: 'relative',
-            }}
-          >
-            {s.code}
-            {s.suggested && !active && <IconStar size={10} />}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Inline alert banner
 function AlertBanner({
   type,
   children,
@@ -354,20 +201,16 @@ function AlertBanner({
       display: 'flex',
       alignItems: 'flex-start',
       gap: '0.5rem',
-      marginTop: '0.75rem',
     }}>
-      <span style={{ color: s.color, fontSize: '0.9rem', lineHeight: 1.4, flexShrink: 0 }}>
+      <span style={{ flexShrink: 0, marginTop: 2 }}>
         {type === 'success' ? <IconCheck size={14} color={s.color} />
-          : type === 'warning' ? <IconAlert size={14} color={C.yellow} />
-            : type === 'error' ? <IconAlert size={14} color={s.color} />
-              : <IconAlert size={14} color={s.color} />}
+          : <IconAlert size={14} color={type === 'warning' ? C.yellow : s.color} />}
       </span>
       <span style={{ color: s.color, fontSize: '0.8rem', lineHeight: 1.5 }}>{children}</span>
     </div>
   );
 }
 
-// Info row in right panel
 function InfoRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <div style={{
@@ -377,25 +220,24 @@ function InfoRow({ label, value, valueColor }: { label: string; value: string; v
       padding: '0.45rem 0',
       borderBottom: `1px solid ${C.gray100}`,
     }}>
-      <span style={{ fontSize: '0.8rem', color: C.gray500 }}>{label}</span>
-      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: valueColor ?? C.gray800 }}>{value}</span>
+      <span style={{ fontSize: '0.78rem', color: C.gray500 }}>{label}</span>
+      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: valueColor ?? C.gray800, textAlign: 'right', maxWidth: '60%' }}>{value}</span>
     </div>
   );
 }
 
-// Progress indicator
+// ─── 4-step progress indicator ─────────────────────────────────────────────
 function ProgressIndicator({ step }: { step: number }) {
-  const steps = ['Chọn loại xe', 'Nhận diện biển số', 'Xác nhận', 'Hoàn tất'];
   return (
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '0.75rem',
-      marginBottom: '1.25rem',
+      gap: '0.5rem',
+      marginBottom: '1.5rem',
       overflowX: 'auto',
       paddingBottom: 4,
     }}>
-      {steps.map((label, i) => {
+      {STEP_LABELS.map((label, i) => {
         const active = i + 1 === step;
         const done = i + 1 < step;
         return (
@@ -409,18 +251,189 @@ function ProgressIndicator({ step }: { step: number }) {
               justifyContent: 'center',
               background: done ? C.navy : active ? C.activeBlue : '#EFF6FF',
               color: done || active ? '#fff' : '#64748B',
-              fontSize: '0.75rem',
+              fontSize: '0.72rem',
               fontWeight: 800,
               border: `2px solid ${done ? C.navy : active ? C.activeBlue : '#E3EAF5'}`,
+              flexShrink: 0,
             }}>
-              {done ? <IconCheck size={14} color="#fff" /> : i + 1}
+              {done ? <IconCheck size={13} color="#fff" /> : i + 1}
             </div>
-            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? C.navy : '#64748B', whiteSpace: 'nowrap' }}>{label}</span>
-            {i < steps.length - 1 && <div style={{ width: 24, height: 2, background: done ? C.navy : '#E3EAF5', borderRadius: 2, flexShrink: 0 }} />}
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: active ? C.navy : done ? C.navyLight : '#64748B',
+              whiteSpace: 'nowrap',
+            }}>{label}</span>
+            {i < STEP_LABELS.length - 1 && (
+              <div style={{ width: 20, height: 2, background: done ? C.navy : '#E3EAF5', borderRadius: 2, flexShrink: 0 }} />
+            )}
           </div>
         );
       })}
     </div>
+  );
+}
+
+// ─── Image capture box ─────────────────────────────────────────────────────
+function CaptureBox({
+  label,
+  hint,
+  aspectRatio,
+  preview,
+  onCamera,
+  onLibrary,
+  onRemove,
+  cameraRef,
+  libraryRef,
+  onCameraChange,
+  onLibraryChange,
+  ocrBadge,
+}: {
+  label: string;
+  hint?: string;
+  aspectRatio: string;
+  preview: string | null;
+  onCamera: () => void;
+  onLibrary: () => void;
+  onRemove: () => void;
+  cameraRef: React.RefObject<HTMLInputElement>;
+  libraryRef: React.RefObject<HTMLInputElement>;
+  onCameraChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onLibraryChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  ocrBadge?: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      border: `1.5px solid ${preview ? C.navy : C.gray200}`,
+      borderRadius: 14,
+      padding: '1rem',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 8,
+      background: preview ? '#F0F8FF' : '#FAFBFF',
+    }}>
+      <div style={{
+        width: '100%',
+        aspectRatio,
+        border: `1.5px dashed ${preview ? C.navy : C.gray200}`,
+        borderRadius: 10,
+        background: preview ? '#fff' : '#F8FAFC',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        {preview ? (
+          <>
+            <img
+              src={preview}
+              alt={label}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }}
+            />
+            <button
+              onClick={onRemove}
+              style={{
+                position: 'absolute', top: 6, right: 6,
+                background: C.white, border: `1.5px solid ${C.red}`,
+                borderRadius: '50%', width: 26, height: 26,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10,
+              }}
+              title="Xóa ảnh"
+            >
+              <IconX size={12} color={C.red} />
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <IconCamera size={28} color="#94A3B8" />
+            {hint && <p style={{ margin: '0.4rem 0 0', fontSize: '0.65rem', color: C.gray400, maxWidth: 140, lineHeight: 1.4 }}>{hint}</p>}
+          </div>
+        )}
+      </div>
+
+      <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.8rem', textAlign: 'center' }}>
+        {label}
+      </div>
+
+      {ocrBadge && <div style={{ width: '100%' }}>{ocrBadge}</div>}
+
+      <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+        <button
+          onClick={onCamera}
+          style={{
+            flex: 1, padding: '0.45rem 0.4rem', borderRadius: 8,
+            border: `1.5px solid ${C.navy}`,
+            background: preview ? C.gray100 : C.navy,
+            color: preview ? C.gray800 : C.white,
+            fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          📷 Chụp
+        </button>
+        <button
+          onClick={onLibrary}
+          style={{
+            flex: 1, padding: '0.45rem 0.4rem', borderRadius: 8,
+            border: `1.5px solid ${C.navy}`,
+            background: preview ? C.gray100 : C.white,
+            color: preview ? C.gray800 : C.navy,
+            fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          🖼️ Thư viện
+        </button>
+      </div>
+
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onCameraChange} />
+      <input ref={libraryRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onLibraryChange} />
+    </div>
+  );
+}
+
+function OcrSuccessBadge({ confidence }: { confidence: number | null }) {
+  const badgeText = confidence !== null && Number.isFinite(confidence)
+    ? `Đã nhận diện · ${Math.round(confidence)}%`
+    : 'Đã nhận diện';
+  return (
+    <div style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      background: '#DCFCE7',
+      border: `1.5px solid #BBF7D0`,
+      borderRadius: 8,
+      padding: '0.35rem 0.65rem',
+      color: '#15803D',
+      fontSize: '0.78rem',
+      fontWeight: 700,
+    }}>
+      <span>✓ {badgeText}</span>
+    </div>
+  );
+}
+
+
+
+// ─── Customer type badge ───────────────────────────────────────────────────
+function CustomerBadge({ type }: { type: 'booking' | 'monthly' | 'casual' | 'unknown' }) {
+  const map = {
+    booking: { bg: '#EFF6FF', border: '#BFDBFE', color: C.navy, label: 'CÓ ĐẶT CHỖ TRƯỚC' },
+    monthly: { bg: C.greenBg, border: C.greenBorder, color: '#15803D', label: 'KHÁCH THÁNG' },
+    casual: { bg: '#F1F5F9', border: C.gray200, color: C.gray800, label: 'KHÁCH VÃN LAI' },
+    unknown: { bg: '#F1F5F9', border: C.gray200, color: C.gray500, label: 'CHƯA XÁC ĐỊNH' },
+  };
+  const s = map[type];
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      background: s.bg, border: `1.5px solid ${s.border}`,
+      borderRadius: 20, padding: '0.25rem 0.7rem',
+    }}>
+      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: s.color }}>{s.label}</span>
+    </span>
   );
 }
 
@@ -429,433 +442,459 @@ function ProgressIndicator({ step }: { step: number }) {
 // ═════════════════════════════════════════════════════
 export function CheckInPage() {
 
-  // ── Form state ──────────────────────────────────────
-  const [plateInput, setPlateInput] = useState('');
-  const [vehicleType, setVehicleType] = useState<'CAR' | 'MOTORBIKE'>('CAR');
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
-  const [motorbikeAutoSlot, setMotorbikeAutoSlot] = useState<string | null>(null);
+  // ── Step & vehicle type ────────────────────────────────────────────────
+  const [vehicleType, setVehicleType] = useState<VehicleType | null>(null);
 
-  // ── Page / lookup state ────────────────────────────
-  const [pageState, setPageState] = useState<PageState>('idle');
+  // ── Image state ────────────────────────────────────────────────────────
+  const [frontImage, setFrontImage] = useState<File | null>(null);
+  const [frontPreview, setFrontPreview] = useState<string | null>(null);
+  const [rearImage, setRearImage] = useState<File | null>(null);
+  const [rearPreview, setRearPreview] = useState<string | null>(null);
+  const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
+  const [rearImageUrl, setRearImageUrl] = useState<string | null>(null);
+
+  const frontCameraRef = useRef<HTMLInputElement>(null);
+  const frontLibraryRef = useRef<HTMLInputElement>(null);
+  const rearCameraRef = useRef<HTMLInputElement>(null);
+  const rearLibraryRef = useRef<HTMLInputElement>(null);
+
+  // ── OCR state ─────────────────────────────────────────────────────────
+  const [ocrStatus, setOcrStatus] = useState<OcrStatus>('idle');
+  const [ocrConflict, setOcrConflict] = useState(false);
+  const [ocrAttempted, setOcrAttempted] = useState(false);
+  const [ocrSource, setOcrSource] = useState<'FRONT' | 'REAR' | null>(null);
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
+
+  // ── Plate / lookup ─────────────────────────────────────────────────────
+  const [plateInput, setPlateInput] = useState('');
+  const [plateSource, setPlateSource] = useState<'front' | 'rear' | 'combined' | 'manual'>('manual');
   const [lookupData, setLookupData] = useState<LookupResult | null>(null);
   const [searching, setSearching] = useState(false);
+  const [vehicleTypeMismatch, setVehicleTypeMismatch] = useState(false);
+
+  // ── Submit ──────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
+  const [successData, setSuccessData] = useState<CheckinSubmitResult | null>(null);
 
-  // ── Success ────────────────────────────────────────
-  const [successData, setSuccessData] = useState<{ slotCode: string; plate: string; checkInTime: string } | null>(null);
-
-  // ── Error ──────────────────────────────────────────
+  // ── Errors ─────────────────────────────────────────────────────────────
   const [apiError, setApiError] = useState('');
-  const [plateError, setPlateError] = useState('');
 
-  // ── Footer stats ───────────────────────────────────
-  const [stats, setStats] = useState<CheckinStats | null>(null);
-
-  // ── Image capture state ─────────────────────────────────
-  const [frontImage, setFrontImage] = useState<File | null>(null);
-  const [rearImage, setRearImage] = useState<File | null>(null);
-  const [frontPreview, setFrontPreview] = useState<string | null>(null);
-  const [rearPreview, setRearPreview] = useState<string | null>(null);
-  const frontCameraInputRef = useRef<HTMLInputElement>(null);
-  const frontLibraryInputRef = useRef<HTMLInputElement>(null);
-  const rearCameraInputRef = useRef<HTMLInputElement>(null);
-  const rearLibraryInputRef = useRef<HTMLInputElement>(null);
-
-  // ── Query param access (must be at component top level) ──
+  // ── URL params (auto-lookup) ────────────────────────────────────────────
   const [searchParams] = useSearchParams();
   const autoLookupRan = useRef(false);
 
-  // ── Load stats on mount ────────────────────────────
-  useEffect(() => {
-    getCheckinStats().then(setStats).catch(() => { });
-  }, []);
-
-  // ── Auto-lookup if plate was passed via ?plate= ─────
-  useEffect(() => {
-    if (autoLookupRan.current) return;
+  // Auto-lookup from ?plate= URL param
+  if (!autoLookupRan.current && searchParams.get('plate')) {
     autoLookupRan.current = true;
-
-    const raw = searchParams.get('plate');
-    if (!raw) return;
-    const { valid, formatted } = formatPlate(raw, vehicleType);
-    if (!valid) return;
-
-    setPlateInput(formatted);
-
-    lookupPlate(normalizePlate(formatted))
-      .then((result) => {
-        setLookupData(result);
-        if (result.alreadyParked) {
-          setApiError(`Xe đang trong bãi (slot ${result.slotCode ?? '?'}) — không thể check-in.`);
-          setPageState('idle');
-          return;
-        }
-        if (result.found && result.customerType === 'monthly') {
-          if (result.isExpired) setPageState('monthly_expired');
-          else {
-            setPageState('monthly_valid');
-            if (result.vehicleType) setVehicleType(result.vehicleType);
-          }
-        } else {
-          setPageState('casual');
-          if (result.vehicleType) setVehicleType(result.vehicleType);
-        }
-      })
-      .catch(() => {
-        setApiError('Không thể tra cứu biển số. Vui lòng thử lại.');
-      });
-  }, []); // run once on mount after useSearchParams stabilizes
-
-  // ── Load available slots when entering casual state ──
-  useEffect(() => {
-    if (pageState === 'casual' || pageState === 'monthly_expired') {
-      getAvailableSlots(vehicleType).then((slots) => {
-        setAvailableSlots(slots);
-        if (vehicleType === 'MOTORBIKE') {
-          const first = slots[0]?.code ?? null;
-          setMotorbikeAutoSlot(first);
-        } else {
-          setMotorbikeAutoSlot(null);
-        }
-      }).catch(() => { });
+    const raw = searchParams.get('plate') ?? '';
+    if (raw) {
+      setPlateInput(raw.toUpperCase());
+      setVehicleType('CAR');
     }
-  }, [pageState, vehicleType]);
+  }
 
-  // ── Handlers ───────────────────────────────────────
-  const handleBlur = () => {
-    if (!plateInput.trim()) {
-      setPlateError('');
-      return;
-    }
-    const { valid, formatted } = formatPlate(plateInput, vehicleType);
+  // ═════════════════════════════════════════════════════
+  //  HANDLERS — vehicle type
+  // ═════════════════════════════════════════════════════
+  const handleSelectVehicleType = (t: VehicleType) => {
+    if (vehicleType === t) return;
+    // Clear all downstream state
+    setVehicleType(t);
+    setFrontImage(null);
+    setRearImage(null);
+    if (frontPreview) URL.revokeObjectURL(frontPreview);
+    if (rearPreview) URL.revokeObjectURL(rearPreview);
+    setFrontPreview(null);
+    setRearPreview(null);
+    setOcrStatus('idle');
+    setOcrConflict(false);
+    setOcrAttempted(false);
+    setPlateInput('');
+    setPlateSource('manual');
+    setLookupData(null);
+    setVehicleTypeMismatch(false);
+    setApiError('');
+  };
 
-    if (!valid) {
-      setPlateError('Biển số không hợp lệ (sai mã tỉnh hoặc định dạng)');
+  // ═════════════════════════════════════════════════════
+  //  HANDLERS — image capture
+  // ═════════════════════════════════════════════════════
+  const handleImageSelect = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setImage: (f: File | null) => void,
+    setPreview: (url: string | null) => void,
+    currentPreview: string | null,
+    side: 'front' | 'rear'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (currentPreview) URL.revokeObjectURL(currentPreview);
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
+    e.target.value = '';
+    // Clear OCR and URL for this side
+    if (side === 'front') {
+      setFrontImageUrl(null);
     } else {
-      setPlateError('');
-      setPlateInput(formatted);
+      setRearImageUrl(null);
+    }
+    setOcrStatus('idle');
+    setOcrConflict(false);
+  };
+
+  const handleRemoveFront = () => {
+    if (frontPreview) URL.revokeObjectURL(frontPreview);
+    setFrontImage(null);
+    setFrontPreview(null);
+    setFrontImageUrl(null);
+    setOcrStatus('idle');
+    setOcrConflict(false);
+  };
+  const handleRemoveRear = () => {
+    if (rearPreview) URL.revokeObjectURL(rearPreview);
+    setRearImage(null);
+    setRearPreview(null);
+    setRearImageUrl(null);
+    setOcrStatus('idle');
+    setOcrConflict(false);
+  };
+
+  const runOCR = async () => {
+    if (!vehicleType) return;
+    if (vehicleType === 'CAR') {
+      if (!frontImage && !rearImage) {
+        setApiError('Vui lòng tải lên ít nhất một ảnh để nhận diện.');
+        return;
+      }
+    } else {
+      if (!rearImage) {
+        setApiError('Vui lòng tải lên hoặc chụp ảnh biển số sau để nhận diện.');
+        return;
+      }
+    }
+    setOcrStatus('processing');
+    setOcrConflict(false);
+    setApiError('');
+    setOcrSource(null);
+    setOcrConfidence(null);
+
+    try {
+      const result = await runOcrApi(vehicleType, frontImage, rearImage);
+
+      const source = result.recognitionSource || 'REAR';
+      const confidence = typeof result.confidence === 'number' && Number.isFinite(result.confidence)
+        ? result.confidence
+        : null;
+
+      setOcrSource(source);
+      setOcrConfidence(confidence);
+
+      if (source === 'FRONT') {
+        setFrontImageUrl(result.imageUrl);
+      } else {
+        setRearImageUrl(result.imageUrl);
+      }
+
+      setOcrStatus('success');
+      setPlateInput(result.plateNumber.toUpperCase());
+      setPlateSource(source === 'FRONT' ? 'front' : 'rear');
+    } catch (err: any) {
+      if (err.response?.data?.requiresManualReview) {
+        setOcrConflict(true);
+        setOcrStatus('low_confidence');
+        setApiError(err.response.data.message);
+      } else {
+        const msg = err.response?.data?.message || 'Không thể nhận diện biển số. Vui lòng chụp lại ảnh rõ hơn hoặc nhập thủ công.';
+        setApiError(msg);
+        setOcrStatus('failed');
+      }
+    } finally {
+      setOcrAttempted(true);
     }
   };
 
-  const handleSearch = async () => {
+  // ═════════════════════════════════════════════════════
+  //  HANDLERS — plate lookup
+  // ═════════════════════════════════════════════════════
+  const handleLookup = async () => {
     const raw = plateInput.trim();
-    if (!raw) return;
+    if (!raw || !vehicleType) return;
 
-    // Normalize + re-validate so the display always shows the correctly formatted value
-    const { valid, formatted } = formatPlate(raw, vehicleType);
+    const normalized = normalizePlateForLookup(raw);
+    if (!normalized) return;
 
-    if (!valid) {
-      setPlateError('Biển số không hợp lệ (sai mã tỉnh hoặc định dạng)');
-      return;
-    }
-
-    setPlateInput(formatted);
     setApiError('');
-    setPlateError('');
-    setSearching(true);
-    setSuccessData(null);
-    setPageState('idle');
     setLookupData(null);
-    setSelectedSlot(null);
+    setVehicleTypeMismatch(false);
+    setSearching(true);
 
     try {
-      const result = await lookupPlate(normalizePlate(formatted));
+      const result = await lookupPlate(normalized, vehicleType);
       setLookupData(result);
 
-      // Also fetch full vehicle details if found
-      let vehicleDetails = null;
-      if (result.found) {
-        try {
-          vehicleDetails = await lookupVehicleByPlate(normalizePlate(formatted));
-        } catch {
-          // Ignore vehicle lookup errors
-        }
-      }
-
-      // Merge vehicle details into lookup data
-      if (vehicleDetails) {
-        setLookupData((prev) => prev ? {
-          ...prev,
-          brand: vehicleDetails.brand ?? prev.brand,
-          model: vehicleDetails.model ?? prev.model,
-          color: vehicleDetails.color ?? prev.color,
-          ownerName: vehicleDetails.owner?.fullName ?? prev.ownerName,
-          ownerPhone: vehicleDetails.owner?.phoneNumber ?? prev.ownerPhone,
-          ownerEmail: vehicleDetails.owner?.email ?? prev.ownerEmail,
-        } : prev);
-      }
-
       if (result.alreadyParked) {
-        setApiError(`Xe đang trong bãi (slot ${result.slotCode ?? '?'}) — không thể check-in.`);
-        setPageState('idle');
+        setApiError(`Xe đang trong bãi — không thể check-in lần nữa.`);
         return;
       }
 
-      if (result.found && result.customerType === 'monthly') {
-        if (result.isExpired) {
-          setPageState('monthly_expired');
-        } else {
-          setPageState('monthly_valid');
-          // Auto-set vehicle type if returned
-          if (result.vehicleType) setVehicleType(result.vehicleType);
-        }
-      } else {
-        // Casual: unknown plate or found=false
-        setPageState('casual');
-        if (result.vehicleType) setVehicleType(result.vehicleType);
+
+      // Vehicle type mismatch check
+      if (result.found && result.vehicleType && result.vehicleType !== vehicleType) {
+        setVehicleTypeMismatch(true);
       }
-    } catch {
-      setApiError('Không thể tra cứu biển số. Vui lòng thử lại.');
-      setPageState('idle');
+
+    } catch (err: unknown) {
+      const msg = (err as Error).message ?? 'Không thể tra cứu biển số.';
+      setApiError(msg);
     } finally {
       setSearching(false);
     }
   };
 
-  const handleConvertToCasual = () => {
-    if (!lookupData) return;
-    setLookupData((prev: LookupResult | null) => prev ? { ...prev, customerType: 'casual' } : null);
-    setPageState('casual');
-    setApiError('');
-    setSelectedSlot(null);
-    setMotorbikeAutoSlot(null);
+  const handlePlateKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleLookup();
   };
 
+  // ═════════════════════════════════════════════════════
+  //  HANDLERS — submit check-in
+  // ═════════════════════════════════════════════════════
   const handleSubmit = async () => {
-    // Log captured images to satisfy TS unused locals check
-    if (frontImage || rearImage) {
-      console.log('Captured check-in images:', { frontImage, rearImage });
-    }
-    const plate = plateInput.trim().toUpperCase();
-    if (!plate) return;
-    const isCasual = pageState === 'casual';
-    const isMonthly = lookupData?.customerType === 'monthly' && !isCasual;
-    const isMotorbikeCasual = isCasual && vehicleType === 'MOTORBIKE';
+    if (!vehicleType || !plateInput.trim() || !lookupData) return;
+    const floorId = lookupData.floorId;
+    if (!floorId) return;
 
-    // Validation: casual customers need slot (except motorbike which auto-assigns)
-    if (isCasual && !isMotorbikeCasual && !selectedSlot) return;
+    const plate = plateInput.trim().toUpperCase();
+    const isMonthly = lookupData.customerType === 'monthly';
 
     setApiError('');
     setSubmitting(true);
 
-    try {
-      // Upload images first if any
-      let frontImageUrl: string | undefined;
-      let rearImageUrl: string | undefined;
+    let uploadedFront: string | undefined;
+    let uploadedRear: string | undefined;
 
+    try {
+      // Upload images
       try {
         if (frontImage) {
-          const frontUpload = await uploadCheckinImage({
-            image: frontImage,
-            plateNumber: plate,
-          });
-          frontImageUrl = frontUpload.imageUrl;
+          if (frontImageUrl) {
+            uploadedFront = frontImageUrl;
+          } else {
+            const r = await uploadCheckinImage({ image: frontImage, plateNumber: plate });
+            uploadedFront = r.imageUrl;
+            setFrontImageUrl(r.imageUrl);
+          }
         }
-
         if (rearImage) {
-          const rearUpload = await uploadCheckinImage({
-            image: rearImage,
-            plateNumber: plate,
-          });
-          rearImageUrl = rearUpload.imageUrl;
+          if (rearImageUrl) {
+            uploadedRear = rearImageUrl;
+          } else {
+            const r = await uploadCheckinImage({ image: rearImage, plateNumber: plate });
+            uploadedRear = r.imageUrl;
+            setRearImageUrl(r.imageUrl);
+          }
         }
 
-        // For monthly customers (CAR or MOTORBIKE), no slotCode needed - backend handles tier-based access
-        // For casual customers, slotCode is required
-        const slotCode = isMonthly
-          ? undefined
-          : (isMotorbikeCasual ? (motorbikeAutoSlot ?? undefined) : (selectedSlot ?? undefined));
         const result = await submitCheckIn({
           plateNumber: plate,
-          slotCode,
           vehicleType,
+          floorId,
           isMonthly,
-          frontImageUrl,
-          rearImageUrl,
+          frontImageUrl: uploadedFront,
+          rearImageUrl: uploadedRear,
         });
 
-        if (frontImageUrl || rearImageUrl) {
-          console.log('Check-in images saved:', { frontImageUrl, rearImageUrl });
-        }
-
         setSuccessData(result);
-        setPageState('idle');
-        setLookupData(null);
-        setSelectedSlot(null);
-        setMotorbikeAutoSlot(null);
-        setPlateInput('');
-        setFrontImage(null);
-        setRearImage(null);
-        if (frontPreview) URL.revokeObjectURL(frontPreview);
-        if (rearPreview) URL.revokeObjectURL(rearPreview);
-        setFrontPreview(null);
-        setRearPreview(null);
-        const fresh = await getCheckinStats();
-        setStats(fresh);
-      } catch (err: any) {
-        // Clean up orphan files if checkin process failed
-        const filesToClean: string[] = [];
-        if (frontImageUrl) filesToClean.push(frontImageUrl);
-        if (rearImageUrl) filesToClean.push(rearImageUrl);
-        if (filesToClean.length > 0) {
-          await deleteCheckinImages(filesToClean).catch(e => console.error('Failed to cleanup images:', e));
+
+        // Reset workflow
+        handleReset();
+      } catch (err) {
+        // Clean up uploaded images if submit failed and they were newly uploaded
+        const toClean: string[] = [];
+        if (uploadedFront && !frontImageUrl) toClean.push(uploadedFront);
+        if (uploadedRear && !rearImageUrl) toClean.push(uploadedRear);
+        if (toClean.length > 0) {
+          await deleteCheckinImages(toClean).catch(() => {});
         }
         throw err;
       }
-    } catch (error: any) {
-      // Handle expired monthly package when user tries to check in without converting to casual
-      if (error?.status === 400 && error?.message?.includes('hết hạn')) {
-        setApiError(`Gói tháng đã hết hạn (${expiryLabel}). Vui lòng chuyển sang khách lẻ hoặc gia hạn gói.`);
-      } else {
-        setApiError('Check-in thất bại. Vui lòng thử lại.');
-      }
+    } catch (error: unknown) {
+      const msg = (error as Error).message ?? 'Check-in thất bại. Vui lòng thử lại.';
+      setApiError(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ═════════════════════════════════════════════════════
+  //  HANDLERS — reset
+  // ═════════════════════════════════════════════════════
   const handleReset = () => {
-    setPageState('idle');
-    setLookupData(null);
-    setSelectedSlot(null);
-    setMotorbikeAutoSlot(null);
-    setPlateInput('');
-    setApiError('');
-    setPlateError('');
-    setSuccessData(null);
-    setAvailableSlots([]);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch();
-  };
-
-  // ── Image upload handlers ───────────────────────────────
-  const handleImageSelect = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setImage: (f: File | null) => void,
-    setPreview: (url: string | null) => void,
-    currentPreview: string | null
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Clean up previous preview URL to avoid memory leaks
-    if (currentPreview) {
-      URL.revokeObjectURL(currentPreview);
-    }
-    
-    setImage(file);
-    setPreview(URL.createObjectURL(file));
-    
-    // Reset the input value so the same file can be selected again if needed
-    e.target.value = '';
-  };
-
-  const handleFrontCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview);
-  };
-
-  const handleFrontLibrarySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview);
-  };
-
-  const handleRearCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleImageSelect(e, setRearImage, setRearPreview, rearPreview);
-  };
-
-  const handleRearLibrarySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleImageSelect(e, setRearImage, setRearPreview, rearPreview);
-  };
-
-  const handleRemoveFrontImage = () => {
-    if (frontPreview) {
-      URL.revokeObjectURL(frontPreview);
-    }
+    if (frontPreview) URL.revokeObjectURL(frontPreview);
+    if (rearPreview) URL.revokeObjectURL(rearPreview);
+    setVehicleType(null);
     setFrontImage(null);
     setFrontPreview(null);
-  };
-
-  const handleRemoveRearImage = () => {
-    if (rearPreview) {
-      URL.revokeObjectURL(rearPreview);
-    }
     setRearImage(null);
     setRearPreview(null);
+    setFrontImageUrl(null);
+    setRearImageUrl(null);
+    setOcrStatus('idle');
+    setOcrConflict(false);
+    setOcrAttempted(false);
+    setOcrSource(null);
+    setOcrConfidence(null);
+    setPlateInput('');
+    setPlateSource('manual');
+    setLookupData(null);
+    setVehicleTypeMismatch(false);
+    setApiError('');
   };
 
-  // ── Derived ───────────────────────────────────────
-  const isCasual = pageState === 'casual';
-  const isMotorbikeCasual = isCasual && vehicleType === 'MOTORBIKE';
+  // ═════════════════════════════════════════════════════
+  //  DERIVED VALUES
+  // ═════════════════════════════════════════════════════
+  const workflowStep: number =
+    !vehicleType ? 1
+      : (!frontImage || !rearImage || !ocrAttempted) ? 2
+        : lookupData ? (lookupData.alreadyParked ? 2 : 3)
+          : 2;
 
-  const isConfirmDisabled =
-    submitting ||
-    (isCasual && !isMotorbikeCasual && !selectedSlot) ||
-    (isCasual && isMotorbikeCasual && !motorbikeAutoSlot);
+  const canLookup = ocrAttempted && !!vehicleType && !!plateInput.trim() && !searching;
 
+  const totalCapacity = lookupData?.totalCapacity ?? 0;
+  const activeParkingCount = lookupData?.activeParkingCount ?? 0;
+  const receivableCapacity = lookupData?.receivableCapacity ?? 0;
+
+  const physicalAvailableCapacity = totalCapacity - activeParkingCount;
+
+  const hasCapacity =
+    lookupData?.customerType === 'booking'
+      ? activeParkingCount < totalCapacity
+      : lookupData?.customerType === 'monthly'
+        ? physicalAvailableCapacity > 0
+        : receivableCapacity > 0;
+
+  const canConfirm =
+    !submitting &&
+    !!vehicleType &&
+    !!frontImage &&
+    !!rearImage &&
+    !!plateInput.trim() &&
+    !!normalizePlateForLookup(plateInput) &&
+    !!lookupData &&
+    (!lookupData.found || !lookupData.vehicleType || lookupData.vehicleType === vehicleType) &&
+    !!lookupData.floorId &&
+    hasCapacity &&
+    !lookupData.alreadyParked &&
+    !vehicleTypeMismatch &&
+    !apiError;
+
+  // Customer type display
+  const customerTypeDisplay: 'booking' | 'monthly' | 'casual' | 'unknown' =
+    !lookupData ? 'unknown'
+      : lookupData.customerType === 'booking' ? 'booking'
+        : lookupData.customerType === 'monthly' ? 'monthly'
+          : 'casual';
+
+  // Summary rows for right panel
   const expiryLabel = lookupData?.packageExpiry
     ? new Date(lookupData.packageExpiry).toLocaleDateString('vi-VN')
     : '—';
 
-  // ── Render ─────────────────────────────────────────
-  return (
-    <div style={{
-      background: C.bg,
-      fontFamily: "'Segoe UI', Arial, sans-serif",
-      minHeight: '100vh',
-    }}>
+  const getFloorDisplay = () => {
+    if (!lookupData || !lookupData.floorName) return '—';
+    const fName = lookupData.floorName;
+    if (lookupData.customerType === 'booking') {
+      return `${fName} · Ô tô đặt chỗ`;
+    }
+    if (lookupData.customerType === 'monthly') {
+      const tierLabel = lookupData.allowedTier
+        ? ` (${lookupData.allowedTier === 'VIP' ? 'VIP' : lookupData.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'})`
+        : '';
+      return `${fName} · Khách tháng${tierLabel}`;
+    }
+    // casual
+    const vLabel = vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
+    return `${fName} · ${vLabel} khách vãng lai`;
+  };
 
-      {/* ══ MAIN BODY ════════════════════════════════════ */}
-      <main style={{ padding: '1.5rem', maxWidth: 1200, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+  const floorDisplay = getFloorDisplay();
+
+  const summaryRows = [
+    { label: 'Biển số', value: plateInput.trim() || 'Chưa có dữ liệu', valueColor: plateInput.trim() ? C.navy : C.gray400 },
+    { label: 'Loại xe', value: vehicleType ? (vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy') : 'Chưa chọn', valueColor: vehicleType ? C.gray800 : C.gray400 },
+    { label: 'Loại khách', value: !lookupData ? '—' : lookupData.customerType === 'booking' ? 'Có đặt chỗ trước' : lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách vãng lai' },
+    { label: 'Tầng / Khu vực', value: lookupData ? floorDisplay : '—' },
+    { label: 'Hình thức đỗ', value: lookupData ? 'Tự chọn vị trí trống' : '—' },
+  ];
+
+  // ═════════════════════════════════════════════════════
+  //  RENDER
+  // ═════════════════════════════════════════════════════
+  return (
+    <div style={{ background: C.bg, fontFamily: "'Segoe UI', Arial, sans-serif", minHeight: '100vh' }}>
+      <main style={{ padding: '1.5rem', maxWidth: 1240, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {/* Page title */}
         <div style={{ marginBottom: '1.25rem' }}>
           <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: C.navy }}>
-            Check-in xe vào
+            Check-in xe vào bãi
           </h1>
           <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.gray500 }}>
-            Tra cứu biển số → Xác nhận xe vào bãi đỗ
+            Chọn loại xe → Chụp ảnh → Nhận diện biển số → Xác nhận vào bãi
           </p>
         </div>
 
         {/* Progress indicator */}
-        <ProgressIndicator step={pageState === 'idle' ? 1 : 2} />
+        <ProgressIndicator step={workflowStep} />
 
-        {/* API error banner */}
+        {/* Global API error */}
         {apiError && (
           <div style={{
-            background: C.redBg,
-            border: `1.5px solid ${C.redBorder}`,
-            borderRadius: 10,
-            padding: '0.7rem 1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
+            background: C.redBg, border: `1.5px solid ${C.redBorder}`,
+            borderRadius: 10, padding: '0.7rem 1rem',
+            display: 'flex', flexDirection: 'column', gap: '0.5rem',
             marginBottom: '1rem',
           }}>
-            <IconAlert size={15} color={C.red} />
-            <span style={{ fontSize: '0.82rem', color: C.red, fontWeight: 500 }}>{apiError}</span>
-            <button
-              onClick={() => setApiError('')}
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
-            >
-              <IconX size={14} color={C.red} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%' }}>
+              <IconAlert size={15} color={C.red} />
+              <span style={{ fontSize: '0.82rem', color: C.red, fontWeight: 500, flex: 1 }}>{apiError}</span>
+              <button onClick={() => setApiError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <IconX size={14} color={C.red} />
+              </button>
+            </div>
+            {apiError.includes('Check-out') && plateInput && (
+              <button
+                onClick={() => window.location.href = `/staff/checkout?plate=${encodeURIComponent(plateInput.trim().toUpperCase())}`}
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '5px 12px',
+                  background: C.navy,
+                  color: C.white,
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginTop: 2,
+                  boxShadow: '0 2px 6px rgba(11,47,107,0.2)',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.background = C.navyLight)}
+                onMouseOut={(e) => (e.currentTarget.style.background = C.navy)}
+              >
+                ➡️ Đi đến trang Check-out lượt hiện tại
+              </button>
+            )}
           </div>
         )}
 
-        {/* SUCCESS — shown after successful check-in */}
+        {/* SUCCESS banner */}
         {successData && (
           <div style={{
-            background: C.greenBg,
-            border: `2px solid ${C.greenBorder}`,
-            borderRadius: 16,
-            padding: '1.25rem 1.5rem',
-            marginBottom: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
+            background: C.greenBg, border: `2px solid ${C.greenBorder}`,
+            borderRadius: 16, padding: '1.25rem 1.5rem', marginBottom: '1.25rem',
+            display: 'flex', alignItems: 'center', gap: '1rem',
           }}>
             <IconCheck size={24} color={C.green} />
             <div style={{ flex: 1 }}>
@@ -863,20 +902,20 @@ export function CheckInPage() {
                 Check-in thành công!
               </p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Biển số <strong>{successData.plate}</strong> · Vị trí <strong>{successData.slotCode}</strong> · {formatDateTime(successData.checkInTime)}
+                Biển số <strong>{successData.plate}</strong>
+                {successData.floorCode && <> · Khu vực <strong>{successData.floorCode}</strong></>}
+                {successData.zoneName && <> · <strong>{successData.zoneName}</strong></>}
+                {' · '}{formatDateTime(successData.checkInTime)}
               </p>
+              {successData.message && (
+                <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#166534' }}>{successData.message}</p>
+              )}
             </div>
             <button
               onClick={() => setSuccessData(null)}
               style={{
-                padding: '0.45rem 1rem',
-                background: C.green,
-                color: C.white,
-                border: 'none',
-                borderRadius: 8,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
+                padding: '0.45rem 1rem', background: C.green, color: C.white,
+                border: 'none', borderRadius: 8, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
               }}
             >
               Check-in xe mới
@@ -885,886 +924,470 @@ export function CheckInPage() {
         )}
 
         {/* TWO-COLUMN LAYOUT */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '55% 45%',
-          gap: 24,
-          alignItems: 'start',
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '58% 42%', gap: 24, alignItems: 'start' }}>
 
-          {/* ══ LEFT — Workflow ═══════════════════════════ */}
+          {/* ══ LEFT — Workflow ═══════════════════════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* Step 1: Plate recognition/search */}
-            <Card title="Bước 1 · Nhận diện biển số">
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  value={plateInput}
-                  onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setApiError(''); setPlateError(''); }}
-                  onBlur={handleBlur}
-                  onKeyDown={handleKeyDown}
-                  placeholder="VD: 51A-11111"
-                  disabled={searching}
-                  style={{
-                    flex: 1,
-                    minWidth: 200,
-                    padding: '0.65rem 0.85rem',
-                    border: `1.5px solid ${plateError ? C.redBorder : C.border}`,
-                    borderRadius: 10,
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                    fontFamily: "'Consolas','Courier New',monospace",
-                    color: C.gray800,
-                    background: C.white,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    letterSpacing: '0.04em',
-                  }}
-                />
-                {plateError && (
-                  <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: C.red }}>
-                    {plateError}
-                  </p>
-                )}
-                <button
-                  onClick={handleSearch}
-                  disabled={!isPlateValid(plateInput, vehicleType) || searching}
-                  style={{
-                    padding: '0.65rem 1rem',
-                    background: isPlateValid(plateInput, vehicleType) && !searching ? C.navy : '#E5E7EB',
-                    color: isPlateValid(plateInput, vehicleType) && !searching ? C.white : '#9CA3AF',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: isPlateValid(plateInput, vehicleType) && !searching ? 'pointer' : 'not-allowed',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {searching ? 'Đang tra...' : <><IconSearch size={14} />Tra cứu</>}
-                </button>
-              </div>
-
-              {/* Plate display box */}
-              <div style={{
-                border: `2px dashed ${C.gray200}`,
-                borderRadius: 12,
-                padding: '1rem 1.25rem',
-                background: '#FAFBFF',
-                textAlign: 'center',
-                minHeight: 70,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                flexDirection: 'column',
-              }}>
-                {lookupData ? (
-                  <>
-                    <p style={{
-                      margin: 0,
-                      fontSize: '1.4rem',
-                      fontWeight: 800,
-                      fontFamily: "'Consolas','Courier New',monospace",
-                      color: C.navy,
-                      letterSpacing: '0.06em',
-                    }}>
-                      {plateInput.trim().toUpperCase()}
-                    </p>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
-                      {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
-                      {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
-                    </p>
-                    <div style={{
-                      background: '#F0F4F8',
-                      border: '1px solid #D1D9E6',
-                      borderRadius: 10,
-                      padding: '0.7rem 0.85rem',
-                      marginTop: '0.6rem',
-                    }}>
-                      <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Thông tin xe
-                      </p>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'}</div>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.model ?? '—'}</div>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'}</div>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.year ?? '—'}</div>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.seats != null ? `${lookupData.seats} chỗ` : '—'}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Show owner info card for found customers */}
-                    <div style={{ width: '100%', marginTop: '0.75rem' }}>
-                      <OwnerInfoCard data={lookupData} />
-                    </div>
-                  </>
-                ) : (
-                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#94A3B8' }}>
-                    Nhập biển số và nhấn Tra cứu
-                  </p>
-                )}
-              </div>
-            </Card>
-
-            {/* Step 2: Vehicle type */}
-            <Card title="Bước 2 · Chọn loại phương tiện">
-              <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-                {(  
-                  [
-                    { value: 'CAR', label: 'Ô tô', Icon: IconCar },
-                    { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
-                  ] as const
-                ).map(({ value, label, Icon }) => {
-                  const active = vehicleType === value;
+            {/* ─── STEP 1: Vehicle type ─────────────────────────────────── */}
+            <Card title="Bước 1 · Chọn loại xe" accent={!vehicleType ? C.activeBlue : C.border}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {(['CAR', 'MOTORBIKE'] as const).map((t) => {
+                  const active = vehicleType === t;
                   return (
                     <button
-                      key={value}
-                      onClick={() => setVehicleType(value)}
+                      key={t}
+                      id={`vehicle-type-${t.toLowerCase()}`}
+                      onClick={() => handleSelectVehicleType(t)}
                       style={{
-                        flex: 1,
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 10,
-                        padding: '0.9rem 1rem',
+                        gap: 12,
+                        padding: '1.75rem 1rem',
                         borderRadius: 14,
-                        border: `2px solid ${active ? C.navy : C.border}`,
+                        border: `2.5px solid ${active ? C.navy : C.border}`,
                         background: active ? C.navy : C.white,
                         color: active ? '#fff' : C.gray800,
-                        fontSize: '0.9rem',
-                        fontWeight: 700,
                         cursor: 'pointer',
-                        transition: 'all 0.15s',
+                        transition: 'all 0.18s',
+                        boxShadow: active ? '0 6px 20px rgba(11,47,107,0.2)' : 'none',
                       }}
                     >
-                      <Icon size={22} />
-                      {label}
-                      {active && <IconCheck size={16} color="#fff" />}
+                      {t === 'CAR' ? <IconCar size={44} /> : <IconMoto size={44} />}
+                      <span style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.01em' }}>
+                        {t === 'CAR' ? 'Ô tô' : 'Xe máy'}
+                      </span>
+                      {active && (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          background: 'rgba(255,255,255,0.15)',
+                          borderRadius: 10, padding: '0.15rem 0.5rem',
+                          fontSize: '0.7rem', fontWeight: 700,
+                        }}>
+                          <IconCheck size={11} color="#fff" /> Đã chọn
+                        </span>
+                      )}
                     </button>
                   );
                 })}
               </div>
-              <p style={{ margin: '0.6rem 0 0', fontSize: '0.78rem', color: C.gray500, lineHeight: 1.5 }}>
-                Sau khi chọn loại xe, hệ thống sẽ mở phần chụp ảnh biển số phù hợp.
-              </p>
+              {vehicleType && (
+                <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
+                  {vehicleType === 'CAR'
+                    ? 'Ô tô: chụp biển số trước và sau để hệ thống nhận diện chính xác nhất.'
+                    : 'Xe máy: chụp ảnh đầu xe (tổng quan) và ảnh biển số sau (nhận diện).'}
+                </p>
+              )}
             </Card>
 
-            {/* Step 3: Front/rear image capture */}
-            <Card title="Bước 3 · Chụp ảnh xe">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                {/* Front Image */}
-                <div style={{
-                  border: `1.5px solid ${frontPreview ? C.navy : C.gray200}`,
-                  borderRadius: 14,
-                  padding: '1.25rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  background: frontPreview ? '#F0F8FF' : '#FAFBFF',
-                }}>
-                  <div style={{
-                    width: '100%', aspectRatio: '16/10',
-                    border: `1.5px dashed ${frontPreview ? C.navy : C.gray200}`,
-                    borderRadius: 12,
-                    background: frontPreview ? '#fff' : '#F8FAFC',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden',
-                    position: 'relative',
-                  }}>
-                    {frontPreview ? (
-                      <>
-                        <img 
-                          src={frontPreview} 
-                          alt="Ảnh đầu xe" 
-                          style={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            objectFit: 'cover',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                          }} 
-                        />
-                        <button
-                          onClick={handleRemoveFrontImage}
-                          style={{
-                            position: 'absolute',
-                            top: 8,
-                            right: 8,
-                            background: C.white,
-                            border: `1.5px solid ${C.red}`,
-                            borderRadius: '50%',
-                            width: 28,
-                            height: 28,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            zIndex: 10,
-                          }}
-                          title="Xóa ảnh"
-                        >
-                          <IconX size={14} color={C.red} />
-                        </button>
-                      </>
-                    ) : (
-                      <IconCamera size={36} color="#94A3B8" />
+            {/* ─── STEP 2: Capture & OCR ────────────────────────────────── */}
+            <div style={{ opacity: vehicleType ? 1 : 0.4, pointerEvents: vehicleType ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+              <Card title="Bước 2 · Chụp ảnh và nhận diện biển số">
+                {!vehicleType && (
+                  <div style={{ textAlign: 'center', padding: '1.25rem 0', color: C.gray400, fontSize: '0.82rem' }}>
+                    Vui lòng chọn loại xe ở Bước 1 trước.
+                  </div>
+                )}
+
+                {vehicleType === 'CAR' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      <CaptureBox
+                        label="Biển số trước"
+                        hint="Chụp rõ toàn bộ biển số phía trước xe"
+                        aspectRatio="2.8/1"
+                        preview={frontPreview}
+                        onCamera={() => frontCameraRef.current?.click()}
+                        onLibrary={() => frontLibraryRef.current?.click()}
+                        onRemove={handleRemoveFront}
+                        cameraRef={frontCameraRef}
+                        libraryRef={frontLibraryRef}
+                        onCameraChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
+                        onLibraryChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
+                        ocrBadge={ocrStatus === 'success' && ocrSource === 'FRONT' ? <OcrSuccessBadge confidence={ocrConfidence} /> : undefined}
+                      />
+                      <CaptureBox
+                        label="Biển số sau"
+                        hint="Chụp rõ toàn bộ biển số phía sau xe"
+                        aspectRatio="2.8/1"
+                        preview={rearPreview}
+                        onCamera={() => rearCameraRef.current?.click()}
+                        onLibrary={() => rearLibraryRef.current?.click()}
+                        onRemove={handleRemoveRear}
+                        cameraRef={rearCameraRef}
+                        libraryRef={rearLibraryRef}
+                        onCameraChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
+                        onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
+                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} /> : undefined}
+                      />
+                    </div>
+                     <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
+                       Đưa biển số vào giữa khung và chụp đủ gần để nhận diện chính xác. Hệ thống ưu tiên kết quả có độ tin cậy cao hơn giữa ảnh trước và sau. Có thể chỉ cần một ảnh.
+                     </p>
+                  </>
+                )}
+
+                {vehicleType === 'MOTORBIKE' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      <CaptureBox
+                        label="Ảnh đầu xe"
+                        hint="Ảnh tổng quan — không dùng nhận diện biển số"
+                        aspectRatio="4/3"
+                        preview={frontPreview}
+                        onCamera={() => frontCameraRef.current?.click()}
+                        onLibrary={() => frontLibraryRef.current?.click()}
+                        onRemove={handleRemoveFront}
+                        cameraRef={frontCameraRef}
+                        libraryRef={frontLibraryRef}
+                        onCameraChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
+                        onLibraryChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
+                      />
+                      <CaptureBox
+                        label="Biển số sau (nhận diện)"
+                        hint="Biển xe máy nằm phía sau. Chụp thẳng, đủ sáng, rõ toàn bộ biển."
+                        aspectRatio="1.25/1"
+                        preview={rearPreview}
+                        onCamera={() => rearCameraRef.current?.click()}
+                        onLibrary={() => rearLibraryRef.current?.click()}
+                        onRemove={handleRemoveRear}
+                        cameraRef={rearCameraRef}
+                        libraryRef={rearLibraryRef}
+                        onCameraChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
+                        onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
+                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} /> : undefined}
+                      />
+                    </div>
+                    <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
+                      Đưa biển số vào giữa khung và chụp đủ gần để nhận diện chính xác. Biển số xe máy thường được trình bày trên hai hàng. Hệ thống chỉ nhận diện ảnh biển số sau.
+                    </p>
+                  </>
+                )}
+
+                {/* OCR status & conflict */}
+                {ocrStatus === 'processing' && (
+                  <div style={{ marginTop: 10 }}>
+                    <AlertBanner type="info">Đang nhận diện biển số…</AlertBanner>
+                  </div>
+                )}
+                {ocrStatus === 'failed' && !apiError && (
+                  <div style={{ marginTop: 10 }}>
+                    <AlertBanner type="warning">Không thể nhận diện biển số từ ảnh. Vui lòng nhập thủ công bên dưới.</AlertBanner>
+                  </div>
+                )}
+                {ocrStatus === 'low_confidence' && !ocrConflict && (
+                  <div style={{ marginTop: 10 }}>
+                    <AlertBanner type="warning">Độ tin cậy nhận diện thấp. Vui lòng kiểm tra lại biển số bên dưới.</AlertBanner>
+                  </div>
+                )}
+                {ocrConflict && (
+                  <div style={{ marginTop: 10 }}>
+                    <AlertBanner type="error">
+                      Hai ảnh cho kết quả biển số khác nhau. Vui lòng điều chỉnh biển số đúng bên dưới.
+                    </AlertBanner>
+                  </div>
+                )}
+
+                {/* OCR run button */}
+                {vehicleType && (frontImage || rearImage) && ocrStatus !== 'processing' && (
+                  <button
+                    id="run-ocr-btn"
+                    onClick={runOCR}
+                    style={{
+                      marginTop: 12, width: '100%',
+                      padding: '0.6rem 1rem', borderRadius: 10,
+                      border: `1.5px solid ${C.activeBlue}`,
+                      background: '#EFF6FF', color: C.activeBlue,
+                      fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    🔍 Nhận diện biển số từ ảnh
+                  </button>
+                )}
+
+                {/* Plate input */}
+                {vehicleType && (
+                  <div style={{ marginTop: 14 }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                      Điều chỉnh biển số
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        id="plate-input"
+                        type="text"
+                        value={plateInput}
+                        onChange={(e) => {
+                          setPlateInput(e.target.value.toUpperCase());
+                          setPlateSource('manual');
+                          setApiError('');
+                        }}
+                        onKeyDown={handlePlateKeyDown}
+                        placeholder="VD: 51A-12345"
+                        disabled={!ocrAttempted}
+                        style={{
+                          flex: 1,
+                          padding: '0.6rem 0.85rem',
+                          border: `1.5px solid ${C.border}`,
+                          borderRadius: 10,
+                          fontSize: '0.95rem',
+                          fontWeight: 700,
+                          fontFamily: "'Consolas','Courier New',monospace",
+                          color: C.gray800,
+                          background: !ocrAttempted ? '#F1F5F9' : C.white,
+                          outline: 'none',
+                          letterSpacing: '0.04em',
+                        }}
+                      />
+                      <button
+                        id="lookup-btn"
+                        onClick={handleLookup}
+                        disabled={!canLookup}
+                        style={{
+                          padding: '0.6rem 1rem',
+                          background: canLookup ? C.navy : '#E5E7EB',
+                          color: canLookup ? C.white : '#9CA3AF',
+                          border: 'none', borderRadius: 10,
+                          fontSize: '0.82rem', fontWeight: 700,
+                          cursor: canLookup ? 'pointer' : 'not-allowed',
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          whiteSpace: 'nowrap', transition: 'all 0.15s',
+                        }}
+                      >
+                        {searching ? 'Đang tra...' : <><IconSearch size={14} />Tra cứu</>}
+                      </button>
+                    </div>
+                    {plateSource !== 'manual' && plateInput && (
+                      <p style={{ margin: '0.3rem 0 0', fontSize: '0.7rem', color: C.gray400 }}>
+                        Chỉ chỉnh sửa khi kết quả nhận diện chưa chính xác.
+                      </p>
                     )}
                   </div>
-                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem', textAlign: 'center' }}>
-                    Ảnh đầu xe <br />
-                    <span style={{ fontSize: '0.7rem', color: C.gray500, fontWeight: 400 }}>(Bản xem trước tạm thời)</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                    <button
-                      onClick={() => frontCameraInputRef.current?.click()}
-                      style={{
-                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                        border: `1.5px solid ${C.navy}`, background: frontPreview ? C.gray100 : C.navy, 
-                        color: frontPreview ? C.gray800 : C.white,
-                        fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      📷 Chụp ảnh
-                    </button>
-                    <button
-                      onClick={() => frontLibraryInputRef.current?.click()}
-                      style={{
-                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                        border: `1.5px solid ${C.navy}`, background: frontPreview ? C.gray100 : C.white, 
-                        color: frontPreview ? C.gray800 : C.navy,
-                        fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      🖼️ Thư viện
-                    </button>
-                  </div>
-                  <input
-                    ref={frontCameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    style={{ display: 'none' }}
-                    onChange={handleFrontCameraCapture}
-                  />
-                  <input
-                    ref={frontLibraryInputRef}
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={handleFrontLibrarySelect}
-                  />
-                </div>
+                )}
+              </Card>
+            </div>
 
-                {/* Rear Image */}
-                <div style={{
-                  border: `1.5px solid ${rearPreview ? C.navy : C.gray200}`,
-                  borderRadius: 14,
-                  padding: '1.25rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  background: rearPreview ? '#F0F8FF' : '#FAFBFF',
-                }}>
-                  <div style={{
-                    width: '100%', aspectRatio: '16/10',
-                    border: `1.5px dashed ${rearPreview ? C.navy : C.gray200}`,
-                    borderRadius: 12,
-                    background: rearPreview ? '#fff' : '#F8FAFC',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden',
-                    position: 'relative',
-                  }}>
-                    {rearPreview ? (
-                      <>
-                        <img 
-                          src={rearPreview} 
-                          alt="Ảnh đuôi xe" 
-                          style={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            objectFit: 'cover',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                          }} 
-                        />
-                        <button
-                          onClick={handleRemoveRearImage}
-                          style={{
-                            position: 'absolute',
-                            top: 8,
-                            right: 8,
-                            background: C.white,
-                            border: `1.5px solid ${C.red}`,
-                            borderRadius: '50%',
-                            width: 28,
-                            height: 28,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            zIndex: 10,
-                          }}
-                          title="Xóa ảnh"
-                        >
-                          <IconX size={14} color={C.red} />
-                        </button>
-                      </>
-                    ) : (
-                      <IconCamera size={36} color="#94A3B8" />
+            {/* ─── STEP 3: Lookup results ────────────────────────────────── */}
+            {lookupData && (
+              <div style={{ animation: 'fadeIn 0.2s ease' }}>
+                <Card
+                  title="Bước 3 · Kiểm tra thông tin xe"
+                  accent={vehicleTypeMismatch ? C.redBorder : lookupData.alreadyParked ? C.yellowBorder : C.greenBorder}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                    {/* Customer type badge */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <CustomerBadge type={customerTypeDisplay} />
+                      {vehicleTypeMismatch && (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          background: C.redBg, border: `1.5px solid ${C.redBorder}`,
+                          borderRadius: 16, padding: '0.2rem 0.6rem',
+                          fontSize: '0.7rem', fontWeight: 700, color: C.red,
+                        }}>
+                          <IconAlert size={11} color={C.red} /> Sai loại xe
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Already parked */}
+                    {lookupData.alreadyParked && (
+                      <AlertBanner type="error">
+                        Xe đang ở trong bãi — không thể check-in lần nữa.
+                      </AlertBanner>
                     )}
-                  </div>
-                  <div style={{ fontWeight: 700, color: C.gray800, fontSize: '0.82rem', textAlign: 'center' }}>
-                    Ảnh đuôi xe <br />
-                    <span style={{ fontSize: '0.7rem', color: C.gray500, fontWeight: 400 }}>(Bản xem trước tạm thời)</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-                    <button
-                      onClick={() => rearCameraInputRef.current?.click()}
-                      style={{
-                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                        border: `1.5px solid ${C.navy}`, background: rearPreview ? C.gray100 : C.navy, 
-                        color: rearPreview ? C.gray800 : C.white,
-                        fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      📷 Chụp ảnh
-                    </button>
-                    <button
-                      onClick={() => rearLibraryInputRef.current?.click()}
-                      style={{
-                        flex: 1, padding: '0.55rem 0.5rem', borderRadius: 8,
-                        border: `1.5px solid ${C.navy}`, background: rearPreview ? C.gray100 : C.white, 
-                        color: rearPreview ? C.gray800 : C.navy,
-                        fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      🖼️ Thư viện
-                    </button>
-                  </div>
-                  <input
-                    ref={rearCameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    style={{ display: 'none' }}
-                    onChange={handleRearCameraCapture}
-                  />
-                  <input
-                    ref={rearLibraryInputRef}
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={handleRearLibrarySelect}
-                  />
-                </div>
-              </div>
-            </Card>
 
-            {/* Step 4: Recognition result */}
-            <Card title="Bước 4 · Kết quả nhận diện">
-              {lookupData ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      background: lookupData.customerType === 'monthly' ? C.greenBg : '#EFF6FF',
-                      border: `1.5px solid ${lookupData.customerType === 'monthly' ? C.greenBorder : '#BFDBFE'}`,
-                      borderRadius: 20,
-                      padding: '0.3rem 0.75rem',
-                    }}>
-                      <IconCheck size={13} color={lookupData.customerType === 'monthly' ? C.green : C.navy} />
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: lookupData.customerType === 'monthly' ? '#15803D' : C.navy }}>
-                        {lookupData.customerType === 'monthly' ? 'KHÁCH THÁNG' : 'KHÁCH LẺ'}
-                      </span>
-                    </span>
-                    {lookupData.customerType === 'monthly' && lookupData.fixedSlot && (
-                      <span style={{
-                        background: '#EFF6FF',
-                        border: '1px solid #BFDBFE',
-                        borderRadius: 12,
-                        padding: '0.15rem 0.5rem',
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        color: C.navy,
+                    {/* Type mismatch */}
+                    {vehicleTypeMismatch && (
+                      <AlertBanner type="error">
+                        Loại xe được chọn không khớp với thông tin phương tiện đã đăng ký. Vui lòng chọn lại loại xe ở Bước 1.
+                      </AlertBanner>
+                    )}
+
+                    {/* Active booking info */}
+                    {lookupData.customerType === 'booking' && lookupData.activeBooking && !lookupData.alreadyParked && (
+                      <div style={{
+                        background: '#EFF6FF', border: '1.5px solid #BFDBFE',
+                        borderRadius: 12, padding: '0.85rem 1rem',
+                        display: 'flex', flexDirection: 'column', gap: 6,
                       }}>
-                        Cố định: {lookupData.fixedSlot}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{
-                    background: '#F0F4F8',
-                    border: '1px solid #D1D9E6',
-                    borderRadius: 10,
-                    padding: '0.7rem 0.85rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Biển số</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.navy, fontFamily: "'Consolas','Courier New',monospace" }}>{plateInput.trim().toUpperCase()}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Loại xe</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hãng / Mẫu</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'} {lookupData.model ? `/ ${lookupData.model}` : ''}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                      <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Màu / Năm</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'} {lookupData.year ? `/ ${lookupData.year}` : ''}</span>
-                    </div>
-                    {lookupData.seats != null && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                        <span style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Số chỗ</span>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.seats} chỗ</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Thông tin đặt chỗ
+                          </span>
+                        </div>
+                        <InfoRow label="Tầng / Khu vực" value={`${lookupData.activeBooking.floorName} (${lookupData.activeBooking.floorCode})`} valueColor={C.navy} />
+                        <InfoRow label="Đặt cọc đã trả" value={formatVND(lookupData.activeBooking.depositAmount)} valueColor={C.green} />
+                        <InfoRow label="Hiệu lực còn lại" value={timeUntil(lookupData.activeBooking.expiresAt)} valueColor={C.orange} />
+                        {lookupData.receivableCapacity != null && (
+                          <InfoRow label="Tầng còn nhận thêm" value={`${lookupData.receivableCapacity} xe`} />
+                        )}
+                        <AlertBanner type="success">
+                          Đặt chỗ hợp lệ. Khi vào bãi, khách tự chọn vị trí trống trong tầng được phân bổ.
+                        </AlertBanner>
                       </div>
                     )}
+
+                    {/* Monthly info */}
+                    {lookupData.customerType === 'monthly' && !lookupData.alreadyParked && (
+                      <div style={{
+                        background: C.greenBg, border: `1.5px solid ${C.greenBorder}`,
+                        borderRadius: 12, padding: '0.85rem 1rem',
+                        display: 'flex', flexDirection: 'column', gap: 4,
+                      }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Gói tháng
+                        </span>
+                        <InfoRow label="Hết hạn" value={expiryLabel} valueColor={lookupData.isExpired ? C.red : C.green} />
+                        {lookupData.allowedTier && <InfoRow label="Khu vực" value={`Khu ${lookupData.allowedTier === 'VIP' ? 'VIP' : lookupData.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`} valueColor={C.navy} />}
+                        {lookupData.isExpired
+                          ? <AlertBanner type="error">Gói tháng đã hết hạn. Vui lòng gia hạn hoặc thanh toán vãng lai.</AlertBanner>
+                          : <AlertBanner type="success">Khách tháng — không thu phí vào.</AlertBanner>
+                        }
+                      </div>
+                    )}
+
+                    {/* Casual */}
+                    {lookupData.customerType === 'casual' && !lookupData.alreadyParked && (
+                      <div style={{
+                        background: C.gray100, border: `1px solid ${C.gray200}`,
+                        borderRadius: 12, padding: '0.85rem 1rem',
+                      }}>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray800, lineHeight: 1.5 }}>
+                          Khách vãng lai. Phí gửi xe sẽ được tính theo thời gian khi ra bãi.<br />
+                          Khách tự chọn vị trí trống trong khu vực được phân bổ.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Vehicle details grid */}
+                    {lookupData.found && (
+                      <div style={{
+                        background: '#F8FAFC', border: `1px solid ${C.gray200}`,
+                        borderRadius: 10, padding: '0.75rem 0.9rem',
+                      }}>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.7rem', fontWeight: 800, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Thông tin phương tiện
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 1rem' }}>
+                          {[
+                            { k: 'Hãng', v: lookupData.brand },
+                            { k: 'Mẫu', v: lookupData.model },
+                            { k: 'Màu', v: lookupData.color },
+                            { k: 'Năm', v: lookupData.year?.toString() },
+                          ].map(({ k, v }) => (
+                            <div key={k}>
+                              <span style={{ fontSize: '0.62rem', color: '#9CA3AF' }}>{k}</span>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: C.navy }}>{v ?? '—'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Owner info */}
+                    {lookupData.found && (lookupData.ownerName || lookupData.ownerPhone) && (
+                      <div style={{
+                        background: '#F8FAFC', border: `1px solid ${C.gray200}`,
+                        borderRadius: 10, padding: '0.75rem 0.9rem',
+                      }}>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.7rem', fontWeight: 800, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Chủ xe
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 1rem' }}>
+                          <div>
+                            <span style={{ fontSize: '0.62rem', color: '#9CA3AF' }}>Họ tên</span>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: C.navy }}>{lookupData.ownerName ?? '—'}</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.62rem', color: '#9CA3AF' }}>SĐT</span>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: C.navy }}>{lookupData.ownerPhone ?? '—'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                   </div>
-                  <OwnerInfoCard data={lookupData} />
-                </div>
-              ) : (
+                </Card>
+              </div>
+            )}
+
+          </div>
+
+          {/* ══ RIGHT — Sticky summary ══════════════════════════════════════ */}
+          <div style={{ position: 'sticky', top: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Summary card */}
+            <Card title="Tóm tắt check-in" style={{ minHeight: 300 }}>
+              <div>
+                {summaryRows.map((r) => (
+                  <InfoRow key={r.label} label={r.label} value={r.value} valueColor={r.valueColor} />
+                ))}
+              </div>
+
+              {/* Capacity notice */}
+              {lookupData?.receivableCapacity != null && (
                 <div style={{
-                  border: `2px dashed ${C.gray200}`,
-                  borderRadius: 14,
-                  padding: '1.25rem',
-                  textAlign: 'center',
-                  background: '#FAFBFF',
+                  marginTop: 10,
+                  background: '#EFF6FF', border: '1px solid #BFDBFE',
+                  borderRadius: 8, padding: '0.45rem 0.7rem',
+                  display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>Chưa có kết quả nhận diện</p>
-                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
-                    Biển số sẽ hiển thị tại đây sau khi tính năng camera và nhận diện được kết nối.
-                  </p>
+                  <span style={{ fontSize: '0.72rem', color: C.navy }}>
+                    🅿️ Tầng còn nhận thêm: <strong>{lookupData.receivableCapacity} xe</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Instruction */}
+              {lookupData && !lookupData.alreadyParked && !vehicleTypeMismatch && (
+                <div style={{ marginTop: 12 }}>
+                  <AlertBanner type="info">
+                    Khách tự chọn vị trí trống trong khu vực được phân bổ sau khi vào bãi.
+                  </AlertBanner>
                 </div>
               )}
             </Card>
 
-          </div>
-
-          {/* ══ RIGHT — Information & Actions ══════════════════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-            {/* Parking area info */}
-            <Card title="Hệ thống ghi nhận khu vực đỗ">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>
-                  Chưa xác định khu vực
-                </p>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
-                  Khu vực phù hợp sẽ hiển thị sau khi xác nhận loại xe và hoàn tất nhận diện biển số.
-                </p>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
-                  Khách sẽ đỗ tự do trong khu vực được phân bổ. Hệ thống không gán cố định từng ô.
-                </p>
-              </div>
-            </Card>
-
-            {/* Check-in summary */}
-            <Card title="Tóm tắt check-in">
-              <div>
-                {[
-                  { label: 'Biển số', value: plateInput.trim() || 'Chưa xác định' },
-                  { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
-                  { label: 'Nguồn nhận diện', value: lookupData ? 'Tra cứu hệ thống' : 'Chưa kết nối' },
-                  { label: 'Loại khách', value: lookupData
-                    ? (lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ')
-                    : 'Chưa xác định'
-                  },
-                  { label: 'Tầng / Khu vực', value: 'Chưa xác định' },
-                  { label: 'Hình thức đỗ', value: 'Tự do trong khu vực' },
-                  { label: 'Giờ vào dự kiến', value: 'Chưa xác định' },
-                ].map((r) => <InfoRow key={r.label} {...r} />)}
-              </div>
-            </Card>
-
-            {/* Monthly valid state */}
-            {pageState === 'monthly_valid' && lookupData && (
-              <Card title="Thông tin khách tháng">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: C.greenBg,
-                    border: `1.5px solid ${C.greenBorder}`,
-                    borderRadius: 20,
-                    padding: '0.3rem 0.75rem',
-                    width: 'fit-content',
-                  }}>
-                    <IconCheck size={13} color={C.green} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803D' }}>
-                      KHÁCH THÁNG · Còn hạn
-                    </span>
-                  </div>
-                  <div>
-                    {[
-                      { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
-                      { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.green },
-                      ...(lookupData.fixedSlot ? [{ label: 'Slot cố định', value: `${lookupData.fixedSlot} (cố định)`, valueColor: C.navy }] : []),
-                      { label: 'Giờ vào', value: 'Chưa xác định' },
-                    ].map((r) => <InfoRow key={r.label} {...r} />)}
-                  </div>
-                  <AlertBanner type="success">
-                    Khách tháng — không thu phí vào.
-                  </AlertBanner>
-                  <div>
-                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Loại xe (khóa)
-                    </p>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {(
-                        [
-                          { value: 'CAR', label: 'Ô tô', Icon: IconCar },
-                          { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
-                        ] as const
-                      ).map(({ value, label, Icon }) => {
-                        const active = lookupData.vehicleType === value;
-                        return (
-                          <div key={value} style={{
-                            flex: 1, padding: '0.55rem 0.75rem', borderRadius: 10,
-                            border: `1.5px solid ${active ? C.navy : C.border}`,
-                            background: active ? C.navy : C.white,
-                            color: active ? '#fff' : C.gray800,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            fontSize: '0.8rem', fontWeight: 700, opacity: active ? 1 : 0.6,
-                          }}>
-                            <Icon size={14} />
-                            {label}
-                            {active && <IconLock size={12} color={active ? '#fff' : '#94A3B8'} />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {lookupData.fixedSlot && (
-                    <div>
-                      <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Vị trí
-                      </p>
-                      <div style={{
-                        padding: '0.6rem 0.85rem',
-                        background: '#EFF6FF',
-                        border: '1.5px solid #BFDBFE',
-                        borderRadius: 10,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}>
-                        <IconLock size={13} color={C.navy} />
-                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>
-                          {lookupData.fixedSlot} — Cố định
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
-
-            {/* Monthly expired state */}
-            {pageState === 'monthly_expired' && lookupData && (
-              <Card title="Thông tin khách tháng">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <AlertBanner type="error">
-                    Gói tháng hết hạn (ngày {expiryLabel}). Slot cố định tạm khóa.
-                  </AlertBanner>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: C.redBg,
-                    border: `1.5px solid ${C.redBorder}`,
-                    borderRadius: 20,
-                    padding: '0.3rem 0.75rem',
-                    width: 'fit-content',
-                  }}>
-                    <IconX size={13} color={C.red} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.red }}>
-                      ĐÃ HẾT HẠN
-                    </span>
-                  </div>
-                  <div>
-                    {[
-                      { label: 'Loại xe', value: vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy' },
-                      { label: 'Ngày hết hạn', value: expiryLabel, valueColor: C.red },
-                      { label: 'Giờ vào', value: 'Chưa xác định' },
-                    ].map((r) => <InfoRow key={r.label} {...r} />)}
-                  </div>
-                  <div>
-                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Loại xe (khóa)
-                    </p>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {(
-                        [
-                          { value: 'CAR', label: 'Ô tô', Icon: IconCar },
-                          { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
-                        ] as const
-                      ).map(({ value, label, Icon }) => {
-                        const active = lookupData.vehicleType === value;
-                        return (
-                          <div key={value} style={{
-                            flex: 1, padding: '0.55rem 0.75rem', borderRadius: 10,
-                            border: `1.5px solid ${active ? C.navy : C.border}`,
-                            background: active ? C.navy : C.white,
-                            color: active ? '#fff' : C.gray800,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            fontSize: '0.8rem', fontWeight: 700, opacity: active ? 1 : 0.6,
-                          }}>
-                            <Icon size={14} />
-                            {label}
-                            {active && <IconLock size={12} color={active ? '#fff' : '#94A3B8'} />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* Casual state */}
-            {pageState === 'casual' && (
-              <Card title="Thông tin khách lẻ">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: '#EFF6FF',
-                    border: '1.5px solid #BFDBFE',
-                    borderRadius: 20,
-                    padding: '0.3rem 0.75rem',
-                    width: 'fit-content',
-                  }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.navy }}>KHÁCH LẺ</span>
-                  </div>
-
-                  {/* Vehicle type toggle (enabled) */}
-                  <div>
-                    <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Loại xe
-                    </p>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {(
-                        [
-                          { value: 'CAR', label: 'Ô tô', Icon: IconCar },
-                          { value: 'MOTORBIKE', label: 'Xe máy', Icon: IconMoto },
-                        ] as const
-                      ).map(({ value, label, Icon }) => {
-                        const active = vehicleType === value;
-                        return (
-                          <button
-                            key={value}
-                            onClick={() => { setVehicleType(value); setSelectedSlot(null); }}
-                            style={{
-                              flex: 1, padding: '0.55rem 0.75rem', borderRadius: 10,
-                              border: `2px solid ${active ? C.navy : C.border}`,
-                              background: active ? C.navy : C.white,
-                              color: active ? '#fff' : C.gray800,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                              fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
-                            }}
-                          >
-                            <Icon size={14} />
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* MOTORBIKE: auto-assign, no slot grid */}
-                  {vehicleType === 'MOTORBIKE' ? (
-                    <>
-                      <div style={{
-                        padding: '0.65rem 0.9rem',
-                        background: '#F0FDF4',
-                        border: '1.5px solid #BBF7D0',
-                        borderRadius: 10,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}>
-                        <IconMoto size={14} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.navy }}>
-                          Đỗ tự do trong khu vực
-                        </span>
-                      </div>
-                      <div>
-                        {[{ label: 'Giờ vào', value: 'Chưa xác định' }].map((r) => <InfoRow key={r.label} {...r} />)}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Slot selector — car casual */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Vị trí đỗ
-                          </p>
-                          {availableSlots.find((s) => s.suggested) && (
-                            <span style={{
-                              background: '#EFF6FF',
-                              border: '1px solid #BFDBFE',
-                              borderRadius: 12,
-                              padding: '0.15rem 0.5rem',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              color: C.navy,
-                            }}>
-                              Gợi ý: {availableSlots.find((s) => s.suggested)?.code}
-                            </span>
-                          )}
-                        </div>
-                        <SlotChipRow
-                          slots={availableSlots}
-                          selectedCode={selectedSlot}
-                          onSelect={setSelectedSlot}
-                        />
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '0.72rem', color: C.gray400 }}>
-                          Khách đỗ tại vị trí trống bất kỳ trong khu vực phân bổ.
-                        </p>
-                      </div>
-
-                      {/* Info rows */}
-                      <div>
-                        {[
-                          ...(selectedSlot ? [{ label: 'Vị trí', value: selectedSlot, valueColor: C.navy }] : []),
-                          { label: 'Giờ vào', value: 'Chưa xác định' },
-                        ].map((r) => <InfoRow key={r.label} {...r} />)}
-                      </div>
-                    </>
-                  )}
-
-                </div>
-              </Card>
-            )}
-
-            {/* IDLE */}
-            {pageState === 'idle' && (
-              <Card title="Thông tin tra cứu">
-                <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: C.gray400 }}>
-                    Tra cứu biển số để bắt đầu check-in
-                  </p>
-                </div>
-              </Card>
-            )}
-
-          </div>
-        </div>
-
-        {/* ══ ACTION BUTTONS (below two-column) ═══════════ */}
-        {(pageState === 'monthly_valid' || pageState === 'monthly_expired' || pageState === 'casual') && (
-          <div style={{
-            marginTop: '1.25rem',
-            display: 'flex',
-            gap: '0.75rem',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-          }}>
-            {/* Primary confirm button */}
+            {/* Confirm button */}
             <button
+              id="confirm-checkin-btn"
               onClick={handleSubmit}
-              disabled={isConfirmDisabled || submitting}
+              disabled={!canConfirm}
               style={{
-                padding: '0.75rem 1.5rem',
-                background: !isConfirmDisabled ? C.navy : '#E5E7EB',
-                color: !isConfirmDisabled ? C.white : '#9CA3AF',
+                width: '100%',
+                padding: '0.9rem 1.5rem',
+                background: canConfirm ? C.navy : '#E5E7EB',
+                color: canConfirm ? C.white : '#9CA3AF',
                 border: 'none',
-                borderRadius: 12,
-                fontSize: '0.9rem',
+                borderRadius: 14,
+                fontSize: '0.95rem',
                 fontWeight: 700,
-                cursor: !isConfirmDisabled ? 'pointer' : 'not-allowed',
-                boxShadow: !isConfirmDisabled ? '0 4px 14px rgba(30,58,95,0.25)' : 'none',
+                cursor: canConfirm ? 'pointer' : 'not-allowed',
+                boxShadow: canConfirm ? '0 4px 14px rgba(30,58,95,0.25)' : 'none',
                 transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
-              {submitting ? 'Đang xử lý...' : 'Xác nhận check-in'}
+              {submitting ? 'Đang xử lý…' : (
+                <>
+                  <IconCheck size={16} color={canConfirm ? '#fff' : '#9CA3AF'} />
+                  Xác nhận xe vào bãi
+                </>
+              )}
             </button>
 
-            {/* Expired-specific: convert to casual */}
-            {pageState === 'monthly_expired' && (
-              <button
-                onClick={handleConvertToCasual}
-                style={{
-                  padding: '0.75rem 1.25rem',
-                  background: C.yellowBg,
-                  color: '#92400E',
-                  border: `1.5px solid ${C.yellowBorder}`,
-                  borderRadius: 12,
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Chuyển sang khách lẻ & cho vào
-              </button>
-            )}
-
-            {/* Secondary actions */}
-            {pageState === 'monthly_expired' && (
-              <button
-                onClick={() => { }}
-                style={{
-                  padding: '0.75rem 1.25rem',
-                  background: C.white,
-                  color: C.navy,
-                  border: `1.5px solid ${C.gray200}`,
-                  borderRadius: 12,
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Hướng dẫn gia hạn gói
-              </button>
-            )}
-
-            {/* Refresh */}
+            {/* Reset button */}
             <button
+              id="reset-checkin-btn"
               onClick={handleReset}
               style={{
-                padding: '0.75rem 1.25rem',
+                width: '100%',
+                padding: '0.65rem 1.25rem',
                 background: C.white,
                 color: C.gray500,
                 border: `1.5px solid ${C.gray200}`,
@@ -1772,209 +1395,42 @@ export function CheckInPage() {
                 fontSize: '0.85rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
-              <IconRefresh size={16} />
-              Làm mới
+              <IconRefresh size={15} />
+              Làm mới / Check-in xe mới
             </button>
-          </div>
-        )}
 
-        {/* ══ SEARCH ROW (always visible) ══════════════════ */}
-        <Card title="Nhận diện biển số">
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-            <input
-              type="text"
-              value={plateInput}
-              onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setApiError(''); setPlateError(''); }}
-              onBlur={handleBlur}
-              onKeyDown={handleKeyDown}
-              placeholder="VD: 51A-11111"
-              disabled={searching}
-              style={{
-                flex: 1,
-                minWidth: 200,
-                padding: '0.65rem 0.85rem',
-                border: `1.5px solid ${plateError ? C.redBorder : C.border}`,
-                borderRadius: 10,
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                fontFamily: "'Consolas','Courier New',monospace",
-                color: C.gray800,
-                background: C.white,
-                outline: 'none',
-                boxSizing: 'border-box',
-                letterSpacing: '0.04em',
-              }}
-            />
-            {plateError && (
-              <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: C.red }}>
-                {plateError}
+            {/* Quick nav hint */}
+            <div style={{
+              background: C.gray50, border: `1px solid ${C.gray200}`,
+              borderRadius: 10, padding: '0.7rem 0.85rem',
+            }}>
+              <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Quy trình
               </p>
-            )}
-            <button
-              onClick={handleSearch}
-              disabled={!isPlateValid(plateInput, vehicleType) || searching}
-              style={{
-                padding: '0.65rem 1rem',
-                background: isPlateValid(plateInput, vehicleType) && !searching ? C.navy : '#E5E7EB',
-                color: isPlateValid(plateInput, vehicleType) && !searching ? C.white : '#9CA3AF',
-                border: 'none',
-                borderRadius: 10,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: isPlateValid(plateInput, vehicleType) && !searching ? 'pointer' : 'not-allowed',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s',
-              }}
-            >
-              {searching ? 'Đang tra...' : <><IconSearch size={14} />Tra cứu</>}
-            </button>
-          </div>
-
-          {/* Plate display box */}
-          <div style={{
-            border: `2px dashed ${C.gray200}`,
-            borderRadius: 12,
-            padding: '1rem 1.25rem',
-            background: '#FAFBFF',
-            textAlign: 'center',
-            minHeight: 70,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            flexDirection: 'column',
-          }}>
-            {lookupData ? (
-              <>
-                <p style={{
-                  margin: 0,
-                  fontSize: '1.4rem',
-                  fontWeight: 800,
-                  fontFamily: "'Consolas','Courier New',monospace",
-                  color: C.navy,
-                  letterSpacing: '0.06em',
-                }}>
-                  {plateInput.trim().toUpperCase()}
-                </p>
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
-                  {vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy'} · {lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách lẻ'}
-                  {lookupData.customerType === 'monthly' && lookupData.fixedSlot ? ` · Cố định: ${lookupData.fixedSlot}` : ''}
-                </p>
-                <div style={{
-                  background: '#F0F4F8',
-                  border: '1px solid #D1D9E6',
-                  borderRadius: 10,
-                  padding: '0.7rem 0.85rem',
-                  marginTop: '0.6rem',
-                }}>
-                  <p style={{ margin: '0 0 0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Thông tin xe
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 0.7rem' }}>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Hãng</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.brand ?? '—'}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Mẫu</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.model ?? '—'}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Màu</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.color ?? '—'}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Năm</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.year ?? '—'}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.65rem', color: '#9CA3AF' }}>Số chỗ</span>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0B2F6B' }}>{lookupData.seats != null ? `${lookupData.seats} chỗ` : '—'}</div>
-                    </div>
+              {STEP_LABELS.map((label, i) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.2rem 0' }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: i + 1 < workflowStep ? C.navy : i + 1 === workflowStep ? C.activeBlue : C.gray200,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    {i + 1 < workflowStep
+                      ? <IconCheck size={10} color="#fff" />
+                      : <span style={{ fontSize: '0.55rem', fontWeight: 800, color: i + 1 === workflowStep ? '#fff' : C.gray400 }}>{i + 1}</span>
+                    }
                   </div>
+                  <span style={{ fontSize: '0.72rem', color: i + 1 === workflowStep ? C.navy : C.gray400, fontWeight: i + 1 === workflowStep ? 700 : 400 }}>
+                    {label}
+                  </span>
+                  {i + 1 === workflowStep && <IconChevronRight size={12} color={C.activeBlue} />}
                 </div>
-
-                {/* Show owner info card for found customers */}
-                <div style={{ width: '100%', marginTop: '0.75rem' }}>
-                  <OwnerInfoCard data={lookupData} />
-                </div>
-              </>
-            ) : (
-              <p style={{ margin: 0, fontSize: '0.82rem', color: '#94A3B8' }}>
-                Nhập biển số và nhấn Tra cứu
-              </p>
-            )}
-          </div>
-        </Card>
-
-        {/* ══ FOOTER STAT TILES ══════════════════════════ */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '1rem',
-          marginTop: '1.5rem',
-        }}>
-          {[
-            {
-              label: 'Sức chứa hiện tại',
-              value: stats ? `${stats.capacityUsed}/${stats.capacityTotal}` : '—',
-              sub: 'xe trong bãi',
-              icon: <IconGrid size={16} color={C.navy} />,
-              bg: '#EFF6FF',
-              border: '#BFDBFE',
-            },
-            {
-              label: 'Lượt khách tháng hôm nay',
-              value: stats ? String(stats.monthlyToday) : '—',
-              sub: 'xe',
-              icon: <IconUsers size={16} color={C.navy} />,
-              bg: '#F0FDF4',
-              border: '#BBF7D0',
-            },
-          ].map((tile) => (
-            <div
-              key={tile.label}
-              style={{
-                background: tile.bg,
-                border: `1.5px solid ${tile.border}`,
-                borderRadius: 14,
-                padding: '1rem 1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-              }}
-            >
-              <div style={{
-                width: 40, height: 40,
-                background: C.white,
-                borderRadius: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                boxShadow: '0 2px 8px rgba(30,58,95,0.06)',
-              }}>
-                {tile.icon}
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.gray500 }}>
-                  {tile.label}
-                </p>
-                <p style={{ margin: '0.1rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: C.navy, lineHeight: 1.2 }}>
-                  {tile.value}
-                </p>
-                <p style={{ margin: 0, fontSize: '0.72rem', color: C.gray500 }}>{tile.sub}</p>
-              </div>
+              ))}
             </div>
-          ))}
+
+          </div>
         </div>
 
       </main>

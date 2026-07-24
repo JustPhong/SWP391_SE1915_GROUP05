@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
-import { checkoutLookupPlate, submitLostTicket } from '../api/checkoutApi';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { 
+  checkoutLookupPlate,
+  createCheckoutStripeSession,
+  getCheckoutStripeStatusBySession
+} from '../api/checkoutApi';
 import type { CheckInRecord } from '../types/index';
 
 // ── Types ────────────────────────────────────────────────
 interface ActiveRecord {
   id: string;
   vehicleId: string;
-  slotId: string;
+  slotId: string | null;
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
@@ -21,7 +26,10 @@ interface ActiveRecord {
     year?: number | null;
     seats?: number | null;
   };
-  slot?: { code: string; floor: number };
+  slot?: { code: string; floor: number } | null;
+  floor?: { id: number; name: string; floorCode: string } | null;
+  allowedTier?: string | null;
+  bookingId?: string | null;
 }
 
 interface FeePreview {
@@ -40,11 +48,14 @@ interface FeePreview {
     label: string;
     minutesInBlock: number;
     lots: number;
-    lotHours: number;
+    lotHours?: number;
     rate: number;
     amount: number;
     note?: string;
   }[];
+  baseParkingFee?: number;
+  bookingDepositApplied?: number;
+  discountAmount?: number;
 }
 
 interface CheckOutResponse {
@@ -55,31 +66,31 @@ interface CheckOutResponse {
   note?: string;
   fee?: number;
   depositCredit?: number;
+  isMonthly: boolean;
   breakdown?: {
     label: string;
     minutesInBlock: number;
     lots: number;
-    lotHours: number;
+    lotHours?: number;
     rate: number;
     amount: number;
     note?: string;
   }[];
+  plate: string;
+  slotCode?: string;
+  checkInTime: string;
+  checkOutTime: string;
+  durationMinutes?: number;
+  floorName?: string;
+  floorCode?: string;
+  paymentMethod?: string;
+  grossParkingFee?: number;
+  bookingDepositPaid?: number;
+  bookingId?: string | null;
 }
 
-interface ConfirmState {
-  record: ActiveRecord;
-  feePreview: FeePreview;
-  paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
-}
 
-interface LostTicketState {
-  record: ActiveRecord;
-  preview: FeePreview | null;
-  loading: boolean;
-  error: string;
-  result: CheckOutResponse | null;
-  isMonthly: boolean;
-}
+
 
 // ── Design tokens ────────────────────────────────────────
 const C = {
@@ -102,11 +113,28 @@ const C = {
   radius: 18,
 };
 
-// ── Icons ────────────────────────────────────────────────
-function IconCheck({ size = 15, color = C.green }: { size?: number; color?: string }) {
+function IconCheck({
+  size = 20,
+  color = 'currentColor',
+}: {
+  size?: number;
+  color?: string;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M5 12.5l4.2 4.2L19 7"
+        stroke={color}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -125,10 +153,6 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
 }
 
-function now(): string {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 function formatDateTime(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return '';
@@ -137,55 +161,70 @@ function formatDateTime(dateInput: string | Date | null | undefined): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function FeeBreakdownCard({
-  fee,
-  breakdown,
-  depositCredit,
-  total,
-  navy,
-}: {
-  fee: number;
-  breakdown?: FeePreview['breakdown'];
-  depositCredit?: number;
-  total?: number;
-  navy?: string;
-}) {
-  if (!breakdown || breakdown.length === 0) return null;
-  const displayTotal = total ?? fee;
-  return (
-    <>
-      <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Chi tiết phí
-      </p>
-      {breakdown.map((block, i) => (
-        <div key={i} style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          padding: '0.35rem 0',
-          borderBottom: i < breakdown.length - 1 ? `1px solid ${C.gray100}` : 'none',
-        }}>
-          <div>
-            <span style={{ fontSize: '0.82rem', color: C.gray800 }}>{block.label}</span>
-            <span style={{ display: 'block', fontSize: '0.7rem', color: C.gray400 }}>
-              {block.note ?? `${block.lots} × ${block.lotHours}h × ${formatCurrency(block.rate)}`}
-            </span>
-          </div>
-          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>{formatCurrency(block.amount)}</span>
-        </div>
-      ))}
-      {depositCredit !== undefined && depositCredit > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.45rem 0' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: C.green }}>Trừ tiền cọc đặt chỗ</span>
-          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: C.green }}>− {formatCurrency(depositCredit)}</span>
-        </div>
-      )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderTop: `2px solid ${C.gray200}`, marginTop: '0.25rem' }}>
-        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: navy ?? C.navy }}>Tổng cộng</span>
-        <span style={{ fontSize: '1rem', fontWeight: 800, color: C.red }}>{formatCurrency(displayTotal)}</span>
-      </div>
-    </>
-  );
+function formatFloorLocation(
+  floor: { name?: string | null; floorCode?: string | null } | null | undefined,
+  slot: { code: string; floor: number } | null | undefined,
+  allowedTier?: string | null
+): string {
+  let label = '';
+  if (floor) {
+    const name = floor.name ? floor.name.trim() : '';
+    const code = floor.floorCode ? floor.floorCode.trim() : '';
+    if (name && code) {
+      if (name.toLowerCase().endsWith(code.toLowerCase()) || name.toLowerCase().includes(`tầng ${code.toLowerCase()}`)) {
+        label = name;
+      } else {
+        label = `${name} (${code})`;
+      }
+    } else if (name) {
+      label = name;
+    } else if (code) {
+      label = `Tầng ${code}`;
+    }
+  } else if (slot?.floor != null) {
+    label = `Tầng ${slot.floor}`;
+  } else {
+    label = 'Không cố định';
+  }
+
+  if (allowedTier) {
+    const tierLabel = allowedTier === 'VIP' ? 'VIP' : allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản';
+    label += ` · Khu ${tierLabel}`;
+  }
+  return label;
 }
+
+function formatReceiptLocation(
+  floorName?: string | null,
+  floorCode?: string | null,
+  slotCode?: string | null
+): string {
+  let label = '';
+  const name = floorName ? floorName.trim() : '';
+  const code = floorCode ? floorCode.trim() : '';
+  if (name && code) {
+    if (name.toLowerCase().endsWith(code.toLowerCase()) || name.toLowerCase().includes(`tầng ${code.toLowerCase()}`)) {
+      label = name;
+    } else {
+      label = `${name} (${code})`;
+    }
+  } else if (name) {
+    label = name;
+  } else if (code) {
+    label = `Tầng ${code}`;
+  } else {
+    label = 'Không cố định';
+  }
+
+  if (slotCode?.startsWith('Khu ')) {
+    label += ` · ${slotCode}`;
+  } else if (slotCode && slotCode !== 'Không cố định') {
+    label += ` · Vị trí ${slotCode}`;
+  }
+  return label;
+}
+
+
 
 // ── Main component ───────────────────────────────────────
 export function CheckOutPage() {
@@ -196,15 +235,19 @@ export function CheckOutPage() {
   const [feePreview, setFeePreview] = useState<FeePreview | null>(null);
   const [allRecords, setAllRecords] = useState<ActiveRecord[]>([]);
   const [loadingAll, setLoadingAll] = useState(true);
-  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutResult, setCheckoutResult] = useState<CheckOutResponse | null>(null);
   const [ownerInfo, setOwnerInfo] = useState<{ name: string | null; phone: string | null; email: string | null } | null>(null);
   const autoSearchRan = useRef(false);
   const [searchParams] = useSearchParams();
-  const [lostTicketState, setLostTicketState] = useState<LostTicketState | null>(null);
-  const [lostTicketReason, setLostTicketReason] = useState('');
+  
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  type CheckoutPaymentOption = 'CASH' | 'STRIPE_CARD';
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState<CheckoutPaymentOption>('CASH');
+  const [stripeStatus, setStripeStatus] = useState<'NONE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'>('NONE');
+  const [isFeeBreakdownOpen, setIsFeeBreakdownOpen] = useState(false);
 
   // ── Load all active records (sidebar table) ───────────
   const [loadError, setLoadError] = useState('');
@@ -218,7 +261,7 @@ export function CheckOutPage() {
       const mapped: ActiveRecord[] = raw.map((r) => ({
         id: r.id,
         vehicleId: r.vehicleId,
-        slotId: r.slotId,
+        slotId: r.slotId ?? null,
         checkInTime: r.checkInTime,
         checkOutTime: r.checkOutTime,
         isMonthly: r.isMonthly ?? false,
@@ -231,7 +274,10 @@ export function CheckOutPage() {
           year: r.vehicle.year,
           seats: r.vehicle.seats,
         } : undefined,
-        slot: r.slot ? { code: r.slot.code, floor: r.slot.floorId } : undefined,
+        slot: r.slot ? { code: r.slot.code, floor: r.slot.floorId } : null,
+        floor: r.floor ? { id: r.floor.id, name: r.floor.name, floorCode: r.floor.floorCode } : null,
+        allowedTier: r.allowedTier,
+        bookingId: r.bookingId,
       }));
       setAllRecords(mapped);
     } catch (err: unknown) {
@@ -246,6 +292,97 @@ export function CheckOutPage() {
   };
 
   useEffect(() => { loadAllRecords(); }, []);
+
+  useRefreshOnFocus({ enabled: true, onRefresh: loadAllRecords });
+
+  // ── Stripe success polling / cancel state restoration ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeParam = params.get('stripe');
+    const sessionId = params.get('session_id');
+
+    if (stripeParam === 'success' && sessionId) {
+      setStripeStatus('CHECKING');
+      setCheckoutLoading(true);
+      let attempts = 0;
+      const maxAttempts = 15;
+
+      const interval = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await getCheckoutStripeStatusBySession(sessionId);
+          if (res.status === 'SUCCESS' && res.receipt) {
+            clearInterval(interval);
+            const checkoutRes: CheckOutResponse = {
+              recordId: sessionId,
+              paymentRequired: true,
+              amountDue: res.receipt.amountDue,
+              fee: res.receipt.fee,
+              isMonthly: res.receipt.isMonthly,
+              plate: res.receipt.plate,
+              slotCode: res.receipt.slotCode ?? undefined,
+              checkInTime: res.receipt.checkInTime,
+              checkOutTime: res.receipt.checkOutTime,
+              durationMinutes: res.receipt.durationMinutes,
+              floorName: res.receipt.floorName,
+              floorCode: res.receipt.floorCode,
+              paymentMethod: 'CARD',
+              grossParkingFee: res.receipt.grossParkingFee,
+              bookingDepositPaid: res.receipt.bookingDepositPaid,
+            };
+            setCheckoutResult(checkoutRes);
+            setStripeStatus('SUCCESS');
+            setIsFeeBreakdownOpen(false);
+            setCheckoutLoading(false);
+            localStorage.removeItem('checkout_cancelled_record');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            loadAllRecords();
+          } else if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            setStripeStatus('FAILED');
+            setCheckoutLoading(false);
+            setCheckoutError('Xác nhận thanh toán từ Stripe quá lâu. Vui lòng kiểm tra lại trạng thái.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (err: unknown) {
+          if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            setStripeStatus('FAILED');
+            setCheckoutLoading(false);
+            const msg = err instanceof Error ? err.message : 'Xác nhận thanh toán thất bại.';
+            setCheckoutError(msg);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      }, 2000);
+
+      return () => clearInterval(interval);
+    } else if (stripeParam === 'cancelled') {
+      setStripeStatus('CANCELLED');
+      setCheckoutError('Thanh toán đã được hủy. Xe chưa được check-out.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      const saved = localStorage.getItem('checkout_cancelled_record');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.record) {
+            setFoundRecord(parsed.record);
+            if (parsed.record.vehicle) {
+              setPlateInput(parsed.record.vehicle.plateNumber);
+            }
+            fetchFeePreview(parsed.record.id).then(setFeePreview);
+            if (parsed.ownerInfo) {
+              setOwnerInfo(parsed.ownerInfo);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse cancelled record', e);
+        }
+        localStorage.removeItem('checkout_cancelled_record');
+      }
+    }
+  }, []);
 
   // ── Fetch fee preview from backend ───────────────────
   const fetchFeePreview = async (recordId: string): Promise<FeePreview | null> => {
@@ -271,6 +408,7 @@ export function CheckOutPage() {
   // ── Search ─────────────────────────────────────────────
   const performSearch = async (plate: string) => {
     if (!plate) return;
+    setIsFeeBreakdownOpen(false);
     setSearching(true);
     setSearchError('');
     setFoundRecord(null);
@@ -280,20 +418,24 @@ export function CheckOutPage() {
     try {
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
       const raw: CheckInRecord[] = res.data.data ?? [];
-      const matched = raw.find(
-        (r) => r.vehicle?.plateNumber?.toUpperCase() === plate.toUpperCase()
-      );
+      const cleanInput = plate.trim().replace(/[-.\s]/g, '').toUpperCase();
+
+      const matched = raw.find((r) => {
+        const p = (r.vehicle?.plateNumber || '').trim().replace(/[-.\s]/g, '').toUpperCase();
+        return p === cleanInput;
+      });
+
       if (!matched) {
-        setSearchError(`Xe "${plate}" không có trong bãi đỗ.`);
+        setSearchError('Không tìm thấy xe đang ở trong bãi.');
         setSearching(false);
-        setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
         return;
       }
+
       const matchedVehicle = matched.vehicle as ActiveRecord['vehicle'] | undefined;
       const mapped: ActiveRecord = {
         id: matched.id,
         vehicleId: matched.vehicleId,
-        slotId: matched.slotId,
+        slotId: matched.slotId ?? null,
         checkInTime: matched.checkInTime,
         checkOutTime: matched.checkOutTime,
         isMonthly: matched.isMonthly ?? false,
@@ -306,7 +448,10 @@ export function CheckOutPage() {
           year: matchedVehicle.year,
           seats: matchedVehicle.seats,
         } : undefined,
-        slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : undefined,
+        slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : null,
+        floor: matched.floor ? { id: matched.floor.id, name: matched.floor.name, floorCode: matched.floor.floorCode } : null,
+        allowedTier: matched.allowedTier,
+        bookingId: matched.bookingId,
       };
       setFoundRecord(mapped);
 
@@ -334,14 +479,17 @@ export function CheckOutPage() {
           setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
         }
       } catch {
-        // ignore lookup errors, fee preview is the primary data
+        setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
       }
 
       // Fetch fee preview from backend
       const preview = await fetchFeePreview(mapped.id);
       setFeePreview(preview);
-    } catch {
-      setSearchError('Không thể tra cứu. Vui lòng thử lại.');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Không thể tra cứu. Vui lòng thử lại.';
+      setSearchError(msg);
     } finally {
       setSearching(false);
     }
@@ -353,29 +501,31 @@ export function CheckOutPage() {
     if (e.key === 'Enter') performSearch(plateInput.trim());
   };
 
-  // ── Open confirm modal ─────────────────────────────────
-  const openConfirm = (record: ActiveRecord, preview: FeePreview | null) => {
-    if (!preview) return;
-    setConfirmState({ record, feePreview: preview, paymentMethod: 'CASH' });
-  };
 
-  // ── Submit check-out ───────────────────────────────────
+
+  // ── Submit check-out (for zero amount due or monthly packages) ──
   const handleConfirm = async () => {
-    if (!confirmState) return;
+    if (!foundRecord) return;
     setCheckoutError('');
     setCheckoutLoading(true);
     try {
       const res = await api.post('/checkin-out/out', {
-        checkInRecordId: confirmState.record.id,
-        paymentMethod: confirmState.paymentMethod,
+        checkInRecordId: foundRecord.id,
+        paymentMethod: 'CASH',
       });
       const resultData = res.data.data ?? res.data;
-      setCheckoutResult(resultData);
-      setConfirmState(null);
+      const checkoutRes: CheckOutResponse = {
+        ...resultData,
+        recordId: foundRecord.id,
+        paymentRequired: false,
+        bookingId: foundRecord.bookingId,
+      };
+      setCheckoutResult(checkoutRes);
       setFoundRecord(null);
       setFeePreview(null);
       setOwnerInfo(null);
       setPlateInput('');
+      setIsFeeBreakdownOpen(false);
       loadAllRecords();
     } catch (err: unknown) {
       const msg =
@@ -387,16 +537,72 @@ export function CheckOutPage() {
     }
   };
 
+  const handleExecutePayment = async () => {
+    if (!foundRecord || !feePreview) return;
+
+    if (selectedPaymentOption === 'CASH') {
+      setCheckoutError('');
+      setCheckoutLoading(true);
+      try {
+        const res = await api.post('/checkin-out/out', {
+          checkInRecordId: foundRecord.id,
+          paymentMethod: 'CASH',
+        });
+        const resultData = res.data.data ?? res.data;
+        const checkoutRes: CheckOutResponse = {
+          ...resultData,
+          recordId: foundRecord.id,
+          paymentRequired: true,
+          bookingId: foundRecord.bookingId,
+        };
+        setCheckoutResult(checkoutRes);
+        setFoundRecord(null);
+        setFeePreview(null);
+        setOwnerInfo(null);
+        setPlateInput('');
+        setIsPaymentModalOpen(false);
+        setIsFeeBreakdownOpen(false);
+        loadAllRecords();
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          ?? 'Check-out thất bại. Vui lòng thử lại.';
+        setCheckoutError(msg);
+      } finally {
+        setCheckoutLoading(false);
+      }
+    } else {
+      setCheckoutError('');
+      setCheckoutLoading(true);
+      try {
+        const res = await createCheckoutStripeSession(foundRecord.id);
+        if (res.checkoutUrl) {
+          localStorage.setItem('checkout_cancelled_record', JSON.stringify({
+            record: foundRecord,
+            ownerInfo,
+          }));
+          setIsFeeBreakdownOpen(false);
+          window.location.href = res.checkoutUrl;
+        } else {
+          throw new Error('Không nhận được URL thanh toán từ Stripe.');
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Tạo phiên thanh toán Stripe thất bại.';
+        setCheckoutError(msg);
+        setIsPaymentModalOpen(false);
+      } finally {
+        setCheckoutLoading(false);
+      }
+    }
+  };
+
   // ── Reset after success ───────────────────────────────
   const handleDismissResult = () => {
     setCheckoutResult(null);
+    setIsFeeBreakdownOpen(false);
   };
 
-  // ── Cancel confirm ─────────────────────────────────────
-  const handleCancelConfirm = () => {
-    setConfirmState(null);
-    setCheckoutError('');
-  };
+
 
   // ── Dismiss found record ───────────────────────────────
   const handleDismissFound = () => {
@@ -404,64 +610,10 @@ export function CheckOutPage() {
     setFeePreview(null);
     setOwnerInfo(null);
     setPlateInput('');
+    setIsFeeBreakdownOpen(false);
   };
 
-  // ── Open lost ticket modal ────────────────────────────
-  const openLostTicket = (record: ActiveRecord) => {
-    setLostTicketReason('');
-    setLostTicketState({
-      record,
-      preview: null,
-      loading: true,
-      error: '',
-      result: null,
-      isMonthly: record.isMonthly,
-    });
-    setFoundRecord(record);
-    setPlateInput(record.vehicle!.plateNumber);
-    setOwnerInfo({ name: 'Mất thẻ / Không tìm thấy thẻ', phone: null, email: null });
 
-    fetchFeePreview(record.id).then((preview) => {
-      setLostTicketState((prev) => prev ? { ...prev, preview, loading: false } : prev);
-    });
-  };
-
-  // ── Submit lost ticket ─────────────────────────────────
-  const handleLostTicketConfirm = async (method: 'CASH' | 'CARD' | 'EWALLET') => {
-    const state = lostTicketState;
-    if (!state) return;
-    if (lostTicketReason.trim().length < 5) {
-      setLostTicketState((prev) => prev ? { ...prev, error: 'Lý do sự cố mất thẻ phải tối thiểu 5 ký tự.' } : prev);
-      return;
-    }
-    const plate = state.record.vehicle!.plateNumber;
-    setLostTicketState((prev) => prev ? { ...prev, loading: true, error: '' } : prev);
-    try {
-      const result = await submitLostTicket({ plate, method, reason: lostTicketReason });
-      const checkoutRes: CheckOutResponse = {
-        recordId: state.record.id,
-        paymentRequired: !state.record.isMonthly && result.fee > 0,
-        amountDue: result.fee,
-        fee: result.fee,
-        durationHours: 0,
-        note: state.record.isMonthly ? 'Khách tháng - mất thẻ' : 'Mất thẻ - đã thu phí',
-        breakdown: result.breakdown,
-      };
-      setLostTicketState((prev) => prev ? { ...prev, result: checkoutRes, loading: false } : prev);
-      setCheckoutResult(checkoutRes);
-      setFoundRecord(null);
-      setFeePreview(null);
-      setOwnerInfo(null);
-      setPlateInput('');
-      loadAllRecords();
-    } catch (err: unknown) {
-      const msg =
-        (err instanceof Error ? err.message : null) ??
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Xử lý mất thẻ thất bại. Vui lòng thử lại.';
-      setLostTicketState((prev) => prev ? { ...prev, error: msg, loading: false } : prev);
-    }
-  };
 
   return (
     <div style={{
@@ -482,6 +634,42 @@ export function CheckOutPage() {
         </p>
       </div>
 
+      {stripeStatus === 'CHECKING' && (
+        <div style={{
+          background: C.white,
+          borderRadius: C.radius,
+          boxShadow: C.shadow,
+          padding: '2rem',
+          marginBottom: '1.25rem',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1rem',
+        }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            border: `4px solid ${C.gray200}`,
+            borderTopColor: '#1E3A5F',
+            animation: 'spin 1s linear infinite',
+          }} />
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <p style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: C.navy }}>
+            Đang xác nhận thanh toán...
+          </p>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray500 }}>
+            Vui lòng đợi trong khi hệ thống xác thực giao dịch với Stripe.
+          </p>
+        </div>
+      )}
+
       {/* ── TOP: plate search ── */}
       <div style={{
         background: C.white,
@@ -494,13 +682,13 @@ export function CheckOutPage() {
           Tìm xe
         </p>
 
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
           <input
             type="text"
             value={plateInput}
             onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setSearchError(''); setFoundRecord(null); setFeePreview(null); setOwnerInfo(null); }}
             onKeyDown={handleKeyDown}
-            placeholder="VD: 51A-11111"
+            placeholder="Nhập biển số xe (VD: 51A11111)..."
             style={{
               flex: 1,
               padding: '0.65rem 0.85rem',
@@ -535,477 +723,442 @@ export function CheckOutPage() {
             {searching ? 'Đang tìm...' : 'Tìm xe'}
           </button>
         </div>
-
-        {searchError && (
-          <div style={{
-            background: C.redBg,
-            border: `1.5px solid ${C.redBorder}`,
-            borderRadius: 8,
-            padding: '0.5rem 0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}>
-            <IconAlert size={14} color={C.red} />
-            <span style={{ fontSize: '0.82rem', color: C.red }}>{searchError}</span>
-          </div>
-        )}
-
-        <div style={{
-          border: `2px dashed ${C.gray200}`,
-          borderRadius: 12,
-          padding: '1rem 1.25rem',
-          background: C.gray50,
-          textAlign: 'center',
-          minHeight: 70,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginTop: '0.75rem',
-        }}>
-          {foundRecord ? (
-            <div>
-              <p style={{
-                margin: 0,
-                fontSize: '1.4rem',
-                fontWeight: 800,
-                fontFamily: "'Consolas','Courier New',monospace",
-                color: C.navy,
-                letterSpacing: '0.06em',
-              }}>
-                {foundRecord.vehicle!.plateNumber}
-              </p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', color: C.gray500 }}>
-                {foundRecord.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'}
-                {' · '}
-                Vị trí: <strong>{foundRecord.slot!.code}</strong>
-                {' · '}
-                Giờ vào: {formatDateTime(foundRecord.checkInTime)}
-                {' · '}
-                {foundRecord.isMonthly ? (
-                  <span style={{ color: C.green, fontWeight: 700 }}>Khách tháng</span>
-                ) : (
-                  <span style={{ color: C.navy, fontWeight: 700 }}>Khách lẻ</span>
-                )}
-              </p>
-            </div>
-          ) : !searching ? (
-            <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray400 }}>
-              Nhập biển số xe đang đỗ trong bãi để bắt đầu check-out
-            </p>
+        {/* Compact search state indicator */}
+        <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: C.gray500 }}>
+          {searching ? (
+            <span style={{ color: C.navy, fontWeight: 500 }}>Đang tìm xe...</span>
+          ) : searchError ? (
+            <span style={{ color: C.red, fontWeight: 500 }}>{searchError}</span>
+          ) : !foundRecord ? (
+            <span>Nhập biển số xe để tìm nhanh.</span>
           ) : null}
         </div>
-
-        {foundRecord && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-            <button
-              onClick={handleDismissFound}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: C.gray400,
-                fontSize: '0.78rem',
-                cursor: 'pointer',
-                padding: '2px 4px',
-              }}
-            >
-              Bỏ chọn
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* ── RESULT: monthly panel ── */}
-      {foundRecord?.isMonthly && (
+      {checkoutError && (
+        <div style={{
+          background: C.redBg,
+          border: `1.5px solid ${C.redBorder}`,
+          borderRadius: 12,
+          padding: '0.75rem 1rem',
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}>
+          <IconAlert size={14} color={C.red} />
+          <span style={{ fontSize: '0.82rem', color: C.red }}>{checkoutError}</span>
+        </div>
+      )}
+
+      {/* ── SUCCESS STATE VIEW ── */}
+      {checkoutResult && (
         <div style={{
           background: C.white,
           borderRadius: C.radius,
           boxShadow: C.shadow,
-          padding: '1.25rem 1.5rem',
+          padding: '1.5rem',
           marginBottom: '1.25rem',
           borderTop: `4px solid ${C.green}`,
         }}>
           <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: C.greenBg,
-            border: `1.5px solid ${C.greenBorder}`,
-            borderRadius: 20,
-            padding: '0.3rem 0.75rem',
-            marginBottom: '1rem',
-          }}>
-            <IconCheck size={13} color={C.green} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.green }}>
-              KHÁCH THÁNG · Miễn phí khi ra
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1.25rem' }}>
-            {[
-              { label: 'Biển số', value: foundRecord.vehicle!.plateNumber },
-              { label: 'Vị trí', value: foundRecord.slot!.code },
-              { label: 'Giờ vào', value: formatDateTime(foundRecord.checkInTime) },
-              { label: 'Giờ ra', value: now() },
-            ].map((r) => (
-              <div key={r.label} style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0.45rem 0',
-                borderBottom: `1px solid ${C.gray100}`,
-              }}>
-                <span style={{ fontSize: '0.82rem', color: C.gray500 }}>{r.label}</span>
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: C.gray800 }}>{r.value}</span>
-              </div>
-            ))}
-          </div>
-
-          {(foundRecord.vehicle!.brand || foundRecord.vehicle!.model || foundRecord.vehicle!.color || foundRecord.vehicle!.year || foundRecord.vehicle!.seats) && (
-            <div style={{
-              background: C.gray50,
-              border: `1px solid ${C.gray200}`,
-              borderRadius: 10,
-              padding: '0.85rem 1rem',
-              marginBottom: '1rem',
-            }}>
-              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Thông tin xe
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
-                {foundRecord.vehicle!.brand && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.model && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.color && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.year && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.seats != null && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {ownerInfo && (
-            <div style={{
-              background: C.greenBg,
-              border: `1.5px solid ${C.greenBorder}`,
-              borderRadius: 10,
-              padding: '0.85rem 1rem',
-            }}>
-              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Thông tin chủ xe
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#15803D' }}>Họ tên</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.name}</span>
-                </div>
-                {ownerInfo.phone && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.82rem', color: '#15803D' }}>SĐT</span>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.phone}</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.82rem', color: '#15803D' }}>Email</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.email}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div style={{
-            background: C.greenBg,
-            border: `1.5px solid ${C.greenBorder}`,
-            borderRadius: 10,
-            padding: '0.6rem 0.85rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.75rem',
             marginBottom: '1.25rem',
+            background: C.greenBg,
+            border: `1.5px solid ${C.greenBorder}`,
+            borderRadius: 12,
+            padding: '0.75rem 1rem',
           }}>
-            <IconCheck size={14} color={C.green} />
-            <span style={{ fontSize: '0.82rem', color: '#15803D', fontWeight: 500 }}>
-              Khách tháng — không thu phí khi ra cổng.
+            <IconCheck size={22} color={C.green} />
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#166534' }}>
+              Check-out thành công
             </span>
           </div>
 
-          <button
-            onClick={() => openConfirm(foundRecord, feePreview)}
-            disabled={!feePreview}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              background: feePreview ? C.green : C.gray200,
-              color: feePreview ? C.white : C.gray400,
-              border: 'none',
-              borderRadius: 12,
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: feePreview ? 'pointer' : 'not-allowed',
-              boxShadow: feePreview ? '0 4px 14px rgba(22,163,74,0.25)' : 'none',
-            }}
-          >
-            Xác nhận cho xe ra
-          </button>
-        </div>
-      )}
-
-      {/* ── RESULT: casual panel ── */}
-      {foundRecord && !foundRecord.isMonthly && (
-        <div style={{
-          background: C.white,
-          borderRadius: C.radius,
-          boxShadow: C.shadow,
-          padding: '1.25rem 1.5rem',
-          marginBottom: '1.25rem',
-          borderTop: `4px solid ${C.navy}`,
-        }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: '#EFF6FF',
-            border: '1.5px solid #BFDBFE',
-            borderRadius: 20,
-            padding: '0.3rem 0.75rem',
-            marginBottom: '1rem',
-          }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.navy }}>KHÁCH LẺ</span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
-            {[
-              { label: 'Biển số', value: foundRecord.vehicle!.plateNumber },
-              { label: 'Vị trí', value: foundRecord.slot!.code },
-              { label: 'Giờ vào', value: formatDateTime(foundRecord.checkInTime) },
-              { label: 'Giờ ra', value: now() },
-            ].map((r) => (
-              <div key={r.label} style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0.45rem 0',
-                borderBottom: `1px solid ${C.gray100}`,
-              }}>
-                <span style={{ fontSize: '0.82rem', color: C.gray500 }}>{r.label}</span>
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: C.gray800 }}>{r.value}</span>
-              </div>
-            ))}
-          </div>
-
-          {(foundRecord.vehicle!.brand || foundRecord.vehicle!.model || foundRecord.vehicle!.color || foundRecord.vehicle!.year || foundRecord.vehicle!.seats) && (
-            <div style={{
-              background: C.gray50,
-              border: `1px solid ${C.gray200}`,
-              borderRadius: 10,
-              padding: '0.85rem 1rem',
-              marginBottom: '1rem',
-            }}>
-              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Thông tin xe
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 0.8rem' }}>
-                {foundRecord.vehicle!.brand && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Hãng</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.brand}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.model && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Mẫu</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.model}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.color && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Màu</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.color}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.year && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Năm</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.year}</div>
-                  </div>
-                )}
-                {foundRecord.vehicle!.seats != null && (
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Số chỗ</span>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{foundRecord.vehicle!.seats} chỗ</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {ownerInfo && (
-            <div style={{
-              background: '#EFF6FF',
-              border: '1.5px solid #BFDBFE',
-              borderRadius: 10,
-              padding: '0.85rem 1rem',
-            }}>
-              <p style={{ margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Thông tin chủ xe
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.82rem', color: C.navy }}>Họ tên</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.name}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+            {/* LEFT COLUMN: Thông tin xe ra */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.85rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Thông tin xe ra
+              </h4>
+              {[
+                { label: 'Biển số', value: checkoutResult.plate, isMono: true },
+                { label: 'Loại khách', value: checkoutResult.isMonthly ? 'Khách tháng' : checkoutResult.bookingId ? 'Khách đặt trước' : 'Khách vãng lai' },
+                {
+                  label: 'Tầng/Khu vực',
+                  value: formatReceiptLocation(checkoutResult.floorName, checkoutResult.floorCode, checkoutResult.slotCode)
+                },
+                { label: 'Giờ vào', value: formatDateTime(checkoutResult.checkInTime) },
+                { label: 'Giờ ra', value: formatDateTime(checkoutResult.checkOutTime) },
+                {
+                  label: 'Tổng thời gian gửi',
+                  value: (() => {
+                    const durationMins = checkoutResult.durationMinutes ?? 0;
+                    const hours = Math.floor(durationMins / 60);
+                    const mins = durationMins % 60;
+                    return hours > 0 ? `${hours} giờ ${mins} phút` : `${mins} phút`;
+                  })()
+                }
+              ].map((r) => (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                  <span style={{ color: C.gray500 }}>{r.label}</span>
+                  <span style={{ fontWeight: 700, color: C.gray800, fontFamily: r.isMono ? 'Consolas, monospace' : undefined }}>{r.value}</span>
                 </div>
-                {ownerInfo.phone && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.82rem', color: C.navy }}>SĐT</span>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.phone}</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.82rem', color: C.navy }}>Email</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray800 }}>{ownerInfo.email}</span>
+              ))}
+            </div>
+
+            {/* RIGHT COLUMN: Biên lai thanh toán */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.85rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Biên lai thanh toán
+              </h4>
+              {[
+                { label: 'Phí gửi xe', value: formatCurrency(checkoutResult.grossParkingFee ?? checkoutResult.fee ?? 0) },
+                {
+                  label: 'Cọc đặt chỗ được trừ',
+                  value: checkoutResult.bookingDepositPaid && checkoutResult.bookingDepositPaid > 0
+                    ? `- ${formatCurrency(checkoutResult.bookingDepositPaid)}`
+                    : '0 đ',
+                  color: checkoutResult.bookingDepositPaid && checkoutResult.bookingDepositPaid > 0 ? C.green : undefined
+                },
+                { label: 'Tổng đã thanh toán', value: formatCurrency(checkoutResult.amountDue ?? checkoutResult.fee ?? 0), isTotal: true },
+                {
+                  label: 'Phương thức thanh toán',
+                  value: (() => {
+                    const method = checkoutResult.paymentMethod ?? 'CASH';
+                    const labels: Record<string, string> = { 
+                      CASH: 'Tiền mặt tại quầy', 
+                      CARD: 'Thẻ quốc tế qua Stripe', 
+                      EWALLET: 'Ví điện tử' 
+                    };
+                    return labels[method] ?? 'Tiền mặt tại quầy';
+                  })()
+                }
+              ].map((r) => (
+                <div key={r.label} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: r.isTotal ? '0.9rem' : '0.82rem',
+                  fontWeight: r.isTotal ? 800 : undefined,
+                  borderTop: r.isTotal ? `1px dashed ${C.gray200}` : undefined,
+                  paddingTop: r.isTotal ? '0.4rem' : undefined,
+                  marginTop: r.isTotal ? '0.2rem' : undefined,
+                }}>
+                  <span style={{ color: r.isTotal ? C.navy : C.gray500 }}>{r.label}</span>
+                  <span style={{ fontWeight: 700, color: r.color ?? (r.isTotal ? C.red : C.gray800) }}>{r.value}</span>
                 </div>
-              </div>
+              ))}
             </div>
-          )}
-
-          {/* Fee breakdown from API */}
-          {feePreview && (
-            <div style={{ marginBottom: '1rem' }}>
-              <FeeBreakdownCard
-                fee={feePreview.fee}
-                breakdown={feePreview.breakdown}
-                depositCredit={feePreview.depositCredit}
-                total={feePreview.amountDue ?? feePreview.fee}
-              />
-            </div>
-          )}
-
-          {!feePreview && !searching && (
-            <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: C.gray400 }}>
-              Đang tính phí...
-            </p>
-          )}
-
-          {/* Payment method */}
-          {feePreview && (
-            <div style={{ marginTop: '1rem' }}>
-              <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Phương thức thanh toán
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {(['CASH', 'CARD', 'EWALLET'] as const).map((method) => {
-                  const labels: Record<string, string> = { CASH: 'Tiền mặt', CARD: 'Thẻ', EWALLET: 'Ví điện tử' };
-                  return (
-                    <button
-                      key={method}
-                      onClick={() => openConfirm(foundRecord, feePreview)}
-                      style={{
-                        flex: 1,
-                        padding: '0.6rem',
-                        background: C.navy,
-                        color: C.white,
-                        border: 'none',
-                        borderRadius: 10,
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 8px rgba(30,58,95,0.2)',
-                      }}
-                    >
-                      {labels[method]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── SUCCESS BANNER ── */}
-      {checkoutResult && (
-        <div style={{
-          background: C.greenBg,
-          border: `2px solid ${C.greenBorder}`,
-          borderRadius: 16,
-          padding: '1.25rem 1.5rem',
-          marginBottom: '1.25rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-        }}>
-          <IconCheck size={24} color={C.green} />
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#15803D' }}>
-              Check-out thành công!
-            </p>
-            {checkoutResult.paymentRequired ? (
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Xe đã ra bãi · {formatCurrency(checkoutResult.amountDue ?? checkoutResult.fee ?? 0)}
-              </p>
-            ) : (
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Xe đã ra bãi · {checkoutResult.note ?? 'Miễn phí gói tháng'}
-              </p>
-            )}
           </div>
+
           <button
             onClick={handleDismissResult}
             style={{
-              padding: '0.45rem 1rem',
+              padding: '0.7rem 1.5rem',
               background: C.green,
               color: C.white,
               border: 'none',
-              borderRadius: 8,
-              fontSize: '0.82rem',
+              borderRadius: 10,
+              fontSize: '0.88rem',
               fontWeight: 700,
               cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(22,163,74,0.2)',
             }}
           >
-            Check-out xe mới
+            Check-out xe tiếp theo
           </button>
         </div>
       )}
 
-      {/* ── POST-CHECKOUT FEE DETAIL ── */}
-      {checkoutResult && checkoutResult.paymentRequired && checkoutResult.breakdown && checkoutResult.breakdown.length > 0 && (
+      {/* ── TWO COLUMN CHECKOUT DETAILS ── */}
+      {foundRecord && (
         <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '1.5rem',
+          marginBottom: '1.25rem',
           background: C.white,
           borderRadius: C.radius,
           boxShadow: C.shadow,
-          padding: '1.25rem 1.5rem',
-          marginBottom: '1.25rem',
-          borderTop: `4px solid ${C.navy}`,
+          padding: '1.5rem',
         }}>
-          <FeeBreakdownCard
-            fee={checkoutResult.fee ?? 0}
-            breakdown={checkoutResult.breakdown}
-            depositCredit={checkoutResult.depositCredit}
-            total={checkoutResult.amountDue ?? checkoutResult.fee ?? 0}
-          />
+          {/* LEFT COLUMN: Thông tin xe */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderRight: `1px solid ${C.gray200}`, paddingRight: '1.5rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.navy, borderBottom: `2px solid ${C.navy}`, paddingBottom: '0.4rem' }}>
+              Thông tin xe
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {[
+                { label: 'Biển số', value: foundRecord.vehicle?.plateNumber, isMono: true },
+                { label: 'Loại xe', value: foundRecord.vehicle?.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
+                { label: 'Loại khách', value: foundRecord.isMonthly ? 'Khách tháng' : foundRecord.bookingId ? 'Khách đặt trước' : 'Khách vãng lai' },
+                {
+                  label: 'Tầng / Khu vực',
+                  value: formatFloorLocation(foundRecord.floor, foundRecord.slot, foundRecord.allowedTier)
+                },
+                { label: 'Thời gian vào', value: formatDateTime(foundRecord.checkInTime) },
+                {
+                  label: 'Thời gian gửi',
+                  value: (() => {
+                    const durationMs = new Date().getTime() - new Date(foundRecord.checkInTime).getTime();
+                    const durationMins = Math.max(0, Math.round(durationMs / 60000));
+                    const hours = Math.floor(durationMins / 60);
+                    const mins = durationMins % 60;
+                    return hours > 0 ? `${hours} giờ ${mins} phút` : `${mins} phút`;
+                  })()
+                }
+              ].map((r) => (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: C.gray500 }}>{r.label}</span>
+                  <span style={{ fontWeight: 700, color: C.gray800, fontFamily: r.isMono ? 'Consolas, monospace' : undefined }}>{r.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Extra monthly package details if monthly */}
+            {foundRecord.isMonthly && (
+              <div style={{
+                background: C.greenBg,
+                border: `1.5px solid ${C.greenBorder}`,
+                borderRadius: 10,
+                padding: '0.75rem 1rem',
+                color: '#15803D',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+              }}>
+                <span style={{ display: 'block', marginBottom: '0.2rem' }}>ℹ️ Xe sử dụng gói tháng đang hoạt động.</span>
+                {ownerInfo && ownerInfo.name && (
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: '#166534' }}>
+                    Chủ xe: {ownerInfo.name} ({ownerInfo.phone || 'N/A'})
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: Tóm tắt thanh toán */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.navy, borderBottom: `2px solid ${C.navy}`, paddingBottom: '0.4rem' }}>
+              Tóm tắt thanh toán
+            </h3>
+
+            {searching ? (
+              <p style={{ fontSize: '0.85rem', color: C.gray500, fontStyle: 'italic' }}>Đang tính phí...</p>
+            ) : feePreview ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: C.gray500 }}>Phí gửi xe</span>
+                  <span style={{ fontWeight: 600, color: C.gray800 }}>{formatCurrency(feePreview.baseParkingFee ?? feePreview.fee)}</span>
+                </div>
+                
+                {feePreview.bookingDepositApplied !== undefined && feePreview.bookingDepositApplied > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span style={{ color: C.gray500 }}>Cọc đặt chỗ được trừ</span>
+                    <span style={{ fontWeight: 600, color: C.green }}>
+                      - {formatCurrency(feePreview.bookingDepositApplied)}
+                    </span>
+                  </div>
+                )}
+
+                {feePreview.discountAmount !== undefined && feePreview.discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span style={{ color: C.gray500 }}>Giảm giá</span>
+                    <span style={{ fontWeight: 600, color: C.gray800 }}>- {formatCurrency(feePreview.discountAmount)}</span>
+                  </div>
+                )}
+
+                {(() => {
+                  const hasBreakdown = feePreview && feePreview.breakdown && feePreview.breakdown.length > 0 && (feePreview.baseParkingFee ?? feePreview.fee) > 0;
+                  if (!hasBreakdown) return null;
+                  return (
+                    <div style={{ margin: '0.25rem 0' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsFeeBreakdownOpen(!isFeeBreakdownOpen)}
+                        aria-expanded={isFeeBreakdownOpen}
+                        aria-controls="fee-breakdown-details"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: C.navy,
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        <span>{isFeeBreakdownOpen ? 'Thu gọn chi tiết' : 'Xem chi tiết cách tính phí'}</span>
+                        <svg
+                          width="14"
+                          height="14"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          style={{
+                            transform: isFeeBreakdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                          }}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {isFeeBreakdownOpen && (
+                        <div
+                          id="fee-breakdown-details"
+                          style={{
+                            marginTop: '0.5rem',
+                            background: '#F8FAFC',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: 8,
+                            padding: '0.75rem',
+                            maxHeight: 240,
+                            overflowY: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <p style={{ margin: '0 0 0.25rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Chi tiết tính phí
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            {feePreview.breakdown.map((item, idx) => {
+                              let desc = '';
+                              if (item.note) {
+                                desc = item.note;
+                              } else {
+                                const units = item.lots;
+                                const rate = item.rate;
+                                const amount = item.amount;
+                                if (Math.abs(units * rate - amount) < 1) {
+                                  const unitLabel = item.lotHours === 1 ? 'giờ' : 'lượt';
+                                  desc = `${units} ${unitLabel} × ${formatCurrency(rate)}/${unitLabel}`;
+                                }
+                              }
+
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'flex-start',
+                                    fontSize: '0.8rem',
+                                    borderBottom: idx < feePreview.breakdown.length - 1 ? '1px dashed #E2E8F0' : 'none',
+                                    paddingBottom: idx < feePreview.breakdown.length - 1 ? '0.4rem' : 0,
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                    <span style={{ fontWeight: 600, color: C.gray800 }}>{item.label}</span>
+                                    {desc && <span style={{ fontSize: '0.72rem', color: C.gray500, whiteSpace: 'pre-line' }}>{desc}</span>}
+                                  </div>
+                                  <span style={{ fontWeight: 700, color: C.gray800 }}>{formatCurrency(item.amount)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 800, borderTop: `2px solid ${C.gray200}`, paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+                  <span style={{ color: C.navy }}>Tổng cần thanh toán</span>
+                  <span style={{ color: C.red }}>{formatCurrency(feePreview.amountDue ?? feePreview.fee)}</span>
+                </div>
+
+                {/* Zero due info message */}
+                {((feePreview.amountDue ?? feePreview.fee) === 0 || foundRecord.isMonthly) && (
+                  <div style={{
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    borderRadius: 10,
+                    padding: '0.65rem 0.85rem',
+                    color: '#15803D',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    marginTop: '0.5rem',
+                  }}>
+                    Không phát sinh phí cần thanh toán.
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                  {!foundRecord.isMonthly && (feePreview.amountDue ?? feePreview.fee) > 0 ? (
+                    <button
+                      onClick={() => {
+                        setCheckoutError('');
+                        setIsPaymentModalOpen(true);
+                      }}
+                      disabled={checkoutLoading}
+                      style={{
+                        flex: 2,
+                        padding: '0.75rem',
+                        background: checkoutLoading ? C.gray400 : C.navy,
+                        color: C.white,
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        cursor: checkoutLoading ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      Tiếp tục thanh toán
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConfirm}
+                      disabled={checkoutLoading}
+                      style={{
+                        flex: 2,
+                        padding: '0.75rem',
+                        background: checkoutLoading ? C.gray400 : C.navy,
+                        color: C.white,
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        cursor: checkoutLoading ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {checkoutLoading ? 'Đang xử lý...' : 'Xác nhận Check-out'}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleDismissFound}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      background: C.white,
+                      color: C.gray600,
+                      border: `1px solid ${C.gray400}`,
+                      borderRadius: 10,
+                      fontSize: '0.9rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Hủy bỏ
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.85rem', color: C.gray400, fontStyle: 'italic' }}>Đang tính toán chi tiết phí gửi xe...</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -1060,14 +1213,14 @@ export function CheckOutPage() {
           </p>
         ) : allRecords.length === 0 ? (
           <p style={{ margin: 0, padding: '1rem 0', fontSize: '0.875rem', color: C.gray400, textAlign: 'center' }}>
-            Không có xe đang đỗ trong bãi.
+            Hiện không có xe nào đang đỗ trong bãi.
           </p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${C.gray200}` }}>
-                  {['Biển số', 'Vị trí', 'Giờ vào', 'Loại xe', 'Khách', ''].map((col) => (
+                  {['Biển số', 'Tầng / Khu vực', 'Giờ vào', 'Thời gian gửi', 'Loại xe', 'Loại khách', 'Thao tác'].map((col) => (
                     <th key={col} style={{
                       padding: '0.6rem 0.75rem',
                       textAlign: 'left',
@@ -1085,17 +1238,29 @@ export function CheckOutPage() {
               </thead>
               <tbody>
                 {allRecords.map((r) => {
-                  if (!r.vehicle || !r.slot) return null;
+                  if (!r.vehicle) return null;
+                  const locationText = formatFloorLocation(r.floor, r.slot, r.allowedTier);
+                  const durationMs = new Date().getTime() - new Date(r.checkInTime).getTime();
+                  const durationMins = Math.max(0, Math.round(durationMs / 60000));
+                  const hours = Math.floor(durationMins / 60);
+                  const mins = durationMins % 60;
+                  const durationText = hours > 0 ? `${hours} giờ ${mins} phút` : `${mins} phút`;
+
+                  const customerLabel = r.isMonthly ? 'Khách tháng' : r.bookingId ? 'Khách đặt trước' : 'Khách vãng lai';
+
                   return (
                     <tr key={r.id} style={{ borderBottom: `1px solid ${C.gray100}` }}>
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'Consolas, monospace', fontWeight: 700, color: C.navy, letterSpacing: '0.02em' }}>
                         {r.vehicle.plateNumber}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray800 }}>
-                        {r.slot.code}
+                        {locationText}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
                         {formatDateTime(r.checkInTime)}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
+                        {durationText}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem' }}>
                         <span style={{
@@ -1117,10 +1282,10 @@ export function CheckOutPage() {
                           borderRadius: 20,
                           fontSize: '0.72rem',
                           fontWeight: 700,
-                          background: r.isMonthly ? C.greenBg : '#EFF6FF',
-                          color: r.isMonthly ? '#15803D' : C.navy,
+                          background: r.isMonthly ? C.greenBg : r.bookingId ? '#FEF3C7' : '#EFF6FF',
+                          color: r.isMonthly ? '#15803D' : r.bookingId ? '#D97706' : C.navy,
                         }}>
-                          {r.isMonthly ? 'Tháng' : 'Lẻ'}
+                          {customerLabel}
                         </span>
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem' }}>
@@ -1128,14 +1293,24 @@ export function CheckOutPage() {
                           <button
                             onClick={async () => { 
                               const v = r.vehicle;
-                              const s = r.slot;
-                              if (!v || !s) return;
+                              if (!v) return;
                               setFoundRecord(r); 
                               setPlateInput(v.plateNumber); 
                               fetchFeePreview(r.id).then(setFeePreview);
                               try {
                                 const lookup = await checkoutLookupPlate(v.plateNumber);
                                 if (lookup.found) {
+                                  setFoundRecord((prev) => prev ? {
+                                    ...prev,
+                                    vehicle: prev.vehicle ? {
+                                      ...prev.vehicle,
+                                      brand: lookup.brand ?? prev.vehicle.brand,
+                                      model: lookup.model ?? prev.vehicle.model,
+                                      color: lookup.color ?? prev.vehicle.color,
+                                      year: lookup.year ?? prev.vehicle.year,
+                                      seats: lookup.seats ?? prev.vehicle.seats,
+                                    } : prev.vehicle,
+                                  } : prev);
                                   setOwnerInfo({
                                     name: lookup.ownerName ?? null,
                                     phone: lookup.ownerPhone ?? null,
@@ -1159,26 +1334,7 @@ export function CheckOutPage() {
                               cursor: 'pointer',
                             }}
                           >
-                            Check-out
-                          </button>
-                          <button
-                            onClick={() => { 
-                              const v = r.vehicle;
-                              const s = r.slot;
-                              if (v && s) openLostTicket(r); 
-                            }}
-                            style={{
-                              background: '#DC2626',
-                              color: C.white,
-                              border: 'none',
-                              borderRadius: 8,
-                              padding: '0.35rem 0.85rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Mất thẻ
+                            Xử lý
                           </button>
                         </div>
                       </td>
@@ -1191,393 +1347,268 @@ export function CheckOutPage() {
         )}
       </div>
 
-      {/* ── LOST TICKET MODAL ── */}
-      {lostTicketState && !lostTicketState.result && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(17,24,39,0.45)',
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget) setLostTicketState(null); }}
-        >
+
+
+      {/* ── PAYMENT MODAL ── */}
+      {isPaymentModalOpen && foundRecord && feePreview && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          backdropFilter: 'blur(4px)',
+          padding: '1rem',
+          boxSizing: 'border-box',
+        }}>
           <div style={{
             background: C.white,
-            borderRadius: 16,
-            padding: '1.5rem',
-            width: 440,
-            boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
-            maxHeight: '90vh',
-            overflowY: 'auto',
+            borderRadius: 24,
+            width: '100%',
+            maxWidth: 520,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}>
-            <h3 style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 800, color: '#DC2626' }}>
-              Xác nhận mất thẻ
-            </h3>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', background: '#FEE2E2', padding: '0.65rem 0.9rem', borderRadius: 10, border: '1.5px solid #FECACA' }}>
-              <IconAlert size={16} color={C.red} />
-              <span style={{ fontSize: '0.82rem', color: '#991B1B', fontWeight: 600 }}>
-                Xe ra cổng với phương thức mất thẻ · Phí có thể cao hơn.
-              </span>
-            </div>
-
-            {lostTicketState.error && (
-              <div style={{
-                background: C.redBg,
-                border: `1.5px solid ${C.redBorder}`,
-                borderRadius: 8,
-                padding: '0.5rem 0.75rem',
-                marginBottom: '1rem',
-                fontSize: '0.82rem',
-                color: C.red,
-              }}>
-                {lostTicketState.error}
-              </div>
-            )}
-
+            {/* Header */}
             <div style={{
-              background: C.gray50,
-              borderRadius: 10,
-              padding: '0.85rem 1rem',
-              marginBottom: '1rem',
+              background: '#1E3A5F',
+              padding: '1.25rem 1.5rem',
+              color: C.white,
               display: 'flex',
-              flexDirection: 'column',
-              gap: '0.3rem',
+              justifyContent: 'space-between',
+              alignItems: 'center',
             }}>
-              {[
-                { label: 'Biển số', value: lostTicketState.record.vehicle!.plateNumber, mono: true },
-                { label: 'Vị trí', value: lostTicketState.record.slot!.code },
-                { label: 'Giờ vào', value: formatDateTime(lostTicketState.record.checkInTime) },
-                { label: 'Loại xe', value: lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
-                { label: 'Khách', value: lostTicketState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: lostTicketState.record.isMonthly ? C.green : undefined },
-              ].map((r) => (
-                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.82rem', color: C.gray500 }}>{r.label}</span>
-                  <span style={{
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    color: r.color ?? C.gray800,
-                    fontFamily: (r as { mono?: boolean }).mono ? "'Consolas','Courier New',monospace" : undefined,
-                  }}>
-                    {r.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Incident reason text area */}
-            <div style={{ marginBottom: '1rem' }}>
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Lý do sự cố mất thẻ *
-              </p>
-              <textarea
-                value={lostTicketReason}
-                onChange={(e) => setLostTicketReason(e.target.value)}
-                placeholder="Nhập lý do sự cố mất thẻ (tối thiểu 5 ký tự)..."
-                rows={3}
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Thanh toán phí gửi xe</h3>
+              <button 
+                onClick={() => setIsPaymentModalOpen(false)}
                 style={{
-                  width: '100%',
-                  padding: '0.55rem 0.75rem',
-                  border: `1.5px solid ${lostTicketReason.trim().length >= 5 ? C.gray200 : C.redBorder}`,
-                  borderRadius: 8,
-                  fontSize: '0.875rem',
-                  color: C.gray800,
-                  background: C.white,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  resize: 'none',
+                  background: 'none',
+                  border: 'none',
+                  color: C.white,
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  opacity: 0.8,
                 }}
-              />
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
-            {lostTicketState.isMonthly && (
+            {/* Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Compact summary */}
               <div style={{
-                background: C.greenBg,
-                border: `1.5px solid ${C.greenBorder}`,
-                borderRadius: 10,
-                padding: '0.65rem 0.9rem',
-                marginBottom: '1rem',
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: 16,
+                padding: '1rem 1.25rem',
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: 'column',
                 gap: '0.5rem',
               }}>
-                <IconCheck size={14} color={C.green} />
-                <span style={{ fontSize: '0.82rem', color: '#15803D', fontWeight: 500 }}>
-                  Khách tháng — không thu phí khi ra.
-                </span>
-              </div>
-            )}
-
-            {!lostTicketState.isMonthly && lostTicketState.preview && (
-              <div style={{ marginBottom: '1rem' }}>
-                <FeeBreakdownCard
-                  fee={lostTicketState.preview.fee + (lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 80000 : 200000)}
-                  breakdown={[
-                    ...(lostTicketState.preview.breakdown || []),
-                    {
-                      label: 'Phạt mất thẻ xe',
-                      minutesInBlock: 0,
-                      lots: 1,
-                      lotHours: 0,
-                      rate: lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 80000 : 200000,
-                      amount: lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 80000 : 200000,
-                      note: `Phạt sự cố mất thẻ (${lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'})`,
-                    }
-                  ]}
-                  depositCredit={lostTicketState.preview.depositCredit}
-                  total={Math.max(0, (lostTicketState.preview.amountDue ?? lostTicketState.preview.fee) + (lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 80000 : 200000))}
-                />
-              </div>
-            )}
-
-            {!lostTicketState.preview && !lostTicketState.loading && (
-              <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: C.gray400 }}>
-                Đang tính phí mất thẻ...
-              </p>
-            )}
-
-            {!lostTicketState.isMonthly && (
-              <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Phương thức thanh toán
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  {(['CASH', 'CARD', 'EWALLET'] as const).map((method) => {
-                    const labels: Record<string, string> = { CASH: 'Tiền mặt', CARD: 'Thẻ', EWALLET: 'Ví điện tử' };
-                    const isAvailable = method === 'CASH';
-                    const isReasonValid = lostTicketReason.trim().length >= 5;
-                    return (
-                      <button
-                        key={method}
-                        onClick={() => handleLostTicketConfirm(method)}
-                        disabled={lostTicketState.loading || !isAvailable || !isReasonValid}
-                        style={{
-                          flex: 1,
-                          padding: '0.6rem',
-                          background: (!isAvailable || !isReasonValid) ? C.gray200 : lostTicketState.loading ? C.gray200 : '#DC2626',
-                          color: (!isAvailable || !isReasonValid) ? C.gray400 : C.white,
-                          border: 'none',
-                          borderRadius: 10,
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          cursor: (lostTicketState.loading || !isAvailable || !isReasonValid) ? 'not-allowed' : 'pointer',
-                          boxShadow: (lostTicketState.loading || !isAvailable || !isReasonValid) ? 'none' : '0 2px 8px rgba(220,38,38,0.25)',
-                        }}
-                      >
-                        {lostTicketState.loading ? 'Đang xử lý...' : !isAvailable ? `${labels[method]} (Chưa khả dụng)` : labels[method]}
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: C.gray500 }}>Biển số</span>
+                  <span style={{ fontWeight: 700, color: C.navy, fontFamily: 'Consolas, monospace' }}>{foundRecord.vehicle?.plateNumber}</span>
                 </div>
-              </div>
-            )}
-
-            {lostTicketState.isMonthly && (
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  onClick={() => handleLostTicketConfirm('CASH')}
-                  disabled={lostTicketState.loading || lostTicketReason.trim().length < 5}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem',
-                    background: (lostTicketState.loading || lostTicketReason.trim().length < 5) ? C.gray200 : '#DC2626',
-                    color: (lostTicketState.loading || lostTicketReason.trim().length < 5) ? C.gray400 : C.white,
-                    border: 'none',
-                    borderRadius: 12,
-                    fontSize: '0.9rem',
-                    fontWeight: 700,
-                    cursor: (lostTicketState.loading || lostTicketReason.trim().length < 5) ? 'not-allowed' : 'pointer',
-                    boxShadow: (lostTicketState.loading || lostTicketReason.trim().length < 5) ? 'none' : '0 4px 14px rgba(220,38,38,0.25)',
-                  }}
-                >
-                  {lostTicketState.loading ? 'Đang xử lý...' : 'Xác nhận cho xe ra (mất thẻ)'}
-                </button>
-                <button
-                  onClick={() => setLostTicketState(null)}
-                  style={{
-                    padding: '0.75rem 1.25rem',
-                    background: C.white,
-                    color: C.gray500,
-                    border: `1.5px solid ${C.gray200}`,
-                    borderRadius: 12,
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Hủy
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── CONFIRM MODAL ── */}
-      {confirmState && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(17,24,39,0.45)',
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget) handleCancelConfirm(); }}
-        >
-          <div style={{
-            background: C.white,
-            borderRadius: 16,
-            padding: '1.5rem',
-            width: 420,
-            boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-          }}>
-            <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 800, color: C.navy }}>
-              Xác nhận check-out
-            </h3>
-
-            {checkoutError && (
-              <div style={{
-                background: C.redBg,
-                border: `1.5px solid ${C.redBorder}`,
-                borderRadius: 8,
-                padding: '0.5rem 0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                marginBottom: '1rem',
-              }}>
-                <IconAlert size={14} color={C.red} />
-                <span style={{ fontSize: '0.82rem', color: C.red }}>{checkoutError}</span>
-              </div>
-            )}
-
-            {/* Record summary */}
-            <div style={{
-              background: C.gray50,
-              borderRadius: 10,
-              padding: '0.85rem 1rem',
-              marginBottom: '1rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.3rem',
-            }}>
-              {[
-                { label: 'Biển số', value: confirmState.record.vehicle!.plateNumber, mono: true },
-                { label: 'Vị trí', value: confirmState.record.slot!.code },
-                { label: 'Giờ vào', value: formatDateTime(confirmState.record.checkInTime) },
-                { label: 'Loại xe', value: confirmState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
-                { label: 'Khách', value: confirmState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: confirmState.record.isMonthly ? C.green : undefined },
-              ].map((r) => (
-                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.82rem', color: C.gray500 }}>{r.label}</span>
-                  <span style={{
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    color: r.color ?? C.gray800,
-                    fontFamily: (r as { mono?: boolean }).mono ? "'Consolas','Courier New',monospace" : undefined,
-                  }}>
-                    {r.value}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: C.gray500 }}>Tầng / Khu vực</span>
+                  <span style={{ fontWeight: 600, color: C.gray800 }}>
+                    {formatFloorLocation(foundRecord.floor, foundRecord.slot, foundRecord.allowedTier)}
                   </span>
                 </div>
-              ))}
-            </div>
-
-            {/* Monthly: no fee */}
-            {confirmState.record.isMonthly && (
-              <div style={{
-                background: C.greenBg,
-                border: `1.5px solid ${C.greenBorder}`,
-                borderRadius: 10,
-                padding: '0.65rem 0.9rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                marginBottom: '1.25rem',
-              }}>
-                <IconCheck size={14} color={C.green} />
-                <span style={{ fontSize: '0.82rem', color: '#15803D', fontWeight: 500 }}>
-                  Miễn phí khi ra cổng — Đã bao gồm trong gói tháng
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: C.gray500 }}>Thời gian gửi</span>
+                  <span style={{ fontWeight: 600, color: C.gray800 }}>
+                    {(() => {
+                      const durationMs = new Date().getTime() - new Date(foundRecord.checkInTime).getTime();
+                      const durationMins = Math.max(0, Math.round(durationMs / 60000));
+                      const hours = Math.floor(durationMins / 60);
+                      const mins = durationMins % 60;
+                      return hours > 0 ? `${hours} giờ ${mins} phút` : `${mins} phút`;
+                    })()}
+                  </span>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '1rem',
+                  fontWeight: 800,
+                  borderTop: '1px dashed #E2E8F0',
+                  paddingTop: '0.5rem',
+                  marginTop: '0.25rem',
+                }}>
+                  <span style={{ color: C.navy }}>Tổng cần thanh toán</span>
+                  <span style={{ color: C.red }}>{formatCurrency(feePreview.amountDue ?? feePreview.fee)}</span>
+                </div>
               </div>
-            )}
 
-            {/* Casual: fee + payment method in modal */}
-            {!confirmState.record.isMonthly && confirmState.feePreview && (
-              <>
-                {confirmState.feePreview.breakdown.length > 0 && (
-                  <div style={{ marginBottom: '1rem' }}>
-                    <FeeBreakdownCard
-                      fee={confirmState.feePreview.fee}
-                      breakdown={confirmState.feePreview.breakdown}
-                      depositCredit={confirmState.feePreview.depositCredit}
-                      total={confirmState.feePreview.amountDue ?? confirmState.feePreview.fee}
-                    />
-                  </div>
-                )}
+              {/* Selection */}
+              <div>
+                <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', fontWeight: 700, color: C.gray600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Chọn phương thức thanh toán
+                </p>
 
-                {/* Payment method selector */}
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Phương thức thanh toán
-                  </p>
-                  <select
-                    value={confirmState.paymentMethod}
-                    onChange={(e) => setConfirmState({ ...confirmState, paymentMethod: e.target.value as 'CASH' | 'CARD' | 'EWALLET' })}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {/* OPTION 1: Tiền mặt */}
+                  <button
+                    onClick={() => setSelectedPaymentOption('CASH')}
                     style={{
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      border: `1.5px solid ${C.gray200}`,
-                      borderRadius: 8,
-                      fontSize: '0.875rem',
-                      color: C.gray800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      padding: '1.15rem 1.25rem',
+                      borderRadius: 16,
                       background: C.white,
-                      outline: 'none',
+                      border: `2px solid ${selectedPaymentOption === 'CASH' ? '#1E3A5F' : '#E2E8F0'}`,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s',
+                      width: '100%',
                       boxSizing: 'border-box',
                     }}
                   >
-                    <option value="CASH">Tiền mặt (Cash)</option>
-                    <option value="CARD" disabled>Thẻ (Card) (Chưa khả dụng)</option>
-                    <option value="EWALLET" disabled>Ví điện tử (E-Wallet) (Chưa khả dụng)</option>
-                  </select>
-                </div>
-              </>
-            )}
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: selectedPaymentOption === 'CASH' ? '#E0F2FE' : '#F1F5F9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: selectedPaymentOption === 'CASH' ? '#0284C7' : C.gray500,
+                    }}>
+                      <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M6 12h.01M18 12h.01" />
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: C.gray800 }}>Tiền mặt tại quầy</p>
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>Nhân viên xác nhận sau khi đã nhận đủ tiền</p>
+                    </div>
+                    <div style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      border: `2px solid ${selectedPaymentOption === 'CASH' ? '#1E3A5F' : '#CBD5E1'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxSizing: 'border-box',
+                    }}>
+                      {selectedPaymentOption === 'CASH' && (
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1E3A5F' }} />
+                      )}
+                    </div>
+                  </button>
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button
-                onClick={handleConfirm}
-                disabled={checkoutLoading}
-                style={{
-                  flex: 1,
-                  padding: '0.75rem',
-                  background: checkoutLoading ? C.gray200 : C.navy,
-                  color: checkoutLoading ? C.gray400 : C.white,
-                  border: 'none',
-                  borderRadius: 12,
-                  fontSize: '0.9rem',
-                  fontWeight: 700,
-                  cursor: checkoutLoading ? 'not-allowed' : 'pointer',
-                  boxShadow: checkoutLoading ? 'none' : '0 4px 14px rgba(30,58,95,0.25)',
-                }}
-              >
-                {checkoutLoading ? 'Đang xử lý...' : 'Xác nhận check-out'}
-              </button>
-              <button
-                onClick={handleCancelConfirm}
-                style={{
-                  padding: '0.75rem 1.25rem',
-                  background: C.white,
-                  color: C.gray500,
-                  border: `1.5px solid ${C.gray200}`,
-                  borderRadius: 12,
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Hủy
-              </button>
+                  {/* OPTION 2: Stripe CARD */}
+                  <button
+                    onClick={() => setSelectedPaymentOption('STRIPE_CARD')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      padding: '1.15rem 1.25rem',
+                      borderRadius: 16,
+                      background: C.white,
+                      border: `2px solid ${selectedPaymentOption === 'STRIPE_CARD' ? '#1E3A5F' : '#E2E8F0'}`,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: selectedPaymentOption === 'STRIPE_CARD' ? '#E0F2FE' : '#F1F5F9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: selectedPaymentOption === 'STRIPE_CARD' ? '#0284C7' : C.gray500,
+                    }}>
+                      <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <line x1="2" y1="10" x2="22" y2="10" />
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: C.gray800 }}>Thẻ quốc tế qua Stripe</p>
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>Visa / Mastercard / JCB</p>
+                    </div>
+                    <div style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      border: `2px solid ${selectedPaymentOption === 'STRIPE_CARD' ? '#1E3A5F' : '#CBD5E1'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxSizing: 'border-box',
+                    }}>
+                      {selectedPaymentOption === 'STRIPE_CARD' && (
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1E3A5F' }} />
+                      )}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  disabled={checkoutLoading}
+                  style={{
+                    flex: 1,
+                    padding: '0.85rem',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: 14,
+                    background: C.white,
+                    color: C.gray600,
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    cursor: checkoutLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecutePayment}
+                  disabled={checkoutLoading}
+                  style={{
+                    flex: 1.5,
+                    padding: '0.85rem',
+                    border: 'none',
+                    borderRadius: 14,
+                    background: checkoutLoading ? C.gray400 : '#1E3A5F',
+                    color: C.white,
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    cursor: checkoutLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(30,58,95,0.15)',
+                  }}
+                >
+                  {checkoutLoading ? 'Đang xử lý...' : (selectedPaymentOption === 'CASH' ? 'Xác nhận đã nhận tiền' : 'Thanh toán qua Stripe')}
+                </button>
+              </div>
             </div>
           </div>
         </div>
