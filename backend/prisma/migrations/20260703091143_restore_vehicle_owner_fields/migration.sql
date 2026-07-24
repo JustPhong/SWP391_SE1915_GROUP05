@@ -2,11 +2,7 @@ BEGIN TRY
 
 BEGIN TRAN;
 
--- AlterTable
-ALTER TABLE [dbo].[Vehicle] ADD [ownerEmail] NVARCHAR(150),
-[ownerFullName] NVARCHAR(100),
-[ownerPhone] NVARCHAR(20),
-[seats] INT;
+-- No-op: columns already added in 20260703070249_add_vehicle_owner_contact_fields
 
 COMMIT TRAN;
 
