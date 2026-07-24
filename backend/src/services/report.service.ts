@@ -120,9 +120,11 @@ export const reportService = {
 
     const byDayMap: Record<string, number> = {};
     for (const p of payments) {
-      const day = new Date(p.paidAt!).toISOString().split('T')[0];
+      if (!p.paidAt) continue;
+      const day = new Date(p.paidAt).toISOString().split('T')[0];
       byDayMap[day] = (byDayMap[day] || 0) + Number(p.amount);
     }
+
     const byDay = Object.entries(byDayMap)
       .map(([date, amount]) => ({ date, amount }))
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -237,11 +239,13 @@ export const reportService = {
 
     const byDayMap: Record<string, number> = {};
     for (const p of payments) {
-      const day = formatLocalDate(new Date(p.paidAt!));
+      if (!p.paidAt) continue;
+      const day = formatLocalDate(new Date(p.paidAt));
       byDayMap[day] = (byDayMap[day] || 0) + Number(p.amount);
     }
 
     const result: { date: string; amount: number }[] = [];
+
     const cursor = new Date(from);
     cursor.setHours(0, 0, 0, 0);
     const endDay = new Date(to);
@@ -291,14 +295,15 @@ export const reportService = {
       if (source === 'CASUAL') casualTotal += amount;
       else monthlyTotal += amount;
 
-      const day = formatLocalDate(new Date(p.paidAt!));
+      const day = formatLocalDate(new Date(p.paidAt ?? new Date()));
       if (!byDayMap[day]) byDayMap[day] = { casual: 0, monthly: 0 };
+
       byDayMap[day][source.toLowerCase() as 'casual' | 'monthly'] += amount;
 
       const vehicle = isCasual ? p.checkInRecord?.vehicle : p.monthlyPackage?.vehicle;
 
       return {
-        date: new Date(p.paidAt!).toLocaleString('vi-VN', {
+        date: new Date(p.paidAt ?? new Date()).toLocaleString('vi-VN', {
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit', hour12: false,
         }).replace(',', ''),
@@ -728,3 +733,4 @@ async exportSessionsCsv(from: Date, to: Date, vehicleType?: string): Promise<str
   return [header, ...rows].join('\n');
 },
 };
+

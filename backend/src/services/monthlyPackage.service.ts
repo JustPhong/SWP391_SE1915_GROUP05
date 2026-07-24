@@ -1,4 +1,4 @@
-import prisma from '../config/db';
+ import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
 import { sendEmail } from './email.service';
 import { stripe } from '../config/stripe';
@@ -39,7 +39,8 @@ export function getTierFromPlan(planId: string | null): 'VIP' | 'POPULAR' | 'REG
   return 'REGULAR'; // default/1m
 }
 
-async function selectFloorForPackage(vehicleType: string, allowedTier: string, tx: any) {
+async function selectFloorForPackage(vehicleType: string, allowedTier: string | null, tx: any) {
+  const tier = allowedTier ?? 'REGULAR';
   // Find all Floors for this vehicleType and customerType = 'MONTHLY'
   const floors = await tx.floor.findMany({
     where: {
@@ -57,7 +58,7 @@ async function selectFloorForPackage(vehicleType: string, allowedTier: string, t
       where: {
         floorId: floor.id,
         type: vehicleType,
-        tier: allowedTier,
+        tier,
       },
     });
 
@@ -65,7 +66,7 @@ async function selectFloorForPackage(vehicleType: string, allowedTier: string, t
     const usedCapacity = await tx.monthlyPackage.count({
       where: {
         floorId: floor.id,
-        allowedTier,
+        allowedTier: tier,
         status: 'ACTIVE',
         expiryDate: { gte: now },
       },
@@ -125,6 +126,10 @@ export const monthlyPackageService = {
     const frontendUrl = process.env.FRONTEND_URL;
     if (!frontendUrl) {
       throw new AppError(500, 'FRONTEND_URL environment variable is not configured.');
+    }
+
+    if (!stripe) {
+      throw new AppError(400, 'Chức năng thanh toán Stripe chưa được cấu hình trên server.');
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -348,7 +353,7 @@ export const monthlyPackageService = {
           userId: input.userId,
           vehicleId: input.vehicleId,
           floorId: floor.id,
-          planName: input.planId ?? null,
+          planName: input.planId ?? '1m',
           startDate: input.startDate,
           expiryDate: input.expiryDate,
           price: input.price,
