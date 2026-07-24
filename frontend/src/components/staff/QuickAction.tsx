@@ -5,10 +5,9 @@ import styles from '../../styles/staff.module.css';
 
 interface QuickActionProps {
   onCheckIn?: (plate: string) => void;
-  onCheckOut?: (plate: string) => void;
 }
 
-export function QuickAction({ onCheckIn, onCheckOut }: QuickActionProps) {
+export function QuickAction({ onCheckIn }: QuickActionProps) {
   const [plate, setPlate] = useState('');
   const [plateError, setPlateError] = useState('');
   const navigate = useNavigate();
@@ -28,24 +27,6 @@ export function QuickAction({ onCheckIn, onCheckOut }: QuickActionProps) {
       onCheckIn(normalized);
     } else {
       navigate('/staff/checkin', { state: { plate: normalized } });
-    }
-  };
-
-  const handleCheckOut = () => {
-    if (!plate.trim()) {
-      setPlateError('Vui lòng nhập biển số xe.');
-      return;
-    }
-    const result = validatePlate(plate, 'ALL');
-    if (!result.valid) {
-      setPlateError(result.message!);
-      return;
-    }
-    const normalized = normalize(plate).replace(/[-.\s]/g, '');
-    if (onCheckOut) {
-      onCheckOut(normalized);
-    } else {
-      navigate('/staff/checkout', { state: { plate: normalized } });
     }
   };
 
@@ -90,14 +71,6 @@ export function QuickAction({ onCheckIn, onCheckOut }: QuickActionProps) {
           disabled={!plate.trim()}
         >
           Check-in
-        </button>
-        <button
-          type="button"
-          className={`${styles.btn} ${styles.btnSecondary}`}
-          onClick={handleCheckOut}
-          disabled={!plate.trim()}
-        >
-          Check-out
         </button>
       </div>
     </div>
