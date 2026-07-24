@@ -8,7 +8,6 @@ import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/Login';
 import { RegisterPage } from './pages/Register';
 import { CheckInPage } from './pages/CheckIn';
-import { CheckOutPage } from './pages/CheckOut';
 import { ReportPage } from './pages/Report';
 import SearchVehiclePage from './pages/SearchVehicle';
 import { SlotMapPage } from './pages/SlotMap';
@@ -33,6 +32,7 @@ import { MonthlyPackagePage } from './pages/MonthlyPackage';
 import { StaffHistoryPage } from './pages/StaffHistory';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { GuestParkingPage } from './pages/GuestParking';
+import { GuestCheckoutPage } from './pages/GuestCheckout';
 
 function LoadingScreen() {
   return (
@@ -186,14 +186,6 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <SearchVehiclePage />
-          </StaffRoute>
-        }
-      />
-      <Route
-        path="/staff/checkout"
-        element={
-          <StaffRoute>
-            <CheckOutPage />
           </StaffRoute>
         }
       />
@@ -384,6 +376,7 @@ function AppRoutes() {
         }
       />
       <Route path="/profile" element={<ProfileRoute />} />
+      <Route path="/guest-checkout" element={<GuestCheckoutPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -399,3 +392,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

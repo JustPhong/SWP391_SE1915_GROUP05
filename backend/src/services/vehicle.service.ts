@@ -78,7 +78,6 @@ export const vehicleService = {
             id: true,
             status: true,
             expiryDate: true,
-            allowedTier: true,
           },
         },
         checkInRecords: {
@@ -129,10 +128,31 @@ export const vehicleService = {
   async getByOwner(ownerId: string) {
     return prisma.vehicle.findMany({
       where: { ownerId },
-      include: {
+      select: {
+        id: true,
+        plateNumber: true,
+        type: true,
+        brand: true,
+        model: true,
+        color: true,
+        year: true,
+        seats: true,
+        isMonthly: true,
+        ownerFullName: true,
+        ownerEmail: true,
+        ownerPhone: true,
+        ownerId: true,
+        createdAt: true,
+        updatedAt: true,
         monthlyPackage: {
-          include: {
-            payments: true,
+          select: {
+            id: true,
+            status: true,
+            startDate: true,
+            expiryDate: true,
+            price: true,
+            planName: true,
+            autoRenew: true,
           },
         },
       },
@@ -152,7 +172,14 @@ export const vehicleService = {
           },
         },
         monthlyPackage: {
-          include: {
+          select: {
+            id: true,
+            status: true,
+            startDate: true,
+            expiryDate: true,
+            price: true,
+            planName: true,
+            autoRenew: true,
             floor: true,
           },
         },
