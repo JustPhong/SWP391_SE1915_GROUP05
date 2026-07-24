@@ -28,6 +28,10 @@ export const monthlyPackageController = {
   handleWebhook: asyncHandler(async (req: any, res: Response) => {
     const signature = req.headers['stripe-signature'] as string;
 
+    if (!stripe) {
+      throw new AppError(400, 'Chức năng thanh toán Stripe chưa được cấu hình trên server.');
+    }
+
     let event;
     try {
       event = stripe.webhooks.constructEvent(
