@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 const navItems: { label: string; path: string; roles: string[] }[] = [
   { label: 'Dashboard', path: '/', roles: ['ADMIN', 'MANAGER', 'STAFF', 'DRIVER'] },
   { label: 'Check In', path: '/checkin', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
-  { label: 'Check Out', path: '/checkout', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { label: 'Booking', path: '/booking', roles: ['ADMIN', 'MANAGER', 'STAFF', 'DRIVER'] },
   { label: 'Monthly Package', path: '/monthly-package', roles: ['ADMIN', 'MANAGER', 'STAFF', 'DRIVER'] },
   { label: 'Slot Map', path: '/slot-map', roles: ['ADMIN', 'MANAGER', 'STAFF'] },
