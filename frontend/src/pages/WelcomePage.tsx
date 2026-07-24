@@ -502,6 +502,9 @@ export const WelcomePage: React.FC = () => {
                   </button>
                 </div>
               </div>
+              <button className={styles.btnGuestCheckout} onClick={() => navigate('/guest-checkout')}>
+                Check-out khách vãng lai
+              </button>
               <button className={styles.btnGhost} onClick={() => navigate('/login')}>Đăng nhập</button>
               <button className={styles.btnPrimary} onClick={() => navigate('/register')}>Đăng ký</button>
             </div>
@@ -653,7 +656,7 @@ export const WelcomePage: React.FC = () => {
           </div>
 
           <div className={styles.navRight}>
-            {/* Dropdown Support */}
+             {/* Dropdown Support */}
             <div className={styles.supportDropdownContainer}>
               <span className={styles.navSupport}>
                 Hỗ trợ <span style={{ fontSize: '0.75rem', marginLeft: '2px' }}>▼</span>

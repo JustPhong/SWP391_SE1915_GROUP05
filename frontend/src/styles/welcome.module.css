@@ -314,6 +314,27 @@
   color: #16293f;
 }
 
+.btnGuestCheckout {
+  background: #ffffff;
+  color: #1e3a5f;
+  border: 1px solid #b9d7ff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, box-shadow 0.18s ease, transform 0.18s ease;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.08);
+  white-space: nowrap;
+}
+
+.btnGuestCheckout:hover {
+  color: #1a4abf;
+  border-color: #2d5fd0;
+  box-shadow: 0 4px 14px rgba(45, 95, 208, 0.18);
+  transform: translateY(-1px);
+}
+
 .btnOutline {
   background: rgba(255, 255, 255, 0.15);
   color: #16293f;
@@ -2201,6 +2222,19 @@
 @media (max-width: 640px) {
   .navInner {
     padding: 0.75rem 1.25rem;
+  }
+
+  .logoText {
+    display: none;
+  }
+
+  .navRight {
+    gap: 0.4rem;
+  }
+
+  .btnGuestCheckout {
+    padding: 0.48rem 0.7rem;
+    font-size: 0.78rem;
   }
 
   .navSupport {
