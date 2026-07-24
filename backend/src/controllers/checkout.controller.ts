@@ -45,42 +45,30 @@ export const checkoutController = {
     });
   }),
 
-  // POST /api/checkout/lost-ticket
-  lostTicket: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const {
-      plate,
-      method,
-      reason,
-    } = req.body as {
-      plate?: string;
-      method?: 'CASH' | 'CARD' | 'EWALLET';
-      reason?: string;
-    };
-
-    if (!plate) {
-      return res.status(400).json({
-        success: false,
-        message: 'plate là bắt buộc.',
-      });
+  createStripeSession: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { checkInRecordId } = req.params;
+    if (!checkInRecordId) {
+      return res.status(400).json({ success: false, message: 'checkInRecordId là bắt buộc.' });
     }
+    const result = await checkoutService.createStripeSession(checkInRecordId, req.user!.id);
+    return res.status(200).json({ success: true, data: result });
+  }),
 
-    if (!reason || reason.trim().length < 5) {
-      return res.status(400).json({
-        success: false,
-        message: 'Lý do sự cố mất thẻ phải tối thiểu 5 ký tự.',
-      });
+  getStripeStatus: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { checkInRecordId } = req.params;
+    if (!checkInRecordId) {
+      return res.status(400).json({ success: false, message: 'checkInRecordId là bắt buộc.' });
     }
+    const result = await checkoutService.getStripeStatus(checkInRecordId);
+    return res.status(200).json({ success: true, data: result });
+  }),
 
-    const result = await checkoutService.submitLostTicket({
-      plate,
-      method,
-      staffId: req.user!.id,
-      reason,
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: result,
-    });
+  getStripeStatusBySession: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { session_id } = req.query;
+    if (!session_id) {
+      return res.status(400).json({ success: false, message: 'session_id là bắt buộc.' });
+    }
+    const result = await checkoutService.getStripeStatusBySession(session_id as string);
+    return res.status(200).json({ success: true, data: result });
   }),
 };

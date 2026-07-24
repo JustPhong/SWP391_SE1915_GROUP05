@@ -19,13 +19,13 @@ export const submitCheckinSchema = [
     .withMessage('Loại khách không được để trống')
     .isIn(['monthly', 'casual'])
     .withMessage('Loại khách không hợp lệ'),
-  body('slotCode')
-    .custom((value, { req }) => {
-      if (req.body.customerType === 'monthly' && req.body.vehicleType === 'CAR') {
-        return true;
+  body('floorId')
+    .custom((value) => {
+      if (value === undefined || value === null) {
+        throw new Error('Tầng/khu vực không được để trống');
       }
-      if (!value || value.trim() === '') {
-        throw new Error('Mã slot không được để trống');
+      if (typeof value !== 'number') {
+        throw new Error('floorId phải là số');
       }
       return true;
     }),
