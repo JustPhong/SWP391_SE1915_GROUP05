@@ -1,12 +1,22 @@
 import api from '../services/api';
-import { formatPlateNumber } from '../utils/plate';
+import { normalizePlateForLookup } from '../utils/plate';
 
+// ─── Lookup ────────────────────────────────────────────────────────────────
+
+export interface ActiveBookingSummary {
+  id: string;
+  floorId: number;
+  floorName: string;
+  floorCode: string;
+  depositAmount: number;
+  expiresAt: string;
+}
 
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;
   slotCode?: string;
-  customerType: 'monthly' | 'casual';
+  customerType: 'monthly' | 'casual' | 'booking';
   vehicleType?: 'CAR' | 'MOTORBIKE';
   brand?: string | null;
   model?: string | null;
@@ -16,6 +26,17 @@ export interface LookupResult {
   fixedSlot?: string | null;
   packageExpiry?: string;
   isExpired?: boolean;
+  allowedTier?: string | null;
+  // Floor information determined by backend lookup
+  floorId?: number | null;
+  floorName?: string | null;
+  floorCode?: string | null;
+  totalCapacity?: number | null;
+  activeParkingCount?: number | null;
+  activeBookingCount?: number | null;
+  receivableCapacity?: number | null;
+  // Active booking (CAR only)
+  activeBooking?: ActiveBookingSummary | null;
   // Owner / customer info
   ownerName?: string | null;
   ownerPhone?: string | null;
@@ -23,10 +44,14 @@ export interface LookupResult {
   note?: string | null;
 }
 
+// ─── Slots (legacy — still used by casual car flow if needed) ───────────────
+
 export interface AvailableSlot {
   code: string;
   suggested: boolean;
 }
+
+// ─── Stats ────────────────────────────────────────────────────────────────
 
 export interface CheckinStats {
   capacityUsed: number;
@@ -34,9 +59,12 @@ export interface CheckinStats {
   monthlyToday: number;
 }
 
+// ─── Submit ───────────────────────────────────────────────────────────────
+
 export interface CheckinSubmitPayload {
   plateNumber: string;
-  slotCode?: string;
+  floorId: number;
+  slotCode?: string | null;
   vehicleType: 'CAR' | 'MOTORBIKE';
   isMonthly: boolean;
   frontImageUrl?: string;
@@ -48,7 +76,34 @@ export interface CheckinSubmitResult {
   slotCode: string;
   plate: string;
   checkInTime: string;
+  floorCode?: string;
+  zoneName?: string | null;
+  message?: string;
 }
+
+// ─── OCR ─────────────────────────────────────────────────────────────────
+
+export interface OcrResult {
+  plate: string;
+  confidence: number; // 0–1
+  source: 'front' | 'rear' | 'combined';
+}
+
+// ─── Image upload / delete ────────────────────────────────────────────────
+
+export interface CheckinImageUploadPayload {
+  image: File;
+  plateNumber: string;
+  recordId?: string;
+}
+
+export interface CheckinImageUploadResult {
+  imageUrl: string;
+  filename: string;
+  plateNumber: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
 
 function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {
   if (!response.data.success) {
@@ -64,15 +119,24 @@ function unwrapList<T>(response: { data: { success: boolean; data: T[]; message?
   return response.data.data;
 }
 
-export async function lookupPlate(plate: string): Promise<LookupResult> {
+// ─── API functions ────────────────────────────────────────────────────────
+
+/**
+ * Look up a vehicle plate, optionally filtered by vehicleType (passed as query param).
+ * Backend uses vehicleType to limit Booking lookup to CAR only.
+ */
+export async function lookupPlate(
+  plate: string,
+  vehicleType?: 'CAR' | 'MOTORBIKE'
+): Promise<LookupResult> {
   try {
-    const normalizedPlate = formatPlateNumber(plate);
+    const normalizedPlate = normalizePlateForLookup(plate);
     const response = await api.get<{ success: boolean; data: LookupResult }>(
-      `/checkin/lookup/${encodeURIComponent(normalizedPlate)}`
+      `/checkin/lookup/${encodeURIComponent(normalizedPlate)}`,
+      vehicleType ? { params: { vehicleType } } : {}
     );
     return unwrap(response);
   } catch (err: unknown) {
-
     const msg =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
       'Không thể tra cứu biển số. Vui lòng thử lại.';
@@ -109,18 +173,6 @@ export async function getCheckinStats(): Promise<CheckinStats> {
   }
 }
 
-export interface CheckinImageUploadPayload {
-  image: File;
-  plateNumber: string;
-  recordId?: string;
-}
-
-export interface CheckinImageUploadResult {
-  imageUrl: string;
-  filename: string;
-  plateNumber: string;
-}
-
 export async function uploadCheckinImage(
   payload: CheckinImageUploadPayload
 ): Promise<CheckinImageUploadResult> {
@@ -139,6 +191,53 @@ export async function uploadCheckinImage(
   return unwrap(response);
 }
 
+export interface OcrApiResponse {
+  plateNumber: string;
+  rawText: string;
+  candidates: string[];
+  provider: 'TESSERACT_JS';
+  imageUrl: string;
+  recognitionSource?: 'FRONT' | 'REAR';
+  confidence?: number;
+}
+
+export async function runOcrApi(
+  vehicleType: string,
+  frontImage: File | null,
+  rearImage: File | null,
+  signal?: AbortSignal
+): Promise<OcrApiResponse> {
+  const formData = new FormData();
+  formData.append('vehicleType', vehicleType);
+
+  if (vehicleType === 'CAR') {
+    if (frontImage) {
+      formData.append('image', frontImage);
+      formData.append('imageRole', 'FRONT');
+    }
+    if (rearImage) {
+      formData.append('image', rearImage);
+      formData.append('imageRole', 'REAR');
+    }
+  } else {
+    if (rearImage) {
+      formData.append('image', rearImage);
+      formData.append('imageRole', 'REAR');
+    }
+  }
+
+  const response = await api.post<{ success: boolean; data: OcrApiResponse }>(
+    '/checkin-media/ocr',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+      signal,
+    }
+  );
+  return unwrap(response);
+}
+
 export async function deleteCheckinImages(urls: string[]): Promise<{ success: boolean }> {
   const response = await api.post<{ success: boolean }>('/checkin-media/delete-images', { urls });
   return response.data;
@@ -152,7 +251,8 @@ export async function submitCheckIn(
       plate: payload.plateNumber,
       vehicleType: payload.vehicleType,
       customerType: payload.isMonthly ? 'monthly' : 'casual',
-      slotCode: payload.slotCode,
+      floorId: payload.floorId,
+      slotCode: payload.slotCode ?? null,
       isMonthly: payload.isMonthly,
     };
     if (payload.frontImageUrl) body.frontImageUrl = payload.frontImageUrl;

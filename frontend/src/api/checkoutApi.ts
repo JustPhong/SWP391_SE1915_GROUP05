@@ -53,42 +53,90 @@ export async function checkoutLookupPlate(plate: string): Promise<CheckoutLookup
   }
 }
 
-export interface LostTicketPayload {
-  plate: string;
-  method: 'CASH' | 'CARD' | 'EWALLET';
-  reason: string;
-}
-
-export interface LostTicketResponse {
+export interface CheckoutCompletedResponse {
   ok: boolean;
   plate: string;
-  slotCode: string;
+  slotCode: string | null;
   fee: number;
-  penaltyFee: number;
   isMonthly: boolean;
   checkOutTime: string;
-  breakdown?: {
+  checkInTime: string;
+  durationMinutes: number;
+  floorName: string;
+  floorCode: string;
+  paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
+  grossParkingFee: number;
+  bookingDepositPaid: number;
+  amountDue: number;
+  breakdown?: Array<{
     label: string;
     minutesInBlock: number;
     lots: number;
-    lotHours: number;
+    lotHours?: number;
     rate: number;
     amount: number;
     note?: string;
-  }[];
+  }>;
 }
 
-export async function submitLostTicket(payload: LostTicketPayload): Promise<LostTicketResponse> {
+export async function createCheckoutStripeSession(checkInRecordId: string): Promise<{ sessionId: string; checkoutUrl: string }> {
   try {
-    const response = await api.post<{ success: boolean; data: LostTicketResponse }>(
-      '/checkout/lost-ticket',
-      payload
+    const response = await api.post<{ success: boolean; data: { sessionId: string; checkoutUrl: string } }>(
+      `/checkout/${checkInRecordId}/stripe-session`
     );
     return unwrap(response);
   } catch (err: unknown) {
     const msg =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-      'Không thể xử lý mất thẻ. Vui lòng thử lại.';
+      'Không thể tạo phiên thanh toán Stripe. Vui lòng thử lại.';
+    throw new Error(msg);
+  }
+}
+
+export async function getCheckoutStripeStatus(checkInRecordId: string): Promise<{
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  checkInRecordStatus: string;
+  receipt?: CheckoutCompletedResponse;
+}> {
+  try {
+    const response = await api.get<{
+      success: boolean;
+      data: {
+        status: 'PENDING' | 'SUCCESS' | 'FAILED';
+        checkInRecordStatus: string;
+        receipt?: CheckoutCompletedResponse;
+      };
+    }>(`/checkout/${checkInRecordId}/stripe-status`);
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể lấy trạng thái thanh toán Stripe. Vui lòng thử lại.';
+    throw new Error(msg);
+  }
+}
+
+export async function getCheckoutStripeStatusBySession(sessionId: string): Promise<{
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  checkInRecordStatus: string;
+  receipt?: CheckoutCompletedResponse;
+}> {
+  try {
+    const response = await api.get<{
+      success: boolean;
+      data: {
+        status: 'PENDING' | 'SUCCESS' | 'FAILED';
+        checkInRecordStatus: string;
+        receipt?: CheckoutCompletedResponse;
+      };
+    }>(`/checkout/stripe-status`, {
+      params: { session_id: sessionId },
+    });
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể lấy trạng thái thanh toán Stripe. Vui lòng thử lại.';
     throw new Error(msg);
   }
 }

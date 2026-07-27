@@ -14,6 +14,8 @@ export interface BookingItem {
   status: BookingStatus;
   bookingTime: string;
   expectedArrival: string;
+  expiresAt?: string | null;
+  confirmedAt?: string | null;
   depositAmount: string;
   depositStatus: string;
   floor: {
@@ -37,6 +39,9 @@ export interface BookingItem {
     fullName: string;
     email: string;
   };
+  checkInRecords?: {
+    checkInTime: string;
+  }[];
 }
 
 function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {

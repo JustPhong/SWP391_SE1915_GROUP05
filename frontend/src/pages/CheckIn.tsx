@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import axios from 'axios';
 import {
   lookupPlate,
   submitCheckIn,
@@ -393,10 +394,12 @@ function CaptureBox({
   );
 }
 
-function OcrSuccessBadge({ confidence }: { confidence: number | null }) {
-  const badgeText = confidence !== null && Number.isFinite(confidence)
-    ? `Đã nhận diện · ${Math.round(confidence)}%`
-    : 'Đã nhận diện';
+function OcrSuccessBadge({ confidence, isManual }: { confidence: number | null; isManual?: boolean }) {
+  const badgeText = isManual
+    ? 'Đã nhận diện (đã chỉnh sửa)'
+    : (confidence !== null && Number.isFinite(confidence)
+      ? `Đã nhận diện · ${Math.round(confidence)}%`
+      : 'Đã nhận diện');
   return (
     <div style={{
       display: 'inline-flex',
@@ -483,6 +486,18 @@ export function CheckInPage() {
   const [searchParams] = useSearchParams();
   const autoLookupRan = useRef(false);
 
+  const ocrAbortControllerRef = useRef<AbortController | null>(null);
+  const ocrRequestIdRef = useRef<number>(0);
+
+  // Abort ongoing OCR request on unmount
+  useEffect(() => {
+    return () => {
+      if (ocrAbortControllerRef.current) {
+        ocrAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // Auto-lookup from ?plate= URL param
   if (!autoLookupRan.current && searchParams.get('plate')) {
     autoLookupRan.current = true;
@@ -498,6 +513,12 @@ export function CheckInPage() {
   // ═════════════════════════════════════════════════════
   const handleSelectVehicleType = (t: VehicleType) => {
     if (vehicleType === t) return;
+
+    if (ocrAbortControllerRef.current) {
+      ocrAbortControllerRef.current.abort();
+      ocrAbortControllerRef.current = null;
+    }
+
     // Clear all downstream state
     setVehicleType(t);
     setFrontImage(null);
@@ -549,6 +570,10 @@ export function CheckInPage() {
     setFrontImageUrl(null);
     setOcrStatus('idle');
     setOcrConflict(false);
+    if (ocrAbortControllerRef.current) {
+      ocrAbortControllerRef.current.abort();
+      ocrAbortControllerRef.current = null;
+    }
   };
   const handleRemoveRear = () => {
     if (rearPreview) URL.revokeObjectURL(rearPreview);
@@ -557,6 +582,10 @@ export function CheckInPage() {
     setRearImageUrl(null);
     setOcrStatus('idle');
     setOcrConflict(false);
+    if (ocrAbortControllerRef.current) {
+      ocrAbortControllerRef.current.abort();
+      ocrAbortControllerRef.current = null;
+    }
   };
 
   const runOCR = async () => {
@@ -572,6 +601,19 @@ export function CheckInPage() {
         return;
       }
     }
+
+    // 1. Abort previous request if any
+    if (ocrAbortControllerRef.current) {
+      ocrAbortControllerRef.current.abort();
+    }
+
+    // 2. Create new controller and increment request ID
+    const controller = new AbortController();
+    ocrAbortControllerRef.current = controller;
+
+    const currentRequestId = ocrRequestIdRef.current + 1;
+    ocrRequestIdRef.current = currentRequestId;
+
     setOcrStatus('processing');
     setOcrConflict(false);
     setApiError('');
@@ -579,7 +621,12 @@ export function CheckInPage() {
     setOcrConfidence(null);
 
     try {
-      const result = await runOcrApi(vehicleType, frontImage, rearImage);
+      const result = await runOcrApi(vehicleType, frontImage, rearImage, controller.signal);
+
+      // Check if stale
+      if (ocrRequestIdRef.current !== currentRequestId) {
+        return;
+      }
 
       const source = result.recognitionSource || 'REAR';
       const confidence = typeof result.confidence === 'number' && Number.isFinite(result.confidence)
@@ -599,16 +646,36 @@ export function CheckInPage() {
       setPlateInput(result.plateNumber.toUpperCase());
       setPlateSource(source === 'FRONT' ? 'front' : 'rear');
     } catch (err: any) {
+      // Check if stale
+      if (ocrRequestIdRef.current !== currentRequestId) {
+        return;
+      }
+
+      // Check for user-initiated/system cancellation
+      if (axios.isCancel(err) || err.name === 'CanceledError' || err.message === 'canceled') {
+        setOcrStatus('idle');
+        return;
+      }
+
       if (err.response?.data?.requiresManualReview) {
         setOcrConflict(true);
         setOcrStatus('low_confidence');
         setApiError(err.response.data.message);
       } else {
-        const msg = err.response?.data?.message || 'Không thể nhận diện biển số. Vui lòng chụp lại ảnh rõ hơn hoặc nhập thủ công.';
-        setApiError(msg);
-        setOcrStatus('failed');
+        const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('exceeded');
+        if (isTimeout) {
+          setApiError('Nhận diện biển số mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.');
+          setOcrStatus('failed');
+        } else {
+          const msg = err.response?.data?.message || 'Không thể nhận diện biển số. Vui lòng chụp lại ảnh rõ hơn hoặc nhập thủ công.';
+          setApiError(msg);
+          setOcrStatus('failed');
+        }
       }
     } finally {
+      if (ocrRequestIdRef.current === currentRequestId) {
+        ocrAbortControllerRef.current = null;
+      }
       setOcrAttempted(true);
     }
   };
@@ -731,6 +798,12 @@ export function CheckInPage() {
   const handleReset = () => {
     if (frontPreview) URL.revokeObjectURL(frontPreview);
     if (rearPreview) URL.revokeObjectURL(rearPreview);
+
+    if (ocrAbortControllerRef.current) {
+      ocrAbortControllerRef.current.abort();
+      ocrAbortControllerRef.current = null;
+    }
+
     setVehicleType(null);
     setFrontImage(null);
     setFrontPreview(null);
@@ -1006,7 +1079,7 @@ export function CheckInPage() {
                         libraryRef={frontLibraryRef}
                         onCameraChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
                         onLibraryChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
-                        ocrBadge={ocrStatus === 'success' && ocrSource === 'FRONT' ? <OcrSuccessBadge confidence={ocrConfidence} /> : undefined}
+                        ocrBadge={ocrStatus === 'success' && ocrSource === 'FRONT' ? <OcrSuccessBadge confidence={ocrConfidence} isManual={plateSource === 'manual'} /> : undefined}
                       />
                       <CaptureBox
                         label="Biển số sau"
@@ -1020,7 +1093,7 @@ export function CheckInPage() {
                         libraryRef={rearLibraryRef}
                         onCameraChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
                         onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
-                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} /> : undefined}
+                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} isManual={plateSource === 'manual'} /> : undefined}
                       />
                     </div>
                      <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
@@ -1057,7 +1130,7 @@ export function CheckInPage() {
                         libraryRef={rearLibraryRef}
                         onCameraChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
                         onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
-                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} /> : undefined}
+                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} isManual={plateSource === 'manual'} /> : undefined}
                       />
                     </div>
                     <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
@@ -1091,21 +1164,24 @@ export function CheckInPage() {
                 )}
 
                 {/* OCR run button */}
-                {vehicleType && (frontImage || rearImage) && ocrStatus !== 'processing' && (
+                {vehicleType && (frontImage || rearImage) && (
                   <button
                     id="run-ocr-btn"
                     onClick={runOCR}
+                    disabled={ocrStatus === 'processing'}
                     style={{
                       marginTop: 12, width: '100%',
                       padding: '0.6rem 1rem', borderRadius: 10,
-                      border: `1.5px solid ${C.activeBlue}`,
-                      background: '#EFF6FF', color: C.activeBlue,
-                      fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                      border: `1.5px solid ${ocrStatus === 'processing' ? C.gray200 : C.activeBlue}`,
+                      background: ocrStatus === 'processing' ? C.gray100 : '#EFF6FF',
+                      color: ocrStatus === 'processing' ? C.gray400 : C.activeBlue,
+                      fontSize: '0.82rem', fontWeight: 700,
+                      cursor: ocrStatus === 'processing' ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       transition: 'all 0.15s',
                     }}
                   >
-                    🔍 Nhận diện biển số từ ảnh
+                    {ocrStatus === 'processing' ? 'Đang nhận diện biển số...' : '🔍 Nhận diện biển số từ ảnh'}
                   </button>
                 )}
 
