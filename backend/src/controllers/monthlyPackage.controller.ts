@@ -77,4 +77,13 @@ export const monthlyPackageController = {
     const quotas = await monthlyPackageService.getZoneQuotas();
     return res.status(200).json({ success: true, data: quotas });
   }),
+
+  getFloorQuotas: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const floorId = parseInt(req.params.floorId, 10);
+    if (isNaN(floorId)) {
+      throw new AppError(400, 'floorId phải là số nguyên hợp lệ');
+    }
+    const quotas = await monthlyPackageService.getFloorQuotas(floorId);
+    return res.status(200).json({ success: true, data: quotas });
+  }),
 };

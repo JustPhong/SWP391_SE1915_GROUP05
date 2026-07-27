@@ -33,7 +33,8 @@ export const checkinController = {
   // GET /api/checkin/lookup/:plate
   lookup: asyncHandler(async (req: AuthRequest, res: Response) => {
     const { plate } = req.params;
-    const result = await checkinService.lookupPlate(plate);
+    const vehicleType = req.query.vehicleType as 'CAR' | 'MOTORBIKE' | undefined;
+    const result = await checkinService.lookupPlate(plate, vehicleType);
     return res.status(200).json({ success: true, data: result });
   }),
 
@@ -45,12 +46,13 @@ export const checkinController = {
 
   // POST /api/checkin
   submit: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { plate, vehicleType, customerType, slotCode, isMonthly, frontImageUrl, rearImageUrl } = req.body;
+    const { plate, vehicleType, customerType, floorId, slotCode, isMonthly, frontImageUrl, rearImageUrl } = req.body;
     try {
       const result = await checkinService.submit({
         plate,
         vehicleType,
         customerType,
+        floorId,
         slotCode,
         isMonthly,
         frontImageUrl,

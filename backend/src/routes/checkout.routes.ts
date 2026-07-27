@@ -11,7 +11,9 @@ router.use(authorize('STAFF', 'MANAGER', 'ADMIN'));
 router.get('/lookup', checkoutController.lookup);
 router.get('/lookup/:plate', checkoutController.lookup);
 router.get('/parked', checkoutController.parked);
+router.get('/stripe-status', requirePermission('checkout.process'), checkoutController.getStripeStatusBySession);
 router.post('/', requirePermission('checkout.process'), checkoutController.submit);
-router.post('/lost-ticket', requirePermission('checkout.lost_ticket'), checkoutController.lostTicket);
+router.post('/:checkInRecordId/stripe-session', requirePermission('checkout.process'), checkoutController.createStripeSession);
+router.get('/:checkInRecordId/stripe-status', requirePermission('checkout.process'), checkoutController.getStripeStatus);
 
 export default router;

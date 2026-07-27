@@ -24,6 +24,7 @@ router.use(authenticate);
  */
 router.get('/active', monthlyPackageController.getActivePackages);
 router.get('/quotas', monthlyPackageController.getQuotas);
+router.get('/quotas/floor/:floorId', monthlyPackageController.getFloorQuotas);
 
 /**
  * @swagger

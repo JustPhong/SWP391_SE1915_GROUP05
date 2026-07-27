@@ -9,6 +9,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { startNoShowCleanupJob } from './jobs/noShowCleanup.job';
 import { monthlyPackageController } from './controllers/monthlyPackage.controller';
 import { paymentController } from './controllers/payment.controller';
+import { warmUpOcrWorker } from './services/ocr.service';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.listen(config.port, () => {
   console.log(`[Health] http://localhost:${config.port}/api/health`);
   console.log(`[Swagger] http://localhost:${config.port}/api-docs`);
   startNoShowCleanupJob();
+  warmUpOcrWorker();
 });
 
 export default app;

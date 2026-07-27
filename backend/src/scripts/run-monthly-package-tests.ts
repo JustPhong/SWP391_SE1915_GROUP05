@@ -224,12 +224,19 @@ async function runTests() {
       // =========================================================================
       // SCENARIO 18: Monthly check-in creates record with slotId = null
       // =========================================================================
+      const lookupRes = await checkinService.lookupPlate(motoVeh.plateNumber, 'MOTORBIKE');
+      assert(lookupRes.found === true, 'Scenario 18: Lookup should find the monthly vehicle');
+      assert(lookupRes.customerType === 'monthly', 'Scenario 18: Lookup should identify flow as monthly');
+      assert(lookupRes.floorId !== undefined && lookupRes.floorId !== null, 'Scenario 18: Lookup should contain resolved floor id');
+
+      const resolvedFloorId = lookupRes.floorId as number;
+
       const checkinRes = await checkinService.submit({
         plate: motoVeh.plateNumber,
         vehicleType: 'MOTORBIKE',
-        isMonthly: true,
         customerType: 'monthly',
-        slotCode: 'any',
+        floorId: resolvedFloorId,
+        isMonthly: true,
       });
       assert(checkinRes.ok === true, 'Scenario 18: Monthly check-in succeeds');
 
