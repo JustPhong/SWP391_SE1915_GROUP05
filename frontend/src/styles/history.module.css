@@ -333,6 +333,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: #dc2626;
 }
 
+.statusPending {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.statusUnknown {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+
 .btnDetail {
   background: none;
   border: none;

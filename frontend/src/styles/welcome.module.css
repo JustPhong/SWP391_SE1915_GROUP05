@@ -5375,7 +5375,7 @@
   z-index: 0;
 }
 
-/* â”€â”€ Centered card header block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Centered card header block */
 .planCardHeader {
   display: flex;
   flex-direction: column;

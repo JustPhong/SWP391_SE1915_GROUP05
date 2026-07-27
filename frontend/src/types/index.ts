@@ -4,7 +4,9 @@ export type SlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
 export type PackageStatus = 'ACTIVE' | 'EXPIRED';
 export type BookingStatus = 'ACTIVE' | 'FULFILLED' | 'NO_SHOW' | 'CANCELLED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'EWALLET';
-export type PaymentType = 'SESSION' | 'MONTHLY';
+export type PaymentType = 'MONTHLY' | 'SESSION' | 'BOOKING_FEE' | 'PARKING_FEE' | 'MONTHLY_PACKAGE';
+export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED' | 'CANCELLED';
+
 
 export interface User {
   id: string;
@@ -39,6 +41,10 @@ export interface Vehicle {
       status: string;
     }>;
   } | null;
+  checkInRecords?: any[];
+  bookings?: any[];
+  isCurrentlyParked?: boolean;
+  hasActiveMonthlyPackage?: boolean;
 }
 
 export interface ParkingSlot {
@@ -63,6 +69,13 @@ export interface Floor {
   capacity: number;
   slots?: ParkingSlot[];
   createdAt: string;
+
+  totalCapacity?: number;
+  activeParkingCount?: number;
+  physicalAvailableCapacity?: number;
+  activeBookingCount?: number;
+  receivableCapacity?: number;
+  occupancyPercent?: number;
 }
 
 export interface MonthlyPackage {
@@ -96,17 +109,31 @@ export interface Booking {
   floor?: Floor;
   createdBy?: User;
   createdAt: string;
+  depositAmount?: number | string;
+  depositStatus?: string;
+  expiresAt?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  confirmedAt?: string | null;
+  payments?: Payment[];
 }
 
 export interface CheckInRecord {
   id: string;
   vehicleId: string;
-  slotId: string;
+  slotId?: string | null;
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
   vehicle?: Vehicle;
-  slot?: ParkingSlot;
+  slot?: ParkingSlot | null;
+  floorId?: number | null;
+  floor?: {
+    id: number;
+    name: string;
+    floorCode: string;
+  } | null;
+  allowedTier?: 'VIP' | 'POPULAR' | 'REGULAR' | null;
+  bookingId?: string | null;
   createdAt: string;
 }
 
@@ -116,8 +143,10 @@ export interface Payment {
   monthlyPackageId: string | null;
   amount: number;
   method: PaymentMethod;
-  paidAt: string;
+  paidAt?: string | null;
   type: PaymentType;
+  status: PaymentStatus;
+  transactionCode?: string | null;
   checkInRecord?: CheckInRecord;
   monthlyPackage?: MonthlyPackage;
   createdAt: string;

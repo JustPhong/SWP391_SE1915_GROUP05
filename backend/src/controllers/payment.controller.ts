@@ -6,6 +6,7 @@ import { config } from '../config';
 import { stripe } from '../config/stripe';
 import { bookingService } from '../services/booking.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
+import { checkoutService } from '../services/checkout.service';
 
 export const paymentController = {
   getVietQRConfig: asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -49,9 +50,13 @@ export const paymentController = {
 
       const metadata = session.metadata;
       const paymentType = metadata?.paymentType;
+      const paymentPurpose = metadata?.paymentPurpose;
 
       if (paymentType === 'BOOKING_FEE') {
         const result = await bookingService.handleStripeWebhook(event);
+        return res.status(200).json({ success: true, data: result });
+      } else if (paymentPurpose === 'PARKING_FEE' || paymentType === 'PARKING_FEE') {
+        const result = await checkoutService.handleStripeWebhook(event);
         return res.status(200).json({ success: true, data: result });
       } else {
         const result = await monthlyPackageService.handleStripeWebhook(event);

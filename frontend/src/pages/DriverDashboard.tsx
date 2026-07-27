@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { CarIcon, ChevronRightIcon } from '../components/ui/Icons';
 import styles from '../styles/driver.module.css';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 
 interface ParkingSession {
   id: string;
@@ -25,12 +26,49 @@ interface MonthlyPkg {
 
 interface HistoryEntry {
   id: string;
+  recordType?: 'CHECKIN' | 'BOOKING' | 'PARKING_SESSION';
   plateNumber: string;
   slotCode: string;
   date: string;
   duration: string;
   amount: number;
-  status: 'Hoàn thành';
+  status: string;
+}
+
+function getStatusLabel(status?: string, recordType?: 'CHECKIN' | 'BOOKING' | 'PARKING_SESSION') {
+  const s = (status || '').toUpperCase();
+  if (recordType === 'BOOKING') {
+    switch (s) {
+      case 'PENDING_PAYMENT':
+        return 'Chờ thanh toán';
+      case 'ACTIVE':
+        return 'Đang chờ xe vào';
+      case 'FULFILLED':
+        return 'Đã check-in';
+      case 'CANCELLED':
+      case 'CANCELED':
+        return 'Đã hủy';
+      case 'NO_SHOW':
+        return 'Không đến';
+      default:
+        return 'Không xác định';
+    }
+  }
+
+  switch (s) {
+    case 'PARKING':
+    case 'IN_PROGRESS':
+    case 'ACTIVE':
+      return 'Đang gửi xe';
+    case 'COMPLETED':
+    case 'PAID':
+    case 'DONE':
+      return 'Hoàn thành';
+    case 'AWAITING_PAYMENT':
+      return 'Chờ thanh toán';
+    default:
+      return 'Không xác định';
+  }
 }
 
 function formatCurrency(amount: number): string {
@@ -61,38 +99,31 @@ export function DriverDashboardPage() {
   const [history, setHistory] = useState<HistoryEntry[] | undefined>(undefined);
   const [error, setError] = useState('');
 
+  const load = async () => {
+    setError('');
+    try {
+      const [sessionRes, packageRes, historyRes] = await Promise.all([
+        api.get('/driver-dashboard/sessions/current'),
+        api.get('/driver-dashboard/packages/my'),
+        api.get('/driver-dashboard/history'),
+      ]);
+
+      setSession(sessionRes.data.data ?? null);
+      setMonthlyPkg(packageRes.data.data ?? null);
+      setHistory(historyRes.data.data ?? []);
+    } catch {
+      setSession(null);
+      setMonthlyPkg(null);
+      setHistory([]);
+      setError('Không thể tải dữ liệu dashboard. Vui lòng thử lại sau.');
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setError('');
-      try {
-        const [sessionRes, packageRes, historyRes] = await Promise.all([
-          api.get('/driver-dashboard/sessions/current'),
-          api.get('/driver-dashboard/packages/my'),
-          api.get('/driver-dashboard/history'),
-        ]);
-
-        if (cancelled) return;
-
-        setSession(sessionRes.data.data ?? null);
-        setMonthlyPkg(packageRes.data.data ?? null);
-        setHistory(historyRes.data.data ?? []);
-      } catch {
-        if (cancelled) return;
-        setSession(null);
-        setMonthlyPkg(null);
-        setHistory([]);
-        setError('Không thể tải dữ liệu dashboard. Vui lòng thử lại sau.');
-      }
-    };
-
     load();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useRefreshOnFocus({ enabled: true, onRefresh: load });
 
   const isSessionLoading = session === undefined;
   const isPackageLoading = monthlyPkg === undefined;
@@ -220,7 +251,7 @@ export function DriverDashboardPage() {
             <thead>
               <tr>
                 <th>Biển số</th>
-                <th>Mã chỗ</th>
+                <th>Tầng / Khu vực</th>
                 <th>Ngày</th>
                 <th>Thời gian</th>
                 <th>Số tiền</th>
@@ -228,21 +259,33 @@ export function DriverDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {history.map((entry) => (
-                <tr key={entry.id}>
-                  <td><span className={styles.plateChip}>{entry.plateNumber}</span></td>
-                  <td>{entry.slotCode}</td>
-                  <td>{entry.date}</td>
-                  <td>{entry.duration}</td>
-                  <td style={{ fontWeight: 600 }}>{formatCurrency(entry.amount)}</td>
-                  <td>
-                    <span className={`${styles.statusChip} ${styles.statusCompleted}`}>
-                      <span className={styles.badgeDot} />
-                      {entry.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {history.map((entry) => {
+                const statusLabel = getStatusLabel(entry.status, entry.recordType);
+                let statusClass = styles.statusCompleted;
+                if (statusLabel === 'Đang gửi xe' || statusLabel === 'Đang chờ xe vào') {
+                  statusClass = styles.statusActive;
+                } else if (statusLabel === 'Chờ thanh toán') {
+                  statusClass = styles.statusPending;
+                } else if (statusLabel === 'Đã hủy' || statusLabel === 'Không đến' || statusLabel === 'Không xác định') {
+                  statusClass = styles.statusPending;
+                }
+
+                return (
+                  <tr key={entry.id}>
+                    <td><span className={styles.plateChip}>{entry.plateNumber}</span></td>
+                    <td>{entry.slotCode}</td>
+                    <td>{entry.date}</td>
+                    <td>{entry.duration}</td>
+                    <td style={{ fontWeight: 600 }}>{formatCurrency(entry.amount)}</td>
+                    <td>
+                      <span className={`${styles.statusChip} ${statusClass}`}>
+                        <span className={styles.badgeDot} />
+                        {statusLabel}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : (
@@ -260,6 +303,6 @@ export function DriverDashboardPage() {
         <button className={styles.promoBtn}>Khám phá ngay</button>
       </div>
     </>
-    
+
   );
 }

@@ -57,16 +57,15 @@ export const DEFAULT_FEE_CONFIG: FeeConfig = {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function ceilLots(minutes: number, lotMinutes: number): number {
-  // Minimum 1 lot even for very short stays
-  if (minutes <= 0) return 1;
+  if (minutes <= 0) return 0;
   return Math.ceil(minutes / lotMinutes);
 }
 
-function ceilLotsCar(minutes: number, lotMinutes: number): number {
-  // Minimum 1 lot even for very short stays
-  if (minutes <= 0) return 1;
-  if (minutes <= 61) return 1;
-  return Math.ceil((minutes - 61) / lotMinutes) + 1;
+function buildBlockNote(lots: number, rate: number, lotMinutes: number): string {
+  const formattedRate = new Intl.NumberFormat('vi-VN').format(rate) + ' đ';
+  const lotHours = lotMinutes / 60;
+  const unitLabel = lotHours === 1 ? 'giờ' : 'lượt';
+  return `${lots} ${unitLabel} × ${formattedRate}/${unitLabel}\nMỗi lượt áp dụng tối đa ${lotHours} giờ`;
 }
 
 /** Which block index is active at a given local-clock minute-of-day [0,1440)? */
@@ -155,20 +154,23 @@ function sliceByBlocks(
   return slices;
 }
 
-// ─── Motorbike ──────────────────────────────────────────────────────────────
-
 export function calcMotorbikeFee(checkIn: Date, checkOut: Date, blocks: BlockDef[]): FeeResult {
   const slices = sliceByBlocks(checkIn, checkOut, blocks);
-  const breakdown: FeeBlock[] = slices.map((s) => ({
-    startTime:    s.start,
-    endTime:      s.end,
-    label:        s.label,
-    minutesInBlock: s.minutes,
-    rate:         s.rate,
-    lotHours:     s.lotMinutes / 60,
-    lots:         ceilLots(s.minutes, s.lotMinutes),
-    amount:       ceilLots(s.minutes, s.lotMinutes) * s.rate,
-  }));
+  const breakdown: FeeBlock[] = slices.map((s) => {
+    const lots = ceilLots(s.minutes, s.lotMinutes);
+    const lotHours = s.lotMinutes / 60;
+    return {
+      startTime:    s.start,
+      endTime:      s.end,
+      label:        s.label,
+      minutesInBlock: s.minutes,
+      rate:         s.rate,
+      lotHours,
+      lots,
+      amount:       lots * s.rate,
+      note:         buildBlockNote(lots, s.rate, s.lotMinutes),
+    };
+  });
   return { total: breakdown.reduce((sum, b) => sum + b.amount, 0), breakdown };
 }
 
@@ -220,16 +222,21 @@ export function calcCarFee(
   const hasNightFlat = nightMinutes > 0;
 
   const slices = sliceByBlocks(sessionStart, sessionEnd, dayBlocks);
-  const breakdown: FeeBlock[] = slices.map((s) => ({
-    startTime:      s.start,
-    endTime:        s.end,
-    label:          s.label,
-    minutesInBlock: s.minutes,
-    rate:           s.rate,
-    lotHours:       s.lotMinutes / 60,
-    lots:           ceilLotsCar(s.minutes, s.lotMinutes),
-    amount:         ceilLotsCar(s.minutes, s.lotMinutes) * s.rate,
-  }));
+  const breakdown: FeeBlock[] = slices.map((s) => {
+    const lots = ceilLots(s.minutes, s.lotMinutes);
+    const lotHours = s.lotMinutes / 60;
+    return {
+      startTime:      s.start,
+      endTime:        s.end,
+      label:          s.label,
+      minutesInBlock: s.minutes,
+      rate:           s.rate,
+      lotHours,
+      lots,
+      amount:         lots * s.rate,
+      note:           buildBlockNote(lots, s.rate, s.lotMinutes),
+    };
+  });
 
   if (hasNightFlat && nightStart && nightEnd) {
     const nights = nightDates.size;
