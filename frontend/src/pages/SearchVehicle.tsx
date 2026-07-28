@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { lookupPlate, type LookupResult } from '../api/checkinApi';
+import { validatePlate, formatPlateNumber } from '../utils/plate';
 import { SearchIcon } from '../components/ui/Icons';
 import styles from '../styles/staff.module.css';
 
@@ -8,22 +9,14 @@ function normalizePlate(raw: string): string {
 }
 
 function formatPlate(raw: string): { valid: boolean; formatted: string } {
-  const s = normalizePlate(raw);
-  if (!s) return { valid: false, formatted: '' };
-  const match = s.match(/^(\d{2})([A-Z])(\d?)(\d{4,5})$/);
-  if (!match) return { valid: false, formatted: '' };
-  const prov = match[1];
-  const letter = match[2];
-  const series = match[3];
-  const numbers = match[4];
-  const formatted = numbers.length === 5
-    ? `${prov}${letter}${series}-${numbers.slice(0, 3)}.${numbers.slice(3)}`
-    : `${prov}${letter}${series}-${numbers}`;
-  return { valid: true, formatted };
+  const v = validatePlate(raw);
+  if (!v.valid) return { valid: false, formatted: '' };
+  return { valid: true, formatted: formatPlateNumber(raw) };
 }
 
 function isPlateValid(raw: string): boolean {
-  return formatPlate(raw).valid;
+  if (!raw.trim()) return false;
+  return validatePlate(raw).valid;
 }
 
 function formatDate(iso?: string): string {

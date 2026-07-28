@@ -107,9 +107,19 @@ export function GuestParkingPage() {
   // Checkout
   const [checkoutPlate, setCheckoutPlate] = useState('');
   const [checkoutPlateError, setCheckoutPlateError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'banking' | 'cash' | null>(null);
+  const [cashPaid, setCashPaid] = useState(false);
+  const [vietqrConfig, setVietqrConfig] = useState<{ bankId: string; accountNo: string; accountName: string } | null>(null);
 
   useEffect(() => {
     document.title = 'Gửi xe vãng lai — ParkSmart';
+    // Load VietQR bank config from public backend (no auth required)
+    api.get<{ success: boolean; data: { bankId: string; accountNo: string; accountName: string } }>('/public/vietqr-config')
+      .then(res => setVietqrConfig(res.data.data))
+      .catch(() => {
+        // fallback to default values if API fails
+        setVietqrConfig({ bankId: 'MB', accountNo: '0869219799', accountName: 'TRAN MANH DUC' });
+      });
   }, []);
 
   // ── Direct Check-in (Backend auto-assigns optimal slot) ───────────────────
@@ -422,10 +432,11 @@ export function GuestParkingPage() {
         {/* ── STEP: Checkout Result ────────────────────────────────────────── */}
         {step === 'checkout_result' && checkoutInfo && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <button onClick={() => { setStep('checkout_lookup'); setCheckoutInfo(null); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.blue, fontWeight: 700, fontSize: '0.85rem', padding: 0, display: 'flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
+            <button onClick={() => { setStep('checkout_lookup'); setCheckoutInfo(null); setError(''); setPaymentMethod(null); setCashPaid(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.blue, fontWeight: 700, fontSize: '0.85rem', padding: 0, display: 'flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
               ← Tra cứu xe khác
             </button>
 
+            {/* Vehicle info */}
             <div style={{ background: C.gray100, borderRadius: 14, padding: '1.25rem' }}>
               <div style={{ fontSize: '0.72rem', fontWeight: 800, color: C.gray400, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Thông tin lượt gửi xe</div>
               {[
@@ -442,6 +453,7 @@ export function GuestParkingPage() {
               ))}
             </div>
 
+            {/* Fee display */}
             <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#2D5BA3 100%)', borderRadius: 16, padding: '1.5rem', textAlign: 'center', color: C.white }}>
               <div style={{ fontSize: '0.8rem', opacity: 0.75, marginBottom: 6 }}>Phí đỗ xe cần thanh toán</div>
               <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-0.02em' }}>
@@ -449,12 +461,121 @@ export function GuestParkingPage() {
               </div>
             </div>
 
-            <div style={{ background: C.yellowBg, border: `1.5px solid ${C.yellowBorder}`, borderRadius: 12, padding: '0.85rem 1rem', fontSize: '0.82rem', color: C.yellow, fontWeight: 600 }}>
-              💳 Vui lòng thanh toán tại quầy thu phí khi ra khỏi bãi xe.
-            </div>
+            {/* Payment method selection */}
+            {!cashPaid && (
+              <>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray700, marginBottom: -8 }}>
+                  Chọn phương thức thanh toán:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {/* Banking */}
+                  <button
+                    onClick={() => setPaymentMethod(paymentMethod === 'banking' ? null : 'banking')}
+                    style={{
+                      padding: '0.85rem 0.5rem',
+                      borderRadius: 12,
+                      border: `2px solid ${paymentMethod === 'banking' ? C.blue : C.gray200}`,
+                      background: paymentMethod === 'banking' ? '#EFF6FF' : C.white,
+                      cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.5rem' }}>📱</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: paymentMethod === 'banking' ? C.blue : C.gray700 }}>Chuyển khoản</span>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>QR Banking</span>
+                  </button>
+
+                  {/* Cash */}
+                  <button
+                    onClick={() => setPaymentMethod(paymentMethod === 'cash' ? null : 'cash')}
+                    style={{
+                      padding: '0.85rem 0.5rem',
+                      borderRadius: 12,
+                      border: `2px solid ${paymentMethod === 'cash' ? '#16A34A' : C.gray200}`,
+                      background: paymentMethod === 'cash' ? '#F0FDF4' : C.white,
+                      cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.5rem' }}>💵</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: paymentMethod === 'cash' ? '#16A34A' : C.gray700 }}>Tiền mặt</span>
+                    <span style={{ fontSize: '0.7rem', color: C.gray400 }}>Trả nhân viên</span>
+                  </button>
+                </div>
+
+                {/* Banking QR section */}
+                {paymentMethod === 'banking' && (
+                  <div style={{ background: C.white, border: `1.5px solid ${C.blue}`, borderRadius: 14, padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: C.navy, marginBottom: '0.75rem' }}>
+                      Quét mã QR để thanh toán
+                    </div>
+                    {vietqrConfig ? (
+                      <>
+                        <img
+                          src={`https://img.vietqr.io/image/${vietqrConfig.bankId}-${vietqrConfig.accountNo}-compact2.jpg?amount=${checkoutInfo.fee}&addInfo=Phi%20do%20xe%20${checkoutInfo.plate.replace(/[-.\s]/g, '')}&accountName=${encodeURIComponent(vietqrConfig.accountName)}`}
+                          alt="QR thanh toán"
+                          style={{ width: '100%', maxWidth: 220, borderRadius: 10, border: `1px solid ${C.gray200}` }}
+                        />
+                        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ fontSize: '0.78rem', color: C.gray500 }}>Ngân hàng: <strong style={{ color: C.navy }}>{vietqrConfig.bankId}</strong></div>
+                          <div style={{ fontSize: '0.78rem', color: C.gray500 }}>STK: <strong style={{ color: C.navy }}>{vietqrConfig.accountNo}</strong></div>
+                          <div style={{ fontSize: '0.78rem', color: C.gray500 }}>Chủ TK: <strong style={{ color: C.navy }}>{vietqrConfig.accountName}</strong></div>
+                          <div style={{ fontSize: '0.78rem', color: C.gray500 }}>Nội dung: <strong style={{ color: C.blue }}>Phi do xe {checkoutInfo.plate}</strong></div>
+                          <div style={{ marginTop: 6, padding: '0.6rem', background: '#DBEAFE', borderRadius: 8, fontSize: '0.75rem', color: '#1E40AF', fontWeight: 600 }}>
+                            💡 Sau khi chuyển khoản, vui lòng cho nhân viên thấy biên lai để xác nhận ra xe.
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ padding: '1rem', fontSize: '0.82rem', color: C.gray500 }}>Đang tải thông tin ngân hàng...</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Cash section */}
+                {paymentMethod === 'cash' && (
+                  <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 14, padding: '1.25rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: C.green, marginBottom: '0.75rem' }}>
+                      💵 Thanh toán tiền mặt
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.white, borderRadius: 10, padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: C.gray700, fontWeight: 600 }}>Số tiền cần trả</span>
+                      <span style={{ fontSize: '1.25rem', fontWeight: 900, color: C.navy }}>{checkoutInfo.fee.toLocaleString('vi-VN')} ₫</span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: C.gray500, marginBottom: '0.85rem', lineHeight: 1.6 }}>
+                      Vui lòng chuẩn bị đúng số tiền và đưa cho nhân viên thu phí tại cổng ra.
+                    </div>
+                    <button
+                      onClick={() => setCashPaid(true)}
+                      style={{ width: '100%', padding: '0.8rem', background: C.green, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.9rem', fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      ✅ Xác nhận đã chuẩn bị tiền mặt
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Cash confirmed */}
+            {cashPaid && (
+              <div style={{ background: C.greenBg, border: `2px solid ${C.green}`, borderRadius: 14, padding: '1.25rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '2rem', marginBottom: 8 }}>✅</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: C.green, marginBottom: 6 }}>
+                  Đã xác nhận thanh toán tiền mặt
+                </div>
+                <div style={{ fontSize: '0.82rem', color: C.gray500, marginBottom: '1rem' }}>
+                  Số tiền: <strong style={{ color: C.navy }}>{checkoutInfo.fee.toLocaleString('vi-VN')} ₫</strong>
+                </div>
+                <div style={{ background: C.white, borderRadius: 10, padding: '0.75rem', fontSize: '0.8rem', color: C.gray700, fontWeight: 600 }}>
+                  🚗 Vui lòng tiến ra cổng và đưa tiền cho nhân viên thu phí.
+                </div>
+              </div>
+            )}
 
             <button
-              onClick={reset}
+              onClick={() => { setCheckoutInfo(null); setStep('checkout_lookup'); setPaymentMethod(null); setCashPaid(false); }}
               style={{ width: '100%', padding: '0.8rem', background: C.gray100, color: C.gray700, border: `1.5px solid ${C.gray200}`, borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}
             >
               Tra cứu xe khác
