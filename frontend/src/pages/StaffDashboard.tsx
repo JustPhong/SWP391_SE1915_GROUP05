@@ -259,14 +259,14 @@ export function StaffDashboardPage() {
   const [plate, setPlate] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState('Không thể tải dữ liệu tổng quan.');
+  const [fetchError, setFetchError] = useState('');
   const { user } = useAuth();
   const displayName = user?.fullName ?? 'Nhân viên';
   const navigate = useNavigate();
 
   useEffect(() => {
     getStaffDashboard()
-      .then((d) => { setData(d); setLoading(false); })
+      .then((d) => { setData(d); setFetchError(''); setLoading(false); })
       .catch(() => { setFetchError('Không thể tải dữ liệu tổng quan.'); setLoading(false); });
   }, []);
 
