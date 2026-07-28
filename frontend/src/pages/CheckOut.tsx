@@ -968,7 +968,7 @@ export function CheckOutPage() {
               </p>
             ) : (
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Xe đã ra bãi · {checkoutResult.note ?? 'Miễn phí gói tháng'}
+                Xe đã ra khỏi bãi.
               </p>
             )}
           </div>
