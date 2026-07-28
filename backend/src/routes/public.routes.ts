@@ -3,6 +3,9 @@ import { publicController } from '../controllers/public.controller';
 
 const router = Router();
 
+// GET /api/public/vietqr-config — bank config for guest payment (no auth)
+router.get('/vietqr-config', publicController.getVietQRConfig);
+
 // GET /api/public/availability — live parking availability (no auth)
 router.get('/availability', publicController.getAvailability);
 

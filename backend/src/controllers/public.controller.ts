@@ -4,6 +4,7 @@ import { asyncHandler, AppError } from '../utils/helpers';
 import { slotSuggestionService } from '../services/slotSuggestion.service';
 import { calcFee } from '../utils/fee';
 import { feeRuleService } from '../services/feeRule.service';
+import { config } from '../config';
 
 type VehicleBucket = { available: number; total: number };
 type ZoneBucket = { car: VehicleBucket; motorbike: VehicleBucket };
@@ -14,6 +15,11 @@ type AvailabilityData = {
 };
 
 export const publicController = {
+  // ── GET /api/public/vietqr-config — no auth required for guests ──────────
+  getVietQRConfig: asyncHandler(async (_req, res: Response) => {
+    return res.status(200).json({ success: true, data: config.vietqr });
+  }),
+
   // ── GET /api/public/availability ─────────────────────────────────────────
   getAvailability: asyncHandler(async (_req, res: Response) => {
     const allRows = await prisma.parkingSlot.findMany({
