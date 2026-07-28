@@ -80,6 +80,7 @@ export const checkoutService = {
         ],
       },
       include: {
+        monthlyPackage: true,
         owner: {
           select: {
             fullName: true,
@@ -109,16 +110,26 @@ export const checkoutService = {
     const now = new Date();
     const checkIn = new Date(record.checkInTime);
     const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
-    const config = await feeRuleService.getFeeConfig();
-    const { total, breakdown } = calcFee(
-      checkIn,
-      now,
-      vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
-    );
 
+    const activePkg = vehicle.monthlyPackage && vehicle.monthlyPackage.status === 'ACTIVE' && new Date(vehicle.monthlyPackage.expiryDate) >= now ? vehicle.monthlyPackage : null;
+    const isMonthlyVehicle = record.isMonthly || vehicle.isMonthly || !!activePkg;
+
+    let total = 0;
+    let breakdown: any[] = [];
     let depositCredit = 0;
-    if (!record.isMonthly) {
+    let amountDue = 0;
+
+    if (!isMonthlyVehicle) {
+      const config = await feeRuleService.getFeeConfig();
+      const feeRes = calcFee(
+        checkIn,
+        now,
+        vehicle.type as 'CAR' | 'MOTORBIKE',
+        config,
+      );
+      total = feeRes.total;
+      breakdown = feeRes.breakdown;
+
       const booking = await prisma.booking.findFirst({
         where: {
           vehicleId: vehicle.id,
@@ -129,22 +140,26 @@ export const checkoutService = {
       if (booking) {
         depositCredit = parseFloat(String(booking.depositAmount)) || 0;
       }
+      amountDue = Math.max(0, total - depositCredit);
     }
-    const amountDue = Math.max(0, total - depositCredit);
 
     let packageExpiry: string | undefined;
-    if (record.isMonthly) {
-      const pkg = await prisma.monthlyPackage.findFirst({
-        where: {
-          vehicleId: vehicle.id,
-          status: 'ACTIVE',
-        },
-        select: {
-          expiryDate: true,
-        },
-      });
-      if (pkg) {
-        packageExpiry = pkg.expiryDate.toISOString();
+    if (isMonthlyVehicle) {
+      if (activePkg) {
+        packageExpiry = activePkg.expiryDate.toISOString();
+      } else {
+        const pkg = await prisma.monthlyPackage.findFirst({
+          where: {
+            vehicleId: vehicle.id,
+            status: 'ACTIVE',
+          },
+          select: {
+            expiryDate: true,
+          },
+        });
+        if (pkg) {
+          packageExpiry = pkg.expiryDate.toISOString();
+        }
       }
     }
 
@@ -155,7 +170,7 @@ export const checkoutService = {
       plate: vehicle.plateNumber,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
       slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      isMonthly: record.isMonthly,
+      isMonthly: isMonthlyVehicle,
       checkInTime: record.checkInTime.toISOString(),
       now: now.toISOString(),
       durationMinutes,
@@ -178,19 +193,26 @@ export const checkoutService = {
     const records = await prisma.checkInRecord.findMany({
       where: { checkOutTime: null },
       include: {
-        vehicle: true,
+        vehicle: {
+          include: { monthlyPackage: true },
+        },
         slot: true,
       },
       orderBy: { checkInTime: 'asc' },
     });
 
-    return records.map((r) => ({
-      plate: r.vehicle.plateNumber,
-      vehicleType: r.vehicle.type as 'CAR' | 'MOTORBIKE',
-      slotCode: r.slot?.code ?? (r.allowedTier ? `Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      checkInTime: r.checkInTime.toISOString(),
-      isMonthly: r.isMonthly,
-    }));
+    const now = new Date();
+    return records.map((r) => {
+      const activePkg = r.vehicle.monthlyPackage && r.vehicle.monthlyPackage.status === 'ACTIVE' && new Date(r.vehicle.monthlyPackage.expiryDate) >= now;
+      const isMonthlyVehicle = r.isMonthly || r.vehicle.isMonthly || !!activePkg;
+      return {
+        plate: r.vehicle.plateNumber,
+        vehicleType: r.vehicle.type as 'CAR' | 'MOTORBIKE',
+        slotCode: r.slot?.code ?? (r.allowedTier ? `Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+        checkInTime: r.checkInTime.toISOString(),
+        isMonthly: isMonthlyVehicle,
+      };
+    });
   },
 
   // ── GET /api/checkout/preview/:recordId ───────────────────
@@ -203,7 +225,7 @@ export const checkoutService = {
   }> {
     const record = await prisma.checkInRecord.findUnique({
       where: { id: recordId },
-      include: { vehicle: true },
+      include: { vehicle: { include: { monthlyPackage: true } } },
     });
 
     if (!record) {
@@ -211,6 +233,18 @@ export const checkoutService = {
     }
 
     const now = new Date();
+    const activePkg = record.vehicle.monthlyPackage && record.vehicle.monthlyPackage.status === 'ACTIVE' && new Date(record.vehicle.monthlyPackage.expiryDate) >= now;
+    const isMonthlyVehicle = record.isMonthly || record.vehicle.isMonthly || !!activePkg;
+
+    if (isMonthlyVehicle) {
+      return {
+        fee: 0,
+        breakdown: [],
+        depositCredit: 0,
+        amountDue: 0,
+      };
+    }
+
     const config = await feeRuleService.getFeeConfig();
     const { total, breakdown } = calcFee(
       new Date(record.checkInTime),
@@ -220,17 +254,15 @@ export const checkoutService = {
     );
 
     let depositCredit = 0;
-    if (!record.isMonthly) {
-      const booking = await prisma.booking.findFirst({
-        where: {
-          vehicleId: record.vehicleId,
-          status: 'FULFILLED',
-          depositStatus: 'PAID',
-        },
-      });
-      if (booking) {
-        depositCredit = parseFloat(String(booking.depositAmount)) || 0;
-      }
+    const booking = await prisma.booking.findFirst({
+      where: {
+        vehicleId: record.vehicleId,
+        status: 'FULFILLED',
+        depositStatus: 'PAID',
+      },
+    });
+    if (booking) {
+      depositCredit = parseFloat(String(booking.depositAmount)) || 0;
     }
 
     const amountDue = Math.max(0, total - depositCredit);
@@ -261,7 +293,7 @@ export const checkoutService = {
     if (checkInRecordId) {
       record = await prisma.checkInRecord.findUnique({
         where: { id: checkInRecordId },
-        include: { vehicle: true, slot: true },
+        include: { vehicle: { include: { monthlyPackage: true } }, slot: true },
       });
     } else if (plate) {
       const cleaned = plate.trim().toUpperCase();
@@ -277,7 +309,7 @@ export const checkoutService = {
       if (vehicle) {
         record = await prisma.checkInRecord.findFirst({
           where: { vehicleId: vehicle.id, checkOutTime: null },
-          include: { vehicle: true, slot: true },
+          include: { vehicle: { include: { monthlyPackage: true } }, slot: true },
         });
       }
     }
@@ -287,6 +319,48 @@ export const checkoutService = {
     }
 
     const now = new Date();
+    const activePkg = record.vehicle.monthlyPackage && record.vehicle.monthlyPackage.status === 'ACTIVE' && new Date(record.vehicle.monthlyPackage.expiryDate) >= now;
+    const isMonthlyVehicle = record.isMonthly || record.vehicle.isMonthly || !!activePkg;
+
+    if (isMonthlyVehicle) {
+      await prisma.$transaction(async (tx) => {
+        const updated = await tx.checkInRecord.updateMany({
+          where: {
+            id: record.id,
+            checkOutTime: null,
+            status: 'PARKING',
+          },
+          data: {
+            checkOutTime: now,
+            checkedOutById: staffId,
+            status: 'COMPLETED',
+            isMonthly: true,
+          },
+        });
+
+        if (updated.count === 0) {
+          throw new AppError(409, 'Phiên gửi xe này đã được thanh toán hoặc đã kết thúc.');
+        }
+
+        if (record.slotId) {
+          await tx.parkingSlot.update({
+            where: { id: record.slotId },
+            data: { status: 'AVAILABLE', assignedVehicleId: null },
+          });
+        }
+      });
+
+      return {
+        ok: true,
+        plate: record.vehicle.plateNumber,
+        slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+        fee: 0,
+        isMonthly: true,
+        checkOutTime: now.toISOString(),
+        breakdown: [],
+      };
+    }
+
     const checkIn = new Date(record.checkInTime);
     const config = await feeRuleService.getFeeConfig();
     const { total, breakdown } = calcFee(

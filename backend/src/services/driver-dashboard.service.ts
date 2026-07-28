@@ -69,9 +69,10 @@ export const driverDashboardService = {
   async getHistory(userId: string) {
     const records = await prisma.checkInRecord.findMany({
       where: {
-        vehicle: {
-          ownerId: userId,
-        },
+        OR: [
+          { vehicle: { ownerId: userId } },
+          { booking: { createdById: userId } },
+        ],
       },
       orderBy: { checkInTime: 'desc' },
       include: {
@@ -100,9 +101,9 @@ export const driverDashboardService = {
     const recordEntries = records.map((record) => ({
       id: record.id,
       plateNumber: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Tầng G'),
       date: formatISODate(record.checkOutTime ?? record.checkInTime),
-      duration: formatDuration(record.checkInTime, record.checkOutTime ?? new Date()),
+      duration: record.checkOutTime ? formatDuration(record.checkInTime, record.checkOutTime) : 'Đang đỗ',
       amount: Number(record.payments[0]?.amount ?? 0),
       status: record.checkOutTime ? 'Hoàn thành' : 'Đang đỗ',
     }));

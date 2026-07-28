@@ -92,17 +92,34 @@ export const checkInService = {
         throw new AppError(400, `Khu vực đỗ xe ${zoneName} tại tầng đã hết chỗ trống.`);
       }
 
+      // Find active booking for vehicle
+      const activeBooking = await prisma.booking.findFirst({
+        where: {
+          vehicleId: activeVehicle.id,
+          status: 'ACTIVE',
+        },
+        orderBy: { bookingTime: 'desc' },
+      });
+
       // Create CheckInRecord (no slotId)
       const record = await prisma.checkInRecord.create({
         data: {
           vehicleId: activeVehicle.id,
           slotId: null,
           floorId,
+          bookingId: activeBooking?.id ?? null,
           isMonthly: true,
           allowedTier,
         },
         include: { slot: true, vehicle: { include: { owner: true } } },
       });
+
+      if (activeBooking) {
+        await prisma.booking.update({
+          where: { id: activeBooking.id },
+          data: { status: 'FULFILLED' },
+        });
+      }
 
       return record;
     }
@@ -136,20 +153,36 @@ export const checkInService = {
       throw new AppError(400, 'Slot type does not match vehicle type');
     }
 
-    await prisma.$transaction([
-      prisma.parkingSlot.update({
+    // Find active booking for vehicle
+    const activeBooking = await prisma.booking.findFirst({
+      where: {
+        vehicleId: activeVehicle.id,
+        status: 'ACTIVE',
+      },
+      orderBy: { bookingTime: 'desc' },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.parkingSlot.update({
         where: { id: targetSlotId },
         data: { status: SLOT_OCCUPIED },
-      }),
-      prisma.checkInRecord.create({
+      });
+      await tx.checkInRecord.create({
         data: {
           vehicleId: activeVehicle.id,
           slotId: targetSlotId,
           floorId: slot.floorId,
+          bookingId: activeBooking?.id ?? null,
           isMonthly,
         },
-      }),
-    ]);
+      });
+      if (activeBooking) {
+        await tx.booking.update({
+          where: { id: activeBooking.id },
+          data: { status: 'FULFILLED' },
+        });
+      }
+    });
 
     const record = await prisma.checkInRecord.findFirst({
       where: { vehicleId: activeVehicle.id },
@@ -160,13 +193,23 @@ export const checkInService = {
   },
 
   async getActiveRecords() {
-    return prisma.checkInRecord.findMany({
+    const records = await prisma.checkInRecord.findMany({
       where: { checkOutTime: null },
       orderBy: { checkInTime: 'desc' },
       include: {
         slot: true,
-        vehicle: { include: { owner: true } },
+        vehicle: { include: { owner: true, monthlyPackage: true } },
       },
+    });
+
+    const now = new Date();
+    return records.map((r) => {
+      const activePkg = r.vehicle.monthlyPackage && r.vehicle.monthlyPackage.status === 'ACTIVE' && new Date(r.vehicle.monthlyPackage.expiryDate) >= now;
+      const isMonthlyVehicle = r.isMonthly || r.vehicle.isMonthly || !!activePkg;
+      return {
+        ...r,
+        isMonthly: isMonthlyVehicle,
+      };
     });
   },
 

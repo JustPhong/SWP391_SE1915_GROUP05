@@ -282,18 +282,42 @@ export const checkinService = {
         throw new AppError(400, `Khu vực đỗ xe ${zoneName} tại tầng đã hết chỗ trống.`);
       }
 
-      const checkInTime = new Date();
-      await prisma.checkInRecord.create({
-        data: {
-          vehicleId: vehicle.id,
-          slotId: null,
-          floorId,
-          checkInTime,
-          isMonthly: true,
-          allowedTier,
-          frontImageUrl: frontImageUrl ?? null,
-          rearImageUrl: rearImageUrl ?? null,
+      // Check if there is an active booking for this vehicle or plate
+      const activeBooking = await prisma.booking.findFirst({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { vehicleId: vehicle!.id },
+            { vehicle: { plateNumber: cleaned } },
+            { vehicle: { plateNumber: stripped } },
+            { vehicle: { plateNumber: withDash } },
+          ],
         },
+        orderBy: { bookingTime: 'desc' },
+      });
+
+      const checkInTime = new Date();
+      await prisma.$transaction(async (tx) => {
+        await tx.checkInRecord.create({
+          data: {
+            vehicleId: vehicle!.id,
+            slotId: null,
+            floorId,
+            bookingId: activeBooking?.id ?? null,
+            checkInTime,
+            isMonthly: true,
+            allowedTier,
+            frontImageUrl: frontImageUrl ?? null,
+            rearImageUrl: rearImageUrl ?? null,
+          },
+        });
+
+        if (activeBooking) {
+          await tx.booking.update({
+            where: { id: activeBooking.id },
+            data: { status: 'FULFILLED' },
+          });
+        }
       });
 
       return {
@@ -331,25 +355,46 @@ export const checkinService = {
       vehicle = { ...newVehicle, monthlyPackage: null } as any;
     }
 
+    // Check if there is an active booking for this vehicle or plate
+    const activeBooking = await prisma.booking.findFirst({
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { vehicleId: vehicle!.id },
+          { vehicle: { plateNumber: cleaned } },
+          { vehicle: { plateNumber: stripped } },
+          { vehicle: { plateNumber: withDash } },
+        ],
+      },
+      orderBy: { bookingTime: 'desc' },
+    });
+
     const checkInTime = new Date();
 
-    await prisma.$transaction([
-      prisma.parkingSlot.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.parkingSlot.update({
         where: { id: slot.id },
         data: { status: 'OCCUPIED', assignedVehicleId: vehicle!.id },
-      }),
-      prisma.checkInRecord.create({
+      });
+      await tx.checkInRecord.create({
         data: {
           vehicleId: vehicle!.id,
           slotId: slot.id,
           floorId: slot.floorId,
+          bookingId: activeBooking?.id ?? null,
           checkInTime,
           isMonthly,
           frontImageUrl: frontImageUrl ?? null,
           rearImageUrl: rearImageUrl ?? null,
         },
-      }),
-    ]);
+      });
+      if (activeBooking) {
+        await tx.booking.update({
+          where: { id: activeBooking.id },
+          data: { status: 'FULFILLED' },
+        });
+      }
+    });
 
     return {
       ok: true,
