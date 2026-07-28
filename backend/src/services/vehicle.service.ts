@@ -135,6 +135,14 @@ export const vehicleService = {
             payments: true,
           },
         },
+        checkInRecords: {
+          where: { checkOutTime: null },
+        },
+        bookings: {
+          where: {
+            status: { in: ['ACTIVE', 'PENDING_PAYMENT'] }
+          }
+        }
       },
     });
   },

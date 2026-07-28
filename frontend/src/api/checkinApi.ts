@@ -83,12 +83,6 @@ export interface CheckinSubmitResult {
 
 // ─── OCR ─────────────────────────────────────────────────────────────────
 
-export interface OcrResult {
-  plate: string;
-  confidence: number; // 0–1
-  source: 'front' | 'rear' | 'combined';
-}
-
 // ─── Image upload / delete ────────────────────────────────────────────────
 
 export interface CheckinImageUploadPayload {
@@ -193,38 +187,24 @@ export async function uploadCheckinImage(
 
 export interface OcrApiResponse {
   plateNumber: string;
+  normalizedPlate: string;
   rawText: string;
   candidates: string[];
   provider: 'TESSERACT_JS';
+  confidence: number;
+  reliability: 'VERIFIED' | 'REVIEW';
+  agreementCount: number;
   imageUrl: string;
-  recognitionSource?: 'FRONT' | 'REAR';
-  confidence?: number;
 }
 
 export async function runOcrApi(
-  vehicleType: string,
-  frontImage: File | null,
-  rearImage: File | null,
+  rearImage: File,
+  vehicleType: 'CAR' | 'MOTORBIKE',
   signal?: AbortSignal
 ): Promise<OcrApiResponse> {
   const formData = new FormData();
+  formData.append('image', rearImage);
   formData.append('vehicleType', vehicleType);
-
-  if (vehicleType === 'CAR') {
-    if (frontImage) {
-      formData.append('image', frontImage);
-      formData.append('imageRole', 'FRONT');
-    }
-    if (rearImage) {
-      formData.append('image', rearImage);
-      formData.append('imageRole', 'REAR');
-    }
-  } else {
-    if (rearImage) {
-      formData.append('image', rearImage);
-      formData.append('imageRole', 'REAR');
-    }
-  }
 
   const response = await api.post<{ success: boolean; data: OcrApiResponse }>(
     '/checkin-media/ocr',

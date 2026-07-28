@@ -45,7 +45,7 @@ const C = {
 //  TYPES
 // ═════════════════════════════════════════════════════
 type VehicleType = 'CAR' | 'MOTORBIKE';
-type OcrStatus = 'idle' | 'processing' | 'success' | 'low_confidence' | 'failed';
+type OcrStatus = 'idle' | 'processing' | 'success' | 'low_confidence' | 'manually_edited' | 'failed';
 
 
 
@@ -394,29 +394,64 @@ function CaptureBox({
   );
 }
 
-function OcrSuccessBadge({ confidence, isManual }: { confidence: number | null; isManual?: boolean }) {
-  const badgeText = isManual
-    ? 'Đã nhận diện (đã chỉnh sửa)'
-    : (confidence !== null && Number.isFinite(confidence)
-      ? `Đã nhận diện · ${Math.round(confidence)}%`
-      : 'Đã nhận diện');
+function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: string }) {
+  if (status === 'idle' || status === 'failed') return null;
+
+  let title = '';
+  let bgColor = C.gray50;
+  let borderColor = C.border;
+  let color = C.gray800;
+
+  if (status === 'processing') {
+    title = 'Đang nhận diện biển số...';
+    bgColor = '#EFF6FF'; // light blue
+    borderColor = '#BFDBFE';
+    color = '#1D4ED8';
+  } else if (status === 'manually_edited') {
+    title = 'Đã hiệu chỉnh biển số';
+    bgColor = C.yellowBg;
+    borderColor = C.yellowBorder;
+    color = C.yellow;
+  } else if (status === 'low_confidence') {
+    title = 'Cần kiểm tra lại biển số';
+    bgColor = '#FFF7ED'; // light orange
+    borderColor = '#FFEDD5';
+    color = C.orange;
+  } else if (status === 'success') {
+    title = 'Đã nhận diện biển số';
+    bgColor = C.greenBg;
+    borderColor = C.greenBorder;
+    color = C.green;
+  }
+
   return (
     <div style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6,
-      background: '#DCFCE7',
-      border: `1.5px solid #BBF7D0`,
-      borderRadius: 8,
-      padding: '0.35rem 0.65rem',
-      color: '#15803D',
-      fontSize: '0.78rem',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      background: bgColor,
+      border: `1.5px solid ${borderColor}`,
+      borderRadius: 10,
+      padding: '0.65rem 0.85rem',
+      color: color,
+      fontSize: '0.82rem',
       fontWeight: 700,
+      marginTop: 10,
+      width: '100%',
     }}>
-      <span>✓ {badgeText}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{title}</span>
+      </div>
+      {status !== 'processing' && plate && (
+        <div style={{ fontSize: '1.1rem', fontFamily: "'Consolas','Courier New',monospace", letterSpacing: '0.04em', marginTop: 2 }}>
+          {plate}
+        </div>
+      )}
     </div>
   );
 }
+
+
 
 
 
@@ -463,10 +498,7 @@ export function CheckInPage() {
 
   // ── OCR state ─────────────────────────────────────────────────────────
   const [ocrStatus, setOcrStatus] = useState<OcrStatus>('idle');
-  const [ocrConflict, setOcrConflict] = useState(false);
   const [ocrAttempted, setOcrAttempted] = useState(false);
-  const [ocrSource, setOcrSource] = useState<'FRONT' | 'REAR' | null>(null);
-  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
 
   // ── Plate / lookup ─────────────────────────────────────────────────────
   const [plateInput, setPlateInput] = useState('');
@@ -528,7 +560,6 @@ export function CheckInPage() {
     setFrontPreview(null);
     setRearPreview(null);
     setOcrStatus('idle');
-    setOcrConflict(false);
     setOcrAttempted(false);
     setPlateInput('');
     setPlateSource('manual');
@@ -560,7 +591,6 @@ export function CheckInPage() {
       setRearImageUrl(null);
     }
     setOcrStatus('idle');
-    setOcrConflict(false);
   };
 
   const handleRemoveFront = () => {
@@ -569,7 +599,6 @@ export function CheckInPage() {
     setFrontPreview(null);
     setFrontImageUrl(null);
     setOcrStatus('idle');
-    setOcrConflict(false);
     if (ocrAbortControllerRef.current) {
       ocrAbortControllerRef.current.abort();
       ocrAbortControllerRef.current = null;
@@ -581,7 +610,6 @@ export function CheckInPage() {
     setRearPreview(null);
     setRearImageUrl(null);
     setOcrStatus('idle');
-    setOcrConflict(false);
     if (ocrAbortControllerRef.current) {
       ocrAbortControllerRef.current.abort();
       ocrAbortControllerRef.current = null;
@@ -589,18 +617,7 @@ export function CheckInPage() {
   };
 
   const runOCR = async () => {
-    if (!vehicleType) return;
-    if (vehicleType === 'CAR') {
-      if (!frontImage && !rearImage) {
-        setApiError('Vui lòng tải lên ít nhất một ảnh để nhận diện.');
-        return;
-      }
-    } else {
-      if (!rearImage) {
-        setApiError('Vui lòng tải lên hoặc chụp ảnh biển số sau để nhận diện.');
-        return;
-      }
-    }
+    if (!vehicleType || !rearImage) return;
 
     // 1. Abort previous request if any
     if (ocrAbortControllerRef.current) {
@@ -615,36 +632,32 @@ export function CheckInPage() {
     ocrRequestIdRef.current = currentRequestId;
 
     setOcrStatus('processing');
-    setOcrConflict(false);
     setApiError('');
-    setOcrSource(null);
-    setOcrConfidence(null);
 
     try {
-      const result = await runOcrApi(vehicleType, frontImage, rearImage, controller.signal);
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[OCR request fields]', {
+          fileField: 'image',
+          fileName: rearImage.name,
+          vehicleType
+        });
+      }
+      const result = await runOcrApi(rearImage, vehicleType, controller.signal);
 
       // Check if stale
       if (ocrRequestIdRef.current !== currentRequestId) {
         return;
       }
 
-      const source = result.recognitionSource || 'REAR';
-      const confidence = typeof result.confidence === 'number' && Number.isFinite(result.confidence)
-        ? result.confidence
-        : null;
-
-      setOcrSource(source);
-      setOcrConfidence(confidence);
-
-      if (source === 'FRONT') {
-        setFrontImageUrl(result.imageUrl);
-      } else {
-        setRearImageUrl(result.imageUrl);
-      }
-
-      setOcrStatus('success');
+      setRearImageUrl(result.imageUrl);
       setPlateInput(result.plateNumber.toUpperCase());
-      setPlateSource(source === 'FRONT' ? 'front' : 'rear');
+      setPlateSource('rear');
+
+      if (result.reliability === 'VERIFIED') {
+        setOcrStatus('success');
+      } else {
+        setOcrStatus('low_confidence');
+      }
     } catch (err: any) {
       // Check if stale
       if (ocrRequestIdRef.current !== currentRequestId) {
@@ -657,20 +670,14 @@ export function CheckInPage() {
         return;
       }
 
-      if (err.response?.data?.requiresManualReview) {
-        setOcrConflict(true);
-        setOcrStatus('low_confidence');
-        setApiError(err.response.data.message);
+      const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('exceeded');
+      if (isTimeout) {
+        setApiError('Nhận diện biển số mất nhiều thời gian hơn dự kiến. Vui lòng thử lại hoặc nhập thủ công.');
+        setOcrStatus('failed');
       } else {
-        const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('exceeded');
-        if (isTimeout) {
-          setApiError('Nhận diện biển số mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.');
-          setOcrStatus('failed');
-        } else {
-          const msg = err.response?.data?.message || 'Không thể nhận diện biển số. Vui lòng chụp lại ảnh rõ hơn hoặc nhập thủ công.';
-          setApiError(msg);
-          setOcrStatus('failed');
-        }
+        const msg = err.response?.data?.message || 'Không thể nhận diện biển số từ ảnh sau. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.';
+        setApiError(msg);
+        setOcrStatus('failed');
       }
     } finally {
       if (ocrRequestIdRef.current === currentRequestId) {
@@ -812,10 +819,7 @@ export function CheckInPage() {
     setFrontImageUrl(null);
     setRearImageUrl(null);
     setOcrStatus('idle');
-    setOcrConflict(false);
     setOcrAttempted(false);
-    setOcrSource(null);
-    setOcrConfidence(null);
     setPlateInput('');
     setPlateSource('manual');
     setLookupData(null);
@@ -1049,8 +1053,8 @@ export function CheckInPage() {
               {vehicleType && (
                 <p style={{ margin: '0.75rem 0 0', fontSize: '0.78rem', color: C.gray500 }}>
                   {vehicleType === 'CAR'
-                    ? 'Ô tô: chụp biển số trước và sau để hệ thống nhận diện chính xác nhất.'
-                    : 'Xe máy: chụp ảnh đầu xe (tổng quan) và ảnh biển số sau (nhận diện).'}
+                    ? 'Ô tô: chụp đầy đủ ảnh phía trước và phía sau để lưu hồ sơ và hỗ trợ đối chiếu khi cần.'
+                    : 'Xe máy: chụp đầy đủ ảnh phía trước và phía sau để lưu hồ sơ và hỗ trợ đối chiếu khi cần.'}
                 </p>
               )}
             </Card>
@@ -1068,7 +1072,7 @@ export function CheckInPage() {
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                       <CaptureBox
-                        label="Biển số trước"
+                        label="Ảnh phía trước"
                         hint="Chụp rõ toàn bộ biển số phía trước xe"
                         aspectRatio="2.8/1"
                         preview={frontPreview}
@@ -1079,10 +1083,9 @@ export function CheckInPage() {
                         libraryRef={frontLibraryRef}
                         onCameraChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
                         onLibraryChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
-                        ocrBadge={ocrStatus === 'success' && ocrSource === 'FRONT' ? <OcrSuccessBadge confidence={ocrConfidence} isManual={plateSource === 'manual'} /> : undefined}
                       />
                       <CaptureBox
-                        label="Biển số sau"
+                        label="Ảnh phía sau"
                         hint="Chụp rõ toàn bộ biển số phía sau xe"
                         aspectRatio="2.8/1"
                         preview={rearPreview}
@@ -1093,11 +1096,10 @@ export function CheckInPage() {
                         libraryRef={rearLibraryRef}
                         onCameraChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
                         onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
-                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} isManual={plateSource === 'manual'} /> : undefined}
                       />
                     </div>
                      <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
-                       Đưa biển số vào giữa khung và chụp đủ gần để nhận diện chính xác. Hệ thống ưu tiên kết quả có độ tin cậy cao hơn giữa ảnh trước và sau. Có thể chỉ cần một ảnh.
+                       Đưa biển số vào giữa khung, chụp rõ nét và đủ gần để hệ thống nhận diện chính xác.
                      </p>
                   </>
                 )}
@@ -1106,8 +1108,8 @@ export function CheckInPage() {
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                       <CaptureBox
-                        label="Ảnh đầu xe"
-                        hint="Ảnh tổng quan — không dùng nhận diện biển số"
+                        label="Ảnh phía trước"
+                        hint="Chụp rõ toàn bộ phía trước xe"
                         aspectRatio="4/3"
                         preview={frontPreview}
                         onCamera={() => frontCameraRef.current?.click()}
@@ -1119,8 +1121,8 @@ export function CheckInPage() {
                         onLibraryChange={(e) => handleImageSelect(e, setFrontImage, setFrontPreview, frontPreview, 'front')}
                       />
                       <CaptureBox
-                        label="Biển số sau (nhận diện)"
-                        hint="Biển xe máy nằm phía sau. Chụp thẳng, đủ sáng, rõ toàn bộ biển."
+                        label="Ảnh phía sau"
+                        hint="Chụp rõ toàn bộ phía sau xe"
                         aspectRatio="1.25/1"
                         preview={rearPreview}
                         onCamera={() => rearCameraRef.current?.click()}
@@ -1130,41 +1132,26 @@ export function CheckInPage() {
                         libraryRef={rearLibraryRef}
                         onCameraChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
                         onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
-                        ocrBadge={ocrStatus === 'success' && ocrSource === 'REAR' ? <OcrSuccessBadge confidence={ocrConfidence} isManual={plateSource === 'manual'} /> : undefined}
                       />
                     </div>
                     <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
-                      Đưa biển số vào giữa khung và chụp đủ gần để nhận diện chính xác. Biển số xe máy thường được trình bày trên hai hàng. Hệ thống chỉ nhận diện ảnh biển số sau.
+                      Đưa biển số vào giữa khung, chụp rõ nét và đủ gần để hệ thống nhận diện chính xác.
                     </p>
                   </>
                 )}
 
-                {/* OCR status & conflict */}
-                {ocrStatus === 'processing' && (
-                  <div style={{ marginTop: 10 }}>
-                    <AlertBanner type="info">Đang nhận diện biển số…</AlertBanner>
-                  </div>
-                )}
+                {/* Shared OCR status panel */}
+                {vehicleType && <SharedOcrStatusPanel status={ocrStatus} plate={plateInput} />}
+
+                {/* OCR error status */}
                 {ocrStatus === 'failed' && !apiError && (
                   <div style={{ marginTop: 10 }}>
                     <AlertBanner type="warning">Không thể nhận diện biển số từ ảnh. Vui lòng nhập thủ công bên dưới.</AlertBanner>
                   </div>
                 )}
-                {ocrStatus === 'low_confidence' && !ocrConflict && (
-                  <div style={{ marginTop: 10 }}>
-                    <AlertBanner type="warning">Độ tin cậy nhận diện thấp. Vui lòng kiểm tra lại biển số bên dưới.</AlertBanner>
-                  </div>
-                )}
-                {ocrConflict && (
-                  <div style={{ marginTop: 10 }}>
-                    <AlertBanner type="error">
-                      Hai ảnh cho kết quả biển số khác nhau. Vui lòng điều chỉnh biển số đúng bên dưới.
-                    </AlertBanner>
-                  </div>
-                )}
 
                 {/* OCR run button */}
-                {vehicleType && (frontImage || rearImage) && (
+                {vehicleType && rearImage && (
                   <button
                     id="run-ocr-btn"
                     onClick={runOCR}
@@ -1199,6 +1186,7 @@ export function CheckInPage() {
                         onChange={(e) => {
                           setPlateInput(e.target.value.toUpperCase());
                           setPlateSource('manual');
+                          setOcrStatus('manually_edited');
                           setApiError('');
                         }}
                         onKeyDown={handlePlateKeyDown}

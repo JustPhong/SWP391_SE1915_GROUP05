@@ -30,10 +30,56 @@ export interface FloorInput {
   capacity: number;
 }
 
+export interface FloorCapacityMetrics {
+  totalCapacity: number;
+  activeParkingCount: number;
+  physicalAvailableCapacity: number;
+  activeBookingCount: number;
+  receivableCapacity: number;
+  occupancyPercent: number;
+}
+
+export async function getFloorCapacityMetrics(floorId: number, capacity: number): Promise<FloorCapacityMetrics> {
+  const now = new Date();
+  const [activeParkingCount, activeBookingCount] = await Promise.all([
+    prisma.checkInRecord.count({
+      where: {
+        checkOutTime: null,
+        OR: [
+          { floorId: floorId },
+          { slot: { floorId: floorId } }
+        ]
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        floorId: floorId,
+        status: 'ACTIVE',
+        depositStatus: 'PAID',
+        expiresAt: { gt: now },
+        checkInRecords: { none: {} },
+      },
+    }),
+  ]);
+
+  const physicalAvailableCapacity = Math.max(0, capacity - activeParkingCount);
+  const receivableCapacity = Math.max(0, capacity - activeParkingCount - activeBookingCount);
+  const occupancyPercent = capacity > 0 ? Math.round((activeParkingCount / capacity) * 100) : 0;
+
+  return {
+    totalCapacity: capacity,
+    activeParkingCount,
+    physicalAvailableCapacity,
+    activeBookingCount,
+    receivableCapacity,
+    occupancyPercent,
+  };
+}
+
 export const floorService = {
   // Lấy tất cả tầng
-  async getAllFloors(): Promise<FloorWithSlots[]> {
-    return prisma.floor.findMany({
+  async getAllFloors(): Promise<any[]> {
+    const floors = await prisma.floor.findMany({
       orderBy: { id: "asc" },
       include: {
         slots: {
@@ -49,10 +95,21 @@ export const floorService = {
         },
       },
     });
+
+    const result: any[] = [];
+    for (const floor of floors) {
+      const metrics = await getFloorCapacityMetrics(floor.id, floor.capacity);
+      result.push({
+        ...floor,
+        ...metrics,
+      });
+    }
+
+    return result;
   },
 
   // Lấy 1 tầng theo floorCode
-  async getSlotsByFloor(floorCode: string): Promise<FloorWithSlots> {
+  async getSlotsByFloor(floorCode: string): Promise<any> {
     await floorService.cleanupNoShowBookings();
 
     const floor = await prisma.floor.findUnique({
@@ -76,7 +133,12 @@ export const floorService = {
       throw new AppError(404, "Floor not found");
     }
 
-    return floor;
+    const metrics = await getFloorCapacityMetrics(floor.id, floor.capacity);
+
+    return {
+      ...floor,
+      ...metrics,
+    };
   },
 
   // Lấy slot theo tầng và trạng thái — kèm thông tin xe đang đỗ
@@ -233,12 +295,20 @@ export const floorService = {
 
   // BR-BK-03: Dọn booking quá 30 phút chưa check-in
   async cleanupNoShowBookings(): Promise<number> {
-    const cutoff = new Date(Date.now() - NO_SHOW_CUTOFF_MINUTES * 60 * 1000);
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - NO_SHOW_CUTOFF_MINUTES * 60 * 1000);
 
     const bookings = await prisma.booking.findMany({
       where: {
-        status: BOOKING_ACTIVE,
-        expectedArrival: { lt: cutoff },
+        status: 'ACTIVE',
+        depositStatus: 'PAID',
+        expiresAt: {
+          lte: now,
+          not: null
+        },
+        checkInRecords: {
+          none: {}
+        }
       },
       include: {
         vehicle: { select: { plateNumber: true } },

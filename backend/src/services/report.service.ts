@@ -103,23 +103,35 @@ export const reportService = {
     if (filters?.startDate) where.paidAt = { ...where.paidAt, gte: filters.startDate };
     if (filters?.endDate) where.paidAt = { ...where.paidAt, lte: filters.endDate };
 
-    const payments = await prisma.payment.findMany({ where });
+    const payments = await prisma.payment.findMany({
+      where: {
+        ...where,
+        status: 'SUCCESS',
+        paidAt: { not: null },
+      }
+    });
 
-    const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const sessionRevenue = payments
-      .filter((p) => p.type === PAYMENT_SESSION)
+    const paidPayments = payments.filter(
+      (p): p is typeof p & { paidAt: Date } =>
+        p.status === 'SUCCESS' &&
+        p.paidAt instanceof Date
+    );
+
+    const totalRevenue = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const sessionRevenue = paidPayments
+      .filter((p) => p.type === PAYMENT_SESSION || p.type === 'PARKING_FEE')
       .reduce((sum, p) => sum + Number(p.amount), 0);
-    const monthlyRevenue = payments
-      .filter((p) => p.type === PAYMENT_MONTHLY)
+    const monthlyRevenue = paidPayments
+      .filter((p) => p.type === PAYMENT_MONTHLY || p.type === 'MONTHLY_PACKAGE')
       .reduce((sum, p) => sum + Number(p.amount), 0);
 
     const byMethod: Record<string, number> = {};
-    for (const p of payments) {
+    for (const p of paidPayments) {
       byMethod[p.method] = (byMethod[p.method] || 0) + Number(p.amount);
     }
 
     const byDayMap: Record<string, number> = {};
-    for (const p of payments) {
+    for (const p of paidPayments) {
       const day = new Date(p.paidAt).toISOString().split('T')[0];
       byDayMap[day] = (byDayMap[day] || 0) + Number(p.amount);
     }
@@ -131,7 +143,7 @@ export const reportService = {
       totalRevenue,
       sessionRevenue,
       monthlyRevenue,
-      transactionCount: payments.length,
+      transactionCount: paidPayments.length,
       byMethod,
       byDay,
     } as RevenueReport;
@@ -180,15 +192,23 @@ export const reportService = {
       const payments = await prisma.payment.findMany({
         where: {
           paidAt: { gte: from, lte: to },
-          type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY] },
+          status: 'SUCCESS',
+          type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY, 'PARKING_FEE', 'MONTHLY_PACKAGE'] },
         },
       });
-      periodRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-      sessionRevenue = payments
-        .filter((p) => p.type === PAYMENT_SESSION)
+
+      const paidPayments = payments.filter(
+        (p): p is typeof p & { paidAt: Date } =>
+          p.status === 'SUCCESS' &&
+          p.paidAt instanceof Date
+      );
+
+      periodRevenue = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      sessionRevenue = paidPayments
+        .filter((p) => p.type === PAYMENT_SESSION || p.type === 'PARKING_FEE')
         .reduce((sum, p) => sum + Number(p.amount), 0);
-      monthlyRevenue = payments
-        .filter((p) => p.type === PAYMENT_MONTHLY)
+      monthlyRevenue = paidPayments
+        .filter((p) => p.type === PAYMENT_MONTHLY || p.type === 'MONTHLY_PACKAGE')
         .reduce((sum, p) => sum + Number(p.amount), 0);
 
       // Entries in period (not currently parked)
@@ -205,15 +225,23 @@ export const reportService = {
       const todayPayments = await prisma.payment.findMany({
         where: {
           paidAt: { gte: todayStart, lte: todayEnd },
-          type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY] },
+          status: 'SUCCESS',
+          type: { in: [PAYMENT_SESSION, PAYMENT_MONTHLY, 'PARKING_FEE', 'MONTHLY_PACKAGE'] },
         },
       });
-      periodRevenue = todayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-      sessionRevenue = todayPayments
-        .filter((p) => p.type === PAYMENT_SESSION)
+
+      const paidTodayPayments = todayPayments.filter(
+        (p): p is typeof p & { paidAt: Date } =>
+          p.status === 'SUCCESS' &&
+          p.paidAt instanceof Date
+      );
+
+      periodRevenue = paidTodayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      sessionRevenue = paidTodayPayments
+        .filter((p) => p.type === PAYMENT_SESSION || p.type === 'PARKING_FEE')
         .reduce((sum, p) => sum + Number(p.amount), 0);
-      monthlyRevenue = todayPayments
-        .filter((p) => p.type === PAYMENT_MONTHLY)
+      monthlyRevenue = paidTodayPayments
+        .filter((p) => p.type === PAYMENT_MONTHLY || p.type === 'MONTHLY_PACKAGE')
         .reduce((sum, p) => sum + Number(p.amount), 0);
     }
 
@@ -231,12 +259,18 @@ export const reportService = {
 
   async getRevenueByDay(from: Date, to: Date) {
     const payments = await prisma.payment.findMany({
-      where: { paidAt: { gte: from, lte: to } },
+      where: {
+        paidAt: { gte: from, lte: to },
+        status: 'SUCCESS',
+      },
       orderBy: { paidAt: 'asc' },
     });
 
     const byDayMap: Record<string, number> = {};
     for (const p of payments) {
+      if (p.status !== 'SUCCESS' || !p.paidAt) {
+        continue;
+      }
       const day = formatLocalDate(new Date(p.paidAt));
       byDayMap[day] = (byDayMap[day] || 0) + Number(p.amount);
     }
@@ -260,7 +294,10 @@ export const reportService = {
 
   async getRevenueDetail(from: Date, to: Date) {
     const payments = await prisma.payment.findMany({
-      where: { paidAt: { gte: from, lte: to } },
+      where: {
+        paidAt: { gte: from, lte: to },
+        status: 'SUCCESS',
+      },
       orderBy: { paidAt: 'desc' },
       include: {
         checkInRecord: {
@@ -272,11 +309,17 @@ export const reportService = {
       },
     });
 
+    const paidPayments = payments.filter(
+      (p): p is typeof p & { paidAt: Date } =>
+        p.status === 'SUCCESS' &&
+        p.paidAt instanceof Date
+    );
+
     let casualTotal = 0;
     let monthlyTotal = 0;
     const byDayMap: Record<string, { casual: number; monthly: number }> = {};
 
-    const transactions = payments.map((p) => {
+    const transactions = paidPayments.map((p) => {
       // Determine source from relation presence — more reliable than type alone
       const isCasual = p.checkInRecordId != null;
       const isMonthly = p.monthlyPackageId != null;
@@ -433,14 +476,23 @@ export const reportService = {
 
     const [thisPeriodPayments, prevPeriodPayments, fullPrevPayments] = await Promise.all([
       prisma.payment.findMany({
-        where: { paidAt: { gte: thisPeriodStart, lte: thisPeriodEnd } },
+        where: {
+          paidAt: { gte: thisPeriodStart, lte: thisPeriodEnd },
+          status: 'SUCCESS',
+        },
       }),
       prisma.payment.findMany({
-        where: { paidAt: { gte: prevPeriodStart, lte: prevPeriodEnd } },
+        where: {
+          paidAt: { gte: prevPeriodStart, lte: prevPeriodEnd },
+          status: 'SUCCESS',
+        },
       }),
       fullPrevStart && fullPrevEnd
         ? prisma.payment.findMany({
-            where: { paidAt: { gte: fullPrevStart, lte: fullPrevEnd } },
+            where: {
+              paidAt: { gte: fullPrevStart, lte: fullPrevEnd },
+              status: 'SUCCESS',
+            },
           })
         : Promise.resolve([]),
     ]);
@@ -450,6 +502,9 @@ export const reportService = {
       let casual = 0;
       let monthly = 0;
       for (const p of payments) {
+        if (p.status !== 'SUCCESS' || !p.paidAt) {
+          continue;
+        }
         const amt = Number(p.amount);
         total += amt;
         const isCasual = p.checkInRecordId != null;
