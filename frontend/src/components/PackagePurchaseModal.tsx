@@ -18,7 +18,7 @@ const C = {
   gray300: '#D1D5DB',
   gray400: '#9CA3AF',
   gray500: '#6B7280',
-  gray600: '#6B7280',
+  gray600: '#4B5563',
   gray800: '#1F2937',
   gray900: '#111827',
   red: '#EF4444',
@@ -49,7 +49,7 @@ const VEHICLE_PROFILE_OPTIONS = {
   ]
 };
 
-const VEHICLE_COLORS = ['Tráº¯ng', 'Äen', 'Báº¡c', 'XÃ¡m', 'Äá»', 'Xanh dÆ°Æ¡ng', 'Xanh lÃ¡', 'VÃ ng', 'NÃ¢u', 'Cam'];
+const VEHICLE_COLORS = ['Trắng', 'Đen', 'Bạc', 'Xám', 'Đỏ', 'Xanh dương', 'Xanh lá', 'Vàng', 'Nâu', 'Cam'];
 const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_, index) => new Date().getFullYear() - index);
 const CAR_SEAT_OPTIONS = [2, 4, 5, 7, 9, 16];
 
@@ -226,7 +226,7 @@ export function PackagePurchaseModal({
   };
 
   const formatVND = (val: number) => {
-    return val.toLocaleString('vi-VN') + 'Ä‘';
+    return val.toLocaleString('vi-VN') + 'đ';
   };
 
   const getZoneText = () => {
@@ -240,7 +240,7 @@ export function PackagePurchaseModal({
     e.preventDefault();
     const plate = newPlate.trim();
     if (!plate) {
-      setAddVehicleError('Vui lÃ²ng nháº­p biá»ƒn sá»‘ xe');
+      setAddVehicleError('Vui lòng nhập biển số xe');
       return;
     }
 
@@ -275,7 +275,7 @@ export function PackagePurchaseModal({
       setShowAddVehicle(false);
       setNewPlate('');
     } catch (err: any) {
-      setAddVehicleError(err.response?.data?.message ?? 'Lá»—i khi thÃªm phÆ°Æ¡ng tiá»‡n má»›i');
+      setAddVehicleError(err.response?.data?.message ?? 'Lỗi khi thêm phương tiện mới');
     } finally {
       setAddingVehicle(false);
     }
@@ -297,7 +297,7 @@ export function PackagePurchaseModal({
         });
         window.location.href = res.url;
       } catch (err: any) {
-        setSubmitError(err.response?.data?.message ?? 'KhÃ´ng thá»ƒ táº¡o phiÃªn thanh toÃ¡n Stripe');
+        setSubmitError(err.response?.data?.message ?? 'Không thể tạo phiên thanh toán Stripe');
       } finally {
         setSubmitting(false);
       }
@@ -326,7 +326,7 @@ export function PackagePurchaseModal({
       setStep('SUCCESS');
       if (onSuccess) onSuccess();
     } catch (e: any) {
-      setSubmitError(e?.response?.data?.message ?? 'ÄÄƒng kÃ½ gÃ³i thÃ¡ng tháº¥t báº¡i. Vui lÃ²ng thá»­ láº¡i.');
+      setSubmitError(e?.response?.data?.message ?? 'Đăng ký gói tháng thất bại. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
     }
@@ -401,11 +401,11 @@ export function PackagePurchaseModal({
         <div style={{ background: headerBg, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTopLeftRadius: 24, borderTopRightRadius: 24, flexShrink: 0 }}>
           <div>
             <h3 id="modal-title" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.white }}>
-              {step === 'SUCCESS' ? 'ÄÄƒng kÃ½ thÃ nh cÃ´ng' : step === 'QR' || step === 'CARD' ? 'Thanh toÃ¡n hoÃ¡ Ä‘Æ¡n' : 'XÃ¡c nháº­n Ä‘Äƒng kÃ½ gÃ³i'}
+              {step === 'SUCCESS' ? 'Đăng ký thành công' : step === 'QR' || step === 'CARD' ? 'Thanh toán hóa đơn' : 'Xác nhận đăng ký gói'}
             </h3>
           </div>
           {step !== 'SUCCESS' && !submitting && (
-            <button onClick={handleClose} aria-label="ÄÃ³ng" ref={firstInteractiveRef} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+            <button onClick={handleClose} aria-label="Đóng" ref={firstInteractiveRef} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.white} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           )}
@@ -420,21 +420,21 @@ export function PackagePurchaseModal({
               {/* If user lacks phone number */}
               {!user?.phoneNumber ? (
                 <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>âš ï¸</div>
-                  <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>YÃªu cáº§u thÃ´ng tin sá»‘ Ä‘iá»‡n thoáº¡i</p>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
+                  <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Yêu cầu thông tin số điện thoại</p>
                   <p style={{ margin: '0.5rem 0 1.5rem', fontSize: '0.85rem', color: C.gray600, lineHeight: 1.5 }}>
-                    Vui lÃ²ng cáº­p nháº­t sá»‘ Ä‘iá»‡n thoáº¡i trong <Link to="/profile" onClick={onClose} style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Há»“ sÆ¡</Link> trÆ°á»›c khi Ä‘Äƒng kÃ½ gÃ³i.
+                    Vui lòng cập nhật số điện thoại trong <Link to="/profile" onClick={onClose} style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}>Hồ sơ</Link> trước khi đăng ký gói.
                   </p>
                   <button onClick={handleClose} style={{ width: '100%', padding: '0.75rem', background: C.gray100, border: `1px solid ${C.gray200}`, borderRadius: 12, fontSize: '0.88rem', fontWeight: 700, color: C.gray900, cursor: 'pointer' }}>
-                    ÄÃ³ng
+                    Đóng
                   </button>
                 </div>
               ) : showAddVehicle ? (
                 /* INLINE ADD VEHICLE FORM */
                 <form onSubmit={handleAddVehicleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>ThÃªm xe má»›i</h4>
-                    <button type="button" onClick={() => setShowAddVehicle(false)} style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>Quay láº¡i</button>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Thêm xe mới</h4>
+                    <button type="button" onClick={() => setShowAddVehicle(false)} style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>Quay lại</button>
                   </div>
 
                   {addVehicleError && (
@@ -444,33 +444,33 @@ export function PackagePurchaseModal({
                   )}
 
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biá»ƒn sá»‘ xe</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
                     <PlateInput value={newPlate} onChange={setNewPlate} placeholder="VD: 51A-12345" disabled={addingVehicle} autoFocus style={{ ...inputStyle, fontFamily: "'Consolas',monospace", fontWeight: 600 }} />
                   </label>
 
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>HÃ£ng</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Hãng</span>
                     <select value={newBrand} onChange={(e) => setNewBrand(e.target.value)} disabled={addingVehicle} style={inputStyle}>
                       {VEHICLE_PROFILE_OPTIONS[vehicleType].map(b => <option key={b.label} value={b.label}>{b.label}</option>)}
                     </select>
                   </label>
 
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Máº«u</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Mẫu</span>
                     <select value={newModel} onChange={(e) => setNewModel(e.target.value)} disabled={addingVehicle} style={inputStyle}>
                       {(VEHICLE_PROFILE_OPTIONS[vehicleType].find((item) => item.label === newBrand)?.models ?? VEHICLE_PROFILE_OPTIONS[vehicleType][0].models).map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </label>
 
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>MÃ u sáº¯c</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Màu sắc</span>
                     <select value={newColor} onChange={(e) => setNewColor(e.target.value)} disabled={addingVehicle} style={inputStyle}>
                       {VEHICLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </label>
 
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>NÄƒm sáº£n xuáº¥t</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Năm sản xuất</span>
                     <select value={newYear === '' ? '' : newYear.toString()} onChange={(e) => setNewYear(e.target.value === '' ? '' : Number(e.target.value))} disabled={addingVehicle} style={inputStyle}>
                       {VEHICLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -478,15 +478,15 @@ export function PackagePurchaseModal({
 
                   {vehicleType === 'CAR' && (
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Sá»‘ chá»— ngá»“i</span>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Số chỗ ngồi</span>
                       <select value={newSeats === '' ? '' : newSeats.toString()} onChange={(e) => setNewSeats(e.target.value === '' ? '' : Number(e.target.value))} disabled={addingVehicle} style={inputStyle}>
-                        {CAR_SEAT_OPTIONS.map(s => <option key={s} value={s}>{s} chá»—</option>)}
+                        {CAR_SEAT_OPTIONS.map(s => <option key={s} value={s}>{s} chỗ</option>)}
                       </select>
                     </label>
                   )}
 
                   <button type="submit" disabled={addingVehicle || !newPlate.trim()} style={{ width: '100%', padding: '0.8rem', background: addingVehicle || !newPlate.trim() ? C.gray300 : '#2563EB', color: C.white, border: 'none', borderRadius: 12, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', marginTop: '0.5rem' }}>
-                    {addingVehicle ? 'Äang lÆ°u...' : '+ ThÃªm phÆ°Æ¡ng tiá»‡n'}
+                    {addingVehicle ? 'Đang lưu...' : '+ Thêm phương tiện'}
                   </button>
                 </form>
               ) : (
@@ -494,12 +494,12 @@ export function PackagePurchaseModal({
                 <>
                   {/* Selected Package Card */}
                   <div style={{ background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 18, padding: '1.25rem' }}>
-                    <span style={badgeStyle}>{vehicleType === 'CAR' ? 'ðŸš— GÃ³i Ã´ tÃ´' : 'ðŸï¸ GÃ³i xe mÃ¡y'}</span>
+                    <span style={badgeStyle}>{vehicleType === 'CAR' ? '🚗 Gói ô tô' : '🛵 Gói xe máy'}</span>
                     <h4 style={{ margin: '0 0 0.25rem', fontSize: '1.25rem', fontWeight: 800, color: C.gray900 }}>{plan.name}</h4>
-                    <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: C.gray600 }}>Thá»i háº¡n: <strong>{plan.durationDays} ngÃ y</strong></p>
+                    <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: C.gray600 }}>Thời hạn: <strong>{plan.durationDays} ngày</strong></p>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '0.75rem', borderTop: `1px solid ${C.gray200}` }}>
-                      <span style={{ fontSize: '0.82rem', color: C.gray600 }}>Chi phÃ­ gÃ³i:</span>
+                      <span style={{ fontSize: '0.82rem', color: C.gray600 }}>Chi phí gói:</span>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '1.3rem', fontWeight: 900, color: themeColor }}>{formatVND(price)}</div>
                         <span style={{ fontSize: '0.75rem', color: C.gray500 }}>~ {priceObj?.pricePerDay}</span>
@@ -510,42 +510,45 @@ export function PackagePurchaseModal({
                   {/* Zone & Usage Info */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-                      <span style={{ color: C.gray600 }}>Khu vá»±c Ã¡p dá»¥ng:</span>
+                      <span style={{ color: C.gray600 }}>Khu vực áp dụng:</span>
                       <span style={{ fontWeight: 700, color: C.gray900 }}>{getZoneText()}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-                      <span style={{ color: C.gray600 }}>NgÃ y báº¯t Ä‘áº§u:</span>
+                      <span style={{ color: C.gray600 }}>Ngày bắt đầu:</span>
                       <span style={{ fontWeight: 600, color: C.gray900 }}>{formatDate(today)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-                      <span style={{ color: C.gray600 }}>NgÃ y háº¿t háº¡n (dá»± kiáº¿n):</span>
+                      <span style={{ color: C.gray600 }}>Ngày hết hạn (dự kiến):</span>
                       <span style={{ fontWeight: 600, color: C.gray900 }}>{formatDate(expiryDate)}</span>
                     </div>
                   </div>
 
                   {/* Vehicle selector */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray600 }}>Chá»n xe sá»­ dá»¥ng gÃ³i</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: C.gray600 }}>Chọn xe sử dụng gói</label>
+                      <button type="button" onClick={() => setShowAddVehicle(true)} style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>+ Thêm xe mới</button>
+                    </div>
                     {loadingVehicles ? (
-                      <div style={{ padding: '0.75rem', textAlign: 'center', color: C.gray400, fontSize: '0.85rem' }}>Äang táº£i danh sÃ¡ch phÆ°Æ¡ng tiá»‡n...</div>
+                      <div style={{ padding: '0.75rem', textAlign: 'center', color: C.gray400, fontSize: '0.85rem' }}>Đang tải danh sách phương tiện...</div>
                     ) : !hasVehiclesOfThisType ? (
                       <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, padding: '0.75rem 1rem', borderRadius: 14, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.85rem', color: '#B91C1C', fontWeight: 600, textAlign: 'center' }}>
-                          Báº¡n chÆ°a cÃ³ phÆ°Æ¡ng tiá»‡n phÃ¹ há»£p Ä‘á»ƒ Ä‘Äƒng kÃ½ gÃ³i nÃ y.
+                          Bạn chưa có phương tiện phù hợp để đăng ký gói này.
                         </span>
                       </div>
                     ) : vehicles.length === 0 ? (
                       <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, padding: '0.75rem 1rem', borderRadius: 14, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.85rem', color: '#B91C1C', fontWeight: 600, textAlign: 'center' }}>
-                          KhÃ´ng cÃ³ phÆ°Æ¡ng tiá»‡n Ä‘á»§ Ä‘iá»u kiá»‡n Ä‘á»ƒ Ä‘Äƒng kÃ½ gÃ³i nÃ y.
+                          Không có phương tiện đủ điều kiện để đăng ký gói này.
                         </span>
                       </div>
                     ) : (
                       <select value={selectedVehicleId} onChange={(e) => setSelectedVehicleId(e.target.value)} style={inputStyle}>
-                        <option value="">-- Chá»n phÆ°Æ¡ng tiá»‡n --</option>
+                        <option value="">-- Chọn phương tiện --</option>
                         {vehicles.map(v => (
                           <option key={v.id} value={v.id}>
-                            {v.plateNumber} - {v.brand} {v.model} ({v.type === 'CAR' ? 'Ã” tÃ´' : 'Xe mÃ¡y'})
+                            {v.plateNumber} - {v.brand} {v.model} ({v.type === 'CAR' ? 'Ô tô' : 'Xe máy'})
                           </option>
                         ))}
                       </select>
@@ -554,16 +557,16 @@ export function PackagePurchaseModal({
 
                   {/* Wording Note */}
                   <div style={{ padding: '0.85rem 1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, fontSize: '0.82rem', color: '#1E40AF', lineHeight: 1.5 }}>
-                    <strong>LÆ°u Ã½ sá»­ dá»¥ng:</strong> GÃ³i nÃ y cáº¥p quyá»n sá»­ dá»¥ng khu vá»±c tÆ°Æ¡ng á»©ng. Báº¡n khÃ´ng sá»Ÿ há»¯u Ã´ Ä‘á»— cá»‘ Ä‘á»‹nh vÃ  cÃ³ thá»ƒ Ä‘á»— táº¡i báº¥t ká»³ vá»‹ trÃ­ trá»‘ng nÃ o trong Ä‘Ãºng khu vá»±c cá»§a gÃ³i.
+                    <strong>Lưu ý sử dụng:</strong> Gói này cấp quyền sử dụng khu vực tương ứng. Bạn không sở hữu ô đỗ cố định và có thể đỗ tại bất kỳ vị trí trống nào trong đúng khu vực của gói.
                   </div>
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                     <button type="button" onClick={handleClose} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>
-                      Há»§y
+                      Hủy
                     </button>
                     <button type="button" onClick={handleProceedToPaymentMethod} disabled={!selectedVehicleId} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: !selectedVehicleId ? C.gray300 : themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: !selectedVehicleId ? 'not-allowed' : 'pointer', boxShadow: !selectedVehicleId ? 'none' : '0 4px 12px rgba(0,0,0,0.15)' }}>
-                      Tiáº¿p tá»¥c thanh toÃ¡n
+                      Tiếp tục thanh toán
                     </button>
                   </div>
                 </>
@@ -574,15 +577,15 @@ export function PackagePurchaseModal({
           {/* STEP 2: PAYMENT METHOD SELECTION */}
           {step === 'PAYMENT_METHOD' && (
             <>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chá»n phÆ°Æ¡ng thá»©c thanh toÃ¡n</h4>
+              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn phương thức thanh toán</h4>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <button type="button" onClick={() => setPaymentMethod('EWALLET')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: `2px solid ${paymentMethod === 'EWALLET' ? themeColor : C.gray200}`, borderRadius: 16, background: C.white, cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '1.5rem' }}>ðŸ“±</div>
+                    <div style={{ fontSize: '1.5rem' }}>📱</div>
                     <div>
-                      <div style={{ fontWeight: 700, color: C.gray900, fontSize: '0.9rem' }}>VÃ­ Ä‘iá»‡n tá»­ MoMo / VNPAY</div>
-                      <div style={{ fontSize: '0.75rem', color: C.gray500 }}>QuÃ©t mÃ£ QR Ä‘á»ƒ hoÃ n táº¥t thanh toÃ¡n nhanh</div>
+                      <div style={{ fontWeight: 700, color: C.gray900, fontSize: '0.9rem' }}>Ví điện tử MoMo / VNPAY</div>
+                      <div style={{ fontSize: '0.75rem', color: C.gray500 }}>Quét mã QR để hoàn tất thanh toán nhanh</div>
                     </div>
                   </div>
                   <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${paymentMethod === 'EWALLET' ? themeColor : C.gray300}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -592,10 +595,10 @@ export function PackagePurchaseModal({
 
                 <button type="button" onClick={() => setPaymentMethod('CARD')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: `2px solid ${paymentMethod === 'CARD' ? themeColor : C.gray200}`, borderRadius: 16, background: C.white, cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '1.5rem' }}>ðŸ’³</div>
+                    <div style={{ fontSize: '1.5rem' }}>💳</div>
                     <div>
-                      <div style={{ fontWeight: 700, color: C.gray900, fontSize: '0.9rem' }}>Tháº» Quá»‘c táº¿ Visa / Mastercard / JCB</div>
-                      <div style={{ fontSize: '0.75rem', color: C.gray500 }}>Nháº­p thÃ´ng tin tháº» tÃ­n dá»¥ng cá»§a báº¡n</div>
+                      <div style={{ fontWeight: 700, color: C.gray900, fontSize: '0.9rem' }}>Thẻ Quốc tế Visa / Mastercard / JCB</div>
+                      <div style={{ fontSize: '0.75rem', color: C.gray500 }}>Nhập thông tin thẻ tín dụng của bạn</div>
                     </div>
                   </div>
                   <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${paymentMethod === 'CARD' ? themeColor : C.gray300}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -607,10 +610,10 @@ export function PackagePurchaseModal({
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <button type="button" onClick={() => setStep('CONFIRM')} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>
-                  Quay láº¡i
+                  Quay lại
                 </button>
                 <button type="button" onClick={handleProceedToPaymentScreen} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                  Tiáº¿p tá»¥c
+                  Tiếp tục
                 </button>
               </div>
             </>
@@ -620,7 +623,7 @@ export function PackagePurchaseModal({
           {step === 'QR' && (
             <>
               <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-                <p style={{ margin: 0, fontSize: '0.88rem', color: C.gray600 }}>QuÃ©t mÃ£ QR báº±ng á»©ng dá»¥ng ngÃ¢n hÃ ng hoáº·c VÃ­ Ä‘iá»‡n tá»­ Ä‘á»ƒ thanh toÃ¡n</p>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: C.gray600 }}>Quét mã QR bằng ứng dụng ngân hàng hoặc Ví điện tử để thanh toán</p>
 
                 {/* QR Mock image */}
                 <div style={{ padding: '1rem', background: C.white, border: `1px solid ${C.gray200}`, borderRadius: 16, display: 'inline-block' }}>
@@ -635,15 +638,15 @@ export function PackagePurchaseModal({
 
                 <div style={{ width: '100%', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 14, padding: '0.85rem', fontSize: '0.8rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500 }}>GÃ³i Ä‘Äƒng kÃ½:</span>
+                    <span style={{ color: C.gray500 }}>Gói đăng ký:</span>
                     <span style={{ fontWeight: 600, color: C.gray800 }}>{plan.name}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500 }}>PhÆ°Æ¡ng tiá»‡n:</span>
+                    <span style={{ color: C.gray500 }}>Phương tiện:</span>
                     <span style={{ fontWeight: 600, color: C.gray800 }}>{selectedVehicle?.plateNumber}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500 }}>Ná»™i dung:</span>
+                    <span style={{ color: C.gray500 }}>Nội dung:</span>
                     <span style={{ fontWeight: 600, color: C.gray800 }}>Dang ky goi thang {selectedVehicle?.plateNumber}</span>
                   </div>
                 </div>
@@ -658,10 +661,10 @@ export function PackagePurchaseModal({
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={() => setStep('PAYMENT_METHOD')} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  Quay láº¡i
+                  Quay lại
                 </button>
                 <button type="button" onClick={handleConfirmPurchase} disabled={submitting} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  {submitting ? 'Äang xá»­ lÃ½...' : 'XÃ¡c nháº­n Ä‘Ã£ chuyá»ƒn khoáº£n'}
+                  {submitting ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản'}
                 </button>
               </div>
             </>
@@ -672,12 +675,12 @@ export function PackagePurchaseModal({
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.9rem', color: C.gray600 }}>Tá»•ng thanh toÃ¡n:</span>
-                  <span style={{ fontSize: '1.2' + 'rem', fontWeight: 900, color: themeColor }}>{formatVND(price)}</span>
+                  <span style={{ fontSize: '0.9rem', color: C.gray600 }}>Tổng thanh toán:</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 900, color: themeColor }}>{formatVND(price)}</span>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Sá»‘ tháº»</label>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Số thẻ</label>
                   <input
                     type="text"
                     placeholder="0000 0000 0000 0000"
@@ -688,7 +691,7 @@ export function PackagePurchaseModal({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>TÃªn chá»§ tháº»</label>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Tên chủ thẻ</label>
                   <input
                     type="text"
                     placeholder="NGUYEN VAN A"
@@ -700,7 +703,7 @@ export function PackagePurchaseModal({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>NgÃ y háº¿t háº¡n</label>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Ngày hết hạn</label>
                     <input
                       type="text"
                       placeholder="MM/YY"
@@ -713,7 +716,7 @@ export function PackagePurchaseModal({
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>CVV</label>
                     <input
                       type="password"
-                      placeholder="â€¢â€¢â€¢"
+                      placeholder="•••"
                       maxLength={3}
                       value={cardForm.cvv}
                       onChange={(e) => setCardForm(prev => ({ ...prev, cvv: e.target.value }))}
@@ -723,7 +726,7 @@ export function PackagePurchaseModal({
                 </div>
 
                 <p style={{ margin: 0, fontSize: '0.75rem', color: C.gray400, textAlign: 'center' }}>
-                  Cá»•ng thanh toÃ¡n giáº£ láº­p cho má»¥c Ä‘Ã­ch trÃ¬nh diá»…n.
+                  Cổng thanh toán giả lập cho mục đích trình diễn.
                 </p>
               </div>
 
@@ -736,10 +739,10 @@ export function PackagePurchaseModal({
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={() => setStep('PAYMENT_METHOD')} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  Quay láº¡i
+                  Quay lại
                 </button>
                 <button type="button" onClick={handleConfirmPurchase} disabled={submitting || !cardForm.number || !cardForm.name || !cardForm.expiry || !cardForm.cvv} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: (!cardForm.number || !cardForm.name || !cardForm.expiry || !cardForm.cvv) ? C.gray300 : themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  {submitting ? 'Äang xá»­ lÃ½...' : `Thanh toÃ¡n ${formatVND(price)}`}
+                  {submitting ? 'Đang xử lý...' : `Thanh toán ${formatVND(price)}`}
                 </button>
               </div>
             </>
@@ -752,39 +755,39 @@ export function PackagePurchaseModal({
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: C.gray900 }}>Thanh toÃ¡n thÃ nh cÃ´ng!</h4>
-                <p style={{ margin: '0.3rem 0 0', fontSize: '0.85rem', color: C.gray600 }}>Báº¡n Ä‘Ã£ Ä‘Äƒng kÃ½ gÃ³i thÃ¡ng thÃ nh cÃ´ng.</p>
+                <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: C.gray900 }}>Thanh toán thành công!</h4>
+                <p style={{ margin: '0.3rem 0 0', fontSize: '0.85rem', color: C.gray600 }}>Bạn đã đăng ký gói tháng thành công.</p>
               </div>
 
               <div style={{ width: '100%', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 16, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', textAlign: 'left' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>GÃ³i:</span>
+                  <span style={{ color: C.gray500 }}>Gói:</span>
                   <span style={{ fontWeight: 700, color: C.gray900 }}>{plan.name}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Thanh toÃ¡n:</span>
-                  <span style={{ fontWeight: 700, color: C.gray900 }}>{paymentMethod === 'CARD' ? 'Tháº» Quá»‘c táº¿' : 'VÃ­ Ä‘iá»‡n tá»­'}</span>
+                  <span style={{ color: C.gray500 }}>Thanh toán:</span>
+                  <span style={{ fontWeight: 700, color: C.gray900 }}>{paymentMethod === 'CARD' ? 'Thẻ Quốc tế' : 'Ví điện tử'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Sá»‘ tiá»n:</span>
+                  <span style={{ color: C.gray500 }}>Số tiền:</span>
                   <span style={{ fontWeight: 800, color: themeColor }}>{formatVND(Number(createdPkg.price))}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Khu vá»±c Ä‘á»—:</span>
+                  <span style={{ color: C.gray500 }}>Khu vực đỗ:</span>
                   <span style={{ fontWeight: 700, color: C.gray900 }}>
                     {createdPkg.floor?.name
-                      ? `Táº§ng ${createdPkg.floor.name} Â· ${getTierAreaLabel(createdPkg.allowedTier)}`
-                      : `Táº§ng G Â· ${getTierAreaLabel(createdPkg.allowedTier)}`}
+                      ? `Tầng ${createdPkg.floor.name} · ${getTierAreaLabel(createdPkg.allowedTier)}`
+                      : `Tầng G · ${getTierAreaLabel(createdPkg.allowedTier)}`}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', paddingTop: '0.5rem', borderTop: `1px solid ${C.gray200}`, marginTop: '0.25rem' }}>
-                  <span style={{ fontWeight: 700, color: C.gray900 }}>NgÃ y háº¿t háº¡n:</span>
+                  <span style={{ fontWeight: 700, color: C.gray900 }}>Ngày hết hạn:</span>
                   <span style={{ fontWeight: 800, color: themeColor }}>{formatDate(new Date(createdPkg.expiryDate))}</span>
                 </div>
               </div>
 
               <button onClick={handleClose} style={{ width: '100%', padding: '0.85rem', border: 'none', borderRadius: 14, background: themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                HoÃ n táº¥t
+                Hoàn tất
               </button>
             </div>
           )}
