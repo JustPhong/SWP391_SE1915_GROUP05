@@ -33,6 +33,7 @@ import { StaffHistoryPage } from './pages/StaffHistory';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { GuestParkingPage } from './pages/GuestParking';
 import { GuestCheckoutPage } from './pages/GuestCheckout';
+import { CheckOutPage } from './pages/CheckOut';
 
 function LoadingScreen() {
   return (
@@ -178,6 +179,14 @@ function AppRoutes() {
         element={
           <StaffRoute>
             <CheckInPage />
+          </StaffRoute>
+        }
+      />
+      <Route
+        path="/staff/checkout"
+        element={
+          <StaffRoute>
+            <CheckOutPage />
           </StaffRoute>
         }
       />

@@ -64,13 +64,18 @@ export const checkinService = {
   async lookupPlate(plate: string): Promise<LookupResult> {
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-.\s]/g, '');
+    const withDash = stripped.replace(/^(\d{2}[A-Z]{1,2})(\d+)$/, '$1-$2');
+
     const vehicle = await prisma.vehicle.findFirst({
       where: {
         OR: [
           { plateNumber: cleaned },
           { plateNumber: stripped },
+          { plateNumber: withDash },
+          { plateNumber: { contains: stripped } },
         ],
       },
+      orderBy: { isMonthly: 'desc' },
       include: {
         monthlyPackage: {
           include: { floor: true },
@@ -90,10 +95,25 @@ export const checkinService = {
       return { found: false, customerType: 'casual' };
     }
 
-    // Active check-in record? → already parked
+    // Active check-in record? Check by vehicle ID or any matching plate variant
     const activeRecord = await prisma.checkInRecord.findFirst({
-      where: { vehicleId: vehicle.id, checkOutTime: null },
+      where: {
+        checkOutTime: null,
+        OR: [
+          { vehicleId: vehicle.id },
+          {
+            vehicle: {
+              OR: [
+                { plateNumber: cleaned },
+                { plateNumber: stripped },
+                { plateNumber: withDash },
+              ],
+            },
+          },
+        ],
+      },
       include: { slot: true },
+      orderBy: { checkInTime: 'desc' },
     });
 
     const baseResult = {
@@ -191,13 +211,19 @@ export const checkinService = {
     const { plate, vehicleType, slotCode, isMonthly, frontImageUrl, rearImageUrl } = input;
     const normalizedPlate = normalizePlate(plate);
 
+    // Build multiple variants to match DB records regardless of separator style
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-.\s]/g, '');
+
+    // Also try canonical formatted variant (e.g. "51K60473" → "51K-60473")
+    const withDash = stripped.replace(/^(\d{2}[A-Z]{1,2})(\d+)$/, '$1-$2');
+
     let vehicle = await prisma.vehicle.findFirst({
       where: {
         OR: [
           { plateNumber: cleaned },
           { plateNumber: stripped },
+          { plateNumber: withDash },
         ],
       },
       include: {
