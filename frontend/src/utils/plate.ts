@@ -5,7 +5,6 @@
  * Bike: 2 digits + anything  (e.g. 59-AB 234.56, 01-12345)
  */
 
-const CAR_REGEX       = /^\d{2}.+$/;
 const MOTORBIKE_REGEX = /^\d{2}.+$/;
 
 export function normalize(s: string): string {
@@ -23,9 +22,11 @@ export function validatePlate(
     return { valid: false, message: 'Vui lòng nhập biển số xe.' };
   }
 
+  const clean = s.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
   if (vehicleType === 'CAR') {
-    if (!CAR_REGEX.test(normalize(s))) {
-      return { valid: false, message: 'Biển ô tô không hợp lệ. Phải bắt đầu bằng 2 số tỉnh (ví dụ: 51K-123.45).' };
+    if (!/^\d{2}[A-Z]\d{5}$/.test(clean)) {
+      return { valid: false, message: 'Biển ô tô không hợp lệ. Phải gồm 2 số tỉnh, 1 chữ cái và 5 số (ví dụ: 51K-604.73).' };
     }
   } else if (vehicleType === 'MOTORBIKE') {
     if (!MOTORBIKE_REGEX.test(normalize(s))) {
@@ -33,11 +34,12 @@ export function validatePlate(
     }
   } else {
     // Validate against BOTH — accept if either matches
-    const norm = normalize(s);
-    if (!CAR_REGEX.test(norm) && !MOTORBIKE_REGEX.test(norm)) {
+    const isCarValid = /^\d{2}[A-Z]\d{5}$/.test(clean);
+    const isBikeValid = MOTORBIKE_REGEX.test(normalize(s));
+    if (!isCarValid && !isBikeValid) {
       return {
         valid: false,
-        message: 'Biển số không hợp lệ. Phải bắt đầu bằng 2 số tỉnh (ví dụ: 51K-123.45 hoặc 59-AB 234.56).',
+        message: 'Biển số không hợp lệ. Phải bắt đầu bằng 2 số tỉnh (ví dụ: 51K-604.73 hoặc 59-AB 234.56).',
       };
     }
   }
@@ -102,3 +104,17 @@ export function normalizePlateForApi(s: string): string {
   return normalize(s).replace(/[-.\s]/g, '');
 }
 
+/**
+ * Normalize a plate string for DB lookup.
+ * Trims, uppercases, and strips all non-alphanumeric characters (spaces, hyphens, dots).
+ * Examples:
+ *   "51A-123.45"  → "51A12345"
+ *   "59-U1 511.53" → "59U151153"
+ *   "18A-214.43"  → "18A21443"
+ */
+export function normalizePlateForLookup(raw: string): string {
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}

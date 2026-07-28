@@ -10,7 +10,7 @@ import {
   type LookupResult,
   type CheckinSubmitResult,
 } from '../api/checkinApi';
-import { normalizePlateForLookup } from '../utils/plate';
+import { normalizePlateForLookup, validatePlate } from '../utils/plate';
 
 // ═════════════════════════════════════════════════════
 //  DESIGN TOKENS
@@ -279,7 +279,6 @@ function ProgressIndicator({ step }: { step: number }) {
 function CaptureBox({
   label,
   hint,
-  aspectRatio,
   preview,
   onCamera,
   onLibrary,
@@ -292,7 +291,6 @@ function CaptureBox({
 }: {
   label: string;
   hint?: string;
-  aspectRatio: string;
   preview: string | null;
   onCamera: () => void;
   onLibrary: () => void;
@@ -304,34 +302,47 @@ function CaptureBox({
   ocrBadge?: React.ReactNode;
 }) {
   return (
-    <div style={{
-      border: `1.5px solid ${preview ? C.navy : C.gray200}`,
-      borderRadius: 14,
-      padding: '1rem',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 8,
-      background: preview ? '#F0F8FF' : '#FAFBFF',
-    }}>
-      <div style={{
-        width: '100%',
-        aspectRatio,
-        border: `1.5px dashed ${preview ? C.navy : C.gray200}`,
-        borderRadius: 10,
-        background: preview ? '#fff' : '#F8FAFC',
+    <div 
+      className="capture-card-outer"
+      style={{
+        border: `1.5px solid ${preview ? C.navy : C.gray200}`,
+        borderRadius: 14,
+        padding: '1rem',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        position: 'relative',
-      }}>
+        gap: 8,
+        background: preview ? '#F0F8FF' : '#FAFBFF',
+      }}
+    >
+      <div 
+        className="capture-preview-wrapper"
+        style={{
+          width: '100%',
+          border: `1.5px dashed ${preview ? C.navy : C.gray200}`,
+          borderRadius: 10,
+          background: preview ? '#F1F5F9' : '#F8FAFC',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
         {preview ? (
           <>
             <img
               src={preview}
               alt={label}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }}
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'contain', 
+                objectPosition: 'center', 
+                position: 'absolute', 
+                top: 0, 
+                left: 0 
+              }}
             />
             <button
               onClick={onRemove}
@@ -361,7 +372,7 @@ function CaptureBox({
 
       {ocrBadge && <div style={{ width: '100%' }}>{ocrBadge}</div>}
 
-      <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+      <div style={{ display: 'flex', gap: 6, width: '100%', marginTop: 'auto' }}>
         <button
           onClick={onCamera}
           style={{
@@ -395,9 +406,10 @@ function CaptureBox({
 }
 
 function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: string }) {
-  if (status === 'idle' || status === 'failed') return null;
+  if (status === 'idle') return null;
 
   let title = '';
+  let supportText = '';
   let bgColor = C.gray50;
   let borderColor = C.border;
   let color = C.gray800;
@@ -409,19 +421,26 @@ function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: str
     color = '#1D4ED8';
   } else if (status === 'manually_edited') {
     title = 'Đã hiệu chỉnh biển số';
+    supportText = 'Vui lòng nhấn Tra cứu để xác minh.';
     bgColor = C.yellowBg;
     borderColor = C.yellowBorder;
     color = C.yellow;
   } else if (status === 'low_confidence') {
-    title = 'Cần kiểm tra lại biển số';
-    bgColor = '#FFF7ED'; // light orange
-    borderColor = '#FFEDD5';
-    color = C.orange;
-  } else if (status === 'success') {
     title = 'Đã nhận diện biển số';
+    supportText = 'Vui lòng kiểm tra và nhấn Tra cứu.';
+    bgColor = C.yellowBg;
+    borderColor = C.yellowBorder;
+    color = C.yellow;
+  } else if (status === 'success') {
+    title = 'Đã xác minh biển số';
     bgColor = C.greenBg;
     borderColor = C.greenBorder;
     color = C.green;
+  } else if (status === 'failed') {
+    title = 'Không nhận diện được biển số. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.';
+    bgColor = C.redBg;
+    borderColor = C.redBorder;
+    color = C.red;
   }
 
   return (
@@ -442,7 +461,12 @@ function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: str
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span>{title}</span>
       </div>
-      {status !== 'processing' && plate && (
+      {supportText && (
+        <div style={{ fontSize: '0.75rem', fontWeight: 500, color: C.gray500, marginTop: 1 }}>
+          {supportText}
+        </div>
+      )}
+      {status !== 'processing' && plate && status !== 'failed' && (
         <div style={{ fontSize: '1.1rem', fontFamily: "'Consolas','Courier New',monospace", letterSpacing: '0.04em', marginTop: 2 }}>
           {plate}
         </div>
@@ -589,6 +613,8 @@ export function CheckInPage() {
       setFrontImageUrl(null);
     } else {
       setRearImageUrl(null);
+      setLookupData(null);
+      setOcrAttempted(false);
     }
     setOcrStatus('idle');
   };
@@ -609,7 +635,9 @@ export function CheckInPage() {
     setRearImage(null);
     setRearPreview(null);
     setRearImageUrl(null);
+    setLookupData(null);
     setOcrStatus('idle');
+    setOcrAttempted(false);
     if (ocrAbortControllerRef.current) {
       ocrAbortControllerRef.current.abort();
       ocrAbortControllerRef.current = null;
@@ -653,11 +681,7 @@ export function CheckInPage() {
       setPlateInput(result.plateNumber.toUpperCase());
       setPlateSource('rear');
 
-      if (result.reliability === 'VERIFIED') {
-        setOcrStatus('success');
-      } else {
-        setOcrStatus('low_confidence');
-      }
+      setOcrStatus('low_confidence');
     } catch (err: any) {
       // Check if stale
       if (ocrRequestIdRef.current !== currentRequestId) {
@@ -672,11 +696,10 @@ export function CheckInPage() {
 
       const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('exceeded');
       if (isTimeout) {
-        setApiError('Nhận diện biển số mất nhiều thời gian hơn dự kiến. Vui lòng thử lại hoặc nhập thủ công.');
+        setApiError('Không nhận diện được biển số. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.');
         setOcrStatus('failed');
       } else {
-        const msg = err.response?.data?.message || 'Không thể nhận diện biển số từ ảnh sau. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.';
-        setApiError(msg);
+        setApiError('Không nhận diện được biển số. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.');
         setOcrStatus('failed');
       }
     } finally {
@@ -693,6 +716,12 @@ export function CheckInPage() {
   const handleLookup = async () => {
     const raw = plateInput.trim();
     if (!raw || !vehicleType) return;
+
+    const validation = validatePlate(raw, vehicleType);
+    if (!validation.valid) {
+      setApiError(validation.message || 'Biển số xe không hợp lệ.');
+      return;
+    }
 
     const normalized = normalizePlateForLookup(raw);
     if (!normalized) return;
@@ -715,7 +744,10 @@ export function CheckInPage() {
       // Vehicle type mismatch check
       if (result.found && result.vehicleType && result.vehicleType !== vehicleType) {
         setVehicleTypeMismatch(true);
+        return;
       }
+
+      setOcrStatus('success');
 
     } catch (err: unknown) {
       const msg = (err as Error).message ?? 'Không thể tra cứu biển số.';
@@ -910,6 +942,47 @@ export function CheckInPage() {
   // ═════════════════════════════════════════════════════
   return (
     <div style={{ background: C.bg, fontFamily: "'Segoe UI', Arial, sans-serif", minHeight: '100vh' }}>
+      <style>{`
+        .checkin-main-grid {
+          display: grid;
+          grid-template-columns: 58% 42%;
+          gap: 24px;
+          align-items: start;
+        }
+        .checkin-step2-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+        .capture-card-outer {
+          width: 100%;
+          min-height: 380px;
+          display: flex;
+          flex-direction: column;
+          background: #FAFBFF;
+        }
+        .capture-preview-wrapper {
+          width: 100%;
+          height: 250px;
+          position: relative;
+        }
+        @media (max-width: 1024px) {
+          .checkin-main-grid {
+            grid-template-columns: 100%;
+          }
+        }
+        @media (max-width: 640px) {
+          .checkin-step2-grid {
+            grid-template-columns: 100%;
+          }
+          .capture-card-outer {
+            min-height: auto;
+          }
+          .capture-preview-wrapper {
+            height: 180px;
+          }
+        }
+      `}</style>
       <main style={{ padding: '1.5rem', maxWidth: 1240, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {/* Page title */}
@@ -1001,7 +1074,7 @@ export function CheckInPage() {
         )}
 
         {/* TWO-COLUMN LAYOUT */}
-        <div style={{ display: 'grid', gridTemplateColumns: '58% 42%', gap: 24, alignItems: 'start' }}>
+        <div className="checkin-main-grid">
 
           {/* ══ LEFT — Workflow ═══════════════════════════════════════════ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1070,11 +1143,10 @@ export function CheckInPage() {
 
                 {vehicleType === 'CAR' && (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div className="checkin-step2-grid">
                       <CaptureBox
                         label="Ảnh phía trước"
                         hint="Chụp rõ toàn bộ biển số phía trước xe"
-                        aspectRatio="2.8/1"
                         preview={frontPreview}
                         onCamera={() => frontCameraRef.current?.click()}
                         onLibrary={() => frontLibraryRef.current?.click()}
@@ -1087,7 +1159,6 @@ export function CheckInPage() {
                       <CaptureBox
                         label="Ảnh phía sau"
                         hint="Chụp rõ toàn bộ biển số phía sau xe"
-                        aspectRatio="2.8/1"
                         preview={rearPreview}
                         onCamera={() => rearCameraRef.current?.click()}
                         onLibrary={() => rearLibraryRef.current?.click()}
@@ -1106,11 +1177,10 @@ export function CheckInPage() {
 
                 {vehicleType === 'MOTORBIKE' && (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div className="checkin-step2-grid">
                       <CaptureBox
                         label="Ảnh phía trước"
                         hint="Chụp rõ toàn bộ phía trước xe"
-                        aspectRatio="4/3"
                         preview={frontPreview}
                         onCamera={() => frontCameraRef.current?.click()}
                         onLibrary={() => frontLibraryRef.current?.click()}
@@ -1123,7 +1193,6 @@ export function CheckInPage() {
                       <CaptureBox
                         label="Ảnh phía sau"
                         hint="Chụp rõ toàn bộ phía sau xe"
-                        aspectRatio="1.25/1"
                         preview={rearPreview}
                         onCamera={() => rearCameraRef.current?.click()}
                         onLibrary={() => rearLibraryRef.current?.click()}
@@ -1187,6 +1256,7 @@ export function CheckInPage() {
                           setPlateInput(e.target.value.toUpperCase());
                           setPlateSource('manual');
                           setOcrStatus('manually_edited');
+                          setLookupData(null);
                           setApiError('');
                         }}
                         onKeyDown={handlePlateKeyDown}

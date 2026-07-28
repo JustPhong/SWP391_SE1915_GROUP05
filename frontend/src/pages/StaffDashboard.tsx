@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getStaffDashboard } from '../api/dashboardApi';
 import type { DashboardData, StaffRecentActivity } from '../api/dashboardApi';
 import { PlateInput } from '../components/PlateInput';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 
 type Accent = 'green' | 'orange' | 'gray' | 'blue';
 
@@ -288,11 +289,19 @@ export function StaffDashboardPage() {
   const displayName = user?.fullName ?? 'Nhân viên';
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setFetchError('');
     getStaffDashboard()
       .then((d) => { setData(d); setLoading(false); })
       .catch(() => { setFetchError('Không thể tải dữ liệu tổng quan.'); setLoading(false); });
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  useRefreshOnFocus({ enabled: true, onRefresh: loadData });
 
   const navigateWithPlate = (path: string) => {
     if (!plate.trim()) return;

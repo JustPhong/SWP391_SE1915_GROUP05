@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import styles from '../styles/history.module.css';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 
 interface HistoryEntry {
   id: string;
-  recordType?: 'CHECKIN' | 'BOOKING';
+  recordType?: 'CHECKIN' | 'BOOKING' | 'PARKING_SESSION';
   plateNumber?: string;
   licensePlate?: string;
   vehiclePlate?: string;
@@ -56,23 +57,50 @@ const formatCurrency = (value?: number) => {
   return new Intl.NumberFormat('vi-VN').format(value || 0) + ' đ';
 };
 
-// Map backend statuses to Vietnamese UI labels
-const getStatusLabel = (status?: string) => {
-  switch ((status || '').toUpperCase()) {
-    case 'COMPLETED':
-    case 'PAID':
-    case 'DONE':
-      return 'Hoàn thành';
-    case 'ACTIVE':
-    case 'IN_PROGRESS':
-    case 'PARKING':
-      return 'Đang gửi';
-    case 'CANCELLED':
-    case 'CANCELED':
-      return 'Đã hủy';
-    default:
-      return 'Hoàn thành';
+export const isCompletedParkingStatus = (status?: string): boolean => {
+  const s = (status || '').toUpperCase();
+  return ['COMPLETED', 'PAID', 'DONE'].includes(s);
+};
+
+export const isActiveParkingStatus = (status?: string): boolean => {
+  const s = (status || '').toUpperCase();
+  return ['PARKING', 'IN_PROGRESS', 'ACTIVE'].includes(s);
+};
+
+export const getHistoryStatusLabel = (
+  status?: string,
+  recordType?: 'CHECKIN' | 'BOOKING' | 'PARKING_SESSION'
+): string => {
+  const s = (status || '').toUpperCase();
+
+  if (recordType === 'BOOKING') {
+    switch (s) {
+      case 'PENDING_PAYMENT':
+        return 'Chờ thanh toán';
+      case 'ACTIVE':
+        return 'Đang chờ xe vào';
+      case 'FULFILLED':
+        return 'Đã check-in';
+      case 'CANCELLED':
+      case 'CANCELED':
+        return 'Đã hủy';
+      case 'NO_SHOW':
+        return 'Không đến';
+      default:
+        return 'Không xác định';
+    }
   }
+
+  if (isCompletedParkingStatus(status)) {
+    return 'Hoàn thành';
+  }
+  if (isActiveParkingStatus(status)) {
+    return 'Đang gửi xe';
+  }
+  if (s === 'AWAITING_PAYMENT') {
+    return 'Chờ thanh toán';
+  }
+  return 'Không xác định';
 };
 
 export function HistoryPage() {
@@ -97,30 +125,23 @@ export function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
-  // Selected entry for details modal
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
 
+  const load = async () => {
+    try {
+      const res = await api.get('/driver-dashboard/history');
+      setHistory(res.data.data ?? []);
+    } catch {
+      setHistory([]);
+      setError('Không thể tải lịch sử. Vui lòng thử lại.');
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const res = await api.get('/driver-dashboard/history');
-        if (cancelled) return;
-        setHistory(res.data.data ?? []);
-      } catch {
-        if (cancelled) return;
-        setHistory([]);
-        setError('Không thể tải lịch sử. Vui lòng thử lại.');
-      }
-    };
-
     load();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useRefreshOnFocus({ enabled: true, onRefresh: load });
 
   // Filter application
   const handleFilter = () => {
@@ -178,17 +199,32 @@ export function HistoryPage() {
     return record.status || 'COMPLETED';
   };
 
+  const selectedStatusLabel = selectedEntry
+    ? getHistoryStatusLabel(
+        getStatus(selectedEntry),
+        selectedEntry.recordType
+      )
+    : 'Không xác định';
+
+  let selectedStatusClass = styles.statusUnknown;
+  if (selectedStatusLabel === 'Đang gửi xe') {
+    selectedStatusClass = styles.statusActive;
+  } else if (selectedStatusLabel === 'Đang chờ xe vào' || selectedStatusLabel === 'Chờ thanh toán') {
+    selectedStatusClass = styles.statusPending;
+  } else if (selectedStatusLabel === 'Đã hủy' || selectedStatusLabel === 'Không đến') {
+    selectedStatusClass = styles.statusCancelled;
+  } else if (selectedStatusLabel === 'Hoàn thành') {
+    selectedStatusClass = styles.statusCompleted;
+  }
+
   // Compute summary stats from ALL loaded records (before search filters)
-  const totalRecords = history?.length ?? 0;
-  const totalCost = history?.reduce((acc, curr) => acc + getAmount(curr), 0) ?? 0;
-  const completedCount = history?.filter(r => {
-    const lbl = getStatusLabel(getStatus(r));
-    return lbl === 'Hoàn thành';
-  }).length ?? 0;
-  const activeCount = history?.filter(r => {
-    const lbl = getStatusLabel(getStatus(r));
-    return lbl === 'Đang gửi';
-  }).length ?? 0;
+  const parkingSessions = (history ?? []).filter(r => r.recordType === 'PARKING_SESSION');
+  const completedParkingSessions = parkingSessions.filter(r => isCompletedParkingStatus(r.status));
+
+  const totalRecords = parkingSessions.length;
+  const totalCost = completedParkingSessions.reduce((acc, curr) => acc + getAmount(curr), 0);
+  const completedCount = completedParkingSessions.length;
+  const activeCount = parkingSessions.filter(r => isActiveParkingStatus(r.status)).length;
 
   // Filtered dataset
   const filteredHistory = (history ?? []).filter((record) => {
@@ -202,7 +238,7 @@ export function HistoryPage() {
 
     // 2. Status filter
     if (activeFilters.statusFilter) {
-      const mappedLabel = getStatusLabel(getStatus(record));
+      const mappedLabel = getHistoryStatusLabel(getStatus(record), record.recordType);
       if (mappedLabel !== activeFilters.statusFilter) {
         return false;
       }
@@ -391,7 +427,7 @@ export function HistoryPage() {
                 <thead>
                   <tr>
                     <th>BIỂN SỐ</th>
-                    <th>MÃ CHỖ</th>
+                    <th>TẦNG / KHU VỰC</th>
                     <th>NGÀY VÀO</th>
                     <th>THỜI GIAN</th>
                     <th>SỐ TIỀN</th>
@@ -407,12 +443,12 @@ export function HistoryPage() {
                     const duration = getDuration(entry);
                     const amount = getAmount(entry);
                     const rawStatus = getStatus(entry);
-                    const statusLabel = getStatusLabel(rawStatus);
+                    const statusLabel = getHistoryStatusLabel(rawStatus, entry.recordType);
 
                     let statusClass = styles.statusCompleted;
-                    if (statusLabel === 'Đang gửi') {
+                    if (statusLabel === 'Đang gửi' || statusLabel === 'Đang gửi xe' || statusLabel === 'Đang chờ xe vào') {
                       statusClass = styles.statusActive;
-                    } else if (statusLabel === 'Đã hủy') {
+                    } else if (statusLabel === 'Đã hủy' || statusLabel === 'Không đến' || statusLabel === 'Không xác định') {
                       statusClass = styles.statusCancelled;
                     }
 
@@ -547,13 +583,8 @@ export function HistoryPage() {
               <div className={styles.modalField}>
                 <span className={styles.modalLabel}>Trạng thái</span>
                 <span className={styles.modalValue}>
-                  <span className={`${styles.statusBadge} ${getStatusLabel(getStatus(selectedEntry)) === 'Đang gửi'
-                    ? styles.statusActive
-                    : getStatusLabel(getStatus(selectedEntry)) === 'Đã hủy'
-                      ? styles.statusCancelled
-                      : styles.statusCompleted
-                    }`}>
-                    {getStatusLabel(getStatus(selectedEntry))}
+                  <span className={`${styles.statusBadge} ${selectedStatusClass}`}>
+                    {selectedStatusLabel}
                   </span>
                 </span>
               </div>

@@ -50,4 +50,14 @@ export const bookingService = {
     });
     return response.data.data;
   },
+
+  createCheckoutSession: async (data: { vehicleId: string; expectedArrival: string }) => {
+    const response = await api.post<{ success: boolean; data: { checkoutUrl: string; sessionId: string; bookingId: string } }>('/bookings/checkout-session', data);
+    return response.data.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await api.get<{ success: boolean; data: Booking }>(`/bookings/${id}`);
+    return response.data.data;
+  },
 };

@@ -20,8 +20,8 @@
 
 .title {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.875rem;
+  font-weight: 700;
   color: #0f172a;
   letter-spacing: -0.02em;
 }
@@ -33,61 +33,7 @@
   font-weight: 400;
 }
 
-/* Legend Card */
-.legendCard {
-  background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  padding: 0.75rem 1.25rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
 
-.legendList {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.legendBadge {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.badgeGreen {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.badgeRed {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-}
-
-.badgeOrange {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-}
-
-.badgeGray {
-  background: #334155;
-  border: 1px solid #334155;
-}
 
 /* Responsive Floor Grid */
 .grid {
@@ -114,20 +60,25 @@
 .slotGridWrapper {
   width: 100%;
   overflow-x: auto;
+  padding-top: 0.5rem;
 }
 
 .floorHeader {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 0.5rem;
   border-bottom: 1px solid #f1f5f9;
   padding-bottom: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .floorTitleGroup {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.65rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .floorIconCircle {
@@ -147,12 +98,13 @@
 .floorTitleContainer {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .floorTitle {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: 1.125rem;
+  font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
 }
@@ -165,13 +117,16 @@
 }
 
 .floorBadge {
-  background: #f8fafc;
-  color: #475569;
-  padding: 0.25rem 0.65rem;
+  background: #f0f9ff;
+  color: #0369a1;
+  padding: 0.3rem 0.75rem;
   border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 500;
-  border: 1px solid #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid #bae6fd;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
 }
 
 /* Floor Note Info Banner */
@@ -250,9 +205,10 @@
   margin-bottom: 1px;
 }
 
-.slotSymbol {
-  font-size: 0.65rem;
-  line-height: 1;
+.slotNeutral {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
 }
 
 /* Slot Status Styles */
@@ -260,24 +216,6 @@
   background: #f0fdf4;
   border-color: #bbf7d0;
   color: #15803d;
-}
-
-.slotMonthly {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #b91c1c;
-}
-
-.slotReserved {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #c2410c;
-}
-
-.slotOccupied {
-  background: #334155;
-  border-color: #334155;
-  color: #ffffff;
 }
 
 /* Slot Tier Custom Styles (Floor G Only) */
@@ -394,14 +332,6 @@
 @media (max-width: 640px) {
   .floorCard {
     padding: 1rem;
-  }
-  .legendCard {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  .legendList {
-    gap: 0.75rem;
   }
 }
 

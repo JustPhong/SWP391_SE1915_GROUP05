@@ -1,5 +1,5 @@
 import api from './api';
-import type { Floor, Booking, ParkingSlot } from '../types/index';
+import type { Floor, ParkingSlot } from '../types/index';
 
 export interface FloorWithSlots extends Floor {
   slots: ParkingSlot[];
@@ -21,38 +21,33 @@ export interface ZoneQuotaResponse {
   MOTORBIKE: VehicleZoneQuotas;
 }
 
+export interface MonthlyTierQuotaSummary {
+  tier: 'VIP' | 'POPULAR' | 'REGULAR';
+  limit: number;
+  sold: number;
+  remaining: number;
+}
+
+export interface MonthlyFloorQuotaSummary {
+  floorId: number;
+  quotas: MonthlyTierQuotaSummary[];
+}
+
 export const floorMapService = {
   getAllFloors: async (): Promise<Floor[]> => {
-    const response = await api.get<{ success: boolean; data: Floor[] }>('/floors');
+    const response = await api.get<{ success: boolean; data: Floor[] }>(`/floors?_t=${Date.now()}`);
     return response.data.data;
   },
 
   getSlotsByFloor: async (floorCode: string): Promise<FloorWithSlots> => {
-    const response = await api.get<{ success: boolean; data: FloorWithSlots }>(`/floors/${floorCode}/slots`);
+    const response = await api.get<{ success: boolean; data: FloorWithSlots }>(`/floors/${floorCode}/slots?_t=${Date.now()}`);
     return response.data.data;
   },
 
-  getActiveBookings: async (): Promise<Booking[]> => {
-    const response = await api.get<{ success: boolean; data: Booking[] }>('/bookings/active');
-    return response.data.data;
-  },
-
-  createBooking: async (data: {
-    plateNumber: string;
-    slotId: string;
-    expectedArrival: string;
-  }): Promise<Booking> => {
-    const response = await api.post<{ success: boolean; data: Booking }>('/bookings', data);
-    return response.data.data;
-  },
-
-  cancelBooking: async (bookingId: number): Promise<Booking> => {
-    const response = await api.post<{ success: boolean; data: Booking }>(`/bookings/${bookingId}/cancel`);
-    return response.data.data;
-  },
-
-  fulfillBooking: async (bookingId: number): Promise<Booking> => {
-    const response = await api.post<{ success: boolean; data: Booking }>(`/bookings/${bookingId}/fulfill`);
+  getFloorQuotas: async (floorId: number): Promise<MonthlyFloorQuotaSummary> => {
+    const response = await api.get<{ success: boolean; data: MonthlyFloorQuotaSummary }>(
+      `/monthly-packages/quotas/floor/${floorId}?_t=${Date.now()}`
+    );
     return response.data.data;
   },
 

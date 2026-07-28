@@ -28,9 +28,8 @@ export interface FeeResult {
   breakdown: FeeBlock[];
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
 function ceilLots(minutes: number, lotMinutes: number): number {
+  if (minutes <= 0) return 0;
   return Math.ceil(minutes / lotMinutes);
 }
 

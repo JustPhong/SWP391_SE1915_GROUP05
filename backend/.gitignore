@@ -1,6 +1,7 @@
 node_modules/
 .env
 dist/
+secrets/
 *.tsbuildinfo
 
 # Local database audit reports
@@ -8,3 +9,6 @@ dist/
 /monthly_package_*.json
 /diagnostics_report.json
 /legacy_reserved_slots_audit.json
+
+# Local Tesseract models/cache
+*.traineddata
