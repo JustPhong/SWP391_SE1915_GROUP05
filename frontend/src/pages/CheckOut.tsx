@@ -12,6 +12,7 @@ interface ActiveRecord {
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
+  allowedTier?: string | null;
   vehicle?: { 
     plateNumber: string; 
     type?: 'CAR' | 'MOTORBIKE';
@@ -222,6 +223,7 @@ export function CheckOutPage() {
         checkInTime: r.checkInTime,
         checkOutTime: r.checkOutTime,
         isMonthly: r.isMonthly ?? false,
+        allowedTier: r.allowedTier,
         vehicle: r.vehicle ? { 
           plateNumber: r.vehicle.plateNumber, 
           type: r.vehicle.type,
@@ -1085,14 +1087,15 @@ export function CheckOutPage() {
               </thead>
               <tbody>
                 {allRecords.map((r) => {
-                  if (!r.vehicle || !r.slot) return null;
+                  if (!r.vehicle) return null;
+                  const slotText = r.slot?.code ?? (r.allowedTier ? `Khu ${r.allowedTier === 'VIP' ? 'VIP' : r.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Tầng G');
                   return (
                     <tr key={r.id} style={{ borderBottom: `1px solid ${C.gray100}` }}>
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'Consolas, monospace', fontWeight: 700, color: C.navy, letterSpacing: '0.02em' }}>
                         {r.vehicle.plateNumber}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray800 }}>
-                        {r.slot.code}
+                        {slotText}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray600 }}>
                         {formatDateTime(r.checkInTime)}
@@ -1128,8 +1131,7 @@ export function CheckOutPage() {
                           <button
                             onClick={async () => { 
                               const v = r.vehicle;
-                              const s = r.slot;
-                              if (!v || !s) return;
+                              if (!v) return;
                               setFoundRecord(r); 
                               setPlateInput(v.plateNumber); 
                               fetchFeePreview(r.id).then(setFeePreview);
@@ -1164,8 +1166,7 @@ export function CheckOutPage() {
                           <button
                             onClick={() => { 
                               const v = r.vehicle;
-                              const s = r.slot;
-                              if (v && s) openLostTicket(r); 
+                              if (v) openLostTicket(r); 
                             }}
                             style={{
                               background: '#DC2626',
@@ -1246,7 +1247,7 @@ export function CheckOutPage() {
             }}>
               {[
                 { label: 'Biển số', value: lostTicketState.record.vehicle!.plateNumber, mono: true },
-                { label: 'Vị trí', value: lostTicketState.record.slot!.code },
+                { label: 'Vị trí', value: lostTicketState.record.slot?.code ?? (lostTicketState.record.allowedTier ? `Khu ${lostTicketState.record.allowedTier === 'VIP' ? 'VIP' : lostTicketState.record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Tầng G') },
                 { label: 'Giờ vào', value: formatDateTime(lostTicketState.record.checkInTime) },
                 { label: 'Loại xe', value: lostTicketState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
                 { label: 'Khách', value: lostTicketState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: lostTicketState.record.isMonthly ? C.green : undefined },
@@ -1464,7 +1465,7 @@ export function CheckOutPage() {
             }}>
               {[
                 { label: 'Biển số', value: confirmState.record.vehicle!.plateNumber, mono: true },
-                { label: 'Vị trí', value: confirmState.record.slot!.code },
+                { label: 'Vị trí', value: confirmState.record.slot?.code ?? (confirmState.record.allowedTier ? `Khu ${confirmState.record.allowedTier === 'VIP' ? 'VIP' : confirmState.record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Tầng G') },
                 { label: 'Giờ vào', value: formatDateTime(confirmState.record.checkInTime) },
                 { label: 'Loại xe', value: confirmState.record.vehicle!.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
                 { label: 'Khách', value: confirmState.record.isMonthly ? 'Khách tháng' : 'Khách lẻ', color: confirmState.record.isMonthly ? C.green : undefined },

@@ -105,6 +105,7 @@ export interface CheckInRecord {
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
+  allowedTier?: string | null;
   vehicle?: Vehicle;
   slot?: ParkingSlot;
   createdAt: string;
