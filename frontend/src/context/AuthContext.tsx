@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User } from '../types/index';
+import type { User, MonthlyPackage } from '../types/index';
 import { authService } from '../services/auth.service';
+import { monthlyPackageService } from '../services/monthlyPackage.service';
 
 interface AuthContextType {
   user: User | null;
@@ -18,6 +19,10 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   setUser: (user: User | null) => void;
+  hasActiveMonthlyPackage: boolean;
+  isPackageLoading: boolean;
+  activePackages: MonthlyPackage[];
+  refreshPackageStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -26,6 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
+
+  const [hasActiveMonthlyPackage, setHasActiveMonthlyPackage] = useState(false);
+  const [activePackages, setActivePackages] = useState<MonthlyPackage[]>([]);
+  const [isPackageLoading, setIsPackageLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('token');
@@ -84,8 +93,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
   };
 
+  const refreshPackageStatus = async () => {
+    if (!user || user.role !== 'DRIVER') {
+      setHasActiveMonthlyPackage(false);
+      setActivePackages([]);
+      setIsPackageLoading(false);
+      return;
+    }
+    setIsPackageLoading(true);
+    try {
+      const data = await monthlyPackageService.getMyPackages();
+      const list = Array.isArray(data) ? data : [];
+      setActivePackages(list);
+
+      const active = list.some((pkg) => {
+        if (pkg.status !== 'ACTIVE') return false;
+        const expiryTime = new Date(pkg.expiryDate).getTime();
+        return Number.isFinite(expiryTime) && expiryTime > Date.now();
+      });
+      setHasActiveMonthlyPackage(active);
+    } catch {
+      setHasActiveMonthlyPackage(false);
+      setActivePackages([]);
+    } finally {
+      setIsPackageLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) {
+      setHasActiveMonthlyPackage(false);
+      setActivePackages([]);
+      setIsPackageLoading(false);
+    } else {
+      refreshPackageStatus();
+    }
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading, setUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        login,
+        register,
+        logout,
+        isLoading,
+        setUser,
+        hasActiveMonthlyPackage,
+        isPackageLoading,
+        activePackages,
+        refreshPackageStatus,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

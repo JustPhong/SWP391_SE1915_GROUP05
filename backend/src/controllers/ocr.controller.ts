@@ -2,19 +2,17 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { AppError } from '../utils/helpers';
-import { recognizeLicensePlate } from '../services/ocr.service';
+import { recognizeLicensePlate, reconcilePlates } from '../services/ocr.service';
 
 export const ocrController = {
   // POST /api/checkin-media/ocr
   performOcr: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const file = req.file;
-    if (!file) {
-      throw new AppError(400, 'Ảnh biển số sau không hợp lệ. Vui lòng chọn ảnh JPG, JPEG, PNG hoặc WEBP.');
-    }
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const frontFile = files?.frontImage?.[0];
+    const rearFile = files?.rearImage?.[0] || files?.image?.[0] || req.file;
 
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new AppError(400, 'Ảnh biển số sau không hợp lệ. Vui lòng chọn ảnh JPG, JPEG, PNG hoặc WEBP.');
+    if (!frontFile && !rearFile) {
+      throw new AppError(400, 'Không tìm thấy dữ liệu ảnh để nhận diện.');
     }
 
     const vehicleType = String(req.body.vehicleType || 'CAR') as 'CAR' | 'MOTORBIKE';
@@ -23,44 +21,79 @@ export const ocrController = {
     }
 
     const startTotal = Date.now();
-    if (vehicleType === 'CAR' && process.env.NODE_ENV !== 'production') {
-      console.log(`[OCR][CAR] request started file=${file.originalname}`);
-    } else {
-      console.log(`[OCR] request started vehicleType=${vehicleType} file=${file.originalname}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[OCR] request started front=${frontFile?.originalname || 'NONE'} rear=${rearFile?.originalname || 'NONE'} vehicleType=${vehicleType}`);
     }
 
-    try {
-      const result = await recognizeLicensePlate(file.buffer, vehicleType);
-      const durationMs = Date.now() - startTotal;
-      if (vehicleType === 'CAR' && process.env.NODE_ENV !== 'production') {
-        console.log(`[OCR][CAR] request success plate=${result.normalizedPlate} durationMs=${durationMs}`);
-      } else {
-        console.log(`[OCR] success valid=true plate=${result.normalizedPlate} durationMs=${durationMs}`);
-      }
+    let frontResult = null;
+    let rearResult = null;
+    let lastError: Error | null = null;
 
-      return res.status(200).json({
-        success: true,
-        data: {
-          plateNumber: result.candidates[0] || result.normalizedPlate || '',
-          normalizedPlate: result.normalizedPlate || '',
-          rawText: result.rawText,
-          candidates: result.candidates,
-          provider: result.provider,
-          confidence: result.confidence,
-          reliability: result.reliability || 'REVIEW',
-          agreementCount: result.agreementCount || 1,
-          imageUrl: '',
-        },
-      });
-    } catch (err) {
-      const durationMs = Date.now() - startTotal;
-      if (vehicleType === 'CAR' && process.env.NODE_ENV !== 'production') {
-        const errObj = err as any;
-        console.log(`[OCR][CAR] final=HTTP_${errObj.statusCode || 500} elapsedMs=${durationMs} message="${errObj.message}"`);
-      } else {
-        console.error(`[OCR] failed durationMs=${durationMs}`, err);
+    if (frontFile) {
+      try {
+        frontResult = await recognizeLicensePlate(frontFile.buffer, vehicleType);
+      } catch (err) {
+        lastError = err as Error;
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[OCR] Front image OCR failed:', err);
+        }
       }
-      throw err;
     }
+
+    if (rearFile) {
+      try {
+        rearResult = await recognizeLicensePlate(rearFile.buffer, vehicleType);
+      } catch (err) {
+        lastError = err as Error;
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[OCR] Rear image OCR failed:', err);
+        }
+      }
+    }
+
+    if (!frontResult && !rearResult) {
+      throw lastError || new AppError(422, 'Không nhận diện được biển số. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.');
+    }
+
+    const reconciliation = reconcilePlates(
+      frontResult?.normalizedPlate || '',
+      frontResult?.confidence || 0,
+      rearResult?.normalizedPlate || '',
+      rearResult?.confidence || 0,
+      vehicleType
+    );
+
+    let reliability = 'REVIEW';
+    const chosenResult = (reconciliation.sourceUsed === 'FRONT' || (reconciliation.sourceUsed === 'MERGED' && frontResult && frontResult.confidence >= (rearResult?.confidence || 0)))
+      ? frontResult
+      : rearResult;
+
+    if (chosenResult) {
+      reliability = chosenResult.reliability || 'REVIEW';
+    }
+
+    const durationMs = Date.now() - startTotal;
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[OCR] reconciled plate=${reconciliation.bestPlate} sourceUsed=${reconciliation.sourceUsed} durationMs=${durationMs}`);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        plateNumber: reconciliation.bestPlate,
+        normalizedPlate: reconciliation.normalizedPlate,
+        bestPlate: reconciliation.bestPlate,
+        frontPlateCandidate: frontResult ? (vehicleType === 'CAR' ? frontResult.candidates[0] || frontResult.normalizedPlate || '' : frontResult.normalizedPlate || '') : '',
+        rearPlateCandidate: rearResult ? (vehicleType === 'CAR' ? rearResult.candidates[0] || rearResult.normalizedPlate || '' : rearResult.normalizedPlate || '') : '',
+        sourceUsed: reconciliation.sourceUsed,
+        rawText: (frontResult?.rawText || '') + '\n' + (rearResult?.rawText || ''),
+        candidates: chosenResult?.candidates || [reconciliation.bestPlate],
+        provider: 'TESSERACT_JS',
+        confidence: reconciliation.confidence,
+        reliability,
+        agreementCount: chosenResult?.agreementCount || 1,
+        imageUrl: '',
+      },
+    });
   }),
 };

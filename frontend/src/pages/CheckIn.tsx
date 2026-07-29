@@ -643,7 +643,7 @@ export function CheckInPage() {
   };
 
   const runOCR = async () => {
-    if (!vehicleType || !rearImage) return;
+    if (!vehicleType || (!rearImage && !frontImage)) return;
 
     // 1. Abort previous request if any
     if (ocrAbortControllerRef.current) {
@@ -664,11 +664,12 @@ export function CheckInPage() {
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[OCR request fields]', {
           fileField: 'image',
-          fileName: rearImage.name,
+          rearFileName: rearImage?.name || 'NONE',
+          frontFileName: frontImage?.name || 'NONE',
           vehicleType
         });
       }
-      const result = await runOcrApi(rearImage, vehicleType, controller.signal);
+      const result = await runOcrApi(rearImage, frontImage, vehicleType, controller.signal);
 
       // Check if stale
       if (ocrRequestIdRef.current !== currentRequestId) {
@@ -677,7 +678,7 @@ export function CheckInPage() {
 
       setRearImageUrl(result.imageUrl);
       setPlateInput(result.plateNumber.toUpperCase());
-      setPlateSource('rear');
+      setPlateSource(result.sourceUsed === 'FRONT' ? 'front' : 'rear');
 
       setOcrStatus('low_confidence');
     } catch (err: any) {
@@ -1185,7 +1186,7 @@ export function CheckInPage() {
                 )}
 
                 {/* OCR run button */}
-                {vehicleType && rearImage && (
+                {vehicleType && (rearImage || frontImage) && (
                   <button
                     id="run-ocr-btn"
                     onClick={runOCR}

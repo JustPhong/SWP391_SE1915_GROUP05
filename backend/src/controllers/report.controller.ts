@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import { reportService } from '../services/report.service';
+import { reportService, getCurrentShiftTimeRange } from '../services/report.service';
+import { checkInService } from '../services/checkin-checkout.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 
@@ -33,15 +34,93 @@ export const reportController = {
 
   // ─── Existing revenue report (STAFF + MANAGER + ADMIN) ─────────────────────
 
-  getRevenue: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const startDate = req.query.startDate
-      ? new Date(req.query.startDate as string)
-      : undefined;
-    const endDate = req.query.endDate
-      ? new Date(req.query.endDate as string)
-      : undefined;
+  getCurrentShift: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const shiftInfo = getCurrentShiftTimeRange();
+    return res.status(200).json({
+      success: true,
+      data: {
+        shift: shiftInfo.shiftName,
+        dateStr: shiftInfo.dateStr,
+        start: shiftInfo.start.toISOString(),
+        end: shiftInfo.end.toISOString()
+      }
+    });
+  }),
 
-    const report = await reportService.getRevenueReport({ startDate, endDate });
+  getShiftActivity: asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+    }
+
+    const userRole = req.user.role.toUpperCase();
+    let start: Date;
+    let end: Date;
+
+    if (userRole === 'STAFF') {
+      const currentShift = getCurrentShiftTimeRange();
+      start = currentShift.start;
+      end = currentShift.end;
+    } else {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Các tham số startDate và endDate của ca trực là bắt buộc.'
+        });
+      }
+
+      start = new Date(startDate as string);
+      end = new Date(endDate as string);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tham số ngày bắt đầu hoặc ngày kết thúc không hợp lệ.'
+        });
+      }
+    }
+
+    const records = await checkInService.getHistoryRecords(undefined, 200, start, end);
+    return res.status(200).json({ success: true, data: records });
+  }),
+
+  getRevenue: asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+    }
+
+    const userRole = req.user.role.toUpperCase();
+    let start: Date;
+    let end: Date;
+
+    if (userRole === 'STAFF') {
+      // Ignore user query params and resolve the current operational shift on the server
+      const currentShift = getCurrentShiftTimeRange();
+      start = currentShift.start;
+      end = currentShift.end;
+    } else {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Các tham số startDate và endDate của ca trực là bắt buộc.'
+        });
+      }
+
+      start = new Date(startDate as string);
+      end = new Date(endDate as string);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tham số ngày bắt đầu hoặc ngày kết thúc không hợp lệ.'
+        });
+      }
+    }
+
+    const report = await reportService.getRevenueReport({ startDate: start, endDate: end });
     return res.status(200).json({ success: true, data: report });
   }),
 

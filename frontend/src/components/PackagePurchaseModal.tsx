@@ -68,7 +68,7 @@ export function PackagePurchaseModal({
   vehicleType,
   onSuccess
 }: PackagePurchaseModalProps) {
-  const { user } = useAuth();
+  const { user, refreshPackageStatus } = useAuth();
 
   // States
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -325,6 +325,7 @@ export function PackagePurchaseModal({
       setCreatedPkg(created);
       setStep('SUCCESS');
       if (onSuccess) onSuccess();
+      refreshPackageStatus();
     } catch (e: any) {
       setSubmitError(e?.response?.data?.message ?? 'Đăng ký gói tháng thất bại. Vui lòng thử lại.');
     } finally {

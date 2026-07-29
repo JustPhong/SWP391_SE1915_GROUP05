@@ -108,11 +108,12 @@
 }
 
 .iconWrapper {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  background-color: #EFF6FF;
-  color: #2563EB;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background-color: rgba(59, 102, 246, 0.08);
+  border: 1px solid rgba(59, 102, 246, 0.08);
+  color: #3568e8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -277,7 +278,15 @@
 }
 
 .kpiGrid4 {
+  display: grid;
   grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.kpiGrid5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
 }
 
 .kpiCard {
@@ -604,6 +613,10 @@
   .kpiGrid4 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .kpiGrid5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
   
   .activityGrid {
     grid-template-columns: repeat(2, 1fr);
@@ -630,6 +643,7 @@
   
   .kpiGrid,
   .kpiGrid4,
+  .kpiGrid5,
   .activityGrid {
     grid-template-columns: 1fr;
   }

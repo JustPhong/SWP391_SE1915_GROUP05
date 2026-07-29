@@ -7,6 +7,66 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+export interface ShiftRangeResult {
+  start: Date;
+  end: Date;
+  shiftName: 'MORNING' | 'AFTERNOON' | 'NIGHT';
+  dateStr: string;
+}
+
+export function getCurrentShiftTimeRange(): ShiftRangeResult {
+  // Convert current time to Vietnam time (UTC+7)
+  const nowUtc = Date.now();
+  const vnOffset = 7 * 60 * 60 * 1000;
+  const nowVn = new Date(nowUtc + vnOffset);
+
+  const currentHour = nowVn.getUTCHours();
+
+  // Construct date parts in UTC aligning with local Vietnam date
+  const year = nowVn.getUTCFullYear();
+  const month = nowVn.getUTCMonth();
+  const day = nowVn.getUTCDate();
+
+  let shiftName: 'MORNING' | 'AFTERNOON' | 'NIGHT';
+  let startHourLocal: number;
+  let endHourLocal: number;
+  let dayOffsetStart = 0;
+  let dayOffsetEnd = 0;
+
+  if (currentHour >= 6 && currentHour < 14) {
+    shiftName = 'MORNING';
+    startHourLocal = 6;
+    endHourLocal = 14;
+  } else if (currentHour >= 14 && currentHour < 22) {
+    shiftName = 'AFTERNOON';
+    startHourLocal = 14;
+    endHourLocal = 22;
+  } else {
+    shiftName = 'NIGHT';
+    startHourLocal = 22;
+    if (currentHour >= 22) {
+      endHourLocal = 6;
+      dayOffsetEnd = 1;
+    } else {
+      endHourLocal = 6;
+      dayOffsetStart = -1;
+    }
+  }
+
+  // Construct UTC Dates that match Vietnam local hours:
+  const start = new Date(Date.UTC(year, month, day + dayOffsetStart, startHourLocal - 7, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, day + dayOffsetEnd, endHourLocal - 7, 0, 0, 0));
+
+  // Calculate dateStr ('YYYY-MM-DD' in local Vietnam time)
+  const shiftDateVn = new Date(nowVn.getTime() + dayOffsetStart * 24 * 60 * 60 * 1000);
+  const yyyy = shiftDateVn.getUTCFullYear();
+  const mm = String(shiftDateVn.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(shiftDateVn.getUTCDate()).padStart(2, '0');
+  const dateStr = `${yyyy}-${mm}-${dd}`;
+
+  return { start, end, shiftName, dateStr };
+}
+
 const SLOT_AVAILABLE = 'AVAILABLE';
 const SLOT_OCCUPIED = 'OCCUPIED';
 const SLOT_RESERVED = 'RESERVED';
@@ -14,7 +74,7 @@ const PKG_ACTIVE = 'ACTIVE';
 const BOOKING_ACTIVE = 'ACTIVE';
 const PAYMENT_SESSION = 'SESSION';
 const PAYMENT_MONTHLY = 'MONTHLY';
-   
+
 export interface OccupancyReport {
   totalSlots: number;
   availableSlots: number;
@@ -60,37 +120,67 @@ export const reportService = {
   // ─── Occupancy (existing, unchanged) ────────────────────────────────────
 
   async getOccupancyReport(filters?: ReportFilters) {
-    const where: any = {};
-    if (filters?.floorId !== undefined) where.floorId = filters.floorId;
+    const now = new Date();
+    const whereFloor: any = {};
+    if (filters?.floorId !== undefined) {
+      whereFloor.id = filters.floorId;
+    }
 
-    const slots = await prisma.parkingSlot.findMany({ where });
+    const floors = await prisma.floor.findMany({
+      where: whereFloor,
+      orderBy: { id: 'asc' },
+    });
 
-    const total = slots.length;
-    const available = slots.filter((s) => s.status === SLOT_AVAILABLE).length;
-    const occupied = slots.filter((s) => s.status === SLOT_OCCUPIED).length;
-    const reserved = slots.filter((s) => s.status === SLOT_RESERVED).length;
+    const activeCheckins = await prisma.checkInRecord.findMany({
+      where: {
+        checkOutTime: null,
+        status: 'PARKING',
+        ...(filters?.floorId !== undefined ? { floorId: filters.floorId } : {}),
+      },
+    });
 
-    const floorIds = [...new Set(slots.map((s) => s.floorId))].sort((a, b) => a - b);
-    const byFloor: FloorOccupancy[] = floorIds.map((floorId) => {
-      const fSlots = slots.filter((s) => s.floorId === floorId);
+    const activeBookings = await prisma.booking.findMany({
+      where: {
+        status: 'ACTIVE',
+        depositStatus: 'PAID',
+        expiresAt: { gt: now },
+        checkInRecords: { none: {} },
+        ...(filters?.floorId !== undefined ? { floorId: filters.floorId } : {}),
+      },
+    });
+
+    let totalCapacity = 0;
+    let totalOccupied = 0;
+    let totalReserved = 0;
+    let totalAvailable = 0;
+
+    const byFloor: FloorOccupancy[] = floors.map((floor) => {
+      const fCapacity = floor.capacity;
+      const fOccupied = activeCheckins.filter((c) => c.floorId === floor.id).length;
+      const fReserved = activeBookings.filter((b) => b.floorId === floor.id).length;
+      const fAvailable = fCapacity - fOccupied - fReserved;
+
+      totalCapacity += fCapacity;
+      totalOccupied += fOccupied;
+      totalReserved += fReserved;
+      totalAvailable += fAvailable;
+
       return {
-        floor: floorId,
-        total: fSlots.length,
-        available: fSlots.filter((s) => s.status === SLOT_AVAILABLE).length,
-        occupied: fSlots.filter((s) => s.status === SLOT_OCCUPIED).length,
-        reserved: fSlots.filter((s) => s.status === SLOT_RESERVED).length,
-        occupancyRate: fSlots.length > 0
-          ? (fSlots.filter((s) => s.status === SLOT_OCCUPIED).length / fSlots.length) * 100
-          : 0,
+        floor: floor.id,
+        total: fCapacity,
+        available: fAvailable,
+        occupied: fOccupied,
+        reserved: fReserved,
+        occupancyRate: fCapacity > 0 ? (fOccupied / fCapacity) * 100 : 0,
       };
     });
 
     return {
-      totalSlots: total,
-      availableSlots: available,
-      occupiedSlots: occupied,
-      reservedSlots: reserved,
-      occupancyRate: total > 0 ? (occupied / total) * 100 : 0,
+      totalSlots: totalCapacity,
+      availableSlots: totalAvailable,
+      occupiedSlots: totalOccupied,
+      reservedSlots: totalReserved,
+      occupancyRate: totalCapacity > 0 ? (totalOccupied / totalCapacity) * 100 : 0,
       byFloor,
       byVehicleType: [],
     } as OccupancyReport;
@@ -99,15 +189,25 @@ export const reportService = {
   // ─── Revenue by day range (existing, unchanged) ───────────────────────────
 
   async getRevenueReport(filters?: ReportFilters) {
+    const now = new Date();
     const where: any = {};
-    if (filters?.startDate) where.paidAt = { ...where.paidAt, gte: filters.startDate };
-    if (filters?.endDate) where.paidAt = { ...where.paidAt, lte: filters.endDate };
+
+    let startLimit: Date | undefined = filters?.startDate;
+    let endLimit: Date | undefined = filters?.endDate;
+
+    // Timezone safety and clamping for active shifts
+    if (endLimit && endLimit > now) {
+      endLimit = now;
+    }
 
     const payments = await prisma.payment.findMany({
       where: {
-        ...where,
         status: 'SUCCESS',
-        paidAt: { not: null },
+        paidAt: {
+          not: null,
+          ...(startLimit ? { gte: startLimit } : {}),
+          ...(endLimit ? { lte: endLimit } : {}),
+        },
       }
     });
 
@@ -117,17 +217,49 @@ export const reportService = {
         p.paidAt instanceof Date
     );
 
-    const totalRevenue = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const sessionRevenue = paidPayments
-      .filter((p) => p.type === PAYMENT_SESSION || p.type === 'PARKING_FEE')
+    const sessionTypes = [PAYMENT_SESSION, 'PARKING_FEE'];
+    const monthlyTypes = [PAYMENT_MONTHLY, 'MONTHLY_PACKAGE'];
+    const bookingTypes = ['BOOKING_FEE', 'BOOKING_DEPOSIT'];
+
+    const parkingRevenue = paidPayments
+      .filter((p) => sessionTypes.includes(p.type))
       .reduce((sum, p) => sum + Number(p.amount), 0);
+
     const monthlyRevenue = paidPayments
-      .filter((p) => p.type === PAYMENT_MONTHLY || p.type === 'MONTHLY_PACKAGE')
+      .filter((p) => monthlyTypes.includes(p.type))
       .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const bookingRevenue = paidPayments
+      .filter((p) => bookingTypes.includes(p.type))
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const otherRevenue = paidPayments
+      .filter((p) => !sessionTypes.includes(p.type) && !monthlyTypes.includes(p.type) && !bookingTypes.includes(p.type))
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const totalRevenue = parkingRevenue + monthlyRevenue + bookingRevenue + otherRevenue;
+
+    // Development diagnostics logging
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV) {
+      console.log(`[SHIFT_REVENUE] startUtc=${startLimit ? startLimit.toISOString() : 'undefined'}`);
+      console.log(`[SHIFT_REVENUE] effectiveEndUtc=${endLimit ? endLimit.toISOString() : 'undefined'}`);
+      console.log(`[SHIFT_REVENUE] successfulPaymentsFound=${paidPayments.length}`);
+      console.log(`[SHIFT_REVENUE] totalRevenue=${totalRevenue}`);
+    }
 
     const byMethod: Record<string, number> = {};
     for (const p of paidPayments) {
       byMethod[p.method] = (byMethod[p.method] || 0) + Number(p.amount);
+    }
+
+    // Diagnostic validation checks (development-only warnings)
+    const sumMethodRevenue = Object.values(byMethod).reduce((sum, amt) => sum + amt, 0);
+    if (Math.abs(sumMethodRevenue - totalRevenue) > 0.01) {
+      console.warn(`[Report Diagnostic Warning] Method sum (${sumMethodRevenue}) does not equal totalRevenue (${totalRevenue})`);
+    }
+    const sumBreakdownRevenue = parkingRevenue + monthlyRevenue + bookingRevenue + otherRevenue;
+    if (Math.abs(sumBreakdownRevenue - totalRevenue) > 0.01) {
+      console.warn(`[Report Diagnostic Warning] Breakdown sum (${sumBreakdownRevenue}) does not equal totalRevenue (${totalRevenue})`);
     }
 
     const byDayMap: Record<string, number> = {};
@@ -141,12 +273,13 @@ export const reportService = {
 
     return {
       totalRevenue,
-      sessionRevenue,
+      sessionRevenue: parkingRevenue,
       monthlyRevenue,
+      bookingRevenue,
       transactionCount: paidPayments.length,
       byMethod,
       byDay,
-    } as RevenueReport;
+    };
   },
 
   // ─── Active counts (existing, unchanged) ──────────────────────────────────
@@ -173,8 +306,8 @@ export const reportService = {
     const isRange = from && to;
 
     const [totalSlots, occupiedSlots, activePackages] = await Promise.all([
-      prisma.parkingSlot.count(),
-      prisma.parkingSlot.count({ where: { status: SLOT_OCCUPIED } }),
+      prisma.floor.findMany().then((floors) => floors.reduce((sum, f) => sum + f.capacity, 0)),
+      prisma.checkInRecord.count({ where: { checkOutTime: null, status: 'PARKING' } }),
       prisma.monthlyPackage.count({
         where: { status: PKG_ACTIVE, expiryDate: { gt: now } },
       }),
@@ -576,6 +709,7 @@ export const reportService = {
   // ─── Occupancy detail — per-floor slot breakdown (MANAGER + ADMIN) ─────────────
 
   async getOccupancyDetail() {
+    const now = new Date();
     const floors = await prisma.floor.findMany({
       orderBy: { floorCode: 'asc' },
       include: {
@@ -586,6 +720,22 @@ export const reportService = {
       },
     });
 
+    const activeCheckins = await prisma.checkInRecord.findMany({
+      where: {
+        checkOutTime: null,
+        status: 'PARKING',
+      },
+    });
+
+    const activeBookings = await prisma.booking.findMany({
+      where: {
+        status: 'ACTIVE',
+        depositStatus: 'PAID',
+        expiresAt: { gt: now },
+        checkInRecords: { none: {} },
+      },
+    });
+
     const totalCapacity = floors.reduce((sum, f) => sum + f.capacity, 0);
     let totalOccupied = 0;
     let totalReserved = 0;
@@ -593,16 +743,16 @@ export const reportService = {
 
     const floorResults = floors.map((floor) => {
       const capacity = floor.capacity;
-      const slots = floor.slots ?? [];
-      const occupied = slots.filter((s) => s.status === SLOT_OCCUPIED).length;
-      const reserved = slots.filter((s) => s.status === SLOT_RESERVED).length;
+      const occupied = activeCheckins.filter((c) => c.floorId === floor.id).length;
+      const reserved = activeBookings.filter((b) => b.floorId === floor.id).length;
       const available = capacity - occupied - reserved;
 
       totalOccupied += occupied;
       totalReserved += reserved;
       totalAvailable += available;
 
-      // Build slotCode → display label (e.g. "G-01", "1-01", "2-01", "3-01")
+      // Keep slots display but show their status as is from DB (since monthly might use them, or they are default AVAILABLE)
+      const slots = floor.slots ?? [];
       const displaySlots = slots.map((s) => ({
         code: s.code,
         status: s.status as 'AVAILABLE' | 'OCCUPIED' | 'RESERVED',

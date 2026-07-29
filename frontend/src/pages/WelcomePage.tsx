@@ -9,7 +9,7 @@ import {
   HistoryIcon,
   ShoppingBagIcon,
 } from '../components/ui/Icons';
-import { getCurrentSession, getMyPackage, CurrentSession } from '../api/driverDashboardApi';
+import { getCurrentSession, CurrentSession } from '../api/driverDashboardApi';
 import { addVehicle } from '../api/vehicleApi';
 import { getPublicAvailability, type AvailabilityData } from '../api/publicApi';
 import { ProfilePage } from './Profile';
@@ -59,7 +59,7 @@ const VEHICLE_YEARS = Array.from({ length: new Date().getFullYear() - 1989 }, (_
 // ── Component ──────────────────────────────────────────────
 export const WelcomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, hasActiveMonthlyPackage: hasPackage, isPackageLoading: pkgLoading } = useAuth();
   const location = useLocation();
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [purchasePlanId, setPurchasePlanId] = useState('');
@@ -93,27 +93,6 @@ export const WelcomePage: React.FC = () => {
 
   // ── User type detection ──────────────────────────────────
   // All users stay on the Welcome page (including monthly customers) — no redirect.
-  const [pkgLoading, setPkgLoading] = useState(true);
-  const [hasPackage, setHasPackage] = useState(false); // true = has ACTIVE non-expired package
-
-  useEffect(() => {
-    if (!user) { setPkgLoading(false); return; }
-    getMyPackage().then(pkg => {
-      // Active-package condition: status MUST be ACTIVE and expiry MUST be in the future.
-      // !!pkg alone is wrong — an expired/cancelled package is also truthy.
-      if (!pkg) {
-        setHasPackage(false);
-      } else {
-        const expiryTime = new Date(pkg.expiryDate).getTime();
-        const isActive =
-          pkg.status === 'ACTIVE' &&
-          Number.isFinite(expiryTime) &&
-          expiryTime > Date.now();
-        setHasPackage(isActive);
-      }
-      setPkgLoading(false);
-    }).catch(() => { setHasPackage(false); setPkgLoading(false); });
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live availability for the public StatusStrip ────────────────
   const [availability, setAvailability] = useState<AvailabilityData | null>(null);

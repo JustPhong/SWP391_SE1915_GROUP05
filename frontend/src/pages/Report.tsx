@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { reportService } from '../services/report.service';
 import { floorMapService } from '../services/floorMap.service';
-import api from '../services/api';
 import styles from '../styles/report.module.css';
 
 // ── Inline Premium SVG Icons ──
@@ -24,9 +23,10 @@ const DownloadIcon = ({ size = 16, className, style }: IconProps) => (
   </svg>
 );
 
-const UserIcon = ({ size = 16, className, style }: IconProps) => (
+const UserRoundIcon = ({ size = 16, className, style }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
+    <circle cx="12" cy="8" r="5" />
+    <path d="M20 21a8 8 0 0 0-16 0" />
   </svg>
 );
 
@@ -50,9 +50,14 @@ const MoonIcon = ({ size = 16, className, style }: IconProps) => (
   </svg>
 );
 
-const CoffeeIcon = ({ size = 16, className, style }: IconProps) => (
+const CalendarClockIcon = ({ size = 16, className, style }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
-    <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3" />
+    <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5" />
+    <path d="M16 2v4" />
+    <path d="M8 2v4" />
+    <path d="M3 10h18" />
+    <path d="M16 14v2l2 2" />
+    <circle cx="16" cy="16" r="6" />
   </svg>
 );
 
@@ -170,7 +175,7 @@ export function ReportPage() {
       case 'MORNING':
         return { label: 'Ca sáng', time: '06:00 – 14:00', icon: <SunIcon size={16} /> };
       case 'AFTERNOON':
-        return { label: 'Ca chiều', time: '14:00 – 22:00', icon: <CoffeeIcon size={16} /> };
+        return { label: 'Ca chiều', time: '14:00 – 22:00', icon: <CalendarClockIcon size={16} /> };
       case 'NIGHT':
       default:
         return { label: 'Ca đêm', time: '22:00 – 06:00', icon: <MoonIcon size={16} /> };
@@ -199,8 +204,15 @@ export function ReportPage() {
     return { start, end };
   }, []);
 
+  const isShiftActive = useCallback(() => {
+    const { end } = getShiftRange(selectedDate, selectedShift);
+    return new Date() < end;
+  }, [selectedDate, selectedShift, getShiftRange]);
+
   const loadReports = useCallback(async () => {
     setLoading(true);
+    setOccupancy(null);
+    setRevenue(null);
     try {
       const { start, end } = getShiftRange(selectedDate, selectedShift);
 
@@ -209,7 +221,7 @@ export function ReportPage() {
         reportService.getOccupancy(),
         reportService.getRevenue({ startDate: start.toISOString(), endDate: end.toISOString() }),
         floorMapService.getAllFloors().catch(() => []),
-        api.get('/checkin-out/history').then(res => res.data.data ?? []).catch(() => []),
+        reportService.getShiftActivity({ startDate: start.toISOString(), endDate: end.toISOString() }).catch(() => []),
       ]);
 
       setOccupancy(occ);
@@ -230,6 +242,22 @@ export function ReportPage() {
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  // Autorun for STAFF to lock them into the server-defined current shift
+  useEffect(() => {
+    if (user?.role?.toUpperCase() === 'STAFF') {
+      reportService.getCurrentShift()
+        .then((assignment) => {
+          if (assignment) {
+            setSelectedDate(assignment.dateStr);
+            setSelectedShift(assignment.shift);
+          }
+        })
+        .catch((err) => {
+          console.error('Lỗi khi tải thông tin ca trực của nhân viên:', err);
+        });
+    }
+  }, [user]);
 
   // Operational metrics calculated locally from history records within the shift range
   const getShiftActivityMetrics = () => {
@@ -307,6 +335,7 @@ export function ReportPage() {
       ['Tổng doanh thu', formatCurrency(revenue.totalRevenue), ''],
       ['Doanh thu vé lượt', formatCurrency(revenue.sessionRevenue), ''],
       ['Doanh thu gói tháng', formatCurrency(revenue.monthlyRevenue), ''],
+      ['Doanh thu đặt chỗ', formatCurrency(revenue.bookingRevenue || 0), ''],
       ['Số giao dịch', revenue.transactionCount.toString(), ''],
       ['Tiền mặt', formatCurrency(revenue.byMethod['CASH'] || 0), ''],
       ['Thẻ', formatCurrency(revenue.byMethod['CARD'] || 0), ''],
@@ -387,7 +416,7 @@ export function ReportPage() {
         {/* Block 1: Nhân viên */}
         <div className={styles.summaryBlock}>
           <div className={styles.iconWrapper}>
-            <UserIcon size={18} />
+            <UserRoundIcon size={24} />
           </div>
           <div className={styles.summaryContent}>
             <span className={styles.summaryLabel}>Nhân viên trực ca</span>
@@ -398,7 +427,7 @@ export function ReportPage() {
         {/* Block 2: Ca trực */}
         <div className={styles.summaryBlock}>
           <div className={styles.iconWrapper}>
-            {shiftInfo.icon}
+            <CalendarClockIcon size={24} />
           </div>
           <div className={styles.summaryContent}>
             <span className={styles.summaryLabel}>Ca trực</span>
@@ -410,7 +439,7 @@ export function ReportPage() {
         {/* Block 3: Ngày */}
         <div className={styles.summaryBlock}>
           <div className={styles.iconWrapper}>
-            <CalendarIcon size={18} />
+            <CalendarIcon size={24} />
           </div>
           <div className={styles.summaryContent}>
             <span className={styles.summaryLabel}>Ngày trực</span>
@@ -424,61 +453,65 @@ export function ReportPage() {
         {/* Block 4: Trạng thái ca */}
         <div className={styles.summaryBlock}>
           <div className={styles.iconWrapper}>
-            <ClockIcon size={18} />
+            <ClockIcon size={24} />
           </div>
           <div className={styles.summaryContent}>
             <span className={styles.summaryLabel}>Trạng thái ca</span>
-            <span className={styles.summaryValue}>Đang diễn ra</span>
-            {lastUpdated && (
-              <span className={styles.summarySub}>Cập nhật lúc {lastUpdated}</span>
+            <span className={styles.summaryValue}>
+              {user?.role?.toUpperCase() === 'STAFF' || isShiftActive() ? 'Báo cáo ca hiện tại' : 'Báo cáo ca đã hoàn thành'}
+            </span>
+            {(user?.role?.toUpperCase() === 'STAFF' || isShiftActive()) && lastUpdated && (
+              <span className={styles.summarySub}>Dữ liệu cập nhật đến {lastUpdated}</span>
             )}
           </div>
         </div>
       </div>
 
       {/* ── Report Filter / Control Card ── */}
-      <div className={styles.controlCard}>
-        <h3 className={styles.controlTitle}>Bạn muốn xem báo cáo ca nào?</h3>
-        <div className={styles.controlGrid}>
-          {/* Ngày */}
-          <div className={styles.controlGroup}>
-            <span className={styles.controlLabel}>Ngày</span>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className={styles.inputField}
-            />
-          </div>
+      {user?.role?.toUpperCase() !== 'STAFF' && (
+        <div className={styles.controlCard}>
+          <h3 className={styles.controlTitle}>Bạn muốn xem báo cáo ca nào?</h3>
+          <div className={styles.controlGrid}>
+            {/* Ngày */}
+            <div className={styles.controlGroup}>
+              <span className={styles.controlLabel}>Ngày</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className={styles.inputField}
+              />
+            </div>
 
-          {/* Ca trực */}
-          <div className={styles.controlGroup}>
-            <span className={styles.controlLabel}>Ca trực</span>
-            <select
-              value={selectedShift}
-              onChange={(e) => setSelectedShift(e.target.value)}
-              className={styles.selectField}
+            {/* Ca trực */}
+            <div className={styles.controlGroup}>
+              <span className={styles.controlLabel}>Ca trực</span>
+              <select
+                value={selectedShift}
+                onChange={(e) => setSelectedShift(e.target.value)}
+                className={styles.selectField}
+              >
+                <option value="MORNING">Ca sáng (06:00 – 14:00)</option>
+                <option value="AFTERNOON">Ca chiều (14:00 – 22:00)</option>
+                <option value="NIGHT">Ca đêm (22:00 – 06:00)</option>
+              </select>
+            </div>
+
+            {/* Button */}
+            <button
+              type="button"
+              onClick={loadReports}
+              disabled={loading}
+              className={styles.btnSubmit}
             >
-              <option value="MORNING">Ca sáng (06:00 – 14:00)</option>
-              <option value="AFTERNOON">Ca chiều (14:00 – 22:00)</option>
-              <option value="NIGHT">Ca đêm (22:00 – 06:00)</option>
-            </select>
+              Xem báo cáo
+            </button>
           </div>
-
-          {/* Button */}
-          <button
-            type="button"
-            onClick={loadReports}
-            disabled={loading}
-            className={styles.btnSubmit}
-          >
-            Xem báo cáo
-          </button>
+          <span className={styles.controlNote}>
+            Lưu ý: Báo cáo ca được tính từ thời gian bắt đầu đến thời gian kết thúc ca.
+          </span>
         </div>
-        <span className={styles.controlNote}>
-          Lưu ý: Báo cáo ca được tính từ thời gian bắt đầu đến thời gian kết thúc ca.
-        </span>
-      </div>
+      )}
 
       {loading ? (
         <div className={styles.loadingContainer}>
@@ -745,7 +778,7 @@ export function ReportPage() {
                 <h2 className={styles.sectionTitle}>Doanh thu trong ca</h2>
               </div>
               
-              <div className={styles.kpiGrid4} style={{ marginTop: '12px' }}>
+              <div className={styles.kpiGrid5} style={{ marginTop: '12px' }}>
                 {/* Tổng doanh thu */}
                 <div className={styles.kpiCard}>
                   <div className={styles.kpiHeader}>
@@ -775,6 +808,17 @@ export function ReportPage() {
                   <p className={styles.kpiValue}>{formatCurrency(revenue.monthlyRevenue)}</p>
                   <span className={styles.kpiSubText}>
                     {getPercentage(revenue.monthlyRevenue, revenue.totalRevenue).toFixed(1)}% tổng doanh thu
+                  </span>
+                </div>
+
+                {/* Doanh thu đặt chỗ */}
+                <div className={styles.kpiCard}>
+                  <div className={styles.kpiHeader}>
+                    <span className={styles.kpiLabel}>Doanh thu đặt chỗ</span>
+                  </div>
+                  <p className={styles.kpiValue}>{formatCurrency(revenue.bookingRevenue || 0)}</p>
+                  <span className={styles.kpiSubText}>
+                    {getPercentage(revenue.bookingRevenue || 0, revenue.totalRevenue).toFixed(1)}% tổng doanh thu
                   </span>
                 </div>
 

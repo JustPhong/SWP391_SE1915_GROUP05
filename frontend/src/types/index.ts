@@ -193,6 +193,7 @@ export interface RevenueReport {
   totalRevenue: number;
   sessionRevenue: number;
   monthlyRevenue: number;
+  bookingRevenue: number;
   transactionCount: number;
   byMethod: Record<string, number>;
   byDay: { date: string; amount: number }[];

@@ -21,4 +21,20 @@ export const reportService = {
     }>('/reports/summary');
     return response.data.data;
   },
+
+  getCurrentShift: async () => {
+    const response = await api.get<{
+      success: boolean;
+      data: { shift: 'MORNING' | 'AFTERNOON' | 'NIGHT'; dateStr: string; start: string; end: string };
+    }>('/reports/current-shift');
+    return response.data.data;
+  },
+
+  getShiftActivity: async (params?: { startDate?: string; endDate?: string }) => {
+    const response = await api.get<{
+      success: boolean;
+      data: any[];
+    }>('/reports/shift-activity', { params });
+    return response.data.data;
+  },
 };

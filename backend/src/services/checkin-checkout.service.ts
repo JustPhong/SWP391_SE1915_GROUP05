@@ -223,16 +223,39 @@ export const checkInService = {
     });
   },
 
-  async getHistoryRecords(plateNumber?: string, limit = 100) {
+  async getHistoryRecords(plateNumber?: string, limit = 100, from?: Date, to?: Date) {
+    const checkInWhere: any = {};
+    if (plateNumber) {
+      checkInWhere.vehicle = {
+        plateNumber: {
+          contains: plateNumber,
+        },
+      };
+    }
+    if (from || to) {
+      checkInWhere.OR = [
+        { checkInTime: { gte: from || undefined, lte: to || undefined } },
+        { checkOutTime: { gte: from || undefined, lte: to || undefined } },
+      ];
+    }
+
+    const bookingWhere: any = {
+      status: { in: ['ACTIVE', 'CANCELLED', 'NO_SHOW'] },
+    };
+    if (plateNumber) {
+      bookingWhere.vehicle = {
+        plateNumber: {
+          contains: plateNumber,
+        },
+      };
+    }
+    if (from || to) {
+      bookingWhere.bookingTime = { gte: from || undefined, lte: to || undefined };
+    }
+
     const [checkIns, bookings] = await Promise.all([
       prisma.checkInRecord.findMany({
-        where: plateNumber ? {
-          vehicle: {
-            plateNumber: {
-              contains: plateNumber,
-            },
-          },
-        } : undefined,
+        where: checkInWhere,
         take: limit,
         orderBy: { checkInTime: 'desc' },
         include: {
@@ -247,16 +270,7 @@ export const checkInService = {
         },
       }),
       prisma.booking.findMany({
-        where: {
-          status: { in: ['ACTIVE', 'CANCELLED', 'NO_SHOW'] },
-          ...(plateNumber ? {
-            vehicle: {
-              plateNumber: {
-                contains: plateNumber,
-              },
-            },
-          } : {}),
-        },
+        where: bookingWhere,
         take: limit,
         orderBy: { expectedArrival: 'desc' },
         include: {

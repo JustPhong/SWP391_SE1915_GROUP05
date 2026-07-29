@@ -382,7 +382,7 @@ function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selec
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
 export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehicle?: () => void } = {}) {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, refreshPackageStatus } = useAuth();
 
   // Navigation / View state
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -400,6 +400,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
 
   const handlePurchaseSuccess = () => {
     loadMyPackages();
+    refreshPackageStatus();
     setIsPurchasing(false);
   };
 
@@ -505,6 +506,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
       const updated = await monthlyPackageService.renewPackage(pkg.id);
       setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       setPackageActionSuccess('Gia hạn gói thành công. Email xác nhận đã được gửi nếu có cấu hình.');
+      refreshPackageStatus();
     } catch (e: any) {
       setPackageActionError(e?.response?.data?.message ?? 'Không thể gia hạn gói.');
     } finally {
@@ -543,6 +545,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
       const updated = await monthlyPackageService.cancelPackage(pkg.id);
       setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       setPackageActionSuccess('Hủy gói tháng thành công.');
+      refreshPackageStatus();
     } catch (e: any) {
       setPackageActionError(e?.response?.data?.message ?? 'Không thể hủy gói tháng.');
     } finally {

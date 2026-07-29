@@ -12,6 +12,37 @@ class OcrExtractionError extends AppError {
   }
 }
 
+interface OcrRunBudget {
+  used: number;
+  max: number;
+  startedAt: number;
+  deadlineMs: number;
+  loggedExhaustion?: boolean;
+}
+
+function isOcrBudgetExhausted(budget: OcrRunBudget): boolean {
+  const elapsedMs = Date.now() - budget.startedAt;
+  const safetyMarginMs = 2500; // safety margin for one Tesseract recognize call (approx 2.5s)
+  return (
+    budget.used >= budget.max ||
+    elapsedMs >= (budget.deadlineMs - safetyMarginMs)
+  );
+}
+
+function consumeOcrRun(budget: OcrRunBudget): boolean {
+  if (isOcrBudgetExhausted(budget)) {
+    if (process.env.NODE_ENV !== 'production' && !budget.loggedExhaustion) {
+      const elapsedMs = Date.now() - budget.startedAt;
+      const reason = budget.used >= budget.max ? 'BUDGET_EXHAUSTED' : 'DEADLINE_REACHED';
+      console.log(`[OCR] pipelineStopped reason=${reason} used=${budget.used} elapsedMs=${elapsedMs}`);
+      budget.loggedExhaustion = true;
+    }
+    return false;
+  }
+  budget.used += 1;
+  return true;
+}
+
 let workerInstance: TesseractWorker | null = null;
 let isInitializing = false;
 let lastPsm: PSM | null = null;
@@ -287,6 +318,51 @@ function formatCarPlate(p: string): string {
   return `${province}${series}-${firstThree}.${lastTwo}`;
 }
 
+function correctUpperLineConfusions(text: string): string {
+  const clean = text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (clean.length !== 3) return clean;
+
+  const digitConfusions: { [key: string]: string } = { 'I': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'G': '6' };
+  let char0 = clean[0];
+  let char1 = clean[1];
+  if (digitConfusions[char0]) char0 = digitConfusions[char0];
+  if (digitConfusions[char1]) char1 = digitConfusions[char1];
+
+  const letterConfusions: { [key: string]: string } = { '1': 'I', '5': 'S', '8': 'B', '2': 'Z', '0': 'O', '6': 'G' };
+  let char2 = clean[2];
+  if (letterConfusions[char2]) char2 = letterConfusions[char2];
+
+  return char0 + char1 + char2;
+}
+
+function correctLowerLineConfusions(text: string): string {
+  const clean = text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (clean.length !== 5) return clean;
+
+  const digitConfusions: { [key: string]: string } = { 'I': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'G': '6' };
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+    let char = clean[i];
+    if (digitConfusions[char]) char = digitConfusions[char];
+    result += char;
+  }
+  return result;
+}
+
+function getLowerLineCandidates(text: string): string[] {
+  const clean = text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  const candidates: string[] = [];
+  if (clean.length === 5) {
+    candidates.push(correctLowerLineConfusions(clean));
+  } else if (clean.length > 5) {
+    for (let i = 0; i <= clean.length - 5; i++) {
+      const windowStr = clean.slice(i, i + 5);
+      candidates.push(correctLowerLineConfusions(windowStr));
+    }
+  }
+  return Array.from(new Set(candidates)).filter(c => /^\d{5}$/.test(c));
+}
+
 interface ExtractedCandidate {
   normalized: string;
   valid: boolean;
@@ -407,6 +483,16 @@ async function preprocessImageToBuffer(
 
   if (options.processing === 'grayscale-normalize-threshold') {
     pipeline = pipeline.grayscale().normalize().threshold(128);
+  } else if (options.processing === 'grayscale-threshold-100') {
+    pipeline = pipeline.grayscale().normalize().threshold(100);
+  } else if (options.processing === 'grayscale-threshold-145') {
+    pipeline = pipeline.grayscale().normalize().threshold(145);
+  } else if (options.processing === 'grayscale-threshold-160') {
+    pipeline = pipeline.grayscale().normalize().threshold(160);
+  } else if (options.processing === 'grayscale-contrast-sharpen') {
+    pipeline = pipeline.grayscale().linear(1.4, -30).sharpen();
+  } else if (options.processing === 'grayscale-normalize-only') {
+    pipeline = pipeline.grayscale().normalize();
   } else if (options.processing === 'grayscale-linear-sharpen') {
     pipeline = pipeline.grayscale().linear(1.5, -40).sharpen();
   } else {
@@ -486,6 +572,13 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
 
   const worker = await getWorker();
   const startTime = Date.now();
+
+  const runBudget: OcrRunBudget = {
+    used: 0,
+    max: 25,
+    startedAt: Date.now(),
+    deadlineMs: 45_000,
+  };
 
   try {
     const normResult = await normalizeImageForOcr(imageBuffer);
@@ -800,7 +893,8 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
       buf: Buffer,
       width: number,
       height: number,
-      orientationName: 'ORIGINAL' | 'ROTATE_90_CW' | 'ROTATE_90_CCW' | 'ROTATE_180'
+      orientationName: 'ORIGINAL' | 'ROTATE_90_CW' | 'ROTATE_90_CCW' | 'ROTATE_180',
+      budget: OcrRunBudget
     ): Promise<boolean> => {
       const ratio = height / width;
       let profile: 'PORTRAIT' | 'LANDSCAPE' | 'NEAR_SQUARE' = 'NEAR_SQUARE';
@@ -857,11 +951,43 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
 
       let orientationFound = false;
 
+      const getBestCandidateForOrientation = (orient: string): CarCandidate | null => {
+        const validForThis = carCandidates.filter(c => c.valid && c.orientationName === orient);
+        if (validForThis.length === 0) return null;
+
+        const agreementMap = new Map<string, number>();
+        for (const cand of validForThis) {
+          agreementMap.set(cand.normalizedPlate, (agreementMap.get(cand.normalizedPlate) || 0) + 1);
+        }
+        for (const cand of validForThis) {
+          cand.agreementCount = agreementMap.get(cand.normalizedPlate) || 1;
+        }
+
+        return [...validForThis].sort((a, b) => {
+          const aLen = a.normalizedPlate.length;
+          const bLen = b.normalizedPlate.length;
+          if (aLen !== bLen) return bLen - aLen;
+
+          const aAg = a.agreementCount || 0;
+          const bAg = b.agreementCount || 0;
+          if (aAg !== bAg) return bAg - aAg;
+
+          return b.confidence - a.confidence;
+        })[0];
+      };
+
       const runPassForCrop = async (
         cropRegion: { left: number; top: number; width: number; height: number },
         processing: string,
-        cropName: string
+        cropName: string,
+        budget: OcrRunBudget,
+        stageName: string = 'STAGE_B'
       ): Promise<{ validCandidatesCount: number } | null> => {
+        if (!consumeOcrRun(budget)) {
+          return null;
+        }
+
+        const runStart = Date.now();
         const buffer = await preprocessImageToBuffer(buf, {
           crop: cropRegion,
           resizeWidth: 1800,
@@ -876,42 +1002,36 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         await setPsm(PSM.SINGLE_LINE);
         const { data } = await worker.recognize(buffer);
         const rawText = data.text || '';
-
-        if (process.env.NODE_ENV !== 'production') {
-          const escapedRaw = rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-          console.log(`[OCR][CAR] [${orientationName}] profile=${profile}`);
-          console.log(`[OCR][CAR] [${orientationName}] crop=${cropName} left=${cropRegion.left} top=${cropRegion.top} width=${cropRegion.width} height=${cropRegion.height}`);
-          console.log(`[OCR][CAR] [${orientationName}] processed crop dimensions: width=${procW} height=${procH}`);
-          console.log(`[OCR][CAR] [${orientationName}] raw="${escapedRaw}"`);
-        }
+        const elapsed = Date.now() - runStart;
 
         const extracted = extractCarCandidates(rawText);
+        const bestExt = extracted.find(e => e.valid) || extracted[0];
+        const normalized = bestExt ? bestExt.normalized : '';
+        const isValid = bestExt ? bestExt.valid : false;
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[OCR][RUN] stage=${stageName} region=${cropName} variant=${processing} rotation=0 used=${budget.used}/${budget.max} elapsedMs=${elapsed} raw="${rawText.replace(/[\r\n]+/g, '\\n')}" normalized="${normalized}" valid=${isValid}`);
+        }
+
         let validCount = 0;
 
         for (const ext of extracted) {
-          const isValid = ext.valid;
-          const normalized = ext.normalized;
+          const isValidCand = ext.valid;
+          const normalizedCand = ext.normalized;
           const reason = ext.reason;
 
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[OCR][CAR] [${orientationName}] raw="${rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}"`);
-            console.log(`[OCR][CAR] [${orientationName}] sanitized="${ext.sanitized}"`);
-            console.log(`[OCR][CAR] [${orientationName}] extracted="${normalized}"`);
-            console.log(`[OCR][CAR] [${orientationName}] valid=${isValid}`);
-          }
-
-          if (isValid) {
+          if (isValidCand) {
             validCount++;
           }
 
           carCandidates.push({
-            normalizedPlate: normalized,
-            formattedPlate: formatCarPlate(normalized),
+            normalizedPlate: normalizedCand,
+            formattedPlate: formatCarPlate(normalizedCand),
             rawText: rawText,
             confidence: data.confidence,
             cropName,
             variantName: `${cropName.toLowerCase()}-${processing.split('-').slice(1).join('-')}`,
-            valid: isValid,
+            valid: isValidCand,
             rejectionReason: reason,
             orientationName,
             orientationWidth: width,
@@ -940,7 +1060,79 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         return { validCandidatesCount: validCount };
       };
 
-      const runRecoveryScan = async (): Promise<boolean> => {
+      const runPassForRotatedCrop = async (
+        rotatedBuffer: Buffer,
+        cropName: string,
+        angle: number,
+        processing: string,
+        budget: OcrRunBudget,
+        stageName: string = 'SMALL_ROTATION'
+      ): Promise<void> => {
+        if (!consumeOcrRun(budget)) {
+          return;
+        }
+
+        const runStart = Date.now();
+        const buffer = await preprocessImageToBuffer(rotatedBuffer, {
+          resizeWidth: 1800,
+          processing,
+        });
+
+        const procMeta = await sharp(buffer).metadata();
+        const procW = procMeta.width || 0;
+        const procH = procMeta.height || 0;
+        if (procW < 3 || procH < 3) return;
+
+        await setPsm(PSM.SINGLE_LINE);
+        const { data } = await worker.recognize(buffer);
+        const rawText = data.text || '';
+        const elapsed = Date.now() - runStart;
+
+        const extracted = extractCarCandidates(rawText);
+        const bestExt = extracted.find(e => e.valid) || extracted[0];
+        const normalized = bestExt ? bestExt.normalized : '';
+        const isValid = bestExt ? bestExt.valid : false;
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[OCR][RUN] stage=${stageName} region=${cropName} variant=${processing} rotation=${angle} used=${budget.used}/${budget.max} elapsedMs=${elapsed} raw="${rawText.replace(/[\r\n]+/g, '\\n')}" normalized="${normalized}" valid=${isValid}`);
+        }
+
+        for (const ext of extracted) {
+          carCandidates.push({
+            normalizedPlate: ext.normalized,
+            formattedPlate: formatCarPlate(ext.normalized),
+            rawText: rawText,
+            confidence: data.confidence,
+            cropName,
+            variantName: `${cropName.toLowerCase()}-${processing.split('-').slice(1).join('-')}-rot-${angle}`,
+            valid: ext.valid,
+            rejectionReason: ext.reason,
+            orientationName,
+            orientationWidth: width,
+            orientationHeight: height,
+            strategy: 'CAR_ONE_LINE',
+          });
+        }
+
+        if (extracted.length === 0) {
+          carCandidates.push({
+            normalizedPlate: '',
+            formattedPlate: '',
+            rawText: rawText,
+            confidence: data.confidence,
+            cropName,
+            variantName: `${cropName.toLowerCase()}-${processing.split('-').slice(1).join('-')}-rot-${angle}`,
+            valid: false,
+            rejectionReason: 'No valid plate length found in raw text',
+            orientationName,
+            orientationWidth: width,
+            orientationHeight: height,
+            strategy: 'CAR_ONE_LINE',
+          });
+        }
+      };
+
+      const runRecoveryScan = async (budget: OcrRunBudget): Promise<boolean> => {
         const yStart = profile === 'PORTRAIT' ? 0.35 : 0.42;
         const yEnd = profile === 'PORTRAIT' ? 0.75 : 0.88;
         const yHeight = yEnd - yStart;
@@ -958,6 +1150,8 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           if (!crop) continue;
 
           try {
+            if (!consumeOcrRun(budget)) continue;
+
             const buffer = await preprocessImageToBuffer(buf, {
               crop,
               resizeWidth: 1800,
@@ -1025,13 +1219,13 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
 
               if (!recoveryMatchFound) {
                 try {
-                  const res = await runPassForCrop(crop, 'grayscale-normalize-threshold', rc.name);
+                  const res = await runPassForCrop(crop, 'grayscale-normalize-threshold', rc.name, budget);
                   if (res && res.validCandidatesCount > 0) recoveryMatchFound = true;
                 } catch (e) {}
               }
               if (!recoveryMatchFound) {
                 try {
-                  await runPassForCrop(crop, 'grayscale-linear-sharpen', rc.name);
+                  await runPassForCrop(crop, 'grayscale-linear-sharpen', rc.name, budget);
                 } catch (e) {}
               }
               
@@ -1048,385 +1242,529 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         return foundInRecovery;
       };
 
-      const runTwoLineFallback = async (): Promise<boolean> => {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[OCR][CAR] [${orientationName}] Running two-line fallback cascade...`);
-        }
+      const runTwoLineFallbackForCrops = async (
+        cropsList: { name: string; cropName: string; crop: { left: number; top: number; width: number; height: number } | undefined }[],
+        anglesList: number[],
+        processingList: string[],
+        budget: OcrRunBudget
+      ): Promise<void> => {
+        const splitRatios = [
+          { upperPct: 0.43, lowerStartPct: 0.38, name: '40/60' },
+          { upperPct: 0.48, lowerStartPct: 0.43, name: '45/55' },
+          { upperPct: 0.53, lowerStartPct: 0.48, name: '50/50' }
+        ];
+        const insets = [0, 0.08];
 
-        let foundInTwoLine = false;
-
-        for (const v of carVariants) {
+        for (const v of cropsList) {
           if (!v.crop) continue;
 
-          try {
-            let twoLineCandidateFound = false;
+          for (const angle of anglesList) {
+            try {
+              const rotatedCropBuffer = await sharp(buf)
+                .extract(v.crop)
+                .rotate(angle, { background: '#FFFFFF' })
+                .toBuffer();
 
-            // Strategy A: WHOLE BLOCK
-            const runWholeBlockPass = async (processing: string): Promise<boolean> => {
-              const buffer = await preprocessImageToBuffer(buf, {
-                crop: v.crop,
-                resizeWidth: 1800,
-                processing,
-              });
+              const rotCropMeta = await sharp(rotatedCropBuffer).metadata();
+              const rotCropW = rotCropMeta.width || 0;
+              const rotCropH = rotCropMeta.height || 0;
+              if (rotCropW < 3 || rotCropH < 3) continue;
 
-              const procMeta = await sharp(buffer).metadata();
-              const procW = procMeta.width || 0;
-              const procH = procMeta.height || 0;
-              if (procW < 3 || procH < 3) return false;
-
-              await setPsm(PSM.SINGLE_BLOCK);
-              const { data } = await worker.recognize(buffer);
-              const rawText = data.text || '';
-
-              const extracted = extractTwoLineCarCandidates(rawText);
-              let validCount = 0;
-
-              for (const ext of extracted) {
-                const isValid = ext.valid;
-                const normalized = ext.normalized;
-                const reason = ext.reason;
-
-                if (process.env.NODE_ENV !== 'production') {
-                  const elapsedMs = Date.now() - startTime;
-                  console.log(`[OCR][CAR][TWO_LINE] crop=${v.cropName}`);
-                  console.log(`[OCR][CAR][TWO_LINE] wholeRaw="${rawText.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}"`);
-                  console.log(`[OCR][CAR][TWO_LINE] upperRaw=N/A`);
-                  console.log(`[OCR][CAR][TWO_LINE] lowerRaw=N/A`);
-                  console.log(`[OCR][CAR][TWO_LINE] combined="${normalized}"`);
-                  console.log(`[OCR][CAR][TWO_LINE] valid=${isValid}`);
-                  console.log(`[OCR][CAR][TWO_LINE] formatted="${formatCarPlate(normalized)}"`);
-                  console.log(`[OCR][CAR][TWO_LINE] elapsedMs=${elapsedMs}`);
-                }
-
-                if (isValid) {
-                  validCount++;
-                }
-
-                carCandidates.push({
-                  normalizedPlate: normalized,
-                  formattedPlate: formatCarPlate(normalized),
-                  rawText: rawText,
-                  confidence: data.confidence,
-                  cropName: v.cropName,
-                  variantName: `${v.cropName.toLowerCase()}-two-line-block-${processing.split('-').slice(1).join('-')}`,
-                  valid: isValid,
-                  rejectionReason: reason + ' (WHOLE_BLOCK)',
-                  orientationName,
-                  orientationWidth: width,
-                  orientationHeight: height,
-                  strategy: 'CAR_TWO_LINE_BLOCK'
-                });
-              }
-
-              if (extracted.length === 0) {
-                carCandidates.push({
-                  normalizedPlate: '',
-                  formattedPlate: '',
-                  rawText: rawText,
-                  confidence: data.confidence,
-                  cropName: v.cropName,
-                  variantName: `${v.cropName.toLowerCase()}-two-line-block-${processing.split('-').slice(1).join('-')}`,
-                  valid: false,
-                  rejectionReason: 'No valid plate length found in raw text (WHOLE_BLOCK)',
-                  orientationName,
-                  orientationWidth: width,
-                  orientationHeight: height,
-                  strategy: 'CAR_TWO_LINE_BLOCK'
-                });
-              }
-
-              return validCount > 0;
-            };
-
-            // Strategy B: SPLIT LINES
-            const runSplitLinePass = async (processing: string): Promise<boolean> => {
-              if (!v.crop) return false;
-
-              const insets = [0, 0.08, 0.14];
-              let splitMatchFound = false;
-
-              for (const insetPct of insets) {
-                const insetW = Math.floor(v.crop.width * insetPct);
-                const left = v.crop.left + insetW;
-                const width = v.crop.width - 2 * insetW;
-
-                const upperRegion = {
-                  left,
-                  top: v.crop.top,
-                  width,
-                  height: Math.floor(v.crop.height * 0.50),
-                };
-                const lowerRegion = {
-                  left,
-                  top: v.crop.top + Math.floor(v.crop.height * 0.45),
-                  width,
-                  height: v.crop.height - Math.floor(v.crop.height * 0.45),
-                };
-
-                const upperCrop = clampCropRegion(upperRegion, width, height, `${v.cropName}_SPLIT_UPPER_INSET_${Math.round(insetPct * 100)}`, 'CAR');
-                const lowerCrop = clampCropRegion(lowerRegion, width, height, `${v.cropName}_SPLIT_LOWER_INSET_${Math.round(insetPct * 100)}`, 'CAR');
-
-                if (!upperCrop || !lowerCrop) continue;
-
-                const upperBuf = await preprocessImageToBuffer(buf, { crop: upperCrop, resizeWidth: 1800, processing });
-                const lowerBuf = await preprocessImageToBuffer(buf, { crop: lowerCrop, resizeWidth: 1800, processing });
-
-                const uMeta = await sharp(upperBuf).metadata();
-                const lMeta = await sharp(lowerBuf).metadata();
-                const uW = uMeta.width || 0;
-                const uH = uMeta.height || 0;
-                const lW = lMeta.width || 0;
-                const lH = lMeta.height || 0;
-
-                if (uW < 3 || uH < 3 || lW < 3 || lH < 3) continue;
-
-                await setPsm(PSM.SINGLE_LINE);
-                const uRes = await worker.recognize(upperBuf);
-                const lRes = await worker.recognize(lowerBuf);
-
-                const uRaw = uRes.data.text || '';
-                const lRaw = lRes.data.text || '';
-
-                const uSanit = uRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                const lSanit = lRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-
-                // Upper must be 2 numbers and 1 letter (length 3, e.g. 51L)
-                const isUpperValid = /^\d{2}[A-Z]$/.test(uSanit);
-                if (!isUpperValid) {
-                  carCandidates.push({
-                    normalizedPlate: '',
-                    formattedPlate: '',
-                    rawText: `${uRaw}\n${lRaw}`,
-                    confidence: Math.min(uRes.data.confidence, lRes.data.confidence),
-                    cropName: v.cropName,
-                    variantName: `${v.cropName.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}`,
-                    valid: false,
-                    rejectionReason: `Upper line "${uSanit}" does not match structure (SPLIT_LINES)`,
-                    orientationName,
-                    orientationWidth: width,
-                    orientationHeight: height,
-                    strategy: 'CAR_TWO_LINE_SPLIT'
+              for (const processing of processingList) {
+                // --- Strategy A: WHOLE BLOCK ---
+                if (consumeOcrRun(budget)) {
+                  const blockBuffer = await preprocessImageToBuffer(rotatedCropBuffer, {
+                    resizeWidth: 1800,
+                    processing,
                   });
-                  continue;
-                }
 
-                // Gather combined candidates to validate
-                const candidatesToValidate: { combined: string; isUnconfirmedWindow: boolean }[] = [];
+                  await setPsm(PSM.SINGLE_BLOCK);
+                  let res = await worker.recognize(blockBuffer);
+                  let rawText = res.data.text || '';
+                  let extracted = extractTwoLineCarCandidates(rawText);
 
-                if (lSanit.length === 5) {
-                  candidatesToValidate.push({ combined: uSanit + lSanit, isUnconfirmedWindow: false });
-                } else if (lSanit.length === 6) {
-                  const w1 = lSanit.slice(0, 5);
-                  const w2 = lSanit.slice(1, 6);
-                  candidatesToValidate.push(
-                    { combined: uSanit + w1, isUnconfirmedWindow: true },
-                    { combined: uSanit + w2, isUnconfirmedWindow: true }
-                  );
-                } else {
-                  carCandidates.push({
-                    normalizedPlate: '',
-                    formattedPlate: '',
-                    rawText: `${uRaw}\n${lRaw}`,
-                    confidence: Math.min(uRes.data.confidence, lRes.data.confidence),
-                    cropName: v.cropName,
-                    variantName: `${v.cropName.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}`,
-                    valid: false,
-                    rejectionReason: `Lower line length ${lSanit.length} (must be 5 or 6 digits) (SPLIT_LINES)`,
-                    orientationName,
-                    orientationWidth: width,
-                    orientationHeight: height,
-                    strategy: 'CAR_TWO_LINE_SPLIT'
-                  });
-                  continue;
-                }
-
-                let validCount = 0;
-
-                for (const item of candidatesToValidate) {
-                  const variants = generateConfusionVariants(item.combined);
-                  for (const normalized of variants) {
-                    const isValid = isValidCarPlate(normalized);
-                    if (isValid) {
-                      validCount++;
-                      splitMatchFound = true;
+                  if (extracted.length === 0) {
+                    if (consumeOcrRun(budget)) {
+                      await setPsm(PSM.SPARSE_TEXT);
+                      res = await worker.recognize(blockBuffer);
+                      rawText = res.data.text || '';
+                      extracted = extractTwoLineCarCandidates(rawText);
                     }
+                  }
 
-                    if (process.env.NODE_ENV !== 'production') {
-                      console.log(`[OCR][CAR][TWO_LINE] upperRaw="${uRaw.replace(/[\r\n]+/g, ' ')}"`);
-                      console.log(`[OCR][CAR][TWO_LINE] lowerRaw="${lRaw.replace(/[\r\n]+/g, ' ')}"`);
-                      console.log(`[OCR][CAR][TWO_LINE] normalizedLower="${lSanit}"`);
-                      console.log(`[OCR][CAR][TWO_LINE] combined="${normalized}"`);
-                      console.log(`[OCR][CAR][TWO_LINE] valid=${isValid}`);
-                    }
-
+                  for (const ext of extracted) {
                     carCandidates.push({
-                      normalizedPlate: normalized,
-                      formattedPlate: formatCarPlate(normalized),
-                      rawText: `${uRaw}\n${lRaw}`,
-                      confidence: Math.min(uRes.data.confidence, lRes.data.confidence),
+                      normalizedPlate: ext.normalized,
+                      formattedPlate: formatCarPlate(ext.normalized),
+                      rawText: rawText,
+                      confidence: res.data.confidence,
                       cropName: v.cropName,
-                      variantName: `${v.cropName.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}`,
-                      valid: isValid,
-                      rejectionReason: isValid ? '' : 'Failed structural validation regex (SPLIT_LINES)',
+                      variantName: `${v.cropName.toLowerCase()}-two-line-block-${processing.split('-').slice(1).join('-')}-rot-${angle}`,
+                      valid: ext.valid,
+                      rejectionReason: ext.reason + ' (WHOLE_BLOCK)',
                       orientationName,
                       orientationWidth: width,
                       orientationHeight: height,
-                      strategy: 'CAR_TWO_LINE_SPLIT',
-                      isUnconfirmedWindow: item.isUnconfirmedWindow
+                      strategy: 'CAR_TWO_LINE_BLOCK'
                     });
                   }
                 }
+
+                // --- Strategy B: SPLIT LINES ---
+                for (const ratio of splitRatios) {
+                  for (const insetPct of insets) {
+                    const insetW = Math.floor(rotCropW * insetPct);
+                    const left = insetW;
+                    const widthVal = rotCropW - 2 * insetW;
+
+                    const upperRegion = {
+                      left,
+                      top: 0,
+                      width: widthVal,
+                      height: Math.floor(rotCropH * ratio.upperPct),
+                    };
+                    const lowerRegion = {
+                      left,
+                      top: Math.floor(rotCropH * ratio.lowerStartPct),
+                      width: widthVal,
+                      height: rotCropH - Math.floor(rotCropH * ratio.lowerStartPct),
+                    };
+
+                    const upperCrop = clampCropRegion(upperRegion, rotCropW, rotCropH, `${v.cropName}_SPLIT_UPPER_INSET_${Math.round(insetPct * 100)}`, 'CAR');
+                    const lowerCrop = clampCropRegion(lowerRegion, rotCropW, rotCropH, `${v.cropName}_SPLIT_LOWER_INSET_${Math.round(insetPct * 100)}`, 'CAR');
+
+                    if (!upperCrop || !lowerCrop) continue;
+
+                    const upperBuf = await preprocessImageToBuffer(rotatedCropBuffer, { crop: upperCrop, resizeWidth: 1800, processing });
+                    const lowerBuf = await preprocessImageToBuffer(rotatedCropBuffer, { crop: lowerCrop, resizeWidth: 1800, processing });
+
+                    const uMeta = await sharp(upperBuf).metadata();
+                    const lMeta = await sharp(lowerBuf).metadata();
+                    if ((uMeta.width || 0) < 3 || (uMeta.height || 0) < 3 || (lMeta.width || 0) < 3 || (lMeta.height || 0) < 3) continue;
+
+                    if (!consumeOcrRun(budget)) continue;
+                    await setPsm(PSM.SINGLE_LINE);
+                    const uRes = await worker.recognize(upperBuf);
+                    const uRaw = uRes.data.text || '';
+                    const uSanit = uRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+                    const uCorrected = correctUpperLineConfusions(uSanit);
+                    const isUpperValid = /^\d{2}[A-Z]$/.test(uCorrected);
+                    if (!isUpperValid) {
+                      carCandidates.push({
+                        normalizedPlate: '',
+                        formattedPlate: '',
+                        rawText: `${uRaw}\n`,
+                        confidence: uRes.data.confidence,
+                        cropName: v.cropName,
+                        variantName: `${v.cropName.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}-rot-${angle}-ratio-${ratio.name}`,
+                        valid: false,
+                        rejectionReason: `Upper line "${uCorrected}" (raw: "${uSanit}") does not match structure (SPLIT_LINES)`,
+                        orientationName,
+                        orientationWidth: width,
+                        orientationHeight: height,
+                        strategy: 'CAR_TWO_LINE_SPLIT'
+                      });
+                      continue;
+                    }
+
+                    if (!consumeOcrRun(budget)) continue;
+                    await setPsm(PSM.SINGLE_LINE);
+                    const lRes = await worker.recognize(lowerBuf);
+                    const lRaw = lRes.data.text || '';
+                    const lSanit = lRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+                    const lowerCands = getLowerLineCandidates(lSanit);
+                    if (lowerCands.length === 0) {
+                      carCandidates.push({
+                        normalizedPlate: '',
+                        formattedPlate: '',
+                        rawText: `${uRaw}\n${lRaw}`,
+                        confidence: Math.min(uRes.data.confidence, lRes.data.confidence),
+                        cropName: v.cropName,
+                        variantName: `${v.cropName.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}-rot-${angle}-ratio-${ratio.name}`,
+                        valid: false,
+                        rejectionReason: `No valid lower line candidates found from raw "${lSanit}" (SPLIT_LINES)`,
+                        orientationName,
+                        orientationWidth: width,
+                        orientationHeight: height,
+                        strategy: 'CAR_TWO_LINE_SPLIT'
+                      });
+                      continue;
+                    }
+
+                    for (const lCand of lowerCands) {
+                      const combined = uCorrected + lCand;
+                      const isValid = isValidCarPlate(combined);
+
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.log(`[OCR][CAR][TWO_LINE][SPLIT] upperRaw="${uRaw.trim()}" corrected="${uCorrected}"`);
+                        console.log(`[OCR][CAR][TWO_LINE][SPLIT] lowerRaw="${lRaw.trim()}" corrected="${lCand}"`);
+                        console.log(`[OCR][CAR][TWO_LINE][SPLIT] combined="${combined}" valid=${isValid}`);
+                      }
+
+                      carCandidates.push({
+                        normalizedPlate: combined,
+                        formattedPlate: formatCarPlate(combined),
+                        rawText: `${uRaw}\n${lRaw}`,
+                        confidence: Math.min(uRes.data.confidence, lRes.data.confidence),
+                        cropName: v.cropName,
+                        variantName: `${v.cropName.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}-rot-${angle}-ratio-${ratio.name}`,
+                        valid: isValid,
+                        rejectionReason: isValid ? '' : 'Failed structural validation regex (SPLIT_LINES)',
+                        orientationName,
+                        orientationWidth: width,
+                        orientationHeight: height,
+                        strategy: 'CAR_TWO_LINE_SPLIT'
+                      });
+                    }
+                  }
+                }
               }
-
-              return splitMatchFound;
-            };
-
-            const wb1 = await runWholeBlockPass('grayscale-normalize-sharpen');
-            const sl1 = await runSplitLinePass('grayscale-normalize-sharpen');
-            if (wb1 || sl1) twoLineCandidateFound = true;
-
-            if (!twoLineCandidateFound) {
-              const wb2 = await runWholeBlockPass('grayscale-normalize-threshold');
-              const sl2 = await runSplitLinePass('grayscale-normalize-threshold');
-              if (wb2 || sl2) twoLineCandidateFound = true;
+            } catch (e) {
+              // Ignore
             }
-
-            if (!twoLineCandidateFound) {
-              const wb3 = await runWholeBlockPass('grayscale-linear-sharpen');
-              const sl3 = await runSplitLinePass('grayscale-linear-sharpen');
-              if (wb3 || sl3) twoLineCandidateFound = true;
-            }
-
-            if (twoLineCandidateFound) {
-              foundInTwoLine = true;
-            }
-          } catch (e) {
-            // Ignore error
           }
         }
-
-        return foundInTwoLine;
       };
 
-      for (let i = 0; i < carVariants.length; i++) {
-        const v = carVariants[i];
-        if (!v.crop) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[OCR][CAR] [${orientationName}] skipped variant=${v.name} reason="unusable crop boundaries"`);
-          }
-          continue;
-        }
+      const runTargetedTwoLineSplit = async (
+        lc: { name: string; crop: { left: number; top: number; width: number; height: number } | undefined },
+        ratio: { upperPct: number; lowerStartPct: number; name: string },
+        processing: string,
+        insetPct: number,
+        angle: number = 0
+      ) => {
+        if (!lc.crop) return;
+        if (isOcrBudgetExhausted(budget)) return;
 
         try {
-          let cropCandidateFound = false;
+          const rotatedCropBuffer = await sharp(buf)
+            .extract(lc.crop)
+            .rotate(angle, { background: '#FFFFFF' })
+            .toBuffer();
 
-          const resNormalize = await runPassForCrop(v.crop, 'grayscale-normalize-sharpen', v.cropName);
-          if (resNormalize && resNormalize.validCandidatesCount > 0) {
-            cropCandidateFound = true;
-          }
+          const rotCropMeta = await sharp(rotatedCropBuffer).metadata();
+          const rotCropW = rotCropMeta.width || 0;
+          const rotCropH = rotCropMeta.height || 0;
+          if (rotCropW < 3 || rotCropH < 3) return;
 
-          if (!cropCandidateFound) {
-            const resThreshold = await runPassForCrop(v.crop, 'grayscale-normalize-threshold', v.cropName);
-            if (resThreshold && resThreshold.validCandidatesCount > 0) {
-              cropCandidateFound = true;
+          const insetW = Math.floor(rotCropW * insetPct);
+          const left = insetW;
+          const widthVal = rotCropW - 2 * insetW;
+
+          const upperRegion = {
+            left,
+            top: 0,
+            width: widthVal,
+            height: Math.floor(rotCropH * ratio.upperPct),
+          };
+          const lowerRegion = {
+            left,
+            top: Math.floor(rotCropH * ratio.lowerStartPct),
+            width: widthVal,
+            height: rotCropH - Math.floor(rotCropH * ratio.lowerStartPct),
+          };
+
+          const upperCrop = clampCropRegion(upperRegion, rotCropW, rotCropH, `${lc.name}_SPLIT_UPPER_INSET_${Math.round(insetPct * 100)}`, 'CAR');
+          const lowerCrop = clampCropRegion(lowerRegion, rotCropW, rotCropH, `${lc.name}_SPLIT_LOWER_INSET_${Math.round(insetPct * 100)}`, 'CAR');
+
+          if (!upperCrop || !lowerCrop) return;
+
+          const upperBuf = await preprocessImageToBuffer(rotatedCropBuffer, { crop: upperCrop, resizeWidth: 1800, processing });
+          const lowerBuf = await preprocessImageToBuffer(rotatedCropBuffer, { crop: lowerCrop, resizeWidth: 1800, processing });
+
+          const uMeta = await sharp(upperBuf).metadata();
+          const lMeta = await sharp(lowerBuf).metadata();
+          if ((uMeta.width || 0) < 3 || (uMeta.height || 0) < 3 || (lMeta.width || 0) < 3 || (lMeta.height || 0) < 3) return;
+
+          if (isOcrBudgetExhausted(budget)) return;
+          let uRaw = '';
+          let uConfidence = 0;
+          if (consumeOcrRun(budget)) {
+            const runStart = Date.now();
+            await setPsm(PSM.SINGLE_LINE);
+            const uRes = await worker.recognize(upperBuf);
+            uRaw = uRes.data.text || '';
+            uConfidence = uRes.data.confidence;
+
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`[OCR][RUN] stage=TARGETED_TWO_LINE_SPLIT region=${lc.name} variant=${processing}-upper rotation=${angle} used=${budget.used}/${budget.max} elapsedMs=${Date.now() - runStart} raw="${uRaw.replace(/[\r\n]+/g, '\\n')}" normalized="" valid=false`);
             }
+          } else {
+            return;
           }
 
-          if (!cropCandidateFound) {
-            await runPassForCrop(v.crop, 'grayscale-linear-sharpen', v.cropName);
+          const uSanit = uRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+          const uCorrected = correctUpperLineConfusions(uSanit);
+          const isUpperValid = /^\d{2}[A-Z]$/.test(uCorrected);
+          if (!isUpperValid) {
+            carCandidates.push({
+              normalizedPlate: '',
+              formattedPlate: '',
+              rawText: `${uRaw}\n`,
+              confidence: uConfidence,
+              cropName: lc.name,
+              variantName: `${lc.name.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}-rot-${angle}-ratio-${ratio.name}`,
+              valid: false,
+              rejectionReason: `Upper line "${uCorrected}" (raw: "${uSanit}") does not match structure (SPLIT_LINES)`,
+              orientationName,
+              orientationWidth: width,
+              orientationHeight: height,
+              strategy: 'CAR_TWO_LINE_SPLIT'
+            });
+            return;
           }
 
-          if (i === 0 && cropCandidateFound) {
-            const validCandidates = carCandidates.filter(c => c.valid && c.cropName === v.cropName && c.orientationName === orientationName);
-            const best = validCandidates.reduce((prev, curr) => (curr.confidence > prev.confidence ? curr : prev), validCandidates[0]);
-            if (best && best.confidence >= 80) {
-              if (process.env.NODE_ENV !== 'production') {
-                const elapsed = Date.now() - startTime;
-                console.log(`[OCR][CAR] [${orientationName}] Fast-pass early return: ${best.normalizedPlate} (${best.confidence}%) elapsedMs=${elapsed}`);
-              }
-              selectedCandidate = best;
-              orientationFound = true;
-              break;
+          if (isOcrBudgetExhausted(budget)) return;
+          let lRaw = '';
+          let lConfidence = 0;
+          if (consumeOcrRun(budget)) {
+            const runStart = Date.now();
+            await setPsm(PSM.SINGLE_LINE);
+            const lRes = await worker.recognize(lowerBuf);
+            lRaw = lRes.data.text || '';
+            lConfidence = lRes.data.confidence;
+
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`[OCR][RUN] stage=TARGETED_TWO_LINE_SPLIT region=${lc.name} variant=${processing}-lower rotation=${angle} used=${budget.used}/${budget.max} elapsedMs=${Date.now() - runStart} raw="${lRaw.replace(/[\r\n]+/g, '\\n')}" normalized="" valid=false`);
             }
+          } else {
+            return;
           }
-        } catch (err) {
-          lastError = err as Error;
+
+          const lSanit = lRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+          const lowerCands = getLowerLineCandidates(lSanit);
+          if (lowerCands.length === 0) {
+            carCandidates.push({
+              normalizedPlate: '',
+              formattedPlate: '',
+              rawText: `${uRaw}\n${lRaw}`,
+              confidence: Math.min(uConfidence, lConfidence),
+              cropName: lc.name,
+              variantName: `${lc.name.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}-rot-${angle}-ratio-${ratio.name}`,
+              valid: false,
+              rejectionReason: `No valid lower line candidates found from raw "${lSanit}" (SPLIT_LINES)`,
+              orientationName,
+              orientationWidth: width,
+              orientationHeight: height,
+              strategy: 'CAR_TWO_LINE_SPLIT'
+            });
+            return;
+          }
+
+          for (const lCand of lowerCands) {
+            const combined = uCorrected + lCand;
+            const isValid = isValidCarPlate(combined);
+
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`[OCR][RUN] stage=TARGETED_TWO_LINE_SPLIT region=${lc.name} variant=${processing}-split-combined rotation=${angle} used=${budget.used}/${budget.max} elapsedMs=0 raw="${uRaw.trim()}\\n${lRaw.trim()}" normalized="${combined}" valid=${isValid}`);
+            }
+
+            carCandidates.push({
+              normalizedPlate: combined,
+              formattedPlate: formatCarPlate(combined),
+              rawText: `${uRaw}\n${lRaw}`,
+              confidence: Math.min(uConfidence, lConfidence),
+              cropName: lc.name,
+              variantName: `${lc.name.toLowerCase()}-two-line-split-${processing.split('-').slice(1).join('-')}-inset-${Math.round(insetPct * 100)}-rot-${angle}-ratio-${ratio.name}`,
+              valid: isValid,
+              rejectionReason: isValid ? '' : 'Failed structural validation regex (SPLIT_LINES)',
+              orientationName,
+              orientationWidth: width,
+              orientationHeight: height,
+              strategy: 'CAR_TWO_LINE_SPLIT'
+            });
+          }
+        } catch (e) {
+          // Ignore
         }
+      };
+
+      // ─── STAGE A: FAST EXISTING CAR PASS ───
+      if (isOcrBudgetExhausted(budget)) return false;
+      const primaryCrop = (profile === 'PORTRAIT') ? carVariants[1].crop : carVariants[0].crop;
+      const primaryCropName = (profile === 'PORTRAIT') ? carVariants[1].cropName : carVariants[0].cropName;
+      
+      if (primaryCrop && !isOcrBudgetExhausted(budget)) {
+        await runPassForCrop(primaryCrop, 'grayscale-normalize-sharpen', primaryCropName, budget, 'STAGE_A_FAST_PASS');
+      }
+      if (primaryCrop && !isOcrBudgetExhausted(budget)) {
+        await runPassForCrop(primaryCrop, 'grayscale-normalize-threshold', primaryCropName, budget, 'STAGE_A_FAST_PASS');
       }
 
-      if (orientationFound && selectedCandidate) {
+      // One existing successful one-line recovery pass
+      const yStart = profile === 'PORTRAIT' ? 0.35 : 0.42;
+      const yEnd = profile === 'PORTRAIT' ? 0.75 : 0.88;
+      const yHeight = yEnd - yStart;
+      const centerRecCrop = getClampedCrop(0.22, yStart, 0.56, yHeight, 'CENTER_RECOVERY');
+      if (centerRecCrop && !isOcrBudgetExhausted(budget)) {
+        await runPassForCrop(centerRecCrop, 'grayscale-normalize-sharpen', 'CENTER_RECOVERY', budget, 'STAGE_A_FAST_PASS');
+      }
+
+      // Early exit Stage A standard crops
+      let stageABest = getBestCandidateForOrientation(orientationName);
+      if (stageABest && ((stageABest.agreementCount && stageABest.agreementCount >= 2) || stageABest.confidence >= 80)) {
+        selectedCandidate = stageABest;
         return true;
       }
 
-      const validForThisOrientation = carCandidates.filter(c => c.valid && c.orientationName === orientationName);
-      if (validForThisOrientation.length > 0) {
-        const agreementMap = new Map<string, number>();
-        for (const cand of validForThisOrientation) {
-          agreementMap.set(cand.normalizedPlate, (agreementMap.get(cand.normalizedPlate) || 0) + 1);
-        }
-        for (const cand of validForThisOrientation) {
-          cand.agreementCount = agreementMap.get(cand.normalizedPlate) || 1;
-        }
+      // ─── STAGE B: LOW BOTTOM-CENTER PASS ───
+      if (isOcrBudgetExhausted(budget)) return false;
+      const centeredLowCrops = [
+        { name: 'CAR_LOW_CENTER', crop: getClampedCrop(0.27, 0.65, 0.46, 0.30, 'CAR_LOW_CENTER') },
+        { name: 'CAR_LOW_NARROW', crop: getClampedCrop(0.32, 0.70, 0.36, 0.25, 'CAR_LOW_NARROW') },
+        { name: 'CAR_LOW_WIDE', crop: getClampedCrop(0.18, 0.55, 0.64, 0.40, 'CAR_LOW_WIDE') }
+      ];
 
-        const best = [...validForThisOrientation].sort((a, b) => {
-          const aLen = a.normalizedPlate.length;
-          const bLen = b.normalizedPlate.length;
-          if (aLen !== bLen) return bLen - aLen;
-          const aAg = a.agreementCount || 0;
-          const bAg = b.agreementCount || 0;
-          if (aAg !== bAg) return bAg - aAg;
-          return b.confidence - a.confidence;
-        })[0];
+      const offCenterLowCrops = [
+        { name: 'CAR_LOW_LEFT', crop: getClampedCrop(0.17, 0.63, 0.46, 0.34, 'CAR_LOW_LEFT') },
+        { name: 'CAR_LOW_RIGHT', crop: getClampedCrop(0.37, 0.63, 0.46, 0.34, 'CAR_LOW_RIGHT') }
+      ];
 
-        if (best && ((best.agreementCount && best.agreementCount >= 2) || best.confidence >= 80)) {
-          selectedCandidate = best;
-          orientationFound = true;
+      const runStageBLowCrops = async (crops: typeof centeredLowCrops) => {
+        for (const lc of crops) {
+          if (isOcrBudgetExhausted(budget)) break;
+          if (!lc.crop) continue;
+
+          await runPassForCrop(lc.crop, 'grayscale-normalize-sharpen', lc.name, budget, 'STAGE_B_LOW_CENTER');
+          if (isOcrBudgetExhausted(budget)) break;
+          await runPassForCrop(lc.crop, 'grayscale-normalize-threshold', lc.name, budget, 'STAGE_B_LOW_CENTER');
+        }
+      };
+
+      await runStageBLowCrops(centeredLowCrops);
+
+      // If centered crops fail and budget/time remains, try off-center crops
+      if (!isOcrBudgetExhausted(budget)) {
+        let stageBBest = getBestCandidateForOrientation(orientationName);
+        if (!stageBBest || !((stageBBest.agreementCount && stageBBest.agreementCount >= 2) || stageBBest.confidence >= 80)) {
+          await runStageBLowCrops(offCenterLowCrops);
         }
       }
 
-      if (!orientationFound) {
-        orientationFound = await runRecoveryScan();
+      // Early exit Stage B
+      let stageBBest = getBestCandidateForOrientation(orientationName);
+      if (stageBBest && ((stageBBest.agreementCount && stageBBest.agreementCount >= 2) || stageBBest.confidence >= 80)) {
+        selectedCandidate = stageBBest;
+        return true;
       }
 
-      if (!orientationFound) {
-        const foundTwoLine = await runTwoLineFallback();
-        if (foundTwoLine) {
-          const validTwoLine = carCandidates.filter(c => c.valid && c.orientationName === orientationName);
-          if (validTwoLine.length > 0) {
-            const agreementMap = new Map<string, number>();
-            for (const cand of validTwoLine) {
-              agreementMap.set(cand.normalizedPlate, (agreementMap.get(cand.normalizedPlate) || 0) + 1);
-            }
-            for (const cand of validTwoLine) {
-              cand.agreementCount = agreementMap.get(cand.normalizedPlate) || 1;
-            }
+      // ─── STAGE C: TARGETED TWO-LINE SPLIT ───
+      if (isOcrBudgetExhausted(budget)) return false;
+      const stageCCrops = [
+        { name: 'CAR_LOW_CENTER', crop: getClampedCrop(0.27, 0.65, 0.46, 0.30, 'CAR_LOW_CENTER') },
+        { name: 'CAR_LOW_NARROW', crop: getClampedCrop(0.32, 0.70, 0.36, 0.25, 'CAR_LOW_NARROW') }
+      ];
 
-            const best = [...validTwoLine].sort((a, b) => {
-              const aLen = a.normalizedPlate.length;
-              const bLen = b.normalizedPlate.length;
-              if (aLen !== bLen) return bLen - aLen;
-              const aAg = a.agreementCount || 0;
-              const bAg = b.agreementCount || 0;
-              if (aAg !== bAg) return bAg - aAg;
-              return b.confidence - a.confidence;
-            })[0];
+      const primaryRatio = { upperPct: 0.48, lowerStartPct: 0.43, name: '45/55' };
+      const secondaryRatios = [
+        { upperPct: 0.43, lowerStartPct: 0.38, name: '40/60' },
+        { upperPct: 0.53, lowerStartPct: 0.48, name: '50/50' }
+      ];
 
-            if (best) {
-              selectedCandidate = best;
-              orientationFound = true;
+      // Try primary ratio first on best centered low crop candidates
+      for (const lc of stageCCrops) {
+        if (isOcrBudgetExhausted(budget)) break;
+        await runTargetedTwoLineSplit(lc, primaryRatio, 'grayscale-normalize-sharpen', 0);
+        if (isOcrBudgetExhausted(budget)) break;
+        await runTargetedTwoLineSplit(lc, primaryRatio, 'grayscale-normalize-threshold', 0);
+      }
+
+      // Try secondary ratios only if budget and deadline still permit
+      if (!isOcrBudgetExhausted(budget)) {
+        let stageCBest = getBestCandidateForOrientation(orientationName);
+        if (!stageCBest || !((stageCBest.agreementCount && stageCBest.agreementCount >= 2) || stageCBest.confidence >= 80)) {
+          for (const ratio of secondaryRatios) {
+            for (const lc of stageCCrops) {
+              if (isOcrBudgetExhausted(budget)) break;
+              await runTargetedTwoLineSplit(lc, ratio, 'grayscale-normalize-sharpen', 0);
             }
           }
         }
       }
 
-      return orientationFound;
+      // Early exit Stage C
+      let stageCBest = getBestCandidateForOrientation(orientationName);
+      if (stageCBest && ((stageCBest.agreementCount && stageCBest.agreementCount >= 2) || stageCBest.confidence >= 80)) {
+        selectedCandidate = stageCBest;
+        return true;
+      }
+
+      // ─── STAGE D: SMALL ROTATION FALLBACK ───
+      if (isOcrBudgetExhausted(budget)) return false;
+      const stageDAngles = [-2, 2];
+      const bestLowCrop = { name: 'CAR_LOW_CENTER', crop: getClampedCrop(0.27, 0.65, 0.46, 0.30, 'CAR_LOW_CENTER') };
+
+      if (bestLowCrop.crop) {
+        for (const angle of stageDAngles) {
+          if (isOcrBudgetExhausted(budget)) break;
+
+          try {
+            const rotatedCropBuffer = await sharp(buf)
+              .extract(bestLowCrop.crop)
+              .rotate(angle, { background: '#FFFFFF' })
+              .toBuffer();
+
+            // 1. One-line run on rotated crop
+            if (!isOcrBudgetExhausted(budget)) {
+              await runPassForRotatedCrop(rotatedCropBuffer, bestLowCrop.name, angle, 'grayscale-normalize-sharpen', budget, 'STAGE_D_ROTATION');
+            }
+            if (!isOcrBudgetExhausted(budget)) {
+              await runPassForRotatedCrop(rotatedCropBuffer, bestLowCrop.name, angle, 'grayscale-normalize-threshold', budget, 'STAGE_D_ROTATION');
+            }
+
+            // 2. Split-line run on rotated crop
+            if (!isOcrBudgetExhausted(budget)) {
+              await runTargetedTwoLineSplit(bestLowCrop, primaryRatio, 'grayscale-normalize-sharpen', 0, angle);
+            }
+          } catch (e) {
+            // Ignore
+          }
+        }
+      }
+
+      // If still not found, check if there is substantial remaining budget (e.g. used < 15) to test -4 and 4 degrees
+      if (!isOcrBudgetExhausted(budget) && budget.used < 15) {
+        let stageDBest = getBestCandidateForOrientation(orientationName);
+        if (!stageDBest || !((stageDBest.agreementCount && stageDBest.agreementCount >= 2) || stageDBest.confidence >= 80)) {
+          const extraAngles = [-4, 4];
+          for (const angle of extraAngles) {
+            if (isOcrBudgetExhausted(budget)) break;
+            if (!bestLowCrop.crop) continue;
+
+            try {
+              const rotatedCropBuffer = await sharp(buf)
+                .extract(bestLowCrop.crop)
+                .rotate(angle, { background: '#FFFFFF' })
+                .toBuffer();
+
+              if (!isOcrBudgetExhausted(budget)) {
+                await runPassForRotatedCrop(rotatedCropBuffer, bestLowCrop.name, angle, 'grayscale-normalize-sharpen', budget, 'STAGE_D_ROTATION');
+              }
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+      }
+
+      // Final fallback if nothing else worked
+      let finalBest = getBestCandidateForOrientation(orientationName);
+      if (finalBest) {
+        selectedCandidate = finalBest;
+        return true;
+      }
+
+      return false;
     };
 
     // 1. Run ORIGINAL orientation first
-    let found = await evaluateOrientation(orientedBuffer, w, h, 'ORIGINAL');
+    let found = await evaluateOrientation(orientedBuffer, w, h, 'ORIGINAL', runBudget);
 
     // 2. Fallbacks if not found
-    if (!found) {
+    const isLandscape = (w / h) >= 1.15;
+    if (!found && !isLandscape && !isOcrBudgetExhausted(runBudget)) {
       const fallbacks: { name: 'ROTATE_90_CW' | 'ROTATE_90_CCW' | 'ROTATE_180'; angle: number }[] = [
         { name: 'ROTATE_90_CW', angle: 90 },
         { name: 'ROTATE_90_CCW', angle: 270 },
@@ -1434,6 +1772,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
       ];
 
       for (const f of fallbacks) {
+        if (isOcrBudgetExhausted(runBudget)) break;
         if (process.env.NODE_ENV !== 'production') {
           console.log(`[OCR][CAR] Running fallback orientation: ${f.name}`);
         }
@@ -1491,6 +1830,9 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
             continue;
           }
 
+          if (!consumeOcrRun(runBudget)) {
+            continue;
+          }
           await setPsm(PSM.SINGLE_LINE);
           const pRes = await worker.recognize(probeBuf);
           const pRawText = pRes.data.text || '';
@@ -1536,7 +1878,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
             if (process.env.NODE_ENV !== 'production') {
               console.log(`[OCR][CAR] [${f.name}] Probe succeeded, running full cascade.`);
             }
-            found = await evaluateOrientation(rotated.buffer, rotated.w, rotated.h, f.name);
+            found = await evaluateOrientation(rotated.buffer, rotated.w, rotated.h, f.name, runBudget);
             if (found) {
               if (process.env.NODE_ENV !== 'production') {
                 console.log(`[OCR][CAR] Sufficiently supported plate found on fallback orientation: ${f.name}`);
@@ -1557,7 +1899,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
     let validCarCandidates = carCandidates.filter(c => c.valid);
 
     // 3. Final Broad Full-Region Fallback before throwing HTTP 422
-    if (validCarCandidates.length === 0) {
+    if (validCarCandidates.length === 0 && !isOcrBudgetExhausted(runBudget)) {
       if (process.env.NODE_ENV !== 'production') {
         console.log('[OCR][CAR] All primary & recovery regions failed. Running final broad full-region fallback...');
       }
@@ -1582,51 +1924,53 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           const fbH = fbMeta.height || 0;
 
           if (fbW >= 3 && fbH >= 3) {
-            await setPsm(PSM.SPARSE_TEXT);
-            const fbRes = await worker.recognize(fbBuffer);
-            const fbRawText = fbRes.data.text || '';
+            if (consumeOcrRun(runBudget)) {
+              await setPsm(PSM.SPARSE_TEXT);
+              const fbRes = await worker.recognize(fbBuffer);
+              const fbRawText = fbRes.data.text || '';
 
-            if (process.env.NODE_ENV !== 'production') {
-              console.log(`[OCR][CAR] [BROAD_FULL_REGION] raw="${fbRawText.replace(/[\r\n]+/g, '\\n')}"`);
+              if (process.env.NODE_ENV !== 'production') {
+                console.log(`[OCR][CAR] [BROAD_FULL_REGION] raw="${fbRawText.replace(/[\r\n]+/g, '\\n')}"`);
+              }
+
+              const extracted = extractCarCandidates(fbRawText);
+              for (const ext of extracted) {
+                carCandidates.push({
+                  normalizedPlate: ext.normalized,
+                  formattedPlate: formatCarPlate(ext.normalized),
+                  rawText: fbRawText,
+                  confidence: fbRes.data.confidence,
+                  cropName: 'CAR_BROAD_FULL_REGION',
+                  variantName: 'car-broad-sparse-text',
+                  valid: ext.valid,
+                  rejectionReason: ext.reason,
+                  orientationName: 'ORIGINAL',
+                  orientationWidth: w,
+                  orientationHeight: h,
+                  strategy: 'CAR_ONE_LINE',
+                });
+              }
+
+              if (extracted.length === 0) {
+                carCandidates.push({
+                  normalizedPlate: '',
+                  formattedPlate: '',
+                  rawText: fbRawText,
+                  confidence: fbRes.data.confidence,
+                  cropName: 'CAR_BROAD_FULL_REGION',
+                  variantName: 'car-broad-sparse-text',
+                  valid: false,
+                  rejectionReason: 'No valid plate length found in raw text',
+                  orientationName: 'ORIGINAL',
+                  orientationWidth: w,
+                  orientationHeight: h,
+                  strategy: 'CAR_ONE_LINE',
+                });
+              }
+
+              const newValid = carCandidates.filter(c => c.valid);
+              validCarCandidates.push(...newValid);
             }
-
-            const extracted = extractCarCandidates(fbRawText);
-            for (const ext of extracted) {
-              carCandidates.push({
-                normalizedPlate: ext.normalized,
-                formattedPlate: formatCarPlate(ext.normalized),
-                rawText: fbRawText,
-                confidence: fbRes.data.confidence,
-                cropName: 'CAR_BROAD_FULL_REGION',
-                variantName: 'car-broad-sparse-text',
-                valid: ext.valid,
-                rejectionReason: ext.reason,
-                orientationName: 'ORIGINAL',
-                orientationWidth: w,
-                orientationHeight: h,
-                strategy: 'CAR_ONE_LINE',
-              });
-            }
-
-            if (extracted.length === 0) {
-              carCandidates.push({
-                normalizedPlate: '',
-                formattedPlate: '',
-                rawText: fbRawText,
-                confidence: fbRes.data.confidence,
-                cropName: 'CAR_BROAD_FULL_REGION',
-                variantName: 'car-broad-sparse-text',
-                valid: false,
-                rejectionReason: 'No valid plate length found in raw text',
-                orientationName: 'ORIGINAL',
-                orientationWidth: w,
-                orientationHeight: h,
-                strategy: 'CAR_ONE_LINE',
-              });
-            }
-
-            const newValid = carCandidates.filter(c => c.valid);
-            validCarCandidates.push(...newValid);
           }
         }
       } catch (e) {
@@ -1748,7 +2092,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
 
     if (process.env.NODE_ENV !== 'production') {
       const elapsed = Date.now() - startTime;
-      console.log(`[OCR][CAR] selected="${selected.normalizedPlate}" formatted="${selected.formattedPlate}" agreement=${selected.agreementCount} conf=${selected.confidence} reliability=${reliability} elapsedMs=${elapsed}`);
+      console.log(`[OCR] selectedCandidate=${selected.normalizedPlate} runsUsed=${runBudget.used} elapsedMs=${elapsed}`);
     }
 
     return {
@@ -1793,3 +2137,118 @@ export async function recognizeLicensePlate(imageBuffer: Buffer, vehicleType: 'C
     });
   });
 }
+
+export function reconcilePlates(
+  frontNormalized: string,
+  frontConf: number,
+  rearNormalized: string,
+  rearConf: number,
+  vehicleType: 'CAR' | 'MOTORBIKE'
+): {
+  bestPlate: string;
+  normalizedPlate: string;
+  sourceUsed: 'FRONT' | 'REAR' | 'MERGED';
+  confidence: number;
+} {
+  if (!frontNormalized && !rearNormalized) {
+    return { bestPlate: '', normalizedPlate: '', sourceUsed: 'REAR', confidence: 0 };
+  }
+  if (!frontNormalized) {
+    return {
+      bestPlate: vehicleType === 'CAR' ? formatCarPlate(rearNormalized) : rearNormalized,
+      normalizedPlate: rearNormalized,
+      sourceUsed: 'REAR',
+      confidence: rearConf,
+    };
+  }
+  if (!rearNormalized) {
+    return {
+      bestPlate: vehicleType === 'CAR' ? formatCarPlate(frontNormalized) : frontNormalized,
+      normalizedPlate: frontNormalized,
+      sourceUsed: 'FRONT',
+      confidence: frontConf,
+    };
+  }
+  if (frontNormalized === rearNormalized) {
+    return {
+      bestPlate: vehicleType === 'CAR' ? formatCarPlate(rearNormalized) : rearNormalized,
+      normalizedPlate: rearNormalized,
+      sourceUsed: 'MERGED',
+      confidence: Math.max(frontConf, rearConf),
+    };
+  }
+
+  if (vehicleType === 'CAR') {
+    const isFrontCar = /^\d{2}[A-Z]\d{5}$/.test(frontNormalized);
+    const isRearCar = /^\d{2}[A-Z]\d{5}$/.test(rearNormalized);
+
+    if (isFrontCar && isRearCar) {
+      const frontUpper = frontNormalized.slice(0, 3);
+      const frontLower = frontNormalized.slice(3);
+      const rearUpper = rearNormalized.slice(0, 3);
+      const rearLower = rearNormalized.slice(3);
+
+      // Compare upper lines
+      let bestUpper = '';
+      if (frontUpper === rearUpper) {
+        bestUpper = frontUpper;
+      } else {
+        bestUpper = frontConf >= rearConf ? frontUpper : rearUpper;
+      }
+
+      // Compare lower lines
+      let bestLower = '';
+      if (frontLower === rearLower) {
+        bestLower = frontLower;
+      } else {
+        let diffCount = 0;
+        let diffIdx = -1;
+        for (let i = 0; i < 5; i++) {
+          if (frontLower[i] !== rearLower[i]) {
+            diffCount++;
+            diffIdx = i;
+          }
+        }
+
+        if (diffCount === 1) {
+          const fc = frontLower[diffIdx];
+          const rc = rearLower[diffIdx];
+
+          const isCommonConfusion = (
+            (fc === '8' && rc === '3') || (fc === '3' && rc === '8') ||
+            (fc === '8' && rc === '5') || (fc === '5' && rc === '8') ||
+            (fc === '6' && rc === '8') || (fc === '8' && rc === '6') ||
+            (fc === '2' && rc === '7') || (fc === '7' && rc === '2') ||
+            (fc === '0' && rc === '8') || (fc === '8' && rc === '0') ||
+            (fc === '1' && rc === '7') || (fc === '7' && rc === '1')
+          );
+
+          if (frontConf >= rearConf) {
+            bestLower = frontLower;
+          } else {
+            bestLower = rearLower;
+          }
+        } else {
+          bestLower = frontConf >= rearConf ? frontLower : rearLower;
+        }
+      }
+
+      const mergedNorm = bestUpper + bestLower;
+      return {
+        bestPlate: formatCarPlate(mergedNorm),
+        normalizedPlate: mergedNorm,
+        sourceUsed: 'MERGED',
+        confidence: Math.max(frontConf, rearConf),
+      };
+    }
+  }
+
+  const chosenNorm = frontConf >= rearConf ? frontNormalized : rearNormalized;
+  return {
+    bestPlate: vehicleType === 'CAR' ? formatCarPlate(chosenNorm) : chosenNorm,
+    normalizedPlate: chosenNorm,
+    sourceUsed: frontConf >= rearConf ? 'FRONT' : 'REAR',
+    confidence: Math.max(frontConf, rearConf),
+  };
+}
+

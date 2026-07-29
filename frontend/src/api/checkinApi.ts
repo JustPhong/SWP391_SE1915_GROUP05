@@ -188,6 +188,10 @@ export async function uploadCheckinImage(
 export interface OcrApiResponse {
   plateNumber: string;
   normalizedPlate: string;
+  bestPlate: string;
+  frontPlateCandidate: string;
+  rearPlateCandidate: string;
+  sourceUsed: 'FRONT' | 'REAR' | 'MERGED';
   rawText: string;
   candidates: string[];
   provider: 'TESSERACT_JS';
@@ -198,12 +202,20 @@ export interface OcrApiResponse {
 }
 
 export async function runOcrApi(
-  rearImage: File,
+  rearImage: File | null,
+  frontImage: File | null,
   vehicleType: 'CAR' | 'MOTORBIKE',
   signal?: AbortSignal
 ): Promise<OcrApiResponse> {
   const formData = new FormData();
-  formData.append('image', rearImage);
+  if (rearImage) {
+    formData.append('rearImage', rearImage);
+    // Keep backward compatibility in request payload if needed:
+    formData.append('image', rearImage);
+  }
+  if (frontImage) {
+    formData.append('frontImage', frontImage);
+  }
   formData.append('vehicleType', vehicleType);
 
   const response = await api.post<{ success: boolean; data: OcrApiResponse }>(

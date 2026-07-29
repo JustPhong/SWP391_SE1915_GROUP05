@@ -62,6 +62,8 @@ router.get('/summary', reportController.getSummary);
  *       '403':
  *         description: Forbidden — insufficient role
  */
+router.get('/current-shift', reportController.getCurrentShift);
+router.get('/shift-activity', reportController.getShiftActivity);
 router.get('/revenue', reportController.getRevenue);
 
 // ─── MANAGER + ADMIN only ──────────────────────────────────────────────────

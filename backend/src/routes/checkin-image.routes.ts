@@ -10,7 +10,11 @@ router.use(authenticate);
 router.use(authorize('STAFF', 'MANAGER', 'ADMIN'));
 
 router.post('/upload-image', uploadCheckinImage.single('image'), checkinImageController.upload);
-router.post('/ocr', uploadCheckinImage.single('image'), ocrController.performOcr);
+router.post('/ocr', uploadCheckinImage.fields([
+  { name: 'frontImage', maxCount: 1 },
+  { name: 'rearImage', maxCount: 1 },
+  { name: 'image', maxCount: 1 }
+]), ocrController.performOcr);
 router.post('/delete-images', checkinImageController.deleteImages);
 
 export default router;

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile, changePassword, uploadAvatar, removeAvatar, deleteAccount } from '../api/profileApi';
-import { getMyPackage } from '../api/driverDashboardApi';
 
 const C = {
   navy:       '#1E3A5F',
@@ -39,7 +38,7 @@ function getRoleLabel(role: string | undefined): string {
 }
 
 export function ProfilePage() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, hasActiveMonthlyPackage } = useAuth();
   const navigate = useNavigate();
   const { logout } = useAuth();
 
@@ -54,7 +53,6 @@ export function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [hasPackage, setHasPackage] = useState(false);
 
   const [updatingName, setUpdatingName] = useState(false);
   const [updatingPwd, setUpdatingPwd] = useState(false);
@@ -74,12 +72,6 @@ export function ProfilePage() {
       setPhoneNumber(user.phoneNumber);
     }
   }, [user]);
-
- useEffect(() => {
-  if (user?.role === 'DRIVER') {
-    getMyPackage().then(pkg => setHasPackage(!!pkg)).catch(() => {});
-  }
-}, [user]);
 
   if (!user) return null;
 
@@ -245,7 +237,7 @@ export function ProfilePage() {
           <div style={{ flex: 1, minWidth: 200 }}>
             <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: C.gray800 }}>{user.fullName}</h2>
             <p style={{ margin: '4px 0 8px', fontSize: '0.9rem', color: C.gray600 }}>{user.email}</p>
-            {hasPackage ? (
+            {hasActiveMonthlyPackage ? (
               <span style={{
                 display: 'inline-block', padding: '3px 12px', borderRadius: 12,
                 fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
