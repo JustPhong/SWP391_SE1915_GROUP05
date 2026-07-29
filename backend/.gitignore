@@ -12,3 +12,6 @@ secrets/
 
 # Local Tesseract models/cache
 *.traineddata
+
+# Local backups
+/backups/

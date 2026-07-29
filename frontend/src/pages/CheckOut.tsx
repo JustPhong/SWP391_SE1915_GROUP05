@@ -248,6 +248,22 @@ export function CheckOutPage() {
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<CheckoutPaymentOption>('CASH');
   const [stripeStatus, setStripeStatus] = useState<'NONE' | 'CHECKING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'>('NONE');
   const [isFeeBreakdownOpen, setIsFeeBreakdownOpen] = useState(false);
+  const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
+  const [rearImageUrl, setRearImageUrl] = useState<string | null>(null);
+  const [frontImgError, setFrontImgError] = useState(false);
+  const [rearImgError, setRearImgError] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; label: string } | null>(null);
+  const [isLegacy, setIsLegacy] = useState(false);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // ── Load all active records (sidebar table) ───────────
   const [loadError, setLoadError] = useState('');
@@ -414,6 +430,12 @@ export function CheckOutPage() {
     setFoundRecord(null);
     setFeePreview(null);
     setOwnerInfo(null);
+    setFrontImageUrl(null);
+    setRearImageUrl(null);
+    setFrontImgError(false);
+    setRearImgError(false);
+    setPreviewImage(null);
+    setIsLegacy(false);
 
     try {
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
@@ -475,11 +497,21 @@ export function CheckOutPage() {
             phone: lookup.ownerPhone ?? null,
             email: lookup.ownerEmail ?? null,
           });
+          setFrontImageUrl(lookup.frontImageUrl ?? null);
+          setRearImageUrl(lookup.rearImageUrl ?? null);
+          setIsLegacy(lookup.isLegacy ?? false);
         } else {
           setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+          setFrontImageUrl(null);
+          setRearImageUrl(null);
+          setIsLegacy(false);
         }
-      } catch {
+      } catch (err: any) {
         setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+        setFrontImageUrl(null);
+        setRearImageUrl(null);
+        setIsLegacy(false);
+        throw err;
       }
 
       // Fetch fee preview from backend
@@ -488,7 +520,7 @@ export function CheckOutPage() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? 'Không thể tra cứu. Vui lòng thử lại.';
+        ?? (err instanceof Error ? err.message : 'Không thể tra cứu. Vui lòng thử lại.');
       setSearchError(msg);
     } finally {
       setSearching(false);
@@ -524,6 +556,12 @@ export function CheckOutPage() {
       setFoundRecord(null);
       setFeePreview(null);
       setOwnerInfo(null);
+      setFrontImageUrl(null);
+      setRearImageUrl(null);
+      setFrontImgError(false);
+      setRearImgError(false);
+      setPreviewImage(null);
+      setIsLegacy(false);
       setPlateInput('');
       setIsFeeBreakdownOpen(false);
       loadAllRecords();
@@ -559,6 +597,12 @@ export function CheckOutPage() {
         setFoundRecord(null);
         setFeePreview(null);
         setOwnerInfo(null);
+        setFrontImageUrl(null);
+        setRearImageUrl(null);
+        setFrontImgError(false);
+        setRearImgError(false);
+        setPreviewImage(null);
+        setIsLegacy(false);
         setPlateInput('');
         setIsPaymentModalOpen(false);
         setIsFeeBreakdownOpen(false);
@@ -602,13 +646,17 @@ export function CheckOutPage() {
     setIsFeeBreakdownOpen(false);
   };
 
-
-
   // ── Dismiss found record ───────────────────────────────
   const handleDismissFound = () => {
     setFoundRecord(null);
     setFeePreview(null);
     setOwnerInfo(null);
+    setFrontImageUrl(null);
+    setRearImageUrl(null);
+    setFrontImgError(false);
+    setRearImgError(false);
+    setPreviewImage(null);
+    setIsLegacy(false);
     setPlateInput('');
     setIsFeeBreakdownOpen(false);
   };
@@ -686,7 +734,19 @@ export function CheckOutPage() {
           <input
             type="text"
             value={plateInput}
-            onChange={(e) => { setPlateInput(e.target.value.toUpperCase()); setSearchError(''); setFoundRecord(null); setFeePreview(null); setOwnerInfo(null); }}
+            onChange={(e) => {
+              setPlateInput(e.target.value.toUpperCase());
+              setSearchError('');
+              setFoundRecord(null);
+              setFeePreview(null);
+              setOwnerInfo(null);
+              setFrontImageUrl(null);
+              setRearImageUrl(null);
+              setFrontImgError(false);
+              setRearImgError(false);
+              setPreviewImage(null);
+              setIsLegacy(false);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Nhập biển số xe (VD: 51A11111)..."
             style={{
@@ -937,6 +997,140 @@ export function CheckOutPage() {
                 )}
               </div>
             )}
+
+            {/* Ảnh khi vào bãi */}
+            <div style={{ marginTop: '1.25rem', borderTop: `1px solid ${C.gray200}`, paddingTop: '1rem' }}>
+              <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Ảnh khi vào bãi
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                {/* Ảnh phía trước */}
+                <div style={{
+                  background: '#F1F5F9',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 12,
+                  padding: '0.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  minHeight: 180,
+                  justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: C.gray500 }}>Ảnh phía trước</span>
+                  {isLegacy ? (
+                    (!frontImageUrl || frontImgError) ? (
+                      <div style={{ fontSize: '0.78rem', color: C.gray400, flex: 1, display: 'flex', alignItems: 'center' }}>Không có ảnh Check-in cũ</div>
+                    ) : (
+                      <img
+                        src={frontImageUrl}
+                        alt="Ảnh phía trước"
+                        onError={() => setFrontImgError(true)}
+                        onClick={() => setPreviewImage({ url: frontImageUrl, label: 'Ảnh phía trước' })}
+                        style={{
+                          width: '100%',
+                          height: 140,
+                          objectFit: 'contain',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          background: '#CBD5E1',
+                          transition: 'transform 0.15s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                      />
+                    )
+                  ) : (
+                    !frontImageUrl ? (
+                      <div style={{ fontSize: '0.78rem', color: C.gray400, flex: 1, display: 'flex', alignItems: 'center' }}>Không có ảnh Check-in</div>
+                    ) : frontImgError ? (
+                      <div style={{ fontSize: '0.78rem', color: C.red, flex: 1, display: 'flex', alignItems: 'center' }}>Không thể tải ảnh Check-in</div>
+                    ) : (
+                      <img
+                        src={frontImageUrl}
+                        alt="Ảnh phía trước"
+                        onError={() => setFrontImgError(true)}
+                        onClick={() => setPreviewImage({ url: frontImageUrl, label: 'Ảnh phía trước' })}
+                        style={{
+                          width: '100%',
+                          height: 140,
+                          objectFit: 'contain',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          background: '#CBD5E1',
+                          transition: 'transform 0.15s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                      />
+                    )
+                  )}
+                </div>
+
+                {/* Ảnh phía sau */}
+                <div style={{
+                  background: '#F1F5F9',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 12,
+                  padding: '0.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  minHeight: 180,
+                  justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: C.gray500 }}>Ảnh phía sau</span>
+                  {isLegacy ? (
+                    (!rearImageUrl || rearImgError) ? (
+                      <div style={{ fontSize: '0.78rem', color: C.gray400, flex: 1, display: 'flex', alignItems: 'center' }}>Không có ảnh Check-in cũ</div>
+                    ) : (
+                      <img
+                        src={rearImageUrl}
+                        alt="Ảnh phía sau"
+                        onError={() => setRearImgError(true)}
+                        onClick={() => setPreviewImage({ url: rearImageUrl, label: 'Ảnh phía sau' })}
+                        style={{
+                          width: '100%',
+                          height: 140,
+                          objectFit: 'contain',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          background: '#CBD5E1',
+                          transition: 'transform 0.15s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                      />
+                    )
+                  ) : (
+                    !rearImageUrl ? (
+                      <div style={{ fontSize: '0.78rem', color: C.gray400, flex: 1, display: 'flex', alignItems: 'center' }}>Không có ảnh Check-in</div>
+                    ) : rearImgError ? (
+                      <div style={{ fontSize: '0.78rem', color: C.red, flex: 1, display: 'flex', alignItems: 'center' }}>Không thể tải ảnh Check-in</div>
+                    ) : (
+                      <img
+                        src={rearImageUrl}
+                        alt="Ảnh phía sau"
+                        onError={() => setRearImgError(true)}
+                        onClick={() => setPreviewImage({ url: rearImageUrl, label: 'Ảnh phía sau' })}
+                        style={{
+                          width: '100%',
+                          height: 140,
+                          objectFit: 'contain',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          background: '#CBD5E1',
+                          transition: 'transform 0.15s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* RIGHT COLUMN: Tóm tắt thanh toán */}
@@ -1297,6 +1491,12 @@ export function CheckOutPage() {
                               setFoundRecord(r); 
                               setPlateInput(v.plateNumber); 
                               fetchFeePreview(r.id).then(setFeePreview);
+                              setFrontImageUrl(null);
+                              setRearImageUrl(null);
+                              setFrontImgError(false);
+                              setRearImgError(false);
+                              setPreviewImage(null);
+                              setIsLegacy(false);
                               try {
                                 const lookup = await checkoutLookupPlate(v.plateNumber);
                                 if (lookup.found) {
@@ -1316,11 +1516,20 @@ export function CheckOutPage() {
                                     phone: lookup.ownerPhone ?? null,
                                     email: lookup.ownerEmail ?? null,
                                   });
+                                  setFrontImageUrl(lookup.frontImageUrl ?? null);
+                                  setRearImageUrl(lookup.rearImageUrl ?? null);
+                                  setIsLegacy(lookup.isLegacy ?? false);
                                 } else {
                                   setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+                                  setFrontImageUrl(null);
+                                  setRearImageUrl(null);
+                                  setIsLegacy(false);
                                 }
                               } catch {
                                 setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
+                                setFrontImageUrl(null);
+                                setRearImageUrl(null);
+                                setIsLegacy(false);
                               }
                             }}
                             style={{
@@ -1610,6 +1819,85 @@ export function CheckOutPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+    {/* Evidence Image Preview Modal */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.white,
+              borderRadius: 16,
+              padding: '1.25rem',
+              maxWidth: '90%',
+              maxHeight: '90%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              alignItems: 'center',
+              position: 'relative',
+            }}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                background: '#F1F5F9',
+                border: 'none',
+                borderRadius: '50%',
+                width: 32,
+                height: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: C.gray600,
+                transition: 'background 0.15s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = '#E2E8F0')}
+              onMouseOut={(e) => (e.currentTarget.style.background = '#F1F5F9')}
+            >
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.navy, alignSelf: 'flex-start', paddingRight: '2rem' }}>
+              {previewImage.label}
+            </span>
+
+            <img
+              src={previewImage.url}
+              alt={previewImage.label}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+                borderRadius: 8,
+                background: '#CBD5E1',
+              }}
+            />
           </div>
         </div>
       )}

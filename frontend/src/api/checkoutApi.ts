@@ -30,6 +30,9 @@ export interface CheckoutLookupResult {
   ownerPhone?: string | null;
   ownerEmail?: string | null;
   packageExpiry?: string;
+  frontImageUrl?: string | null;
+  rearImageUrl?: string | null;
+  isLegacy?: boolean;
 }
 
 function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {

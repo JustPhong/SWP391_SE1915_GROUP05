@@ -1,24 +1,8 @@
 import multer, { FileFilterCallback } from 'multer';
 import path from 'path';
-import fs from 'fs';
 import { Request } from 'express';
-import crypto from 'crypto';
 
-const checkinDir = path.join(__dirname, '../../uploads/checkin');
-if (!fs.existsSync(checkinDir)) {
-  fs.mkdirSync(checkinDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
-    cb(null, checkinDir);
-  },
-  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueId = crypto.randomUUID();
-    cb(null, `checkin_${uniqueId}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
   const allowedMime = ['image/jpeg', 'image/png', 'image/webp'];

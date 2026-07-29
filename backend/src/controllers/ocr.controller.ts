@@ -24,13 +24,13 @@ export const ocrController = {
 
     const startTotal = Date.now();
     if (vehicleType === 'CAR' && process.env.NODE_ENV !== 'production') {
-      console.log(`[OCR][CAR] request started file=${file.filename}`);
+      console.log(`[OCR][CAR] request started file=${file.originalname}`);
     } else {
-      console.log(`[OCR] request started vehicleType=${vehicleType} file=${file.filename}`);
+      console.log(`[OCR] request started vehicleType=${vehicleType} file=${file.originalname}`);
     }
 
     try {
-      const result = await recognizeLicensePlate(file.path, vehicleType);
+      const result = await recognizeLicensePlate(file.buffer, vehicleType);
       const durationMs = Date.now() - startTotal;
       if (vehicleType === 'CAR' && process.env.NODE_ENV !== 'production') {
         console.log(`[OCR][CAR] request success plate=${result.normalizedPlate} durationMs=${durationMs}`);
@@ -49,7 +49,7 @@ export const ocrController = {
           confidence: result.confidence,
           reliability: result.reliability || 'REVIEW',
           agreementCount: result.agreementCount || 1,
-          imageUrl: `/uploads/checkin/${file.filename}`,
+          imageUrl: '',
         },
       });
     } catch (err) {

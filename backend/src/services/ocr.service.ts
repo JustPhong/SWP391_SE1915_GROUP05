@@ -479,16 +479,15 @@ async function recognizeProcessedPlate(buffer: Buffer, worker: TesseractWorker):
   };
 }
 
-async function performOcr(filePath: string, vehicleType: 'CAR' | 'MOTORBIKE' = 'CAR'): Promise<PlateRecognitionResult> {
-  if (!fs.existsSync(filePath)) {
-    throw new AppError(400, 'Không tìm thấy file ảnh để nhận diện.');
+async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' = 'CAR'): Promise<PlateRecognitionResult> {
+  if (!imageBuffer || imageBuffer.length === 0) {
+    throw new AppError(400, 'Không tìm thấy dữ liệu ảnh để nhận diện.');
   }
 
   const worker = await getWorker();
   const startTime = Date.now();
 
   try {
-    const imageBuffer = await fs.promises.readFile(filePath);
     const normResult = await normalizeImageForOcr(imageBuffer);
     const { orientedBuffer, orientedWidth: w, orientedHeight: h } = normResult;
 
@@ -1782,11 +1781,11 @@ async function performOcr(filePath: string, vehicleType: 'CAR' | 'MOTORBIKE' = '
 
 let ocrQueueChain = Promise.resolve();
 
-export async function recognizeLicensePlate(filePath: string, vehicleType: 'CAR' | 'MOTORBIKE' = 'CAR'): Promise<PlateRecognitionResult> {
+export async function recognizeLicensePlate(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' = 'CAR'): Promise<PlateRecognitionResult> {
   return new Promise<PlateRecognitionResult>((resolve, reject) => {
     ocrQueueChain = ocrQueueChain.then(async () => {
       try {
-        const res = await performOcr(filePath, vehicleType);
+        const res = await performOcr(imageBuffer, vehicleType);
         resolve(res);
       } catch (err) {
         reject(err);

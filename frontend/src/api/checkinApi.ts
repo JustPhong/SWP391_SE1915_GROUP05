@@ -224,22 +224,37 @@ export async function deleteCheckinImages(urls: string[]): Promise<{ success: bo
 }
 
 export async function submitCheckIn(
-  payload: CheckinSubmitPayload
+  payload: CheckinSubmitPayload,
+  frontFile?: File | null,
+  rearFile?: File | null
 ): Promise<CheckinSubmitResult> {
   try {
-    const body: Record<string, unknown> = {
-      plate: payload.plateNumber,
-      vehicleType: payload.vehicleType,
-      customerType: payload.isMonthly ? 'monthly' : 'casual',
-      floorId: payload.floorId,
-      slotCode: payload.slotCode ?? null,
-      isMonthly: payload.isMonthly,
-    };
-    if (payload.frontImageUrl) body.frontImageUrl = payload.frontImageUrl;
-    if (payload.rearImageUrl) body.rearImageUrl = payload.rearImageUrl;
+    const formData = new FormData();
+    formData.append('plate', payload.plateNumber);
+    formData.append('vehicleType', payload.vehicleType);
+    formData.append('customerType', payload.isMonthly ? 'monthly' : 'casual');
+    formData.append('floorId', String(payload.floorId));
+    if (payload.slotCode) formData.append('slotCode', payload.slotCode);
+    formData.append('isMonthly', String(payload.isMonthly));
+
+    if (frontFile) {
+      formData.append('frontImage', frontFile);
+    } else if (payload.frontImageUrl) {
+      formData.append('frontImageUrl', payload.frontImageUrl);
+    }
+
+    if (rearFile) {
+      formData.append('rearImage', rearFile);
+    } else if (payload.rearImageUrl) {
+      formData.append('rearImageUrl', payload.rearImageUrl);
+    }
+
     const response = await api.post<{ success: boolean; data: CheckinSubmitResult }>(
       '/checkin',
-      body
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
     );
     return unwrap(response);
   } catch (err: unknown) {

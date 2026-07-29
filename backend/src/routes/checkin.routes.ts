@@ -5,6 +5,7 @@ import { submitCheckinSchema } from '../dtos/checkin.dto';
 import { validate } from '../middleware/error.middleware';
 import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
+import { uploadCheckinImage } from '../middleware/upload.checkin.middleware';
 
 const router = Router();
 
@@ -101,6 +102,27 @@ router.get('/stats', checkinController.stats);
  */
 // GET /api/checkin/suggest?vehicleType=CAR&zone=CASUAL&top=3
 router.get('/suggest', checkinController.suggest);
-router.post('/', submitCheckinSchema, validate, requirePermission('checkin.create'), checkinController.submit);
+const parseMultipartCheckin = (req: any, _res: any, next: any) => {
+  if (req.body.floorId !== undefined && req.body.floorId !== '') {
+    req.body.floorId = Number(req.body.floorId);
+  }
+  if (req.body.isMonthly !== undefined) {
+    req.body.isMonthly = req.body.isMonthly === 'true' || req.body.isMonthly === true;
+  }
+  next();
+};
+
+router.post(
+  '/',
+  uploadCheckinImage.fields([
+    { name: 'frontImage', maxCount: 1 },
+    { name: 'rearImage', maxCount: 1 }
+  ]),
+  parseMultipartCheckin,
+  submitCheckinSchema,
+  validate,
+  requirePermission('checkin.create'),
+  checkinController.submit
+);
 
 export default router;

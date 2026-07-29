@@ -8,6 +8,23 @@ import { Prisma } from '@prisma/client';
 import { stripe } from '../config/stripe';
 import Stripe from 'stripe';
 import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
+import fs from 'fs';
+import path from 'path';
+
+function resolveCheckInImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  if (url.startsWith('/uploads/')) {
+    const localPath = path.join(__dirname, '../..', url);
+    if (fs.existsSync(localPath)) {
+      return url;
+    }
+  }
+  return null;
+}
+
 // ── Lookup result shapes ──────────────────────────────────
 export interface CheckoutLookupResult {
   found: boolean;
@@ -42,6 +59,9 @@ export interface CheckoutLookupResult {
   grossParkingFee?: number;
   bookingDepositPaid?: number;
   amountDue?: number;
+  frontImageUrl?: string | null;
+  rearImageUrl?: string | null;
+  isLegacy?: boolean;
 }
 
 export interface ParkedVehicle {
@@ -89,9 +109,10 @@ export const checkoutService = {
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-.\s]/g, '');
 
-    const record = await prisma.checkInRecord.findFirst({
+    const records = await prisma.checkInRecord.findMany({
       where: {
         checkOutTime: null,
+        status: 'PARKING',
         vehicle: {
           OR: [
             { plateNumber: cleaned },
@@ -120,9 +141,17 @@ export const checkoutService = {
       },
     });
 
-    if (!record) {
+    if (records.length === 0) {
       return { found: false };
     }
+    if (records.length > 1) {
+      const sessionIds = records.map(r => r.id).join(', ');
+      throw new AppError(
+        409,
+        `Phát hiện nhiều lượt gửi xe đang hoạt động trùng lặp (IDs: ${sessionIds}). Yêu cầu kiểm tra và xử lý dữ liệu hành chính.`
+      );
+    }
+    const record = records[0];
 
     const vehicle = record.vehicle;
     const now = new Date();
@@ -189,6 +218,9 @@ export const checkoutService = {
       }
     }
 
+    const isLegacy = !((record.frontImageUrl && record.frontImageUrl.startsWith('https://res.cloudinary.com')) ||
+                       (record.rearImageUrl && record.rearImageUrl.startsWith('https://res.cloudinary.com')));
+
     return {
       found: true,
       recordId: record.id,
@@ -214,13 +246,19 @@ export const checkoutService = {
       grossParkingFee: record.isMonthly ? 0 : total,
       bookingDepositPaid: record.isMonthly ? 0 : depositCredit,
       amountDue: record.isMonthly ? 0 : amountDue,
+      frontImageUrl: resolveCheckInImageUrl(record.frontImageUrl),
+      rearImageUrl: resolveCheckInImageUrl(record.rearImageUrl),
+      isLegacy,
     };
   },
 
   // ── GET /api/checkout/parked ─────────────────────────────
   async getParkedVehicles(): Promise<ParkedVehicle[]> {
     const records = await prisma.checkInRecord.findMany({
-      where: { checkOutTime: null },
+      where: {
+        checkOutTime: null,
+        status: 'PARKING',
+      },
       include: {
         vehicle: true,
         slot: {
@@ -388,9 +426,10 @@ export const checkoutService = {
     } else if (plate) {
       const cleaned = plate.trim().toUpperCase();
       const stripped = cleaned.replace(/[-.\s]/g, '');
-      record = await prisma.checkInRecord.findFirst({
+      const activeRecords = await prisma.checkInRecord.findMany({
         where: {
           checkOutTime: null,
+          status: 'PARKING',
           vehicle: {
             OR: [
               { plateNumber: cleaned },
@@ -408,6 +447,18 @@ export const checkoutService = {
           floor: true,
         },
       });
+
+      if (activeRecords.length === 0) {
+        throw new AppError(404, 'Không tìm thấy lượt đỗ xe đang hoạt động.');
+      }
+      if (activeRecords.length > 1) {
+        const sessionIds = activeRecords.map(r => r.id).join(', ');
+        throw new AppError(
+          409,
+          `Phát hiện nhiều lượt gửi xe đang hoạt động trùng lặp (IDs: ${sessionIds}). Yêu cầu kiểm tra và xử lý dữ liệu hành chính.`
+        );
+      }
+      record = activeRecords[0];
     }
 
     if (!record) {

@@ -4,8 +4,6 @@ import axios from 'axios';
 import {
   lookupPlate,
   submitCheckIn,
-  uploadCheckinImage,
-  deleteCheckinImages,
   runOcrApi,
   type LookupResult,
   type CheckinSubmitResult,
@@ -775,54 +773,21 @@ export function CheckInPage() {
     setApiError('');
     setSubmitting(true);
 
-    let uploadedFront: string | undefined;
-    let uploadedRear: string | undefined;
-
     try {
-      // Upload images
-      try {
-        if (frontImage) {
-          if (frontImageUrl) {
-            uploadedFront = frontImageUrl;
-          } else {
-            const r = await uploadCheckinImage({ image: frontImage, plateNumber: plate });
-            uploadedFront = r.imageUrl;
-            setFrontImageUrl(r.imageUrl);
-          }
-        }
-        if (rearImage) {
-          if (rearImageUrl) {
-            uploadedRear = rearImageUrl;
-          } else {
-            const r = await uploadCheckinImage({ image: rearImage, plateNumber: plate });
-            uploadedRear = r.imageUrl;
-            setRearImageUrl(r.imageUrl);
-          }
-        }
+      const result = await submitCheckIn({
+        plateNumber: plate,
+        vehicleType,
+        floorId,
+        isMonthly,
+        slotCode: lookupData.slotCode || null,
+        frontImageUrl: frontImageUrl ?? undefined,
+        rearImageUrl: rearImageUrl ?? undefined,
+      }, frontImage, rearImage);
 
-        const result = await submitCheckIn({
-          plateNumber: plate,
-          vehicleType,
-          floorId,
-          isMonthly,
-          frontImageUrl: uploadedFront,
-          rearImageUrl: uploadedRear,
-        });
+      setSuccessData(result);
 
-        setSuccessData(result);
-
-        // Reset workflow
-        handleReset();
-      } catch (err) {
-        // Clean up uploaded images if submit failed and they were newly uploaded
-        const toClean: string[] = [];
-        if (uploadedFront && !frontImageUrl) toClean.push(uploadedFront);
-        if (uploadedRear && !rearImageUrl) toClean.push(uploadedRear);
-        if (toClean.length > 0) {
-          await deleteCheckinImages(toClean).catch(() => {});
-        }
-        throw err;
-      }
+      // Reset workflow
+      handleReset();
     } catch (error: unknown) {
       const msg = (error as Error).message ?? 'Check-in thất bại. Vui lòng thử lại.';
       setApiError(msg);

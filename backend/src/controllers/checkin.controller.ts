@@ -3,6 +3,7 @@ import { checkinService } from '../services/checkin.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
 import { slotSuggestionService } from '../services/slotSuggestion.service';
+import { uploadBufferToCloudinary, deleteFromCloudinary } from '../utils/cloudinary';
 import path from 'path';
 import fs from 'fs';
 
@@ -46,21 +47,61 @@ export const checkinController = {
 
   // POST /api/checkin
   submit: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { plate, vehicleType, customerType, floorId, slotCode, isMonthly, frontImageUrl, rearImageUrl } = req.body;
+    const { plate, vehicleType, customerType, floorId, slotCode, isMonthly } = req.body;
+
+    const parsedFloorId = Number(floorId);
+    if (!Number.isInteger(parsedFloorId) || parsedFloorId <= 0) {
+      return res.status(400).json({ success: false, message: 'Khu vực đỗ xe không hợp lệ.' });
+    }
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const frontFile = files?.['frontImage']?.[0];
+    const rearFile = files?.['rearImage']?.[0];
+
+    let frontUrl: string | undefined = undefined;
+    let rearUrl: string | undefined = undefined;
+    let frontPublicId: string | undefined = undefined;
+    let rearPublicId: string | undefined = undefined;
+
     try {
+      if (frontFile) {
+        const uploadResult = await uploadBufferToCloudinary(frontFile.buffer);
+        frontUrl = uploadResult.secureUrl;
+        frontPublicId = uploadResult.publicId;
+      }
+
+      if (rearFile) {
+        try {
+          const uploadResult = await uploadBufferToCloudinary(rearFile.buffer);
+          rearUrl = uploadResult.secureUrl;
+          rearPublicId = uploadResult.publicId;
+        } catch (err) {
+          if (frontPublicId) {
+            await deleteFromCloudinary(frontPublicId).catch(() => {});
+          }
+          throw err;
+        }
+      }
+
       const result = await checkinService.submit({
         plate,
         vehicleType,
         customerType,
-        floorId,
-        slotCode,
-        isMonthly,
-        frontImageUrl,
-        rearImageUrl,
+        floorId: parsedFloorId,
+        slotCode: slotCode || null,
+        isMonthly: isMonthly === 'true' || isMonthly === true,
+        frontImageUrl: frontUrl || req.body.frontImageUrl,
+        rearImageUrl: rearUrl || req.body.rearImageUrl,
       });
+
       return res.status(201).json({ success: true, data: result });
     } catch (error) {
-      cleanupFiles([frontImageUrl, rearImageUrl]);
+      if (frontPublicId) {
+        await deleteFromCloudinary(frontPublicId).catch(() => {});
+      }
+      if (rearPublicId) {
+        await deleteFromCloudinary(rearPublicId).catch(() => {});
+      }
       throw error;
     }
   }),
