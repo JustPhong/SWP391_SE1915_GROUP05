@@ -526,6 +526,7 @@ export function CheckInPage() {
   // ── Plate / lookup ─────────────────────────────────────────────────────
   const [plateInput, setPlateInput] = useState('');
   const [plateSource, setPlateSource] = useState<'front' | 'rear' | 'combined' | 'manual'>('manual');
+  const [plateInputSource, setPlateInputSource] = useState<'OCR' | 'MANUAL' | null>(null);
   const [lookupData, setLookupData] = useState<LookupResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [vehicleTypeMismatch, setVehicleTypeMismatch] = useState(false);
@@ -570,12 +571,26 @@ export function CheckInPage() {
     };
   }, []);
 
+  const clearLookupState = (reason: 'NEW_OCR' | 'IMAGE_CHANGED' | 'PLATE_EDITED') => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[CHECKIN] verificationReset reason=${reason}`);
+    }
+    setLookupData(null);
+    setVehicleTypeMismatch(false);
+    setApiError('');
+    if (ocrStatus === 'success') {
+      setOcrStatus('low_confidence');
+    }
+  };
+
+
   // Auto-lookup from ?plate= URL param
   if (!autoLookupRan.current && searchParams.get('plate')) {
     autoLookupRan.current = true;
     const raw = searchParams.get('plate') ?? '';
     if (raw) {
       setPlateInput(raw.toUpperCase());
+      setPlateInputSource('MANUAL');
       setVehicleType('CAR');
     }
   }
@@ -591,6 +606,8 @@ export function CheckInPage() {
       ocrAbortControllerRef.current = null;
     }
 
+    clearLookupState('IMAGE_CHANGED');
+
     // Clear all downstream state
     setVehicleType(t);
     setFrontImage(null);
@@ -602,10 +619,8 @@ export function CheckInPage() {
     setOcrStatus('idle');
     setOcrAttempted(false);
     setPlateInput('');
+    setPlateInputSource(null);
     setPlateSource('manual');
-    setLookupData(null);
-    setVehicleTypeMismatch(false);
-    setApiError('');
   };
 
   // ═════════════════════════════════════════════════════
@@ -624,12 +639,14 @@ export function CheckInPage() {
     setImage(file);
     setPreview(URL.createObjectURL(file));
     e.target.value = '';
+
+    clearLookupState('IMAGE_CHANGED');
+
     // Clear OCR and URL for this side
     if (side === 'front') {
       setFrontImageUrl(null);
     } else {
       setRearImageUrl(null);
-      setLookupData(null);
       setOcrAttempted(false);
     }
     setOcrStatus('idle');
@@ -645,19 +662,20 @@ export function CheckInPage() {
       ocrAbortControllerRef.current.abort();
       ocrAbortControllerRef.current = null;
     }
+    clearLookupState('IMAGE_CHANGED');
   };
   const handleRemoveRear = () => {
     if (rearPreview) URL.revokeObjectURL(rearPreview);
     setRearImage(null);
     setRearPreview(null);
     setRearImageUrl(null);
-    setLookupData(null);
     setOcrStatus('idle');
     setOcrAttempted(false);
     if (ocrAbortControllerRef.current) {
       ocrAbortControllerRef.current.abort();
       ocrAbortControllerRef.current = null;
     }
+    clearLookupState('IMAGE_CHANGED');
   };
 
   const runOCR = async () => {
@@ -675,6 +693,11 @@ export function CheckInPage() {
     const currentRequestId = ocrRequestIdRef.current + 1;
     ocrRequestIdRef.current = currentRequestId;
 
+    if (plateInputSource === 'OCR') {
+      setPlateInput('');
+      setPlateInputSource(null);
+    }
+    clearLookupState('NEW_OCR');
     setOcrStatus('processing');
     setApiError('');
 
@@ -694,8 +717,10 @@ export function CheckInPage() {
         return;
       }
 
+      clearLookupState('NEW_OCR');
       setRearImageUrl(result.imageUrl);
       setPlateInput(result.plateNumber.toUpperCase());
+      setPlateInputSource('OCR');
       setPlateSource(result.sourceUsed === 'FRONT' ? 'front' : 'rear');
 
       setOcrStatus('low_confidence');
@@ -710,6 +735,14 @@ export function CheckInPage() {
         setOcrStatus('idle');
         return;
       }
+
+      if (plateInputSource === 'OCR') {
+        setPlateInput('');
+      }
+      setPlateInputSource(null);
+      setPlateSource('manual');
+      setLookupData(null);
+      setVehicleTypeMismatch(false);
 
       const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('exceeded');
       if (isTimeout) {
@@ -764,7 +797,19 @@ export function CheckInPage() {
         return;
       }
 
-      setOcrStatus('success');
+      const currentNormalized = normalizePlateForLookup(plateInput);
+      const isExactMatchGreen =
+        result.found === true &&
+        currentNormalized === result.requestedPlateNormalized &&
+        result.matchedPlateNormalized === result.requestedPlateNormalized;
+
+      if (isExactMatchGreen) {
+        setOcrStatus('success');
+      } else {
+        if (ocrStatus !== 'manually_edited') {
+          setOcrStatus('low_confidence');
+        }
+      }
 
     } catch (err: unknown) {
       const msg = (err as Error).message ?? 'Không thể tra cứu biển số.';
@@ -864,6 +909,7 @@ export function CheckInPage() {
     setOcrStatus('idle');
     setOcrAttempted(false);
     setPlateInput('');
+    setPlateInputSource(null);
     setPlateSource('manual');
     setLookupData(null);
     setVehicleTypeMismatch(false);
@@ -943,7 +989,7 @@ export function CheckInPage() {
   const isCasual = lookupData?.isGuest === true && !lookupData?.alreadyParked;
 
   const summaryRows = [
-    { label: 'Biển số', value: plateInput.trim() || 'Chưa có dữ liệu', valueColor: plateInput.trim() ? C.navy : C.gray400 },
+    { label: 'Biển số', value: plateInput.trim() || '—', valueColor: plateInput.trim() ? C.navy : C.gray400 },
     { label: 'Loại xe', value: vehicleType ? (vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy') : 'Chưa chọn', valueColor: vehicleType ? C.gray800 : C.gray400 },
     { label: 'Loại khách', value: !lookupData ? '—' : lookupData.customerType === 'booking' ? 'Có đặt chỗ trước' : lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách vãng lai' },
     { label: 'Tầng / Khu vực', value: lookupData ? floorDisplay : '—' },
@@ -1278,10 +1324,10 @@ export function CheckInPage() {
                         value={plateInput}
                         onChange={(e) => {
                           setPlateInput(e.target.value.toUpperCase());
+                          setPlateInputSource('MANUAL');
                           setPlateSource('manual');
                           setOcrStatus('manually_edited');
-                          setLookupData(null);
-                          setApiError('');
+                          clearLookupState('PLATE_EDITED');
                         }}
                         onKeyDown={handlePlateKeyDown}
                         placeholder="VD: 51A-12345"

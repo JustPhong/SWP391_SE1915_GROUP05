@@ -47,6 +47,8 @@ export interface LookupResult {
   ownerPhone?: string | null;
   ownerEmail?: string | null;
   note?: string | null;
+  requestedPlateNormalized?: string;
+  matchedPlateNormalized?: string | null;
 }
 
 // ─── Slots (legacy — still used by casual car flow if needed) ───────────────

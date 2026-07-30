@@ -118,8 +118,8 @@ function generateConfusionVariants(text: string): string[] {
     return [normalized];
   }
 
-  const digitConfusions: { [key: string]: string } = { 'I': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'G': '6' };
-  const letterConfusions: { [key: string]: string } = { '1': 'I', '5': 'S', '8': 'B', '2': 'Z', '0': 'O', '6': 'G' };
+  const digitConfusions: { [key: string]: string } = { 'I': '1', 'L': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'Q': '0', 'G': '6' };
+  const letterConfusions: { [key: string]: string } = { '0': 'O', '8': 'B', '1': 'I' };
 
   const variants = new Set<string>();
   variants.add(normalized);
@@ -274,14 +274,16 @@ function clampCropRegion(
   return { left, top, width, height };
 }
 
-function isValidMotorbikePlate(p: string): boolean {
-  if (!/^\d{2}[A-Z]{1,2}[A-Z0-9]{4,6}$/.test(p)) return false;
-  if (/^\d{2}[A-Z]\d{6}$/.test(p)) return true;
-  if (/^\d{2}[A-Z]\d{5}$/.test(p)) return true;
-  return /^\d{2}[A-Z]{1,2}[A-Z0-9]{4,6}$/.test(p);
+export function isValidMotorbikePlate(p: string): boolean {
+  return (
+    /^\d{2}[A-Z]\d{6}$/.test(p) ||
+    /^\d{2}[A-Z]\d{5}$/.test(p) ||
+    /^\d{2}[A-Z]{2}\d{5}$/.test(p) ||
+    /^\d{2}[A-Z]{2}\d{4}$/.test(p)
+  );
 }
 
-function formatMotorbikePlate(p: string): string {
+export function formatMotorbikePlate(p: string): string {
   if (/^\d{2}[A-Z]\d{6}$/.test(p)) {
     const province = p.slice(0, 2);
     const letter = p.slice(2, 3);
@@ -297,11 +299,20 @@ function formatMotorbikePlate(p: string): string {
     const bottom = p.slice(4, 8);
     return `${province}-${letter}${series} ${bottom}`;
   }
-  const province = p.slice(0, 2);
-  const letterMatch = p.match(/^[0-9]{2}([A-Z]+)/);
-  const letter = letterMatch ? letterMatch[1] : '';
-  const remaining = p.slice(2 + letter.length);
-  return `${province}${letter}-${remaining}`;
+  if (/^\d{2}[A-Z]{2}\d{5}$/.test(p)) {
+    const province = p.slice(0, 2);
+    const letters = p.slice(2, 4);
+    const firstThree = p.slice(4, 7);
+    const lastTwo = p.slice(7, 9);
+    return `${province}-${letters} ${firstThree}.${lastTwo}`;
+  }
+  if (/^\d{2}[A-Z]{2}\d{4}$/.test(p)) {
+    const province = p.slice(0, 2);
+    const letters = p.slice(2, 4);
+    const remaining = p.slice(4);
+    return `${province}-${letters} ${remaining}`;
+  }
+  return p;
 }
 
 function isValidCarPlate(p: string): boolean {
@@ -322,13 +333,13 @@ function correctUpperLineConfusions(text: string): string {
   const clean = text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
   if (clean.length !== 3) return clean;
 
-  const digitConfusions: { [key: string]: string } = { 'I': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'G': '6' };
+  const digitConfusions: { [key: string]: string } = { 'I': '1', 'L': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'Q': '0', 'G': '6' };
   let char0 = clean[0];
   let char1 = clean[1];
   if (digitConfusions[char0]) char0 = digitConfusions[char0];
   if (digitConfusions[char1]) char1 = digitConfusions[char1];
 
-  const letterConfusions: { [key: string]: string } = { '1': 'I', '5': 'S', '8': 'B', '2': 'Z', '0': 'O', '6': 'G' };
+  const letterConfusions: { [key: string]: string } = { '0': 'O', '8': 'B', '1': 'I' };
   let char2 = clean[2];
   if (letterConfusions[char2]) char2 = letterConfusions[char2];
 
@@ -339,7 +350,7 @@ function correctLowerLineConfusions(text: string): string {
   const clean = text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
   if (clean.length !== 5) return clean;
 
-  const digitConfusions: { [key: string]: string } = { 'I': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'G': '6' };
+  const digitConfusions: { [key: string]: string } = { 'I': '1', 'L': '1', 'S': '5', 'B': '8', 'Z': '2', 'O': '0', 'Q': '0', 'G': '6' };
   let result = '';
   for (let i = 0; i < 5; i++) {
     let char = clean[i];
@@ -600,24 +611,6 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
     };
 
     if (vehicleType === 'MOTORBIKE') {
-      const rawMotorbikeCrop = w > 0 && h > 0 ? {
-        left: Math.floor(w * 0.32),
-        top: Math.floor(h * 0.55),
-        width: Math.floor(w * 0.36),
-        height: Math.floor(h * 0.35),
-      } : undefined;
-
-      const motorbikeCrop = clampCropRegion(rawMotorbikeCrop, w, h, 'MOTORBIKE_REAR_PLATE', 'MOTORBIKE');
-      if (!motorbikeCrop) {
-        throw new AppError(422, 'Không thể định vị được vùng chứa biển số xe máy.');
-      }
-
-      const motorbikeVariants = [
-        { name: 'mb-normalize-sharpen', processing: 'grayscale-normalize-sharpen' },
-        { name: 'mb-normalize-threshold', processing: 'grayscale-normalize-threshold' },
-        { name: 'mb-linear-sharpen', processing: 'grayscale-linear-sharpen' }
-      ];
-
       interface MotorbikeCandidate {
         normalizedPlate: string;
         formattedPlate: string;
@@ -633,11 +626,112 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
       const motorbikeCandidates: MotorbikeCandidate[] = [];
       let lastError: Error | null = null;
 
-      for (const variant of motorbikeVariants) {
-        // --- STRATEGY A: WHOLE TWO-LINE BLOCK ---
+      // Define crops based on expected relative dimensions
+      const defaultCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.32),
+        top: Math.floor(h * 0.55),
+        width: Math.floor(w * 0.36),
+        height: Math.floor(h * 0.35),
+      } : undefined;
+
+      const lowWideCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.22),
+        top: Math.floor(h * 0.50),
+        width: Math.floor(w * 0.56),
+        height: Math.floor(h * 0.46),
+      } : undefined;
+
+      const lowCenterCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.31),
+        top: Math.floor(h * 0.57),
+        width: Math.floor(w * 0.38),
+        height: Math.floor(h * 0.38),
+      } : undefined;
+
+      const lowNarrowCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.36),
+        top: Math.floor(h * 0.61),
+        width: Math.floor(w * 0.28),
+        height: Math.floor(h * 0.31),
+      } : undefined;
+
+      const lowLeftCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.10),
+        top: Math.floor(h * 0.55),
+        width: Math.floor(w * 0.35),
+        height: Math.floor(h * 0.35),
+      } : undefined;
+
+      const lowRightCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.55),
+        top: Math.floor(h * 0.55),
+        width: Math.floor(w * 0.35),
+        height: Math.floor(h * 0.35),
+      } : undefined;
+
+      // Small, centered tight motorcycle plate crops
+      const tightCropRaw = w > 0 && h > 0 ? {
+        left: Math.floor(w * 0.41),
+        top: Math.floor(h * 0.41),
+        width: Math.floor(w * 0.20),
+        height: Math.floor(h * 0.25),
+      } : undefined;
+
+      const tightLeftCropRaw = w > 0 && h > 0 ? {
+        left: Math.max(0, Math.floor(w * 0.41) - Math.floor(w * 0.04)),
+        top: Math.floor(h * 0.41),
+        width: Math.floor(w * 0.20),
+        height: Math.floor(h * 0.25),
+      } : undefined;
+
+      const tightRightCropRaw = w > 0 && h > 0 ? {
+        left: Math.min(w - 1, Math.floor(w * 0.41) + Math.floor(w * 0.04)),
+        top: Math.floor(h * 0.41),
+        width: Math.floor(w * 0.20),
+        height: Math.floor(h * 0.25),
+      } : undefined;
+
+      const MOTO_DEFAULT = clampCropRegion(defaultCropRaw, w, h, 'MOTO_DEFAULT', 'MOTORBIKE');
+      const MOTO_LOW_WIDE = clampCropRegion(lowWideCropRaw, w, h, 'MOTO_LOW_WIDE', 'MOTORBIKE');
+      const MOTO_LOW_CENTER = clampCropRegion(lowCenterCropRaw, w, h, 'MOTO_LOW_CENTER', 'MOTORBIKE');
+      const MOTO_LOW_NARROW = clampCropRegion(lowNarrowCropRaw, w, h, 'MOTO_LOW_NARROW', 'MOTORBIKE');
+      const MOTO_LOW_LEFT = clampCropRegion(lowLeftCropRaw, w, h, 'MOTO_LOW_LEFT', 'MOTORBIKE');
+      const MOTO_LOW_RIGHT = clampCropRegion(lowRightCropRaw, w, h, 'MOTO_LOW_RIGHT', 'MOTORBIKE');
+
+      const MOTO_PLATE_TIGHT = clampCropRegion(tightCropRaw, w, h, 'MOTO_PLATE_TIGHT', 'MOTORBIKE');
+      const MOTO_PLATE_TIGHT_LEFT = clampCropRegion(tightLeftCropRaw, w, h, 'MOTO_PLATE_TIGHT_LEFT', 'MOTORBIKE');
+      const MOTO_PLATE_TIGHT_RIGHT = clampCropRegion(tightRightCropRaw, w, h, 'MOTO_PLATE_TIGHT_RIGHT', 'MOTORBIKE');
+
+      const setOcrConfig = async (psm: PSM, whitelist: string) => {
+        await worker.setParameters({
+          tessedit_pageseg_mode: psm,
+          tessedit_char_whitelist: whitelist,
+        });
+        lastPsm = psm;
+      };
+
+      const restoreDefaultConfig = async () => {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.',
+        });
+        lastPsm = PSM.SINGLE_BLOCK;
+      };
+
+      // Helper to evaluate a whole block crop
+      const runWholeBlock = async (crop: CropRegion | undefined, regionName: string, variant: { name: string, processing: string }, rotation = 0) => {
+        if (!crop) return;
+        const cropStart = Date.now();
         try {
-          const blockBuffer = await preprocessImageToBuffer(orientedBuffer, {
-            crop: motorbikeCrop,
+          if (!consumeOcrRun(runBudget)) return;
+
+          let buf = orientedBuffer;
+          if (rotation !== 0) {
+            buf = await sharp(orientedBuffer).rotate(rotation).toBuffer();
+          }
+
+          const blockBuffer = await preprocessImageToBuffer(buf, {
+            crop,
             resizeWidth: 1200,
             processing: variant.processing,
           });
@@ -645,53 +739,59 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           const procMeta = await sharp(blockBuffer).metadata();
           const procW = procMeta.width || 0;
           const procH = procMeta.height || 0;
-          const procValid = Number.isFinite(procW) && Number.isFinite(procH) && procW >= 3 && procH >= 3;
-          if (!procValid) {
-            if (process.env.NODE_ENV !== 'production') {
-              console.log(`[OCR][MOTORBIKE] skipped variant=${variant.name} reason="invalid processed dimensions" width=${procW} height=${procH}`);
-            }
-            continue;
-          }
+          if (procW < 3 || procH < 3) return;
 
+          await restoreDefaultConfig();
           await setPsm(PSM.SINGLE_BLOCK);
           const { data } = await worker.recognize(blockBuffer);
           const rawText = data.text || '';
-          
+
           const lines = rawText.split('\n')
             .map(l => l.trim())
             .filter(l => l.length > 0);
-          
+
+          let foundAny = false;
           if (lines.length >= 2) {
             for (let i = 0; i < lines.length - 1; i++) {
               const topClean = lines[i].replace(/[^A-Z0-9]/gi, '').toUpperCase();
               const bottomClean = lines[i+1].replace(/[^A-Z0-9]/gi, '').toUpperCase();
-              const combinedRaw = topClean + bottomClean;
-              
-              const potentialPlates = generateConfusionVariants(combinedRaw);
-              for (const combined of potentialPlates) {
-                if (isValidMotorbikePlate(combined)) {
-                  const topLen = combined.length === 9 ? 4 : 3;
-                  const topPart = combined.slice(0, topLen);
-                  const bottomPart = combined.slice(topLen);
-                  
-                  const topValid = /^\d{2}[A-Z]{1,2}\d?$/.test(topPart);
-                  const bottomValid = /^\d{4,5}$/.test(bottomPart);
-                  
-                  motorbikeCandidates.push({
-                    normalizedPlate: combined,
-                    formattedPlate: formatMotorbikePlate(combined),
-                    rawText: rawText,
-                    confidence: data.confidence,
-                    variantName: variant.name,
-                    strategy: 'WHOLE_BLOCK',
-                    topLineValid: topValid,
-                    bottomLineValid: bottomValid,
-                  });
+
+              // Require strict row validation for split results
+              const upperValid = /^(\d{2}[A-Z]\d|\d{2}[A-Z]{2})$/.test(topClean);
+              const lowerValid = /^\d{5}$/.test(bottomClean);
+
+              if (upperValid && lowerValid) {
+                const combinedRaw = topClean + bottomClean;
+                const potentialPlates = generateConfusionVariants(combinedRaw);
+                for (const combined of potentialPlates) {
+                  if (isValidMotorbikePlate(combined)) {
+                    const topLen = combined.length === 9 ? 4 : 3;
+                    const topPart = combined.slice(0, topLen);
+                    const bottomPart = combined.slice(topLen);
+                    const topValidFinal = /^\d{2}[A-Z]{1,2}\d?$/.test(topPart);
+                    const bottomValidFinal = /^\d{4,5}$/.test(bottomPart);
+
+                    motorbikeCandidates.push({
+                      normalizedPlate: combined,
+                      formattedPlate: formatMotorbikePlate(combined),
+                      rawText: rawText,
+                      confidence: data.confidence,
+                      variantName: variant.name,
+                      strategy: 'WHOLE_BLOCK',
+                      topLineValid: topValidFinal,
+                      bottomLineValid: bottomValidFinal,
+                    });
+                    foundAny = true;
+
+                    if (process.env.NODE_ENV !== 'production') {
+                      console.log(`[OCR][MOTORBIKE][RUN]\nstage=WHOLE_BLOCK\nregion=${regionName}\nvariant=${variant.name}\nrotation=${rotation}\nraw=${rawText.replace(/[\n\r]+/g, ' ')}\nnormalized=${combined}\nvalid=true\nused=${runBudget.used}/${runBudget.max}\nelapsedMs=${Date.now() - cropStart}`);
+                    }
+                  }
                 }
               }
             }
           }
-          
+
           const cleanedText = rawText.replace(/[^A-Z0-9]/gi, '').toUpperCase();
           const potentialPlates = generateConfusionVariants(cleanedText);
           for (const combined of potentialPlates) {
@@ -706,165 +806,309 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
                 topLineValid: false,
                 bottomLineValid: false,
               });
+              foundAny = true;
+
+              if (process.env.NODE_ENV !== 'production') {
+                console.log(`[OCR][MOTORBIKE][RUN]\nstage=WHOLE_BLOCK\nregion=${regionName}\nvariant=${variant.name}\nrotation=${rotation}\nraw=${rawText.replace(/[\n\r]+/g, ' ')}\nnormalized=${combined}\nvalid=true\nused=${runBudget.used}/${runBudget.max}\nelapsedMs=${Date.now() - cropStart}`);
+              }
             }
+          }
+
+          if (!foundAny && process.env.NODE_ENV !== 'production') {
+            console.log(`[OCR][MOTORBIKE][RUN]\nstage=WHOLE_BLOCK\nregion=${regionName}\nvariant=${variant.name}\nrotation=${rotation}\nraw=${rawText.replace(/[\n\r]+/g, ' ')}\nnormalized=\nvalid=false\nused=${runBudget.used}/${runBudget.max}\nelapsedMs=${Date.now() - cropStart}`);
           }
         } catch (err) {
           lastError = err as Error;
         }
+      };
 
-        // --- STRATEGY B: SPLIT-LINE OCR ---
+      // Helper to evaluate split recognition
+      const runSplitLine = async (crop: CropRegion | undefined, regionName: string, splitRatio: number) => {
+        if (!crop) return;
+        const cropStart = Date.now();
         try {
+          if (isOcrBudgetExhausted(runBudget)) return;
+
+          const topRatio = splitRatio;
+          const bottomRatio = 100 - splitRatio;
+
+          // Upper row crop (once per ratio)
           const topCrop = {
-            left: motorbikeCrop.left,
-            top: motorbikeCrop.top,
-            width: motorbikeCrop.width,
-            height: Math.floor(motorbikeCrop.height * 0.52),
-          };
-          const bottomCrop = {
-            left: motorbikeCrop.left,
-            top: motorbikeCrop.top + Math.floor(motorbikeCrop.height * 0.48),
-            width: motorbikeCrop.width,
-            height: Math.ceil(motorbikeCrop.height * 0.52),
+            left: crop.left,
+            top: crop.top,
+            width: crop.width,
+            height: Math.min(crop.height, Math.floor(crop.height * ((topRatio + 2) / 100))),
           };
 
           const topBuffer = await preprocessImageToBuffer(orientedBuffer, {
             crop: topCrop,
             resizeWidth: 1200,
-            processing: variant.processing,
+            processing: 'grayscale-normalize-sharpen',
           });
+
           const topMeta = await sharp(topBuffer).metadata();
-          const topW = topMeta.width || 0;
-          const topH = topMeta.height || 0;
-          const topValid = Number.isFinite(topW) && Number.isFinite(topH) && topW >= 3 && topH >= 3;
-
-          const bottomBuffer = await preprocessImageToBuffer(orientedBuffer, {
-            crop: bottomCrop,
-            resizeWidth: 1200,
-            processing: variant.processing,
-          });
-          const bottomMeta = await sharp(bottomBuffer).metadata();
-          const bottomW = bottomMeta.width || 0;
-          const bottomH = bottomMeta.height || 0;
-          const bottomValid = Number.isFinite(bottomW) && Number.isFinite(bottomH) && bottomW >= 3 && bottomH >= 3;
-
-          if (!topValid || !bottomValid) {
-            if (process.env.NODE_ENV !== 'production') {
-              console.log(`[OCR][MOTORBIKE] skipped variant=${variant.name} reason="invalid processed dimensions"`);
-            }
-            continue;
+          if ((topMeta.width || 0) < 3 || (topMeta.height || 0) < 3) {
+            return;
           }
 
-          await setPsm(PSM.SINGLE_LINE);
+          if (!consumeOcrRun(runBudget)) return;
+          // Upper row: alphanumeric uppercase whitelist + SINGLE_LINE
+          await setOcrConfig(PSM.SINGLE_LINE, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
           const topRes = await worker.recognize(topBuffer);
           const topTextRaw = topRes.data.text || '';
           const topClean = topTextRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
-          await setPsm(PSM.SINGLE_LINE);
-          const bottomRes = await worker.recognize(bottomBuffer);
-          const bottomTextRaw = bottomRes.data.text || '';
-          const bottomClean = bottomTextRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+          const insets = [0, 4, 8];
+          const lowerRowVariants = [
+            { name: 'mb-normalize-sharpen', processing: 'grayscale-normalize-sharpen' },
+            { name: 'mb-normalize-only', processing: 'grayscale-normalize-only' },
+            { name: 'mb-normalize-threshold', processing: 'grayscale-normalize-threshold' },
+          ];
 
-          const combinedRaw = topClean + bottomClean;
-          const potentialPlates = generateConfusionVariants(combinedRaw);
-          for (const combined of potentialPlates) {
-            if (isValidMotorbikePlate(combined)) {
-              const topLen = combined.length === 9 ? 4 : 3;
-              const topPart = combined.slice(0, topLen);
-              const bottomPart = combined.slice(topLen);
-              
-              const topValid = /^\d{2}[A-Z]{1,2}\d?$/.test(topPart);
-              const bottomValid = /^\d{4,5}$/.test(bottomPart);
+          for (const inset of insets) {
+            if (isOcrBudgetExhausted(runBudget)) break;
 
-              motorbikeCandidates.push({
-                normalizedPlate: combined,
-                formattedPlate: formatMotorbikePlate(combined),
-                rawText: `Top: ${topTextRaw.trim()} | Bottom: ${bottomTextRaw.trim()}`,
-                confidence: Math.round((topRes.data.confidence + bottomRes.data.confidence) / 2),
-                variantName: variant.name,
-                strategy: 'SPLIT_LINE',
-                topLineValid: topValid,
-                bottomLineValid: bottomValid,
+            const leftInset = Math.floor(crop.width * (inset / 100));
+            const bottomCrop = {
+              left: crop.left + leftInset,
+              top: crop.top + Math.max(0, Math.floor(crop.height * ((topRatio - 5) / 100))), // slightly upward
+              width: crop.width - 2 * leftInset,
+              height: Math.min(crop.height, Math.ceil(crop.height * ((bottomRatio + 8) / 100))), // increased height
+            };
+
+            for (const variant of lowerRowVariants) {
+              if (isOcrBudgetExhausted(runBudget)) break;
+
+              const bottomBuffer = await preprocessImageToBuffer(orientedBuffer, {
+                crop: bottomCrop,
+                resizeWidth: 1200,
+                processing: variant.processing,
               });
+
+              const bottomMeta = await sharp(bottomBuffer).metadata();
+              if ((bottomMeta.width || 0) < 3 || (bottomMeta.height || 0) < 3) {
+                continue;
+              }
+
+              if (!consumeOcrRun(runBudget)) continue;
+              // Lower row: numeric whitelist only + SINGLE_LINE
+              await setOcrConfig(PSM.SINGLE_LINE, '0123456789');
+              const bottomRes = await worker.recognize(bottomBuffer);
+              const bottomTextRaw = bottomRes.data.text || '';
+              const bottomClean = bottomTextRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+              // Validate split row lengths exactly
+              const upperValid = /^(\d{2}[A-Z]\d|\d{2}[A-Z]{2})$/.test(topClean);
+              const lowerValid = /^\d{5}$/.test(bottomClean);
+              const combinedRaw = topClean + bottomClean;
+
+              let accepted = false;
+              let rejectionReason = 'none';
+
+              if (!upperValid) {
+                rejectionReason = 'UPPER_ROW_INVALID';
+              } else if (bottomClean.length !== 5) {
+                rejectionReason = 'LOWER_ROW_LENGTH_INVALID';
+              } else if (!lowerValid) {
+                rejectionReason = 'LOWER_ROW_INVALID';
+              } else {
+                accepted = true;
+              }
+
+              if (process.env.NODE_ENV !== 'production') {
+                console.log(`[OCR][MOTORBIKE][SPLIT]\nregion=${regionName}\nratio=${splitRatio}/${100 - splitRatio}\nupperRaw=${topTextRaw.trim()}\nupperNormalized=${topClean}\nupperValid=${upperValid}\nlowerRaw=${bottomTextRaw.trim()}\nlowerNormalized=${bottomClean}\nlowerLength=${bottomClean.length}\nlowerValid=${lowerValid}\ncombined=${combinedRaw}\naccepted=${accepted}\nrejectionReason=${rejectionReason}`);
+              }
+
+              if (accepted) {
+                const potentialPlates = generateConfusionVariants(combinedRaw);
+                for (const combined of potentialPlates) {
+                  if (isValidMotorbikePlate(combined)) {
+                    const topLen = combined.length === 9 ? 4 : 3;
+                    const topPart = combined.slice(0, topLen);
+                    const bottomPart = combined.slice(topLen);
+                    const topValidFinal = /^\d{2}[A-Z]{1,2}\d?$/.test(topPart);
+                    const bottomValidFinal = /^\d{4,5}$/.test(bottomPart);
+
+                    motorbikeCandidates.push({
+                      normalizedPlate: combined,
+                      formattedPlate: formatMotorbikePlate(combined),
+                      rawText: `Top: ${topTextRaw.trim()} | Bottom: ${bottomTextRaw.trim()}`,
+                      confidence: Math.round((topRes.data.confidence + bottomRes.data.confidence) / 2),
+                      variantName: `${variant.name}-split-${splitRatio}-inset-${inset}`,
+                      strategy: 'SPLIT_LINE',
+                      topLineValid: topValidFinal,
+                      bottomLineValid: bottomValidFinal,
+                    });
+                  }
+                }
+              }
             }
           }
+          await restoreDefaultConfig();
         } catch (err) {
           lastError = err as Error;
         }
-      }
-
-      if (motorbikeCandidates.length === 0) {
-        throw lastError || new AppError(422, 'Không nhận diện được biển số. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.');
-      }
-
-      const agreementMap = new Map<string, number>();
-      for (const cand of motorbikeCandidates) {
-        agreementMap.set(cand.normalizedPlate, (agreementMap.get(cand.normalizedPlate) || 0) + 1);
-      }
-      for (const cand of motorbikeCandidates) {
-        cand.agreementCount = agreementMap.get(cand.normalizedPlate) || 1;
-      }
-
-      const sortedCandidates = [...motorbikeCandidates].sort((a, b) => {
-        const aModern = a.normalizedPlate.length === 9 && a.topLineValid && a.bottomLineValid;
-        const bModern = b.normalizedPlate.length === 9 && b.topLineValid && b.bottomLineValid;
-        if (aModern && !bModern) return -1;
-        if (!aModern && bModern) return 1;
-
-        const aAg = a.agreementCount || 0;
-        const bAg = b.agreementCount || 0;
-        if (aAg !== bAg) return bAg - aAg;
-
-        const aBoth = a.topLineValid && a.bottomLineValid;
-        const bBoth = b.topLineValid && b.bottomLineValid;
-        if (aBoth && !bBoth) return -1;
-        if (!aBoth && bBoth) return 1;
-
-        if (a.normalizedPlate.length !== b.normalizedPlate.length) {
-          return b.normalizedPlate.length - a.normalizedPlate.length;
-        }
-
-        return b.confidence - a.confidence;
-      });
-
-      const selected = sortedCandidates[0];
-
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('\n[MOTORBIKE OCR Diagnostics Table]');
-        console.log('-----------------------------------------------------------------------------------------------------');
-        console.log('| Variant Name             | Strategy   | Normalized | Conf | TopVal | BotVal | Status   | Selected |');
-        console.log('-----------------------------------------------------------------------------------------------------');
-        for (const cand of sortedCandidates) {
-          const isSelected = cand === selected ? 'SELECTED' : 'REJECTED';
-          const nameCol = cand.variantName.padEnd(24);
-          const stratCol = cand.strategy.padEnd(10);
-          const normCol = cand.normalizedPlate.padEnd(10);
-          const confCol = Math.round(cand.confidence).toString().padStart(4);
-          const topVal = cand.topLineValid ? 'YES' : 'NO ';
-          const botVal = cand.bottomLineValid ? 'YES' : 'NO ';
-          const statusStr = (cand.topLineValid && cand.bottomLineValid ? 'VALID' : 'PARTIAL').padEnd(8);
-          console.log(`| ${nameCol} | ${stratCol} | ${normCol} | ${confCol} | ${topVal}    | ${botVal}    | ${statusStr} | ${isSelected.padEnd(8)} |`);
-        }
-        console.log('-----------------------------------------------------------------------------------------------------\n');
-      }
-
-      let reliability: OcrReliability = 'REVIEW';
-      const isSplitLineValid = selected.strategy === 'SPLIT_LINE' && selected.topLineValid && selected.bottomLineValid;
-      const hasAgreeingVariant = selected.agreementCount && selected.agreementCount >= 2;
-      const isStrongModern = selected.normalizedPlate.length === 9 && selected.topLineValid && selected.bottomLineValid && hasAgreeingVariant;
-
-      if ((isSplitLineValid && hasAgreeingVariant) || isStrongModern || (selected.agreementCount && selected.agreementCount >= 3)) {
-        reliability = 'VERIFIED';
-      }
-
-      return {
-        rawText: selected.rawText,
-        normalizedPlate: selected.normalizedPlate,
-        candidates: [selected.formattedPlate],
-        provider: 'TESSERACT_JS',
-        confidence: selected.confidence,
-        reliability,
-        agreementCount: selected.agreementCount || 1,
       };
+
+      // Helper to evaluate candidates and select best
+      const getBestCandidate = (candidates: MotorbikeCandidate[]): MotorbikeCandidate | null => {
+        if (candidates.length === 0) return null;
+        const agreementMap = new Map<string, number>();
+        for (const cand of candidates) {
+          agreementMap.set(cand.normalizedPlate, (agreementMap.get(cand.normalizedPlate) || 0) + 1);
+        }
+        for (const cand of candidates) {
+          cand.agreementCount = agreementMap.get(cand.normalizedPlate) || 1;
+        }
+
+        const sorted = [...candidates].sort((a, b) => {
+          const aModern = a.normalizedPlate.length === 9 && a.topLineValid && a.bottomLineValid;
+          const bModern = b.normalizedPlate.length === 9 && b.topLineValid && b.bottomLineValid;
+          if (aModern && !bModern) return -1;
+          if (!aModern && bModern) return 1;
+
+          const aAg = a.agreementCount || 0;
+          const bAg = b.agreementCount || 0;
+          if (aAg !== bAg) return bAg - aAg;
+
+          const aBoth = a.topLineValid && a.bottomLineValid;
+          const bBoth = b.topLineValid && b.bottomLineValid;
+          if (aBoth && !bBoth) return -1;
+          if (!aBoth && bBoth) return 1;
+
+          if (a.normalizedPlate.length !== b.normalizedPlate.length) {
+            return b.normalizedPlate.length - a.normalizedPlate.length;
+          }
+
+          return b.confidence - a.confidence;
+        });
+
+        return sorted[0];
+      };
+
+      const handleOcrSuccess = (selected: MotorbikeCandidate): PlateRecognitionResult => {
+        const formatMatched = isValidMotorbikePlate(selected.normalizedPlate);
+
+        if (process.env.NODE_ENV !== 'production') {
+          const elapsed = Date.now() - startTime;
+          console.log(`[OCR][MOTORBIKE][FINAL]\nselectedCandidate=${selected.normalizedPlate}\nformattedPlate=${selected.formattedPlate}\nreliability=${selected.normalizedPlate.length === 9 ? 'REVIEW' : 'REVIEW'}\nrunsUsed=${runBudget.used}\nelapsedMs=${elapsed}`);
+        }
+
+        if (!formatMatched) {
+          throw new AppError(422, 'Không nhận diện được biển số xe máy đúng định dạng. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.');
+        }
+
+        let reliability: OcrReliability = 'REVIEW';
+        const isSplitLineValid = selected.strategy === 'SPLIT_LINE' && selected.topLineValid && selected.bottomLineValid;
+        const hasAgreeingVariant = selected.agreementCount && selected.agreementCount >= 2;
+        const isStrongModern = selected.normalizedPlate.length === 9 && selected.topLineValid && selected.bottomLineValid && hasAgreeingVariant;
+
+        if ((isSplitLineValid && hasAgreeingVariant) || isStrongModern || (selected.agreementCount && selected.agreementCount >= 3)) {
+          reliability = 'VERIFIED';
+        }
+
+        return {
+          rawText: selected.rawText,
+          normalizedPlate: selected.normalizedPlate,
+          candidates: [selected.formattedPlate],
+          provider: 'TESSERACT_JS',
+          confidence: selected.confidence,
+          reliability,
+          agreementCount: selected.agreementCount || 1,
+        };
+      };
+
+      // --- STAGE A: TIGHT CENTER FAST PASS ---
+      const stageACrops = [
+        { name: 'MOTO_PLATE_TIGHT', crop: MOTO_PLATE_TIGHT },
+        { name: 'MOTO_PLATE_TIGHT_LEFT', crop: MOTO_PLATE_TIGHT_LEFT },
+        { name: 'MOTO_PLATE_TIGHT_RIGHT', crop: MOTO_PLATE_TIGHT_RIGHT }
+      ];
+      const stageAVariants = [
+        { name: 'mb-normalize-sharpen', processing: 'grayscale-normalize-sharpen' },
+        { name: 'mb-normalize-only', processing: 'grayscale-normalize-only' },
+        { name: 'mb-normalize-threshold', processing: 'grayscale-normalize-threshold' }
+      ];
+
+      for (const item of stageACrops) {
+        if (isOcrBudgetExhausted(runBudget)) break;
+        for (const variant of stageAVariants) {
+          await runWholeBlock(item.crop, item.name, variant, 0);
+        }
+      }
+
+      let bestCand = getBestCandidate(motorbikeCandidates);
+      if (bestCand) {
+        return handleOcrSuccess(bestCand);
+      }
+
+      // --- STAGE B: TARGETED TWO-LINE SPLIT ---
+      const splitRatios = [42, 45, 48];
+      for (const ratio of splitRatios) {
+        if (isOcrBudgetExhausted(runBudget)) break;
+        await runSplitLine(MOTO_PLATE_TIGHT || MOTO_DEFAULT, 'MOTO_PLATE_TIGHT', ratio);
+      }
+
+      bestCand = getBestCandidate(motorbikeCandidates);
+      if (bestCand) {
+        return handleOcrSuccess(bestCand);
+      }
+
+      // --- STAGE C: EXISTING LOWER-CENTER CROPS ---
+      const stageCCrops = [
+        { name: 'MOTO_LOW_CENTER', crop: MOTO_LOW_CENTER },
+        { name: 'MOTO_LOW_NARROW', crop: MOTO_LOW_NARROW },
+        { name: 'MOTO_LOW_WIDE', crop: MOTO_LOW_WIDE },
+        { name: 'MOTO_LOW_LEFT', crop: MOTO_LOW_LEFT },
+        { name: 'MOTO_LOW_RIGHT', crop: MOTO_LOW_RIGHT }
+      ];
+      const stageCVariants = [
+        { name: 'mb-normalize-sharpen', processing: 'grayscale-normalize-sharpen' },
+        { name: 'mb-normalize-threshold', processing: 'grayscale-normalize-threshold' }
+      ];
+
+      for (const item of stageCCrops) {
+        if (isOcrBudgetExhausted(runBudget)) break;
+        for (const variant of stageCVariants) {
+          await runWholeBlock(item.crop, item.name, variant, 0);
+        }
+      }
+
+      bestCand = getBestCandidate(motorbikeCandidates);
+      if (!bestCand) {
+        const stageCsplitRatios = [42, 45, 48];
+        for (const ratio of stageCsplitRatios) {
+          if (isOcrBudgetExhausted(runBudget)) break;
+          await runSplitLine(MOTO_LOW_CENTER || MOTO_DEFAULT, 'MOTO_LOW_CENTER', ratio);
+        }
+        bestCand = getBestCandidate(motorbikeCandidates);
+      }
+
+      if (bestCand) {
+        return handleOcrSuccess(bestCand);
+      }
+
+      // --- STAGE D: SMALL ROTATION FALLBACK ---
+      const rotationVariant = { name: 'mb-normalize-sharpen', processing: 'grayscale-normalize-sharpen' };
+      const rotations = [-2, 2];
+      const stageDCrops = [
+        { name: 'MOTO_PLATE_TIGHT', crop: MOTO_PLATE_TIGHT },
+        { name: 'MOTO_LOW_CENTER', crop: MOTO_LOW_CENTER }
+      ];
+
+      for (const rot of rotations) {
+        if (isOcrBudgetExhausted(runBudget)) break;
+        for (const item of stageDCrops) {
+          await runWholeBlock(item.crop, item.name, rotationVariant, rot);
+        }
+      }
+
+      bestCand = getBestCandidate(motorbikeCandidates);
+      if (bestCand) {
+        return handleOcrSuccess(bestCand);
+      }
+
+      throw lastError || new AppError(422, 'Không nhận diện được biển số. Vui lòng chụp lại rõ hơn hoặc nhập thủ công.');
     }
 
     // CAR SPECIFIC PIPELINE
@@ -2245,7 +2489,7 @@ export function reconcilePlates(
 
   const chosenNorm = frontConf >= rearConf ? frontNormalized : rearNormalized;
   return {
-    bestPlate: vehicleType === 'CAR' ? formatCarPlate(chosenNorm) : chosenNorm,
+    bestPlate: vehicleType === 'CAR' ? formatCarPlate(chosenNorm) : (vehicleType === 'MOTORBIKE' ? formatMotorbikePlate(chosenNorm) : chosenNorm),
     normalizedPlate: chosenNorm,
     sourceUsed: frontConf >= rearConf ? 'FRONT' : 'REAR',
     confidence: Math.max(frontConf, rearConf),

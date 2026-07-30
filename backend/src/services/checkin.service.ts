@@ -50,6 +50,8 @@ export interface LookupResult {
   ownerPhone?: string | null;
   ownerEmail?: string | null;
   note?: string | null;
+  requestedPlateNormalized?: string;
+  matchedPlateNormalized?: string | null;
 }
 
 export interface AvailableSlotResult {
@@ -129,6 +131,11 @@ export const checkinService = {
       },
     });
 
+    const requestedPlateNormalized = stripped;
+    const activeMatchedPlateNormalized = activeParkingSession?.vehicle?.plateNumber
+      ? activeParkingSession.vehicle.plateNumber.replace(/[-. \s]/g, '').toUpperCase()
+      : null;
+
     if (activeParkingSession) {
       const activeFloor = activeParkingSession.floor ?? activeParkingSession.slot?.floor;
       const isGuest = activeParkingSession.vehicle?.owner?.email === 'walkin@system.local';
@@ -144,7 +151,9 @@ export const checkinService = {
         floorId: activeParkingSession.floorId,
         floorName: activeFloor?.name ?? null,
         floorCode: activeFloor?.floorCode ?? null,
-        message: `Biển số ${activeParkingSession.vehicle?.plateNumber ?? plate} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`
+        message: `Biển số ${activeParkingSession.vehicle?.plateNumber ?? plate} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`,
+        requestedPlateNormalized,
+        matchedPlateNormalized: activeMatchedPlateNormalized,
       };
     }
 
@@ -216,14 +225,20 @@ export const checkinService = {
       };
     };
 
-    // No vehicle at all → casual
-    if (!vehicle) {
+    const matchedPlateNormalized = vehicle ? vehicle.plateNumber.replace(/[-. \s]/g, '').toUpperCase() : null;
+    const isExact = vehicle && matchedPlateNormalized === requestedPlateNormalized;
+    const found = !!isExact;
+
+    // No exact matching vehicle found → casual guest
+    if (!vehicle || !found) {
       const capInfo = await getCapacityInfo(undefined, 'CASUAL');
       return {
         found: false,
         customerType: 'casual',
         isGuest: true,
         vehicleType: vType,
+        requestedPlateNormalized,
+        matchedPlateNormalized: null,
         ...capInfo,
       };
     }
@@ -250,6 +265,8 @@ export const checkinService = {
       ownerPhone: vehicle.owner?.phoneNumber ?? null,
       ownerEmail: vehicle.owner?.email ?? null,
       note: null,
+      requestedPlateNormalized,
+      matchedPlateNormalized,
     };
 
     if (activeRecord) {

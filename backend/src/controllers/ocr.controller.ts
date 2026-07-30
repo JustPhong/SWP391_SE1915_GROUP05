@@ -29,24 +29,37 @@ export const ocrController = {
     let rearResult = null;
     let lastError: Error | null = null;
 
-    if (frontFile) {
-      try {
-        frontResult = await recognizeLicensePlate(frontFile.buffer, vehicleType);
-      } catch (err) {
-        lastError = err as Error;
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[OCR] Front image OCR failed:', err);
+    if (vehicleType === 'MOTORBIKE') {
+      if (rearFile) {
+        try {
+          rearResult = await recognizeLicensePlate(rearFile.buffer, 'MOTORBIKE');
+        } catch (err) {
+          lastError = err as Error;
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[OCR][MOTORBIKE] Rear image OCR failed:', err);
+          }
         }
       }
-    }
+    } else {
+      if (frontFile) {
+        try {
+          frontResult = await recognizeLicensePlate(frontFile.buffer, vehicleType);
+        } catch (err) {
+          lastError = err as Error;
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[OCR] Front image OCR failed:', err);
+          }
+        }
+      }
 
-    if (rearFile) {
-      try {
-        rearResult = await recognizeLicensePlate(rearFile.buffer, vehicleType);
-      } catch (err) {
-        lastError = err as Error;
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[OCR] Rear image OCR failed:', err);
+      if (rearFile) {
+        try {
+          rearResult = await recognizeLicensePlate(rearFile.buffer, vehicleType);
+        } catch (err) {
+          lastError = err as Error;
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[OCR] Rear image OCR failed:', err);
+          }
         }
       }
     }
