@@ -413,7 +413,9 @@ export const bookingService = {
         if (state.activeCheckIn) {
           throw new AppError(
             409,
-            `Xe này đang có một lượt gửi chưa hoàn tất. Vui lòng Check-out lượt hiện tại trước khi Check-in lại.`
+            `Biển số ${booking.vehicle.plateNumber} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`,
+            true,
+            'ACTIVE_PARKING_SESSION'
           );
         }
 

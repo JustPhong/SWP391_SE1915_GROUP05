@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../utils/helpers';
 import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
 
@@ -17,8 +18,13 @@ export interface ActiveBookingSummary {
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;
+  activeCheckInRecordId?: string | null;
+  activeCheckInTime?: string | null;
+  plate?: string;
+  message?: string;
   slotCode?: string;
   customerType: 'monthly' | 'casual' | 'booking';
+  isGuest?: boolean;
   vehicleType?: 'CAR' | 'MOTORBIKE';
   brand?: string | null;
   model?: string | null;
@@ -78,6 +84,9 @@ export interface SubmitCheckinResult {
   allowedTier?: string | null;
   zoneName?: string | null;
   message?: string;
+  isGuest?: boolean;
+  guestPin?: string | null;
+  guestQrToken?: string | null;
 }
 
 export const checkinService = {
@@ -88,6 +97,57 @@ export const checkinService = {
   ): Promise<LookupResult> {
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-. \s]/g, '');
+
+    // 1. Authoritative check for existing active parking session for this plate
+    const activeParkingSession = await prisma.checkInRecord.findFirst({
+      where: {
+        checkOutTime: null,
+        status: 'PARKING',
+        vehicle: {
+          OR: [
+            { plateNumber: cleaned },
+            { plateNumber: stripped },
+          ],
+        },
+      },
+      include: {
+        vehicle: {
+          include: {
+            owner: {
+              select: {
+                email: true,
+              },
+            },
+          },
+        },
+        slot: {
+          include: {
+            floor: true,
+          },
+        },
+        floor: true,
+      },
+    });
+
+    if (activeParkingSession) {
+      const activeFloor = activeParkingSession.floor ?? activeParkingSession.slot?.floor;
+      const isGuest = activeParkingSession.vehicle?.owner?.email === 'walkin@system.local';
+      return {
+        found: true,
+        alreadyParked: true,
+        activeCheckInRecordId: activeParkingSession.id,
+        activeCheckInTime: activeParkingSession.checkInTime.toISOString(),
+        plate: activeParkingSession.vehicle?.plateNumber ?? plate,
+        isGuest,
+        customerType: activeParkingSession.vehicle?.isMonthly ? 'monthly' : 'casual',
+        vehicleType: activeParkingSession.vehicle?.type as 'CAR' | 'MOTORBIKE',
+        floorId: activeParkingSession.floorId,
+        floorName: activeFloor?.name ?? null,
+        floorCode: activeFloor?.floorCode ?? null,
+        message: `Biển số ${activeParkingSession.vehicle?.plateNumber ?? plate} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`
+      };
+    }
+
     const vehicle = await prisma.vehicle.findFirst({
       where: {
         OR: [
@@ -162,6 +222,7 @@ export const checkinService = {
       return {
         found: false,
         customerType: 'casual',
+        isGuest: true,
         vehicleType: vType,
         ...capInfo,
       };
@@ -173,6 +234,8 @@ export const checkinService = {
       include: { slot: true },
     });
 
+    const isGuest = vehicle.owner?.email === 'walkin@system.local';
+
     const baseResult: LookupResult = {
       found: true,
       vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
@@ -182,6 +245,7 @@ export const checkinService = {
       year: vehicle.year ?? null,
       seats: (vehicle as Record<string, unknown>).seats as number | null ?? null,
       customerType: vehicle.isMonthly ? 'monthly' : 'casual',
+      isGuest,
       ownerName: vehicle.owner?.fullName ?? null,
       ownerPhone: vehicle.owner?.phoneNumber ?? null,
       ownerEmail: vehicle.owner?.email ?? null,
@@ -331,8 +395,12 @@ export const checkinService = {
     const cleaned = plate.trim().toUpperCase();
     const stripped = cleaned.replace(/[-.\s]/g, '');
 
-    return await prisma.$transaction(async (tx) => {
-      const now = new Date();
+    let attempts = 0;
+    const maxAttempts = 5;
+    while (attempts < maxAttempts) {
+      try {
+        return await prisma.$transaction(async (tx) => {
+          const now = new Date();
 
       // 1. Resolve vehicle
       let vehicle = await tx.vehicle.findFirst({
@@ -346,6 +414,7 @@ export const checkinService = {
           monthlyPackage: {
             include: { floor: true },
           },
+          owner: true,
         },
       });
 
@@ -362,7 +431,9 @@ export const checkinService = {
       if (state.activeCheckIn) {
         throw new AppError(
           409,
-          `Xe này đang có một lượt gửi chưa hoàn tất. Vui lòng Check-out lượt hiện tại trước khi Check-in lại.`
+          `Biển số ${plate} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`,
+          true,
+          'ACTIVE_PARKING_SESSION'
         );
       }
 
@@ -417,6 +488,9 @@ export const checkinService = {
           floorCode: activeBooking.floor.floorCode,
           zoneName: `Đặt chỗ - ${activeBooking.floor.name}`,
           message: `Đặt chỗ hợp lệ. Vui lòng di chuyển vào ${activeBooking.floor.name} và tự chọn vị trí trống phù hợp.`,
+          isGuest: false,
+          guestPin: null,
+          guestQrToken: null,
         };
       }
 
@@ -464,6 +538,9 @@ export const checkinService = {
           allowedTier: pkg.allowedTier,
           zoneName: `Khách tháng - ${pkg.floor.name}`,
           message: `Vui lòng di chuyển vào tầng ${pkg.floor.name} và đỗ tại vị trí trống phù hợp.`,
+          isGuest: false,
+          guestPin: null,
+          guestQrToken: null,
         };
       }
 
@@ -497,7 +574,9 @@ export const checkinService = {
         throw new AppError(400, `Bãi đỗ xe đã hết chỗ trống tại ${floor.name}.`);
       }
 
+      const isGuest = !vehicle || !vehicle.owner || vehicle.owner.email === 'walkin@system.local';
       let effectiveVehicleId: string;
+
       if (!vehicle) {
         const walkinUser = await findOrCreateWalkinUser();
         const newVehicle = await tx.vehicle.create({
@@ -513,6 +592,27 @@ export const checkinService = {
         effectiveVehicleId = vehicle.id;
       }
 
+      let guestPin: string | null = null;
+      let guestQrToken: string | null = null;
+
+      if (isGuest) {
+        const crypto = require('crypto');
+        let pin = '';
+        let pinAttempts = 0;
+        while (pinAttempts < 10) {
+          const rand = crypto.randomInt(0, 1000000);
+          pin = rand.toString().padStart(6, '0');
+          // Check collision against all previously issued PIN values in GuestAccessCredential
+          const existing = await tx.guestAccessCredential.findFirst({
+            where: { pin },
+          });
+          if (!existing) break;
+          pinAttempts++;
+        }
+        guestPin = pin;
+        guestQrToken = crypto.randomBytes(32).toString('hex');
+      }
+
       const checkInTime = new Date();
       await tx.checkInRecord.create({
         data: {
@@ -523,6 +623,14 @@ export const checkinService = {
           isMonthly: false,
           frontImageUrl: frontImageUrl ?? null,
           rearImageUrl: rearImageUrl ?? null,
+          guestCredential: isGuest && guestPin && guestQrToken ? {
+            create: {
+              pin: guestPin,
+              qrToken: guestQrToken,
+              active: true,
+              issuedAt: checkInTime,
+            }
+          } : undefined,
         },
       });
 
@@ -534,8 +642,28 @@ export const checkinService = {
         floorCode: floor.floorCode,
         zoneName: `Khách vãng lai - ${floor.name}`,
         message: `Vui lòng di chuyển vào ${floor.name} và tự chọn vị trí trống phù hợp.`,
+        guestPin,
+        guestQrToken,
+        isGuest,
       };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (err: any) {
+        if (err.code === 'P2002' && (
+          err.meta?.target?.includes('GuestAccessCredential') ||
+          err.meta?.target?.includes('pin') ||
+          err.meta?.target?.includes('qrToken') ||
+          err.meta?.target?.includes('checkInRecordId')
+        )) {
+          attempts++;
+          if (attempts >= maxAttempts) {
+            throw new AppError(409, 'Không thể tạo mã PIN/QR duy nhất cho khách vãng lai sau nhiều lần thử. Vui lòng thử lại.');
+          }
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new AppError(500, 'Không thể thực hiện Check-in.');
   },
 };
 

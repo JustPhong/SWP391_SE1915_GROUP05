@@ -39,6 +39,7 @@ function getRoleLabel(role: string | undefined): string {
 
 export function ProfilePage() {
   const { user, setUser, hasActiveMonthlyPackage } = useAuth();
+  const hasPackage = hasActiveMonthlyPackage;
   const navigate = useNavigate();
   const { logout } = useAuth();
 

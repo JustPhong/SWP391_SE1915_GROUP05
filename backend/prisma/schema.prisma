@@ -30,34 +30,34 @@ model User {
 }
 
 model Floor {
-  id             Int             @id @default(autoincrement())
-  floorCode      String          @unique @db.NVarChar(20)
-  name           String          @db.NVarChar(60)
-  vehicleType    String          @db.NVarChar(30)
-  customerType   String          @db.NVarChar(30)
-  capacity       Int
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  slots          ParkingSlot[]
-  bookings       Booking[]
-  checkInRecords CheckInRecord[]
+  id              Int              @id @default(autoincrement())
+  floorCode       String           @unique @db.NVarChar(20)
+  name            String           @db.NVarChar(60)
+  vehicleType     String           @db.NVarChar(30)
+  customerType    String           @db.NVarChar(30)
+  capacity        Int
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  slots           ParkingSlot[]
+  bookings        Booking[]
+  checkInRecords  CheckInRecord[]
   monthlyPackages MonthlyPackage[]
 }
 
 model ParkingSlot {
-  id                String           @id @default(uuid())
-  code              String           @unique @db.NVarChar(20)
-  type              String           @db.NVarChar(30)
-  status            String           @default("AVAILABLE") @db.NVarChar(30)
-  isFixed           Boolean          @default(false)
+  id                String          @id @default(uuid())
+  code              String          @unique @db.NVarChar(20)
+  type              String          @db.NVarChar(30)
+  status            String          @default("AVAILABLE") @db.NVarChar(30)
+  isFixed           Boolean         @default(false)
   assignedVehicleId String?
-  tier              String           @default("REGULAR") @db.NVarChar(30)
+  tier              String          @default("REGULAR") @db.NVarChar(30)
   floorId           Int
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   checkInRecords    CheckInRecord[]
-  assignedVehicle   Vehicle?         @relation(fields: [assignedVehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  floor             Floor            @relation(fields: [floorId], references: [id], onUpdate: NoAction)
+  assignedVehicle   Vehicle?        @relation(fields: [assignedVehicleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  floor             Floor           @relation(fields: [floorId], references: [id], onUpdate: NoAction)
 
   @@index([floorId])
   @@index([status])
@@ -90,23 +90,23 @@ model MonthlyPackage {
 }
 
 model Booking {
-  id              String   @id @default(uuid())
-  vehicleId       String
-  floorId         Int
-  bookingTime     DateTime @default(now())
-  expectedArrival DateTime
-  status          String   @default("PENDING_PAYMENT") @db.NVarChar(30)
-  createdById     String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  depositAmount   Decimal  @default(0) @db.Decimal(10, 2)
-  depositStatus   String   @default("PENDING") @db.NVarChar(30)
-  expiresAt       DateTime?
-  stripeCheckoutSessionId String? @db.NVarChar(100)
-  confirmedAt     DateTime?
-  bookingDepositAppliedAt DateTime?
-  bookingDepositAppliedToSessionId String? @db.NVarChar(100)
-  bookingDepositEmailSentAt DateTime?
+  id                               String    @id @default(uuid())
+  vehicleId                        String
+  floorId                          Int
+  bookingTime                      DateTime  @default(now())
+  expectedArrival                  DateTime
+  status                           String    @default("PENDING_PAYMENT") @db.NVarChar(30)
+  createdById                      String
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
+  depositAmount                    Decimal   @default(0) @db.Decimal(10, 2)
+  depositStatus                    String    @default("PENDING") @db.NVarChar(30)
+  expiresAt                        DateTime?
+  stripeCheckoutSessionId          String?   @db.NVarChar(100)
+  confirmedAt                      DateTime?
+  bookingDepositAppliedAt          DateTime?
+  bookingDepositAppliedToSessionId String?   @db.NVarChar(100)
+  bookingDepositEmailSentAt        DateTime?
 
   createdBy      User            @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   floor          Floor           @relation(fields: [floorId], references: [id], onUpdate: NoAction)
@@ -147,11 +147,28 @@ model CheckInRecord {
   vehicle            Vehicle      @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
   payments           Payment[]
 
+  prepaidAt       DateTime?
+  guestCredential GuestAccessCredential?
+
   @@index([status])
   @@index([vehicleId])
   @@index([checkInTime])
   @@index([floorId])
   @@index([bookingId])
+}
+
+model GuestAccessCredential {
+  id              String    @id @default(uuid())
+  checkInRecordId String    @unique
+  pin             String    @unique @db.NVarChar(6)
+  qrToken         String    @unique @db.NVarChar(255)
+  active          Boolean   @default(true)
+  issuedAt        DateTime  @default(now())
+  revokedAt       DateTime?
+
+  checkInRecord CheckInRecord @relation(fields: [checkInRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([active])
 }
 
 model Payment {
@@ -177,6 +194,7 @@ model Payment {
   @@index([checkInRecordId])
   @@index([monthlyPackageId])
   @@index([bookingId])
+  @@index([checkInRecordId, type], map: "Payment_checkInRecordId_type_idx")
 }
 
 model Permission {

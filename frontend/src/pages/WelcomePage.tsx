@@ -12,6 +12,11 @@ import {
 import { getCurrentSession, CurrentSession } from '../api/driverDashboardApi';
 import { addVehicle } from '../api/vehicleApi';
 import { getPublicAvailability, type AvailabilityData } from '../api/publicApi';
+import {
+  lookupGuestVehicle,
+  createGuestStripeSession,
+  type GuestLookupResult
+} from '../api/guestApi';
 import { ProfilePage } from './Profile';
 import { HistoryPage } from './History';
 import { MyVehiclePage } from './MyVehicle';
@@ -98,6 +103,122 @@ export const WelcomePage: React.FC = () => {
   const [availability, setAvailability] = useState<AvailabilityData | null>(null);
   const [availLoading, setAvailLoading] = useState(true);
   const [availError, setAvailError] = useState(false);
+
+  // ── Guest Vehicle Tracking & Prepayment states ────────────
+  const [guestPinInput, setGuestPinInput] = useState('');
+  const [guestData, setGuestData] = useState<GuestLookupResult | null>(null);
+  const [guestLookupLoading, setGuestLookupLoading] = useState(false);
+  const [guestLookupError, setGuestLookupError] = useState<string | null>(null);
+  const [guestPaymentLoading, setGuestPaymentLoading] = useState(false);
+  const [stripeStatus, setStripeStatus] = useState<{ status: string; text: string; type: 'success' | 'error' | null }>({ status: '', text: '', type: null });
+  const [countdownSeconds, setCountdownSeconds] = useState<number>(0);
+  // In-memory only: the credential used for the successful lookup, forwarded to payment endpoint.
+  // Never stored in localStorage. Cleared after redirect.
+  const [guestActivePin, setGuestActivePin] = useState<string | undefined>(undefined);
+  const [guestActiveQrToken, setGuestActiveQrToken] = useState<string | undefined>(undefined);
+
+  const fetchGuestData = async (pin?: string, qrToken?: string) => {
+    setGuestLookupLoading(true);
+    setGuestLookupError(null);
+    try {
+      const data = await lookupGuestVehicle(pin, qrToken);
+      setGuestData(data);
+      // Remember which credential was used for this successful lookup (in-memory only)
+      setGuestActivePin(pin);
+      setGuestActiveQrToken(qrToken);
+      if (data.isGraceActive && data.graceExpiresAt) {
+        const remaining = Math.max(0, Math.round((new Date(data.graceExpiresAt).getTime() - Date.now()) / 1000));
+        setCountdownSeconds(remaining);
+      } else {
+        setCountdownSeconds(0);
+      }
+    } catch (err: any) {
+      setGuestData(null);
+      setGuestActivePin(undefined);
+      setGuestActiveQrToken(undefined);
+      setGuestLookupError(err.response?.data?.message || 'Thông tin tìm kiếm không tồn tại hoặc đã hết hạn.');
+    } finally {
+      setGuestLookupLoading(false);
+    }
+  };
+
+  const handlePrepay = async () => {
+    if (!guestData) return;
+    if (!guestActivePin && !guestActiveQrToken) {
+      alert('Phiên tra cứu không hợp lệ. Vui lòng tra cứu lại.');
+      return;
+    }
+    setGuestPaymentLoading(true);
+    try {
+      // Store PIN in sessionStorage for lookup after Stripe redirect.
+      // The raw credential is sent to the backend for verification; it is not persisted in localStorage.
+      if (guestActivePin) sessionStorage.setItem('lastGuestPin', guestActivePin);
+      sessionStorage.setItem('lastGuestRecordId', guestData.recordId);
+
+      const { checkoutUrl } = await createGuestStripeSession(
+        guestData.recordId,
+        guestActivePin,
+        guestActiveQrToken,
+      );
+      // Clear in-memory credential before leaving the page
+      setGuestActivePin(undefined);
+      setGuestActiveQrToken(undefined);
+      window.location.href = checkoutUrl;
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể khởi tạo phiên thanh toán.');
+      setGuestPaymentLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!guestData || !guestData.isGraceActive || countdownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCountdownSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          fetchGuestData(guestPinInput || undefined, undefined);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [guestData, countdownSeconds]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const qrVal = params.get('qr');
+    if (qrVal) {
+      fetchGuestData(undefined, qrVal);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    const stripeResult = params.get('stripe');
+    const sessionId = params.get('session_id');
+    if (stripeResult === 'success' && sessionId) {
+      setStripeStatus({ status: 'success', text: 'Thanh toán thành công! Bạn có 5 phút để di chuyển xe ra khỏi bãi.', type: 'success' });
+      const savedPin = sessionStorage.getItem('lastGuestPin');
+      // Remove immediately — do not leave credentials in sessionStorage after reading
+      sessionStorage.removeItem('lastGuestPin');
+      sessionStorage.removeItem('lastGuestRecordId');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      if (savedPin) {
+        setGuestPinInput(savedPin);
+        fetchGuestData(savedPin);
+      }
+    } else if (stripeResult === 'cancelled') {
+      setStripeStatus({ status: 'cancelled', text: 'Giao dịch thanh toán đã bị hủy bỏ.', type: 'error' });
+      const savedPin = sessionStorage.getItem('lastGuestPin');
+      // Remove immediately — do not leave credentials in sessionStorage after reading
+      sessionStorage.removeItem('lastGuestPin');
+      sessionStorage.removeItem('lastGuestRecordId');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      if (savedPin) {
+        setGuestPinInput(savedPin);
+        fetchGuestData(savedPin);
+      }
+    }
+  }, [location]);
 
   useEffect(() => {
     let cancelled = false;
@@ -438,6 +559,262 @@ export const WelcomePage: React.FC = () => {
     }
   };
 
+  const renderGuestTracking = () => {
+    const formatTime = (sec: number) => {
+      const mins = Math.floor(sec / 60);
+      const secs = sec % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    return (
+      <section style={{
+        padding: '5rem 2rem',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+        borderTop: '1px solid #e2e8f0',
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}>
+        <div style={{ maxWidth: '800px', width: '100%', textAlign: 'center' }}>
+          <span style={{
+            background: '#eff6ff', color: '#2563eb', padding: '0.5rem 1rem',
+            borderRadius: '99px', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.05em',
+            textTransform: 'uppercase', display: 'inline-block', marginBottom: '1rem'
+          }}>
+            Khách Vãng Lai
+          </span>
+          <h2 style={{ fontSize: '2.25rem', fontWeight: 900, color: '#1e293b', marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>
+            Tra Cứu Vé & Thanh Toán Phí
+          </h2>
+          <p style={{ color: '#64748b', fontSize: '1.05rem', marginBottom: '2.5rem', maxWidth: '600px', margin: '0 auto 2.5rem' }}>
+            Nhập mã PIN 6 chữ số in trên phiếu check-in để theo dõi thời gian gửi, vị trí tầng và thanh toán phí trước bằng thẻ để ra bãi nhanh chóng.
+          </p>
+
+          {/* Alert Banner for Stripe redirect status */}
+          {stripeStatus.type && (
+            <div style={{
+              background: stripeStatus.type === 'success' ? '#f0fdf4' : '#fef2f2',
+              border: `1.5px solid ${stripeStatus.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+              borderRadius: '12px',
+              padding: '1rem 1.25rem',
+              marginBottom: '2rem',
+              color: stripeStatus.type === 'success' ? '#15803d' : '#b91c1c',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+            }}>
+              {stripeStatus.type === 'success' ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              )}
+              <span>{stripeStatus.text}</span>
+            </div>
+          )}
+
+          {/* Search Card */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '20px',
+            padding: '2rem',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)',
+            border: '1px solid #e2e8f0',
+            textAlign: 'left',
+            marginBottom: '2rem'
+          }}>
+            <form onSubmit={(e) => { e.preventDefault(); fetchGuestData(guestPinInput); }} style={{ display: 'flex', gap: '0.75rem' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={guestPinInput}
+                  onChange={(e) => setGuestPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Nhập mã PIN 6 chữ số (ví dụ: 123456)"
+                  style={{
+                    width: '100%',
+                    padding: '1rem 1rem 1rem 3rem',
+                    borderRadius: '12px',
+                    border: '2px solid #cbd5e1',
+                    fontSize: '1.05rem',
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    fontFamily: guestPinInput ? 'monospace' : 'inherit',
+                    letterSpacing: guestPinInput ? '0.2em' : 'normal',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                  onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                />
+                <div style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={guestLookupLoading || guestPinInput.length !== 6}
+                style={{
+                  padding: '0 2rem',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: guestPinInput.length === 6 ? 'pointer' : 'not-allowed',
+                  opacity: guestPinInput.length === 6 ? 1 : 0.6,
+                  transition: 'background 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                {guestLookupLoading ? (
+                  <div style={{ width: 16, height: 16, border: '2px solid #ffffff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                ) : 'Tra Cứu'}
+              </button>
+            </form>
+
+            {guestLookupError && (
+              <div style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 600, marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span>{guestLookupError}</span>
+              </div>
+            )}
+
+            {/* Results Display */}
+            {guestData && (
+              <div style={{ marginTop: '2rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Biển Số Xe</span>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', marginTop: '0.25rem' }}>{guestData.plate}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Khu vực đỗ xe</span>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f766e', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                      {guestData.floorName} ({guestData.floorCode})
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Thời gian gửi</span>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b', marginTop: '0.25rem' }}>
+                      {Math.floor(guestData.durationMinutes / 60)}h {guestData.durationMinutes % 60}m
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prepayment state */}
+                {guestData.isGraceActive && guestData.graceExpiresAt ? (
+                  <div style={{
+                    background: '#ecfdf5',
+                    border: '1.5px solid #a7f3d0',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    marginBottom: '1.5rem',
+                    boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.05)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#047857' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>Đã Thanh Toán Trước Toàn Bộ Phí</span>
+                    </div>
+                    <div style={{ fontSize: '0.88rem', color: '#065f46', lineHeight: 1.5 }}>
+                      Lượt gửi xe đã được thanh toán online. Bạn có <span style={{ fontWeight: 800, color: '#047857' }}>5 phút ân hạn</span> để di chuyển xe ra khỏi bãi mà không cần nộp thêm tiền.
+                    </div>
+                    <div style={{
+                      marginTop: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '1rem',
+                      color: '#065f46'
+                    }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      <span>Thời gian còn lại để ra bãi: </span>
+                      <strong style={{
+                        fontSize: '1.25rem',
+                        fontWeight: 900,
+                        color: countdownSeconds <= 60 ? '#dc2626' : '#047857',
+                        fontFamily: 'monospace',
+                      }}>
+                        {formatTime(countdownSeconds)}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1.5px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: '1.25rem',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#64748b' }}>
+                      <span>Phí tích lũy hiện tại:</span>
+                      <span style={{ fontWeight: 600 }}>{guestData.totalFee.toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem', color: '#64748b' }}>
+                      <span>Đã thanh toán trước đó:</span>
+                      <span style={{ fontWeight: 600, color: '#16a34a' }}>-{guestData.totalSuccessfullyPaid.toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '0.75rem', fontSize: '1.1rem', fontWeight: 800 }}>
+                      <span style={{ color: '#1e293b' }}>Số tiền cần thanh toán:</span>
+                      <span style={{ color: '#ef4444' }}>{guestData.additionalAmountDue.toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Prepayment Action */}
+                {!guestData.isGraceActive && guestData.additionalAmountDue > 0 && (
+                  <button
+                    onClick={handlePrepay}
+                    disabled={guestPaymentLoading}
+                    style={{
+                      width: '100%',
+                      padding: '1rem',
+                      background: '#16a34a',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '12px',
+                      fontWeight: 800,
+                      fontSize: '1.05rem',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 6px -1px rgba(22, 185, 129, 0.2)'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#15803d'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#16a34a'}
+                  >
+                    {guestPaymentLoading ? (
+                      <div style={{ width: 20, height: 20, border: '3px solid #ffffff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                    ) : (
+                      <>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                        Thanh Toán Online Qua Stripe (Thẻ Quốc Tế)
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   // ── Loading screen while detecting user type ──────────────
   if (pkgLoading) {
     return (
@@ -493,6 +870,7 @@ export const WelcomePage: React.FC = () => {
           availLoading={availLoading}
           availError={availError}
         />
+        {renderGuestTracking()}
         <ProcessSection />
         <FeaturesSection />
         <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
@@ -861,6 +1239,8 @@ export const WelcomePage: React.FC = () => {
       />
     </div>
   );
+
+  // (renderGuestTracking moved above returns)
 };
 
 // ═══════════════════════════════════════════════════════════════

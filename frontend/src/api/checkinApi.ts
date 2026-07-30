@@ -15,8 +15,13 @@ export interface ActiveBookingSummary {
 export interface LookupResult {
   found: boolean;
   alreadyParked?: boolean;
+  activeCheckInRecordId?: string | null;
+  activeCheckInTime?: string | null;
+  plate?: string;
+  message?: string;
   slotCode?: string;
   customerType: 'monthly' | 'casual' | 'booking';
+  isGuest?: boolean;
   vehicleType?: 'CAR' | 'MOTORBIKE';
   brand?: string | null;
   model?: string | null;
@@ -79,6 +84,9 @@ export interface CheckinSubmitResult {
   floorCode?: string;
   zoneName?: string | null;
   message?: string;
+  guestPin?: string | null;
+  guestQrToken?: string | null;
+  isGuest?: boolean;
 }
 
 // ─── OCR ─────────────────────────────────────────────────────────────────
@@ -270,9 +278,19 @@ export async function submitCheckIn(
     );
     return unwrap(response);
   } catch (err: unknown) {
-    const rawMsg =
-      (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-    const msg = rawMsg ?? 'Không thể check-in. Vui lòng thử lại.';
+    const responseData = (err as { response?: { data?: any } })?.response?.data;
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    const rawMsg = responseData?.message;
+    const errorCode = responseData?.errorCode;
+    
+    let msg = rawMsg;
+    if (!msg) {
+      if (errorCode === 'ACTIVE_PARKING_SESSION' || status === 409) {
+        msg = 'Biển số này hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.';
+      } else {
+        msg = 'Không thể check-in. Vui lòng thử lại.';
+      }
+    }
     throw new Error(msg);
   }
 }

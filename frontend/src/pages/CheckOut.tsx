@@ -56,6 +56,9 @@ interface FeePreview {
   baseParkingFee?: number;
   bookingDepositApplied?: number;
   discountAmount?: number;
+  totalSuccessfullyPaid?: number;
+  prepaidAt?: string | null;
+  graceExpiresAt?: string | null;
 }
 
 interface CheckOutResponse {
@@ -1270,6 +1273,48 @@ export function CheckOutPage() {
                   <span style={{ color: C.red }}>{formatCurrency(feePreview.amountDue ?? feePreview.fee)}</span>
                 </div>
 
+                {feePreview.totalSuccessfullyPaid !== undefined && feePreview.totalSuccessfullyPaid > 0 && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    padding: '0.75rem',
+                    background: '#F0FDF4',
+                    border: '1.5px solid #BBF7D0',
+                    borderRadius: 10,
+                    fontSize: '0.8rem',
+                    color: '#15803D',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4
+                  }}>
+                    <div style={{ fontWeight: 800 }}>Đã thanh toán trước: {formatCurrency(feePreview.totalSuccessfullyPaid)}</div>
+                    {feePreview.graceExpiresAt && (
+                      <div style={{ fontSize: '0.75rem', marginTop: 2 }}>
+                        {Date.now() <= new Date(feePreview.graceExpiresAt).getTime() ? (
+                          <>
+                            <span style={{ fontWeight: 700 }}>Thời hạn ra bãi: </span>
+                            <span style={{ color: '#16A34A', fontWeight: 800 }}>
+                              {new Date(feePreview.graceExpiresAt).toLocaleTimeString('vi-VN')}
+                            </span>
+                            <span style={{ display: 'block', fontSize: '0.7rem', color: '#166534', marginTop: 2 }}>
+                              (Còn trong thời hạn 5 phút ân hạn)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ fontWeight: 700, color: C.red }}>Thời hạn ra bãi đã hết hạn: </span>
+                            <span style={{ color: C.red, fontWeight: 800 }}>
+                              {new Date(feePreview.graceExpiresAt).toLocaleTimeString('vi-VN')}
+                            </span>
+                            <span style={{ display: 'block', fontSize: '0.7rem', color: '#991B1B', marginTop: 2 }}>
+                              (Đã quá 5 phút kể từ lúc thanh toán. Cần nộp thêm phí phát sinh)
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Zero due info message */}
                 {((feePreview.amountDue ?? feePreview.fee) === 0 || foundRecord.isMonthly) && (
                   <div style={{
@@ -1282,7 +1327,7 @@ export function CheckOutPage() {
                     fontWeight: 600,
                     marginTop: '0.5rem',
                   }}>
-                    Không phát sinh phí cần thanh toán.
+                    Không phát sinh thêm phí cần thanh toán. Sẵn sàng ra bãi.
                   </div>
                 )}
 

@@ -33,6 +33,9 @@ export interface CheckoutLookupResult {
   frontImageUrl?: string | null;
   rearImageUrl?: string | null;
   isLegacy?: boolean;
+  totalSuccessfullyPaid?: number;
+  prepaidAt?: string | null;
+  graceExpiresAt?: string | null;
 }
 
 function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {

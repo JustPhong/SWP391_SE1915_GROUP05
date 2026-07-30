@@ -59,6 +59,9 @@ export interface CheckoutLookupResult {
   grossParkingFee?: number;
   bookingDepositPaid?: number;
   amountDue?: number;
+  totalSuccessfullyPaid?: number;
+  prepaidAt?: string | null;
+  graceExpiresAt?: string | null;
   frontImageUrl?: string | null;
   rearImageUrl?: string | null;
   isLegacy?: boolean;
@@ -94,6 +97,7 @@ export interface CheckoutSubmitResult {
   }[];
   grossParkingFee: number;
   bookingDepositPaid: number;
+  totalSuccessfullyPaid: number;
   amountDue: number;
   checkInTime: string;
   durationMinutes: number;
@@ -138,6 +142,8 @@ export const checkoutService = {
           },
         },
         floor: true,
+        payments: true,
+        guestCredential: true,
       },
     });
 
@@ -200,7 +206,16 @@ export const checkoutService = {
         }
       }
     }
-    const amountDue = Math.max(0, total - depositCredit);
+
+    const totalSuccessfullyPaid = record.payments?.reduce((sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0) ?? 0;
+    let amountDue = Math.max(0, total - depositCredit - totalSuccessfullyPaid);
+    let graceExpiresAt = null;
+    if (record.prepaidAt) {
+      graceExpiresAt = new Date(new Date(record.prepaidAt).getTime() + 300 * 1000);
+      if (now <= graceExpiresAt) {
+        amountDue = 0;
+      }
+    }
 
     let packageExpiry: string | undefined;
     if (record.isMonthly) {
@@ -249,6 +264,9 @@ export const checkoutService = {
       frontImageUrl: resolveCheckInImageUrl(record.frontImageUrl),
       rearImageUrl: resolveCheckInImageUrl(record.rearImageUrl),
       isLegacy,
+      totalSuccessfullyPaid,
+      prepaidAt: record.prepaidAt ? record.prepaidAt.toISOString() : null,
+      graceExpiresAt: graceExpiresAt ? graceExpiresAt.toISOString() : null,
     };
   },
 
@@ -313,6 +331,9 @@ export const checkoutService = {
     baseParkingFee: number;
     bookingDepositApplied: number;
     discountAmount: number;
+    totalSuccessfullyPaid?: number;
+    prepaidAt?: string | null;
+    graceExpiresAt?: string | null;
   }> {
     const record = await prisma.checkInRecord.findUnique({
       where: { id: recordId },
@@ -324,6 +345,7 @@ export const checkoutService = {
           },
         },
         floor: true,
+        payments: true,
       },
     });
 
@@ -376,7 +398,16 @@ export const checkoutService = {
       }
     }
 
-    const amountDue = Math.max(0, total - depositCredit);
+    const totalSuccessfullyPaid = record.payments?.reduce((sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0) ?? 0;
+    let amountDue = Math.max(0, total - depositCredit - totalSuccessfullyPaid);
+    let graceExpiresAt = null;
+    if (record.prepaidAt) {
+      graceExpiresAt = new Date(new Date(record.prepaidAt).getTime() + 300 * 1000);
+      if (now <= graceExpiresAt) {
+        amountDue = 0;
+      }
+    }
+
     const durationMinutes = Math.round((now.getTime() - new Date(record.checkInTime).getTime()) / 60_000);
 
     return {
@@ -392,6 +423,9 @@ export const checkoutService = {
       baseParkingFee: record.isMonthly ? 0 : total,
       bookingDepositApplied: record.isMonthly ? 0 : depositCredit,
       discountAmount: 0,
+      totalSuccessfullyPaid,
+      prepaidAt: record.prepaidAt ? record.prepaidAt.toISOString() : null,
+      graceExpiresAt: graceExpiresAt ? graceExpiresAt.toISOString() : null,
     };
   },
 
@@ -421,6 +455,7 @@ export const checkoutService = {
             },
           },
           floor: true,
+          payments: true,
         },
       });
     } else if (plate) {
@@ -445,6 +480,7 @@ export const checkoutService = {
             },
           },
           floor: true,
+          payments: true,
         },
       });
 
@@ -468,69 +504,99 @@ export const checkoutService = {
       throw new AppError(409, 'Xe đã được Check-out trước đó.');
     }
 
-    const now = new Date();
-    const checkIn = new Date(record.checkInTime);
     const config = await feeRuleService.getFeeConfig();
-    const { total, breakdown } = calcFee(
-      checkIn,
-      now,
-      record.vehicle.type as 'CAR' | 'MOTORBIKE',
-      config
-    );
 
-    let depositCredit = 0;
-    let bookingToUse = null;
-    if (!record.isMonthly) {
-      if (record.bookingId) {
-        bookingToUse = await prisma.booking.findUnique({
-          where: { id: record.bookingId },
-        });
-        if (bookingToUse && bookingToUse.status === 'FULFILLED' && bookingToUse.depositStatus === 'PAID' && bookingToUse.bookingDepositAppliedAt === null) {
-          const paidPayment = await prisma.payment.findFirst({
-            where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
-          });
-          if (paidPayment) {
-            depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
-          }
-        }
-      } else {
-        bookingToUse = await prisma.booking.findFirst({
-          where: {
-            vehicleId: record.vehicleId,
-            status: 'FULFILLED',
-            depositStatus: 'PAID',
-            bookingDepositAppliedAt: null,
-          },
-          orderBy: { bookingTime: 'desc' },
-        });
-        if (bookingToUse) {
-          const paidPayment = await prisma.payment.findFirst({
-            where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
-          });
-          if (paidPayment) {
-            depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
-          }
-        }
-      }
-    }
-
-    const finalAmountDue = Math.max(0, total - depositCredit);
-
-    await prisma.$transaction(async (tx) => {
-      // Concurrency lock
+    // ── Use a structured transaction result (Option B) so all authoritative
+    //    financial variables and record properties are returned from inside the transaction,
+    //    guaranteeing no reliance on any potentially stale record state loaded before lock.
+    const txResult = await prisma.$transaction(async (tx) => {
+      // Concurrency lock — blocks a concurrent duplicate Checkout for the same vehicle
       await acquireVehicleOrPlateLock(tx, record.vehicleId, record.vehicle.plateNumber);
 
+      // Reload the visit, its payments, slot, and floor from the authoritative DB state inside the tx
       const activeRecord = await tx.checkInRecord.findUnique({
         where: { id: record.id },
+        include: {
+          vehicle: true,
+          payments: true,
+          slot: {
+            include: {
+              floor: true,
+            },
+          },
+          floor: true,
+        },
       });
 
       if (!activeRecord || activeRecord.checkOutTime !== null) {
         throw new AppError(409, 'Xe đã được Check-out trước đó.');
       }
 
+      // Authoritative checkout timestamp — used for fee calculation and all mutations
+      const now = new Date();
+      const checkIn = new Date(activeRecord.checkInTime);
+      const { total, breakdown } = calcFee(
+        checkIn,
+        now,
+        activeRecord.vehicle.type as 'CAR' | 'MOTORBIKE',
+        config
+      );
+
+      let depositCredit = 0;
+      let bookingToUse = null;
+      if (!activeRecord.isMonthly) {
+        if (activeRecord.bookingId) {
+          bookingToUse = await tx.booking.findUnique({
+            where: { id: activeRecord.bookingId },
+          });
+          if (bookingToUse && bookingToUse.status === 'FULFILLED' && bookingToUse.depositStatus === 'PAID' && bookingToUse.bookingDepositAppliedAt === null) {
+            const paidPayment = await tx.payment.findFirst({
+              where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+            });
+            if (paidPayment) {
+              depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+            }
+          }
+        } else {
+          bookingToUse = await tx.booking.findFirst({
+            where: {
+              vehicleId: activeRecord.vehicleId,
+              status: 'FULFILLED',
+              depositStatus: 'PAID',
+              bookingDepositAppliedAt: null,
+            },
+            orderBy: { bookingTime: 'desc' },
+          });
+          if (bookingToUse) {
+            const paidPayment = await tx.payment.findFirst({
+              where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+            });
+            if (paidPayment) {
+              depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+            }
+          }
+        }
+      }
+
+      // Authoritative sum of all successful PARKING_FEE payments for this visit so far
+      const totalSuccessfullyPaidBefore = activeRecord.payments?.reduce(
+        (sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0
+      ) ?? 0;
+
+      // Outstanding balance after crediting all prior payments and booking deposit
+      let finalAmountDue = Math.max(0, total - depositCredit - totalSuccessfullyPaidBefore);
+
+      // Five-minute grace period: no additional collection if prepayment is still active
+      if (activeRecord.prepaidAt) {
+        const graceExpiresAt = new Date(new Date(activeRecord.prepaidAt).getTime() + 300 * 1000);
+        if (now <= graceExpiresAt) {
+          finalAmountDue = 0;
+        }
+      }
+
       const updated = await tx.checkInRecord.updateMany({
         where: {
-          id: record.id,
+          id: activeRecord.id,
           checkOutTime: null,
         },
         data: {
@@ -540,23 +606,29 @@ export const checkoutService = {
         },
       });
 
+      await tx.guestAccessCredential.updateMany({
+        where: {
+          checkInRecordId: activeRecord.id,
+          active: true,
+        },
+        data: {
+          active: false,
+          revokedAt: now,
+        },
+      });
+
       if (updated.count === 0) {
+        // The concurrent duplicate path: lock was released, other tx already committed
         throw new AppError(409, 'Xe đã được check-out trước đó.');
       }
 
-      if (!record.isMonthly && finalAmountDue > 0) {
-        const existingPayment = await tx.payment.findFirst({
-          where: {
-            checkInRecordId: record.id,
-            type: { in: ['SESSION', 'PARKING_FEE'] },
-          },
-        });
-        if (existingPayment) {
-          throw new AppError(409, 'Giao dịch thanh toán cho lượt gửi xe này đã được xử lý trước đó.');
-        }
+      // Create a manual payment only when there is a genuinely outstanding balance.
+      // A concurrent duplicate Checkout would have been caught above (checkOutTime already set).
+      // An already-paid balance produces finalAmountDue = 0 → no Payment created.
+      if (!activeRecord.isMonthly && finalAmountDue > 0) {
         await tx.payment.create({
           data: {
-            checkInRecordId: record.id,
+            checkInRecordId: activeRecord.id,
             bookingId: null,
             monthlyPackageId: null,
             amount: finalAmountDue,
@@ -577,7 +649,7 @@ export const checkoutService = {
           },
           data: {
             bookingDepositAppliedAt: now,
-            bookingDepositAppliedToSessionId: record.id,
+            bookingDepositAppliedToSessionId: activeRecord.id,
           },
         });
         if (updateResult.count !== 1) {
@@ -585,37 +657,82 @@ export const checkoutService = {
         }
       }
 
-      if (record.slotId) {
+      if (activeRecord.slotId) {
         const updateData: { status: string; assignedVehicleId?: string | null } = {
           status: 'AVAILABLE',
         };
-        if (record.isMonthly && record.slot?.assignedVehicleId) {
+        if (activeRecord.isMonthly && activeRecord.slot?.assignedVehicleId) {
           updateData.status = 'RESERVED';
-        } else if (!record.isMonthly && !record.slot?.isFixed) {
+        } else if (!activeRecord.isMonthly && !activeRecord.slot?.isFixed) {
           updateData.assignedVehicleId = null;
         }
         await tx.parkingSlot.update({
-          where: { id: record.slotId },
+          where: { id: activeRecord.slotId },
           data: updateData,
         });
       }
-    });
+
+      // Authoritative sum of all successful PARKING_FEE payments for this visit after mutations
+      const totalPaidDb = await tx.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          checkInRecordId: activeRecord.id,
+          type: 'PARKING_FEE',
+          status: 'SUCCESS',
+        },
+      });
+      const postTotalSuccessfullyPaid = Number(totalPaidDb._sum.amount ?? 0);
+
+      // Return all authoritative values so the caller can build the response
+      // without referencing variables that were computed inside the transaction callback
+      // or using any stale data loaded before the transaction.
+      return {
+        now,
+        breakdown,
+        total,
+        depositCredit,
+        totalSuccessfullyPaid: postTotalSuccessfullyPaid,
+        finalAmountDue,
+        isMonthly: activeRecord.isMonthly,
+        checkInTime: activeRecord.checkInTime,
+        plateNumber: activeRecord.vehicle.plateNumber,
+        slotCode: activeRecord.slot?.code ?? (activeRecord.allowedTier ? `Khu ${activeRecord.allowedTier === 'VIP' ? 'VIP' : activeRecord.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+        floorName: activeRecord.floor?.name ?? activeRecord.slot?.floor?.name ?? 'Không xác định',
+        floorCode: activeRecord.floor?.floorCode ?? activeRecord.slot?.floor?.floorCode ?? '',
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    const {
+      now,
+      breakdown,
+      total,
+      depositCredit,
+      totalSuccessfullyPaid,
+      finalAmountDue,
+      isMonthly,
+      checkInTime,
+      plateNumber,
+      slotCode,
+      floorName,
+      floorCode,
+    } = txResult;
 
     return {
       ok: true,
-      plate: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      fee: record.isMonthly ? 0 : finalAmountDue,
-      isMonthly: record.isMonthly,
+      plate: plateNumber,
+      slotCode,
+      fee: isMonthly ? 0 : finalAmountDue,
+      isMonthly,
       checkOutTime: now.toISOString(),
       breakdown,
-      grossParkingFee: record.isMonthly ? 0 : total,
-      bookingDepositPaid: record.isMonthly ? 0 : depositCredit,
-      amountDue: record.isMonthly ? 0 : finalAmountDue,
-      checkInTime: record.checkInTime.toISOString(),
-      durationMinutes: Math.round((now.getTime() - new Date(record.checkInTime).getTime()) / 60_000),
-      floorName: record.floor?.name ?? record.slot?.floor?.name ?? 'Không xác định',
-      floorCode: record.floor?.floorCode ?? record.slot?.floor?.floorCode ?? '',
+      grossParkingFee: isMonthly ? 0 : total,
+      bookingDepositPaid: isMonthly ? 0 : depositCredit,
+      totalSuccessfullyPaid: isMonthly ? 0 : totalSuccessfullyPaid,
+      amountDue: isMonthly ? 0 : finalAmountDue,
+      checkInTime: checkInTime.toISOString(),
+      durationMinutes: Math.round((now.getTime() - checkInTime.getTime()) / 60_000),
+      floorName,
+      floorCode,
       paymentMethod: method,
     };
   },
@@ -863,7 +980,24 @@ export const checkoutService = {
         throw new AppError(500, 'Số tiền thanh toán không hợp lệ.');
       }
 
-      const grossParkingFee = paymentAmount + bookingDepositPaid;
+      const config = await feeRuleService.getFeeConfig();
+      const { total: grossParkingFee } = calcFee(
+        new Date(record.checkInTime),
+        record.checkOutTime,
+        record.vehicle.type as 'CAR' | 'MOTORBIKE',
+        config
+      );
+
+      const totalPaidDb = await prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          checkInRecordId: record.id,
+          type: 'PARKING_FEE',
+          status: 'SUCCESS',
+        },
+      });
+      const totalSuccessfullyPaid = Number(totalPaidDb._sum.amount ?? 0);
+      const amountDue = Math.max(0, grossParkingFee - bookingDepositPaid - totalSuccessfullyPaid);
 
       const receipt: CheckoutSubmitResult = {
         ok: true,
@@ -874,7 +1008,8 @@ export const checkoutService = {
         checkOutTime: record.checkOutTime.toISOString(),
         grossParkingFee,
         bookingDepositPaid,
-        amountDue: paymentAmount,
+        totalSuccessfullyPaid,
+        amountDue,
         checkInTime: record.checkInTime.toISOString(),
         durationMinutes,
         floorName,
@@ -954,7 +1089,24 @@ export const checkoutService = {
         }
       }
 
-      const grossParkingFee = parseFloat(String(payment.amount)) + bookingDepositPaid;
+      const config = await feeRuleService.getFeeConfig();
+      const { total: grossParkingFee } = calcFee(
+        new Date(record.checkInTime),
+        record.checkOutTime,
+        record.vehicle.type as 'CAR' | 'MOTORBIKE',
+        config
+      );
+
+      const totalPaidDb = await prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: {
+          checkInRecordId: record.id,
+          type: 'PARKING_FEE',
+          status: 'SUCCESS',
+        },
+      });
+      const totalSuccessfullyPaid = Number(totalPaidDb._sum.amount ?? 0);
+      const amountDue = Math.max(0, grossParkingFee - bookingDepositPaid - totalSuccessfullyPaid);
 
       const receipt: CheckoutSubmitResult = {
         ok: true,
@@ -965,7 +1117,8 @@ export const checkoutService = {
         checkOutTime: record.checkOutTime.toISOString(),
         grossParkingFee,
         bookingDepositPaid,
-        amountDue: parseFloat(String(payment.amount)),
+        totalSuccessfullyPaid,
+        amountDue,
         checkInTime: record.checkInTime.toISOString(),
         durationMinutes,
         floorName,
@@ -1023,7 +1176,9 @@ export const checkoutService = {
           if (!payment) throw new AppError(404, 'Không tìm thấy thanh toán.');
           if (!record) throw new AppError(404, 'Không tìm thấy lượt gửi xe.');
 
-          if (payment.status === 'SUCCESS' && record.checkOutTime !== null && record.status === 'COMPLETED') {
+          const isPrepayment = metadata.isPrepayment === 'true';
+
+          if (payment.status === 'SUCCESS' && (isPrepayment || (record.checkOutTime !== null && record.status === 'COMPLETED'))) {
             return { success: true, alreadyProcessed: true };
           }
 
@@ -1111,6 +1266,16 @@ export const checkoutService = {
             }
           }
 
+          if (isPrepayment) {
+            await tx.checkInRecord.update({
+              where: { id: record.id },
+              data: {
+                prepaidAt: now,
+              },
+            });
+            return { success: true, alreadyProcessed: false };
+          }
+
           const checkInRecordUpdateResult = await tx.checkInRecord.updateMany({
             where: {
               id: record.id,
@@ -1120,6 +1285,17 @@ export const checkoutService = {
               checkOutTime: now,
               checkedOutById: payment.collectedById,
               status: 'COMPLETED',
+            },
+          });
+
+          await tx.guestAccessCredential.updateMany({
+            where: {
+              checkInRecordId: record.id,
+              active: true,
+            },
+            data: {
+              active: false,
+              revokedAt: now,
             },
           });
 

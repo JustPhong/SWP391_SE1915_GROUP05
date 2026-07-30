@@ -9,6 +9,7 @@ import {
   type CheckinSubmitResult,
 } from '../api/checkinApi';
 import { normalizePlateForLookup, validatePlate } from '../utils/plate';
+import QRCode from 'qrcode';
 
 // ═════════════════════════════════════════════════════
 //  DESIGN TOKENS
@@ -533,6 +534,23 @@ export function CheckInPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<CheckinSubmitResult | null>(null);
 
+  // ── Guest Success Modal & QR ───────────────────────────────────────────
+  const [showGuestSuccessModal, setShowGuestSuccessModal] = useState(false);
+  const [guestCredentialIssueFailed, setGuestCredentialIssueFailed] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  // Generate QR code data URL locally when successData contains a guest QrToken
+  useEffect(() => {
+    if (successData?.guestQrToken) {
+      const qrPayload = `${window.location.origin}/?qr=${successData.guestQrToken}`;
+      QRCode.toDataURL(qrPayload, { width: 160, margin: 1 })
+        .then(url => setQrCodeDataUrl(url))
+        .catch(err => console.error('Lỗi tạo mã QR:', err));
+    } else {
+      setQrCodeDataUrl('');
+    }
+  }, [successData]);
+
   // ── Errors ─────────────────────────────────────────────────────────────
   const [apiError, setApiError] = useState('');
 
@@ -785,16 +803,43 @@ export function CheckInPage() {
         rearImageUrl: rearImageUrl ?? undefined,
       }, frontImage, rearImage);
 
+      // Store the successful result first
       setSuccessData(result);
 
-      // Reset workflow
-      handleReset();
+      const wasGuestInLookup = lookupData.isGuest === true;
+      const isGuestInResponse = result.isGuest === true;
+      const hasCredentials = !!(result.guestPin && result.guestQrToken);
+
+      if (wasGuestInLookup && (!isGuestInResponse || !hasCredentials)) {
+        // Set critical partial success state
+        setGuestCredentialIssueFailed(true);
+        setApiError('CẢNH BÁO: Xe đã được check-in thành công nhưng dữ liệu khách vãng lai không trả về mã PIN/QR. KHÔNG check-in lại xe này.');
+      } else if (isGuestInResponse) {
+        if (!hasCredentials) {
+          setGuestCredentialIssueFailed(true);
+          setApiError('CẢNH BÁO: Xe đã được check-in thành công nhưng dữ liệu khách vãng lai không trả về mã PIN/QR. KHÔNG check-in lại xe này.');
+        } else {
+          setShowGuestSuccessModal(true);
+          handleReset();
+        }
+      } else {
+        handleReset();
+      }
     } catch (error: unknown) {
       const msg = (error as Error).message ?? 'Check-in thất bại. Vui lòng thử lại.';
       setApiError(msg);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ─── Reset wrapper that also clears success states ──────────────────────
+  const handleFullReset = () => {
+    handleReset();
+    setSuccessData(null);
+    setShowGuestSuccessModal(false);
+    setGuestCredentialIssueFailed(false);
+    setQrCodeDataUrl('');
   };
 
   // ═════════════════════════════════════════════════════
@@ -895,12 +940,23 @@ export function CheckInPage() {
 
   const floorDisplay = getFloorDisplay();
 
+  const isCasual = lookupData?.isGuest === true && !lookupData?.alreadyParked;
+
   const summaryRows = [
     { label: 'Biển số', value: plateInput.trim() || 'Chưa có dữ liệu', valueColor: plateInput.trim() ? C.navy : C.gray400 },
     { label: 'Loại xe', value: vehicleType ? (vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy') : 'Chưa chọn', valueColor: vehicleType ? C.gray800 : C.gray400 },
     { label: 'Loại khách', value: !lookupData ? '—' : lookupData.customerType === 'booking' ? 'Có đặt chỗ trước' : lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách vãng lai' },
     { label: 'Tầng / Khu vực', value: lookupData ? floorDisplay : '—' },
     { label: 'Hình thức đỗ', value: lookupData ? 'Tự chọn vị trí trống' : '—' },
+    ...(lookupData?.alreadyParked ? [
+      { label: 'Trạng thái', value: 'Đang đỗ trong bãi', valueColor: C.red },
+      { label: 'Lưu ý', value: 'Vui lòng thực hiện check-out lượt hiện tại trước khi check-in lại.', valueColor: C.red }
+    ] : []),
+    ...(isCasual ? [{
+      label: 'Mã tra cứu',
+      value: 'Tạo tự động sau khi xác nhận',
+      valueColor: C.orange
+    }] : []),
   ];
 
   // ═════════════════════════════════════════════════════
@@ -1005,37 +1061,39 @@ export function CheckInPage() {
           </div>
         )}
 
-        {/* SUCCESS banner */}
-        {successData && (
+        {/* SUCCESS banner — only shown for non-guests */}
+        {successData && !successData.isGuest && (
           <div style={{
             background: C.greenBg, border: `2px solid ${C.greenBorder}`,
             borderRadius: 16, padding: '1.25rem 1.5rem', marginBottom: '1.25rem',
-            display: 'flex', alignItems: 'center', gap: '1rem',
+            display: 'flex', flexDirection: 'column', gap: '1rem',
           }}>
-            <IconCheck size={24} color={C.green} />
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#15803D' }}>
-                Check-in thành công!
-              </p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
-                Biển số <strong>{successData.plate}</strong>
-                {successData.floorCode && <> · Khu vực <strong>{successData.floorCode}</strong></>}
-                {successData.zoneName && <> · <strong>{successData.zoneName}</strong></>}
-                {' · '}{formatDateTime(successData.checkInTime)}
-              </p>
-              {successData.message && (
-                <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#166534' }}>{successData.message}</p>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+              <IconCheck size={24} color={C.green} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#15803D' }}>
+                  Check-in thành công!
+                </p>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#166534' }}>
+                  Biển số <strong>{successData.plate}</strong>
+                  {successData.floorCode && <> · Khu vực <strong>{successData.floorCode}</strong></>}
+                  {successData.zoneName && <> · <strong>{successData.zoneName}</strong></>}
+                  {' · '}{formatDateTime(successData.checkInTime)}
+                </p>
+                {successData.message && (
+                  <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#166534' }}>{successData.message}</p>
+                )}
+              </div>
+              <button
+                onClick={handleFullReset}
+                style={{
+                  padding: '0.45rem 1rem', background: C.green, color: C.white,
+                  border: 'none', borderRadius: 8, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Check-in xe mới
+              </button>
             </div>
-            <button
-              onClick={() => setSuccessData(null)}
-              style={{
-                padding: '0.45rem 1rem', background: C.green, color: C.white,
-                border: 'none', borderRadius: 8, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-              }}
-            >
-              Check-in xe mới
-            </button>
           </div>
         )}
 
@@ -1296,9 +1354,25 @@ export function CheckInPage() {
 
                     {/* Already parked */}
                     {lookupData.alreadyParked && (
-                      <AlertBanner type="error">
-                        Xe đang ở trong bãi — không thể check-in lần nữa.
-                      </AlertBanner>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <AlertBanner type="error">
+                          Xe đang ở trong bãi
+                        </AlertBanner>
+                        <div style={{
+                          background: '#FEF2F2', border: '1.5px solid #FCA5A5',
+                          borderRadius: 12, padding: '0.85rem 1rem',
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                        }}>
+                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#991B1B', fontWeight: 600 }}>
+                            {lookupData.message || 'Xe hiện đang có một lượt đỗ chưa check-out trong bãi.'}
+                          </p>
+                          {lookupData.activeCheckInTime && (
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: '#B91C1C' }}>
+                              Thời gian vào bãi: <strong>{formatDateTime(lookupData.activeCheckInTime)}</strong>
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     )}
 
                     {/* Type mismatch */}
@@ -1484,7 +1558,7 @@ export function CheckInPage() {
             {/* Reset button */}
             <button
               id="reset-checkin-btn"
-              onClick={handleReset}
+              onClick={handleFullReset}
               style={{
                 width: '100%',
                 padding: '0.65rem 1.25rem',
@@ -1534,6 +1608,394 @@ export function CheckInPage() {
         </div>
 
       </main>
+      {renderGuestSuccessModal()}
+      {renderCriticalFailureModal()}
     </div>
   );
+
+  function renderGuestSuccessModal() {
+    if (!showGuestSuccessModal || !successData) return null;
+
+    const handleCopyPin = async () => {
+      try {
+        await navigator.clipboard.writeText(successData.guestPin ?? '');
+        alert('Đã sao chép mã PIN vào bộ nhớ tạm!');
+      } catch (err) {
+        console.error('Không thể sao chép PIN:', err);
+      }
+    };
+
+    const handlePrintTicket = () => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('Vui lòng cho phép trình duyệt mở popup để in phiếu.');
+        return;
+      }
+      const checkInTimeFormatted = formatDateTime(successData.checkInTime);
+      
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>PHIEU GUI XE PARKSMART</title>
+            <style>
+              body {
+                font-family: 'Courier New', Courier, monospace;
+                padding: 10px;
+                text-align: center;
+                color: #000;
+                max-width: 280px;
+                margin: 0 auto;
+              }
+              .title {
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 2px;
+              }
+              .subtitle {
+                font-size: 11px;
+                margin-bottom: 10px;
+                border-bottom: 1px dashed #000;
+                padding-bottom: 4px;
+              }
+              .info-item {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                margin: 4px 0;
+              }
+              .pin-title {
+                font-size: 10px;
+                margin-top: 10px;
+                font-weight: bold;
+              }
+              .pin-container {
+                border: 1.5px solid #000;
+                padding: 6px;
+                margin: 8px 0;
+                font-size: 20px;
+                font-weight: bold;
+                letter-spacing: 0.1em;
+              }
+              .qr-code {
+                margin: 10px auto;
+                width: 130px;
+                height: 130px;
+              }
+              .footer {
+                font-size: 9px;
+                margin-top: 10px;
+                border-top: 1px dashed #000;
+                padding-top: 6px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="title">PARKSMART</div>
+            <div class="subtitle">PHIEU GUI XE VANG LAI</div>
+            <div class="info-item"><span>BIEN SO:</span> <strong>${successData.plate}</strong></div>
+            <div class="info-item"><span>LOAI XE:</span> <span>${vehicleType === 'CAR' ? 'O TO' : 'XE MAY'}</span></div>
+            <div class="info-item"><span>KHU VUC:</span> <span>${successData.zoneName ?? 'Khu vuc tu chon'}</span></div>
+            <div class="info-item"><span>GIO VAO:</span> <span>${checkInTimeFormatted}</span></div>
+            
+            <div class="pin-title">MA PIN TRA CUU VE:</div>
+            <div class="pin-container">${successData.guestPin}</div>
+            
+            <div style="font-size: 10px; font-weight: bold; margin-bottom: 4px;">MA QR THANH TOAN:</div>
+            <img class="qr-code" src="${qrCodeDataUrl}" alt="QR code" />
+            
+            <div class="footer">
+              Quet ma QR hoac nhap ma PIN tai cong de tra cuu va thanh toan phi truoc khi ra.
+              Kinh chuc quy khach thuong lo binh an!
+            </div>
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    };
+
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 16,
+      }}>
+        <div style={{
+          backgroundColor: '#fff',
+          borderRadius: 24,
+          padding: '2.5rem 2rem',
+          maxWidth: 480,
+          width: '100%',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          position: 'relative',
+        }}>
+          {/* Close button top right */}
+          <button
+            onClick={handleFullReset}
+            style={{
+              position: 'absolute', top: 16, right: 16,
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: C.gray400, padding: 4, display: 'flex', alignItems: 'center'
+            }}
+          >
+            <IconX size={20} color={C.gray500} />
+          </button>
+
+          {/* Success Check Badge */}
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: '#DCFCE7', color: '#15803D',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: '1.25rem'
+          }}>
+            <IconCheck size={28} color="#15803D" />
+          </div>
+
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: C.navy, margin: '0 0 0.5rem' }}>
+            Check-in khách vãng lai thành công
+          </h2>
+          <p style={{ fontSize: '0.85rem', color: C.gray500, margin: '0 0 1.5rem', lineHeight: 1.5 }}>
+            Thẻ thông tin đỗ xe đã được khởi tạo thành công trên hệ thống.
+          </p>
+
+          {/* Ticket detail box */}
+          <div style={{
+            background: '#F8FAFC',
+            border: '1px dashed #E2E8F0',
+            borderRadius: 16,
+            padding: '1.25rem',
+            width: '100%',
+            marginBottom: '1.5rem',
+            textAlign: 'left',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <span style={{ color: C.gray500 }}>Biển số xe:</span>
+              <strong style={{ color: C.navy, fontSize: '0.95rem' }}>{successData.plate}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <span style={{ color: C.gray500 }}>Loại xe:</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{vehicleType === 'CAR' ? '🚗 Ô tô' : '🛵 Xe máy'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <span style={{ color: C.gray500 }}>Khu vực đỗ xe:</span>
+              <span style={{ fontWeight: 600, color: '#0F766E' }}>{successData.zoneName ?? 'Khu vực tự do'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <span style={{ color: C.gray500 }}>Giờ vào:</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{formatDateTime(successData.checkInTime)}</span>
+            </div>
+          </div>
+
+          {/* Guest lookup PIN & QR */}
+          <div style={{
+            width: '100%',
+            background: '#EFF6FF',
+            border: '1.5px solid #BFDBFE',
+            borderRadius: 18,
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: '2rem'
+          }}>
+            <div style={{ width: '100%' }}>
+              <span style={{ fontSize: '0.72rem', color: '#1E40AF', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Mã PIN Tra Cứu (6 chữ số)
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4 }}>
+                <span style={{
+                  fontSize: '2.5rem', fontWeight: 900, color: '#1E3A8A',
+                  fontFamily: 'monospace', letterSpacing: '0.08em'
+                }}>
+                  {successData.guestPin}
+                </span>
+                <button
+                  onClick={handleCopyPin}
+                  style={{
+                    background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8,
+                    padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600,
+                    color: '#2563EB', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  📋 Sao chép
+                </button>
+              </div>
+            </div>
+
+            {/* QR Code Container */}
+            {qrCodeDataUrl && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <img
+                  src={qrCodeDataUrl}
+                  alt="Mã QR"
+                  style={{
+                    width: 140, height: 140,
+                    border: '1px solid #D1D5DB', borderRadius: 12,
+                    padding: 8, background: '#fff'
+                  }}
+                />
+                <span style={{ fontSize: '0.68rem', color: '#1E40AF', fontWeight: 800 }}>QUÉT MÃ VÀO CỔNG TỰ PHỤC VỤ</span>
+              </div>
+            )}
+
+            <p style={{ margin: 0, fontSize: '0.75rem', color: '#1E3A8A', lineHeight: 1.5, textAlign: 'center' }}>
+              Cung cấp mã PIN hoặc mã QR này cho khách để tra cứu và thanh toán phí.
+            </p>
+          </div>
+
+          {/* Modal Actions */}
+          <div style={{ display: 'flex', gap: 12, width: '100%' }}>
+            <button
+              onClick={handlePrintTicket}
+              style={{
+                flex: 1,
+                padding: '0.85rem 1.25rem',
+                background: C.white,
+                color: C.navy,
+                border: `2px solid ${C.navy}`,
+                borderRadius: 12,
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                transition: 'background 0.2s',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = '#F0F5FF'}
+              onMouseOut={(e) => e.currentTarget.style.background = '#fff'}
+            >
+              🖨️ In phiếu
+            </button>
+            <button
+              onClick={handleFullReset}
+              style={{
+                flex: 1,
+                padding: '0.85rem 1.25rem',
+                background: C.navy,
+                color: C.white,
+                border: 'none',
+                borderRadius: 12,
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                boxShadow: '0 4px 12px rgba(11, 47, 107, 0.2)',
+                transition: 'background 0.2s',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = C.navyLight}
+              onMouseOut={(e) => e.currentTarget.style.background = C.navy}
+            >
+              🔄 Check-in xe mới
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderCriticalFailureModal() {
+    if (!guestCredentialIssueFailed || !successData) return null;
+
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(220, 38, 38, 0.4)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 16,
+      }}>
+        <div style={{
+          backgroundColor: '#fff',
+          borderRadius: 24,
+          padding: '2.5rem 2rem',
+          maxWidth: 520,
+          width: '100%',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          border: '3px solid #DC2626',
+        }}>
+          {/* Warning Icon */}
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: '#FEE2E2', color: '#DC2626',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: '1.25rem'
+          }}>
+            <IconAlert size={36} color="#DC2626" />
+          </div>
+
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#991B1B', margin: '0 0 0.75rem' }}>
+            SỰ CỐ PHÁT HÀNH THẺ KHÁCH VÃNG LAI
+          </h2>
+          
+          <div style={{
+            background: '#FEF2F2',
+            border: '1px solid #FCA5A5',
+            borderRadius: 12,
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            color: '#991B1B',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            lineHeight: 1.5,
+            width: '100%'
+          }}>
+            Xe đã được check-in thành công nhưng dữ liệu khách vãng lai không trả về mã PIN/QR. KHÔNG check-in lại xe này. (Biển số: {successData.plate}, Thời gian: {formatDateTime(successData.checkInTime)})
+          </div>
+
+          <div style={{ fontSize: '0.85rem', color: C.gray800, margin: '0 0 1.5rem', lineHeight: 1.6, textAlign: 'left' }}>
+            ⚠️ <strong>HƯỚNG DẪN DÀNH CHO NHÂN VIÊN:</strong>
+            <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
+              <li style={{ marginBottom: 6 }}><strong>KHÔNG ĐƯỢC bấm xác nhận check-in lại</strong> để tránh tạo thêm lượt đỗ trùng lặp.</li>
+              <li style={{ marginBottom: 6 }}>Ghi nhận thông tin xe (Biển số: {successData.plate}) để đối chiếu thủ công khi xe ra.</li>
+              <li>Chụp lại màn hình này hoặc lưu vết log sự cố nếu cần thiết.</li>
+            </ul>
+          </div>
+
+          {/* Modal Actions */}
+          <button
+            onClick={() => {
+              setGuestCredentialIssueFailed(false);
+              handleFullReset();
+            }}
+            style={{
+              width: '100%',
+              padding: '0.9rem 1.5rem',
+              background: '#DC2626',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 14,
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(220,38,38,0.3)',
+              transition: 'background 0.2s',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = '#B91C1C'}
+            onMouseOut={(e) => e.currentTarget.style.background = '#DC2626'}
+          >
+            Đã xác nhận sự cố - Check-in xe mới
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
