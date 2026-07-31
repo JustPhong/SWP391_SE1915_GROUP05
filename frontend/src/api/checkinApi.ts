@@ -284,7 +284,7 @@ export async function submitCheckIn(
     const status = (err as { response?: { status?: number } })?.response?.status;
     const rawMsg = responseData?.message;
     const errorCode = responseData?.errorCode;
-    
+
     let msg = rawMsg;
     if (!msg) {
       if (errorCode === 'ACTIVE_PARKING_SESSION' || status === 409) {
