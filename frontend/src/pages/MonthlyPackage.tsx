@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { vehicleService as _vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import type { MonthlyPackage } from '../types/index';
-import { PACKAGES, type PackagePlan, getTierAreaLabel } from '../constants/packages';
+import { type PackagePlan, getTierAreaLabel } from '../constants/packages';
 import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
 import styles from '../styles/driver.module.css';
 import newStyles from '../styles/monthlyPackage.module.css';
@@ -116,9 +116,6 @@ function IconList({ size = 16, color = 'currentColor' }: { size?: number; color?
 }
 function IconEye({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
-}
-function IconTrash({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>;
 }
 function IconClose({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
@@ -268,11 +265,11 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
       <div>
         <div className={styles.pkgPrice}>
           <span className={`${styles.pkgPriceValue} ${isFeatured ? styles.pkgPriceValueLight : ''}`}>
-            {pricing.priceLabel}
+            {pricing ? formatVND(pricing.price) : 'N/A'}
           </span>
         </div>
         <p className={`${styles.pkgPerDay} ${isFeatured ? styles.pkgPerDayLight : ''}`}>
-          ~ {pricing.pricePerDay}
+          ~ {pricing ? formatVND(Math.round(pricing.price / pkg.durationDays)) + '/ngày' : 'N/A'}
         </p>
       </div>
 
@@ -328,7 +325,7 @@ function PackageCard({ pkg, selected, vehicleType, isFeatured, onSelect }: { pkg
 
 // ── Pricing group (one vehicle type, 3 cards inside panel) ─
 
-function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selectedPlanId: string; onSelect: (planId: string, vtype: VType) => void }) {
+function PricingGroup({ vtype, selectedPlanId, plans, onSelect }: { vtype: VType; selectedPlanId: string; plans: PackagePlan[]; onSelect: (planId: string, vtype: VType) => void }) {
   const isCar = vtype === 'CAR';
   const title = isCar ? 'Gói Ô tô' : 'Gói Xe máy';
   const subtitle = isCar
@@ -362,7 +359,7 @@ function PricingGroup({ vtype, selectedPlanId, onSelect }: { vtype: VType; selec
           draggable={false}
         />
         <div className={styles.pkgCardsRow}>
-          {PACKAGES.map((pkg, idx) => (
+          {plans.map((pkg, idx) => (
             <PackageCard
               key={pkg.id}
               pkg={pkg}
@@ -398,26 +395,26 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     setPurchaseModalOpen(true);
   };
 
-  const handlePurchaseSuccess = () => {
-    loadMyPackages();
-    refreshPackageStatus();
-    setIsPurchasing(false);
-  };
-
 
   const [myPackages, setMyPackages] = useState<MonthlyPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [packageActionLoading, setPackageActionLoading] = useState<string | null>(null);
   const [packageActionError, setPackageActionError] = useState('');
   const [packageActionSuccess, setPackageActionSuccess] = useState('');
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [pkgToCancel, setPkgToCancel] = useState<MonthlyPackage | null>(null);
   const [stripeStatus, setStripeStatus] = useState<'IDLE' | 'POLLING' | 'SUCCESS' | 'FAILED'>('IDLE');
+
+  // Backend plans catalogue state
+  const [plans, setPlans] = useState<PackagePlan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [plansError, setPlansError] = useState('');
+
+  // Legacy renewal states
+  const [legacyRenewModalPkg, setLegacyRenewModalPkg] = useState<MonthlyPackage | null>(null);
+  const [legacySelectedPlanId, setLegacySelectedPlanId] = useState<string>('');
 
   // Detail Modal
   const [selectedDetailPkg, setSelectedDetailPkg] = useState<MonthlyPackage | null>(null);
   const [detailQrUrl, setDetailQrUrl] = useState<string>('');
-
 
   const loadMyPackages = useCallback(async () => {
     setLoadingPackages(true);
@@ -437,6 +434,77 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     loadMyPackages();
   }, [authLoading, user, loadMyPackages]);
 
+  const abandoningRef = useRef(false);
+
+  const checkAndAbandonPayment = useCallback(async () => {
+    const pendingPkgId = sessionStorage.getItem('pending_monthly_package_id');
+    const pendingPaymentId = sessionStorage.getItem('pending_monthly_payment_id');
+    const pendingSessionId = sessionStorage.getItem('pending_monthly_session_id');
+    if (!pendingPkgId || !pendingPaymentId || !pendingSessionId || abandoningRef.current) return;
+
+    // Do not abandon if we are actively polling for success
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') return;
+
+    abandoningRef.current = true;
+    try {
+      await monthlyPackageService.abandonPayment(pendingPkgId, pendingPaymentId, pendingSessionId);
+      sessionStorage.removeItem('pending_monthly_package_id');
+      sessionStorage.removeItem('pending_monthly_payment_id');
+      sessionStorage.removeItem('pending_monthly_session_id');
+      setIsPurchasing(false);
+      loadMyPackages();
+    } catch (err: any) {
+      console.error('[Stripe Abandon] Error checking/abandoning payment:', err);
+      const status = err.response?.status;
+      if (status === 200 || status === 404 || status === 409) {
+        sessionStorage.removeItem('pending_monthly_package_id');
+        sessionStorage.removeItem('pending_monthly_payment_id');
+        sessionStorage.removeItem('pending_monthly_session_id');
+        setIsPurchasing(false);
+        loadMyPackages();
+      }
+    } finally {
+      abandoningRef.current = false;
+    }
+  }, [loadMyPackages]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    checkAndAbandonPayment();
+
+    const handleWindowFocus = () => {
+      checkAndAbandonPayment();
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('pageshow', handleWindowFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('pageshow', handleWindowFocus);
+    };
+  }, [user, checkAndAbandonPayment]);
+
+  // Load plans catalogue from backend on mount
+  useEffect(() => {
+    const fetchPlans = async () => {
+      setLoadingPlans(true);
+      setPlansError('');
+      try {
+        const data = await monthlyPackageService.getPlans();
+        setPlans(data ?? []);
+      } catch (err) {
+        console.error('Failed to load plans from backend:', err);
+        setPlansError('Không thể tải cấu hình gói từ máy chủ.');
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+    fetchPlans();
+  }, []);
+
   // Stripe success polling
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -452,12 +520,19 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
         attempts++;
         try {
           const pkgs = await monthlyPackageService.getMyPackages();
-          const activePkg = pkgs.find(p => p.status === 'ACTIVE');
-          if (activePkg) {
+          const hasSuccessPayment = pkgs.some(p => p.payments?.some(pay => pay.transactionCode === sessionId && pay.status === 'SUCCESS'));
+          if (hasSuccessPayment) {
             clearInterval(poll);
             setMyPackages(pkgs);
             setStripeStatus('SUCCESS');
             setPackageActionSuccess('Thanh toán và kích hoạt gói tháng thành công!');
+            setPackageActionError(''); // clear error banner upon payment success
+            // Clear pending session identifiers now that payment is confirmed
+            sessionStorage.removeItem('pending_monthly_package_id');
+            sessionStorage.removeItem('pending_monthly_payment_id');
+            sessionStorage.removeItem('pending_monthly_session_id');
+            // Refresh the auth context package status to update nav badge etc.
+            refreshPackageStatus();
             window.history.replaceState({}, document.title, window.location.pathname);
           } else if (attempts >= maxAttempts) {
             clearInterval(poll);
@@ -496,27 +571,74 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     }
   }, [selectedDetailPkg]);
 
+  const isLegacyPackage = useCallback((pkg: MonthlyPackage) => {
+    if (!pkg.planName) return true;
+    if (plans.length > 0) {
+      return !plans.some(p => p.id === pkg.planName);
+    }
+    return false;
+  }, [plans]);
 
-
-  const handleRenewPackage = async (pkg: MonthlyPackage) => {
+  const handleRenewPackage = async (pkg: MonthlyPackage, selectedPlanId?: string) => {
     setPackageActionLoading(pkg.id);
-    setPackageActionError('');
+    setPackageActionError(''); // clear error banner when renewal request begins
     setPackageActionSuccess('');
     try {
-      const updated = await monthlyPackageService.renewPackage(pkg.id);
-      setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      setPackageActionSuccess('Gia hạn gói thành công. Email xác nhận đã được gửi nếu có cấu hình.');
-      refreshPackageStatus();
+      const checkoutData = await monthlyPackageService.renewPackage(pkg.id, selectedPlanId);
+      if (checkoutData.status === 'ALREADY_PROCESSED') {
+        // Previous session was already paid — treat as verified success
+        sessionStorage.removeItem('pending_monthly_package_id');
+        sessionStorage.removeItem('pending_monthly_payment_id');
+        sessionStorage.removeItem('pending_monthly_session_id');
+        setLegacyRenewModalPkg(null);
+        const pkgs = await monthlyPackageService.getMyPackages();
+        setMyPackages(pkgs);
+        await refreshPackageStatus();
+        setPackageActionSuccess('Giao dịch đã được thanh toán thành công trước đó. Gói tháng đã được kích hoạt.');
+        return;
+      }
+      if (checkoutData.url) {
+        setLegacyRenewModalPkg(null); // close legacy modal on success redirect
+        sessionStorage.setItem('pending_monthly_package_id', checkoutData.packageId);
+        sessionStorage.setItem('pending_monthly_payment_id', checkoutData.paymentId);
+        sessionStorage.setItem('pending_monthly_session_id', checkoutData.sessionId);
+        window.location.href = checkoutData.url;
+      } else {
+        throw new Error('Không nhận được URL thanh toán.');
+      }
     } catch (e: any) {
-      setPackageActionError(e?.response?.data?.message ?? 'Không thể gia hạn gói.');
+      setPackageActionError(e?.response?.data?.message ?? e.message ?? 'Không thể gia hạn gói.');
     } finally {
       setPackageActionLoading(null);
     }
   };
 
+  const handleRenewBtnClick = (pkg: MonthlyPackage) => {
+    setPackageActionError(''); // clear old error when clicking renewal button
+    setPackageActionSuccess('');
+    if (loadingPlans || plansError || plans.length === 0) {
+      setPackageActionError('Không thể gia hạn lúc này vì cấu hình gói chưa được tải hoặc tải lỗi.');
+      return;
+    }
+    if (isLegacyPackage(pkg)) {
+      setLegacyRenewModalPkg(pkg);
+      setLegacySelectedPlanId('');
+    } else {
+      handleRenewPackage(pkg);
+    }
+  };
+
+  const handleStartPurchase = () => {
+    if (loadingPlans || plansError || plans.length === 0) {
+      setPackageActionError('Không thể đăng ký lúc này vì cấu hình gói chưa được tải hoặc tải lỗi.');
+      return;
+    }
+    setIsPurchasing(true);
+  };
+
   const handleToggleAutoRenew = async (pkg: MonthlyPackage) => {
     setPackageActionLoading(pkg.id);
-    setPackageActionError('');
+    setPackageActionError(''); // clear old error on auto-renew toggling
     setPackageActionSuccess('');
     try {
       const updated = await monthlyPackageService.setAutoRenew(pkg.id, !pkg.autoRenew);
@@ -529,30 +651,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     }
   };
 
-  const handleCancelPackage = (pkg: MonthlyPackage) => {
-    setPkgToCancel(pkg);
-    setShowCancelConfirm(true);
-  };
 
-  const confirmCancelPackage = async () => {
-    if (!pkgToCancel) return;
-    const pkg = pkgToCancel;
-    setShowCancelConfirm(false);
-    setPackageActionLoading(pkg.id);
-    setPackageActionError('');
-    setPackageActionSuccess('');
-    try {
-      const updated = await monthlyPackageService.cancelPackage(pkg.id);
-      setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      setPackageActionSuccess('Hủy gói tháng thành công.');
-      refreshPackageStatus();
-    } catch (e: any) {
-      setPackageActionError(e?.response?.data?.message ?? 'Không thể hủy gói tháng.');
-    } finally {
-      setPackageActionLoading(null);
-      setPkgToCancel(null);
-    }
-  };
 
   // ── Auth gates ───────────────────────────────────────
   if (authLoading) {
@@ -562,14 +661,19 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     return <div style={{ padding: '3rem', textAlign: 'center', color: C.navy, fontSize: '0.9rem' }}>Vui lòng đăng nhập để mua gói tháng.</div>;
   }
 
+  // Effective-status rule: a package is only truly active when the DB says ACTIVE
+  // AND its expiryDate is not yet in the past.
+  const isEffectivelyActive = (pkg: MonthlyPackage) =>
+    pkg.status === 'ACTIVE' && getRemainingDays(pkg.expiryDate) > 0;
+
   // Derived counts for Summary Cards
-  const activePackagesCount = myPackages.filter((pkg) => pkg.status === 'ACTIVE').length;
+  const activePackagesCount = myPackages.filter(isEffectivelyActive).length;
   const expiringSoonCount = myPackages.filter((pkg) => {
-    if (pkg.status !== 'ACTIVE') return false;
+    if (!isEffectivelyActive(pkg)) return false;
     const days = getRemainingDays(pkg.expiryDate);
     return days <= 7 && days > 0;
   }).length;
-  const autoRenewCount = myPackages.filter((pkg) => pkg.status === 'ACTIVE' && pkg.autoRenew).length;
+  const autoRenewCount = myPackages.filter((pkg) => isEffectivelyActive(pkg) && pkg.autoRenew).length;
 
   // ── DASHBOARD RENDERING ──────────────────────────────
   return (
@@ -583,7 +687,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
         </div>
         {/* Only show register button if they are not purchasing and have packages already */}
         {!isPurchasing && myPackages.length > 0 && (
-          <button className={newStyles.registerBtnHeader} onClick={() => setIsPurchasing(true)}>
+          <button className={newStyles.registerBtnHeader} onClick={handleStartPurchase}>
             <IconPlus size={16} /> Đăng ký gói mới
           </button>
         )}
@@ -621,8 +725,22 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
             <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>Đăng ký gói mới</h3>
           </div>
           
-          <PricingGroup vtype="MOTORBIKE" selectedPlanId="" onSelect={handleSelectPackage} />
-          <PricingGroup vtype="CAR" selectedPlanId="" onSelect={handleSelectPackage} />
+          {loadingPlans ? (
+            <div style={{ background: '#ffffff', borderRadius: 20, border: '1px solid #E2E8F0', padding: '3rem', textAlign: 'center', color: C.gray600, fontSize: '0.95rem' }}>
+              <div style={{ display: 'inline-block', width: 24, height: 24, border: '3px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '0.75rem' }} />
+              <p style={{ margin: 0 }}>Đang tải danh mục gói từ máy chủ...</p>
+            </div>
+          ) : plansError ? (
+            <div style={{ background: C.redBg, borderRadius: 20, border: `1.5px solid ${C.redBorder}`, padding: '3rem', textAlign: 'center', color: '#B91C1C', fontSize: '0.95rem', fontWeight: 600 }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>❌</div>
+              {plansError}
+            </div>
+          ) : (
+            <>
+              <PricingGroup vtype="MOTORBIKE" selectedPlanId="" plans={plans} onSelect={handleSelectPackage} />
+              <PricingGroup vtype="CAR" selectedPlanId="" plans={plans} onSelect={handleSelectPackage} />
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -677,7 +795,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
               <p className={newStyles.emptyDescription}>
                 Bạn chưa đăng ký gói tháng nào. Hãy chọn gói phù hợp để bắt đầu sử dụng dịch vụ.
               </p>
-              <button className={newStyles.emptyCta} onClick={() => setIsPurchasing(true)}>
+              <button className={newStyles.emptyCta} onClick={handleStartPurchase}>
                 Đăng ký gói tháng ngay
               </button>
             </div>
@@ -732,15 +850,17 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                           </span>
                         )}
 
-                        {/* Status Badge 2 */}
-                        {pkg.autoRenew ? (
-                          <span className={`${newStyles.renewBadge} ${newStyles.renewOn}`}>
-                            Tự động gia hạn
-                          </span>
-                        ) : (
-                          <span className={`${newStyles.renewBadge} ${newStyles.renewOff}`}>
-                            Không tự động
-                          </span>
+                        {/* Status Badge 2 — only shown for active packages */}
+                        {!isExpired && (
+                          pkg.autoRenew ? (
+                            <span className={`${newStyles.renewBadge} ${newStyles.renewOn}`}>
+                              Tự động gia hạn
+                            </span>
+                          ) : (
+                            <span className={`${newStyles.renewBadge} ${newStyles.renewOff}`}>
+                              Không tự động
+                            </span>
+                          )
                         )}
                       </div>
                     </div>
@@ -820,27 +940,26 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                       </div>
                     </div>
 
-                    {/* 5. Action buttons row */}
+                     {/* 5. Action buttons row */}
                     <div className={newStyles.actionsRow}>
                       <div className={newStyles.leftActionGroup}>
                         {/* 1. Primary button */}
                         <button
-                          onClick={() => handleRenewPackage(pkg)}
+                          onClick={() => handleRenewBtnClick(pkg)}
                           disabled={packageActionLoading === pkg.id}
                           className={newStyles.btnPrimary}
                         >
-                          <IconCalendar size={16} /> Gia hạn ngay
+                          <IconCalendar size={16} /> {!isLegacyPackage(pkg) ? 'Gia hạn ngay' : 'Chọn gói để gia hạn'}
                         </button>
 
-                        {/* 2. Secondary button */}
-                        {!isExpired && (
+                        {/* 2. Auto-renew toggle — shown only if not expired AND is not a legacy package */}
+                        {!isExpired && !isLegacyPackage(pkg) && (
                           <button
                             onClick={() => handleToggleAutoRenew(pkg)}
                             disabled={packageActionLoading === pkg.id}
                             className={newStyles.btnSecondary}
                           >
-                            <IconRefresh size={16} />
-                            {pkg.autoRenew ? 'Tắt gia hạn tự động' : 'Bật gia hạn tự động'}
+                            <IconRefresh size={16} /> {pkg.autoRenew ? 'Tắt gia hạn tự động' : 'Bật gia hạn tự động'}
                           </button>
                         )}
 
@@ -852,20 +971,6 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                           <IconEye size={16} /> Xem chi tiết
                         </button>
                       </div>
-
-                      {/* Right Danger Action */}
-                      {!isExpired && (
-                        <>
-                          <div className={newStyles.divider} />
-                          <button
-                            onClick={() => handleCancelPackage(pkg)}
-                            disabled={packageActionLoading === pkg.id}
-                            className={newStyles.btnDanger}
-                          >
-                            <IconTrash size={16} /> Hủy gia hạn gói
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
                 );
@@ -875,44 +980,6 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
         </>
       )}
 
-      {/* Confirmation Modal */}
-      {showCancelConfirm && pkgToCancel && (
-        <div className={newStyles.modalOverlay}>
-          <div className={newStyles.modalContent}>
-            <div className={newStyles.modalHeader}>
-              <div className={`${newStyles.modalIcon} ${newStyles.modalIconDanger}`}>
-                <IconTrash size={22} color="#DC2626" />
-              </div>
-              <h3 className={newStyles.modalTitle}>Xác nhận hủy gia hạn</h3>
-            </div>
-
-            <div className={newStyles.warningBox}>
-              <strong>Hành động này không thể hoàn tác!</strong> Bạn có chắc chắn muốn hủy gia hạn gói này không? Xe của bạn sẽ không còn được nhận diện là xe vé tháng và chỗ đỗ cố định (nếu có) sẽ bị giải phóng.
-            </div>
-
-            <div className={newStyles.modalActions}>
-              <button
-                type="button"
-                className={newStyles.btnSecondary}
-                onClick={() => {
-                  setShowCancelConfirm(false);
-                  setPkgToCancel(null);
-                }}
-              >
-                Quay lại
-              </button>
-              <button
-                type="button"
-                className={newStyles.btnPrimary}
-                style={{ background: '#DC2626' }}
-                onClick={confirmCancelPackage}
-              >
-                Xác nhận hủy
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Detail View Ticket Modal */}
       {selectedDetailPkg && (
@@ -997,12 +1064,132 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
         </div>
       )}
 
+      {/* Legacy Package Plan Selection Modal */}
+      {legacyRenewModalPkg && (
+        <div className={newStyles.modalOverlay} onClick={() => {
+          setLegacyRenewModalPkg(null);
+          setPackageActionError('');
+        }}>
+          <div className={newStyles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <button className={newStyles.closeModalBtn} onClick={() => {
+              setLegacyRenewModalPkg(null);
+              setPackageActionError('');
+            }}>
+              <IconClose size={20} />
+            </button>
+
+            <div className={newStyles.modalHeader}>
+              <div className={`${newStyles.modalIcon} ${newStyles.modalIconInfo}`} style={{ backgroundColor: '#EFF6FF' }}>
+                <IconCalendar size={22} color="#3B82F6" />
+              </div>
+              <h3 className={newStyles.modalTitle}>Chọn gói gia hạn</h3>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: C.gray600, marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              Gói tháng hiện tại cho xe <strong>{legacyRenewModalPkg.vehicle?.plateNumber}</strong> chưa có cấu hình gói cụ thể.
+              Vui lòng chọn một trong các gói chính thức dưới đây để gia hạn:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+              {loadingPlans ? (
+                <div style={{ textAlign: 'center', padding: '2rem 0', color: C.gray600 }}>
+                  <div style={{ display: 'inline-block', width: 20, height: 20, border: '2px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
+                  <p style={{ margin: 0, fontSize: '0.85rem' }}>Đang tải danh mục gói...</p>
+                </div>
+              ) : plansError ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem 0', color: '#B91C1C', fontSize: '0.875rem', fontWeight: 600 }}>
+                  {plansError}
+                </div>
+              ) : (
+                plans
+                  .filter(plan => {
+                    // 1. Filter by vehicle type (CAR / MOTORBIKE)
+                    const vehicleType = legacyRenewModalPkg.vehicle?.type ?? 'CAR';
+                    const pricing = plan.prices[vehicleType];
+                    if (!pricing) return false;
+
+                    // 2. Active package tier guard
+                    const isActive = legacyRenewModalPkg.status === 'ACTIVE' && getRemainingDays(legacyRenewModalPkg.expiryDate) > 0;
+                    if (isActive && legacyRenewModalPkg.allowedTier) {
+                      return plan.allowedTier === legacyRenewModalPkg.allowedTier;
+                    }
+                    return true;
+                  })
+                  .map((plan) => {
+                  const vehicleType = legacyRenewModalPkg.vehicle?.type ?? 'CAR';
+                  const pricing = plan.prices[vehicleType];
+                  const isSelected = legacySelectedPlanId === plan.id;
+
+                  return (
+                    <div
+                      key={plan.id}
+                      onClick={() => {
+                        setLegacySelectedPlanId(plan.id);
+                        setPackageActionError(''); // clear error when selecting another plan
+                      }}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: 16,
+                        border: isSelected ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                        backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 700, color: C.navy, fontSize: '0.95rem' }}>
+                          {plan.name} ({plan.durationDays} ngày)
+                        </p>
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: C.gray600 }}>
+                          Hạng vé: <strong>{getTierAreaLabel(plan.allowedTier)}</strong>
+                        </p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ margin: 0, fontWeight: 800, color: '#16A34A', fontSize: '1.05rem' }}>
+                          {pricing ? formatVND(pricing.price) : 'N/A'}
+                        </p>
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: C.gray400 }}>
+                          ~ {pricing ? formatVND(Math.round(pricing.price / plan.durationDays)) + '/ngày' : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className={newStyles.modalActions}>
+              <button
+                type="button"
+                className={newStyles.btnSecondary}
+                onClick={() => {
+                  setLegacyRenewModalPkg(null);
+                  setPackageActionError('');
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className={newStyles.btnPrimary}
+                disabled={!legacySelectedPlanId || packageActionLoading === legacyRenewModalPkg.id}
+                onClick={() => handleRenewPackage(legacyRenewModalPkg, legacySelectedPlanId)}
+              >
+                {packageActionLoading === legacyRenewModalPkg.id ? 'Đang xử lý...' : 'Xác nhận gia hạn'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PackagePurchaseModal
         isOpen={purchaseModalOpen}
         onClose={() => setPurchaseModalOpen(false)}
         planId={purchasePlanId}
         vehicleType={purchaseVtype}
-        onSuccess={handlePurchaseSuccess}
       />
     </div>
   );

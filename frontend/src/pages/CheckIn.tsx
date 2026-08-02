@@ -8,7 +8,7 @@ import {
   type LookupResult,
   type CheckinSubmitResult,
 } from '../api/checkinApi';
-import { normalizePlateForLookup, validatePlate } from '../utils/plate';
+import { normalizePlateForLookup, validatePlate, formatPlateNumber } from '../utils/plate';
 import QRCode from 'qrcode';
 
 // ═════════════════════════════════════════════════════
@@ -44,7 +44,7 @@ const C = {
 //  TYPES
 // ═════════════════════════════════════════════════════
 type VehicleType = 'CAR' | 'MOTORBIKE';
-type OcrStatus = 'idle' | 'processing' | 'success' | 'low_confidence' | 'manually_edited' | 'failed';
+type OcrStatus = 'idle' | 'processing' | 'success' | 'low_confidence' | 'manually_edited' | 'failed' | 'guest_resolved';
 
 
 
@@ -301,7 +301,7 @@ function CaptureBox({
   ocrBadge?: React.ReactNode;
 }) {
   return (
-    <div 
+    <div
       className="capture-card-outer"
       style={{
         border: `1.5px solid ${preview ? C.navy : C.gray200}`,
@@ -314,7 +314,7 @@ function CaptureBox({
         background: preview ? '#F0F8FF' : '#FAFBFF',
       }}
     >
-      <div 
+      <div
         className="capture-preview-wrapper"
         style={{
           width: '100%',
@@ -333,14 +333,14 @@ function CaptureBox({
             <img
               src={preview}
               alt={label}
-              style={{ 
-                width: '100%', 
-                height: '100%', 
-                objectFit: 'contain', 
-                objectPosition: 'center', 
-                position: 'absolute', 
-                top: 0, 
-                left: 0 
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                objectPosition: 'center',
+                position: 'absolute',
+                top: 0,
+                left: 0
               }}
             />
             <button
@@ -430,6 +430,12 @@ function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: str
     bgColor = C.yellowBg;
     borderColor = C.yellowBorder;
     color = C.yellow;
+  } else if (status === 'guest_resolved') {
+    title = 'Đã xác định khách vãng lai';
+    supportText = 'Thông tin khu vực đã được xác nhận. Có thể tiếp tục check-in.';
+    bgColor = C.greenBg;
+    borderColor = C.greenBorder;
+    color = C.green;
   } else if (status === 'success') {
     title = 'Đã xác minh biển số';
     bgColor = C.greenBg;
@@ -467,7 +473,7 @@ function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: str
       )}
       {status !== 'processing' && plate && status !== 'failed' && (
         <div style={{ fontSize: '1.1rem', fontFamily: "'Consolas','Courier New',monospace", letterSpacing: '0.04em', marginTop: 2 }}>
-          {plate}
+          {status === 'guest_resolved' ? formatPlateNumber(plate) : plate}
         </div>
       )}
     </div>
@@ -498,6 +504,17 @@ function CustomerBadge({ type }: { type: 'booking' | 'monthly' | 'casual' | 'unk
   );
 }
 
+interface GuestReceiptData {
+  plate: string;
+  vehicleType: 'CAR' | 'MOTORBIKE';
+  guestPin: string;
+  guestQrToken: string;
+  checkInTime: string;
+  floorCode?: string;
+  zoneName?: string;
+  slotCode?: string;
+}
+
 // ═════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═════════════════════════════════════════════════════
@@ -525,6 +542,10 @@ export function CheckInPage() {
 
   // ── Plate / lookup ─────────────────────────────────────────────────────
   const [plateInput, setPlateInput] = useState('');
+  const plateInputRef = useRef(plateInput);
+  useEffect(() => {
+    plateInputRef.current = plateInput;
+  }, [plateInput]);
   const [plateSource, setPlateSource] = useState<'front' | 'rear' | 'combined' | 'manual'>('manual');
   const [plateInputSource, setPlateInputSource] = useState<'OCR' | 'MANUAL' | null>(null);
   const [lookupData, setLookupData] = useState<LookupResult | null>(null);
@@ -534,23 +555,32 @@ export function CheckInPage() {
   // ── Submit ──────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<CheckinSubmitResult | null>(null);
+  const [guestReceiptData, setGuestReceiptData] = useState<GuestReceiptData | null>(null);
 
   // ── Guest Success Modal & QR ───────────────────────────────────────────
   const [showGuestSuccessModal, setShowGuestSuccessModal] = useState(false);
   const [guestCredentialIssueFailed, setGuestCredentialIssueFailed] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
-  // Generate QR code data URL locally when successData contains a guest QrToken
+  // Generate QR code data URL locally when guestReceiptData contains a guest QrToken
   useEffect(() => {
-    if (successData?.guestQrToken) {
-      const qrPayload = `${window.location.origin}/?qr=${successData.guestQrToken}`;
+    if (guestReceiptData?.guestQrToken) {
+      const qrPayload = `${window.location.origin}/?qr=${guestReceiptData.guestQrToken}`;
       QRCode.toDataURL(qrPayload, { width: 160, margin: 1 })
         .then(url => setQrCodeDataUrl(url))
         .catch(err => console.error('Lỗi tạo mã QR:', err));
     } else {
       setQrCodeDataUrl('');
     }
-  }, [successData]);
+  }, [guestReceiptData]);
+
+  useEffect(() => {
+    console.log('[GuestReceipt] state', {
+      showGuestSuccessModal,
+      hasReceiptData: Boolean(guestReceiptData),
+      vehicleType: guestReceiptData?.vehicleType,
+    });
+  }, [showGuestSuccessModal, guestReceiptData]);
 
   // ── Errors ─────────────────────────────────────────────────────────────
   const [apiError, setApiError] = useState('');
@@ -578,7 +608,7 @@ export function CheckInPage() {
     setLookupData(null);
     setVehicleTypeMismatch(false);
     setApiError('');
-    if (ocrStatus === 'success') {
+    if (ocrStatus === 'success' || ocrStatus === 'guest_resolved') {
       setOcrStatus('low_confidence');
     }
   };
@@ -783,13 +813,21 @@ export function CheckInPage() {
 
     try {
       const result = await lookupPlate(normalized, vehicleType);
+
+      // Ignore stale response if input changed
+      if (normalizePlateForLookup(plateInputRef.current) !== normalized) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[CHECKIN] Ignoring stale lookup response');
+        }
+        return;
+      }
+
       setLookupData(result);
 
       if (result.alreadyParked) {
         setApiError(`Xe đang trong bãi — không thể check-in lần nữa.`);
         return;
       }
-
 
       // Vehicle type mismatch check
       if (result.found && result.vehicleType && result.vehicleType !== vehicleType) {
@@ -803,8 +841,14 @@ export function CheckInPage() {
         currentNormalized === result.requestedPlateNormalized &&
         result.matchedPlateNormalized === result.requestedPlateNormalized;
 
+      const isGuestMatch =
+        result.isGuest === true &&
+        currentNormalized === result.requestedPlateNormalized;
+
       if (isExactMatchGreen) {
         setOcrStatus('success');
+      } else if (isGuestMatch) {
+        setOcrStatus('guest_resolved');
       } else {
         if (ocrStatus !== 'manually_edited') {
           setOcrStatus('low_confidence');
@@ -812,6 +856,9 @@ export function CheckInPage() {
       }
 
     } catch (err: unknown) {
+      if (normalizePlateForLookup(plateInputRef.current) !== normalized) {
+        return;
+      }
       const msg = (err as Error).message ?? 'Không thể tra cứu biển số.';
       setApiError(msg);
     } finally {
@@ -848,6 +895,15 @@ export function CheckInPage() {
         rearImageUrl: rearImageUrl ?? undefined,
       }, frontImage, rearImage);
 
+      console.log('[GuestReceipt] response shape', {
+        isGuest: result?.isGuest,
+        hasPin: typeof result?.guestPin === 'string' && result.guestPin.length > 0,
+        pinLength: typeof result?.guestPin === 'string' ? result.guestPin.length : 0,
+        hasQrToken: typeof result?.guestQrToken === 'string' && result.guestQrToken.length > 0,
+        plate: result?.plate,
+        checkInTime: result?.checkInTime,
+      });
+
       // Store the successful result first
       setSuccessData(result);
 
@@ -857,13 +913,27 @@ export function CheckInPage() {
 
       if (wasGuestInLookup && (!isGuestInResponse || !hasCredentials)) {
         // Set critical partial success state
+        console.error('Guest credentials missing from response (lookup guest):', result);
         setGuestCredentialIssueFailed(true);
-        setApiError('CẢNH BÁO: Xe đã được check-in thành công nhưng dữ liệu khách vãng lai không trả về mã PIN/QR. KHÔNG check-in lại xe này.');
+        setApiError('Check-in thành công nhưng không thể hiển thị phiếu mã PIN. Vui lòng liên hệ quản lý.');
       } else if (isGuestInResponse) {
         if (!hasCredentials) {
+          console.error('Guest credentials missing from response (response guest):', result);
           setGuestCredentialIssueFailed(true);
-          setApiError('CẢNH BÁO: Xe đã được check-in thành công nhưng dữ liệu khách vãng lai không trả về mã PIN/QR. KHÔNG check-in lại xe này.');
+          setApiError('Check-in thành công nhưng không thể hiển thị phiếu mã PIN. Vui lòng liên hệ quản lý.');
         } else {
+          console.log('[GuestReceipt] opening modal');
+          const receipt: GuestReceiptData = {
+            plate: result.plate,
+            vehicleType: vehicleType,
+            guestPin: result.guestPin!,
+            guestQrToken: result.guestQrToken!,
+            checkInTime: result.checkInTime,
+            floorCode: result.floorCode,
+            zoneName: result.zoneName ?? undefined,
+            slotCode: result.slotCode,
+          };
+          setGuestReceiptData(receipt);
           setShowGuestSuccessModal(true);
           handleReset();
         }
@@ -882,6 +952,7 @@ export function CheckInPage() {
   const handleFullReset = () => {
     handleReset();
     setSuccessData(null);
+    setGuestReceiptData(null);
     setShowGuestSuccessModal(false);
     setGuestCredentialIssueFailed(false);
     setQrCodeDataUrl('');
@@ -919,12 +990,6 @@ export function CheckInPage() {
   // ═════════════════════════════════════════════════════
   //  DERIVED VALUES
   // ═════════════════════════════════════════════════════
-  const workflowStep: number =
-    !vehicleType ? 1
-      : (!frontImage || !rearImage || !ocrAttempted) ? 2
-        : lookupData ? (lookupData.alreadyParked ? 2 : 3)
-          : 2;
-
   const canLookup = ocrAttempted && !!vehicleType && !!plateInput.trim() && !searching;
 
   const totalCapacity = lookupData?.totalCapacity ?? 0;
@@ -940,20 +1005,55 @@ export function CheckInPage() {
         ? physicalAvailableCapacity > 0
         : receivableCapacity > 0;
 
+  const lookupCompleted = !!lookupData;
+  const lookupResult = lookupData;
+
+  const exactNormalizedPlateMatch =
+    lookupResult?.found === true &&
+    lookupResult?.matchedPlateNormalized === lookupResult?.requestedPlateNormalized;
+
+  const currentInputStillMatchesRequest =
+    !!lookupResult &&
+    normalizePlateForLookup(plateInput) === lookupResult.requestedPlateNormalized;
+
+  const isRegisteredVerified =
+    lookupCompleted &&
+    lookupResult?.found === true &&
+    lookupResult?.isGuest !== true &&
+    exactNormalizedPlateMatch &&
+    currentInputStillMatchesRequest;
+
+  const isGuestResolved =
+    lookupCompleted &&
+    lookupResult?.isGuest === true &&
+    !!vehicleType &&
+    validatePlate(plateInput, vehicleType).valid &&
+    !!frontImage &&
+    !!rearImage &&
+    !!lookupResult?.floorId &&
+    hasCapacity &&
+    currentInputStillMatchesRequest;
+
   const canConfirm =
     !submitting &&
     !!vehicleType &&
     !!frontImage &&
     !!rearImage &&
     !!plateInput.trim() &&
-    !!normalizePlateForLookup(plateInput) &&
-    !!lookupData &&
-    (!lookupData.found || !lookupData.vehicleType || lookupData.vehicleType === vehicleType) &&
-    !!lookupData.floorId &&
+    validatePlate(plateInput, vehicleType).valid &&
+    (isRegisteredVerified || isGuestResolved) &&
+    !!lookupData?.floorId &&
     hasCapacity &&
-    !lookupData.alreadyParked &&
+    !lookupData?.alreadyParked &&
     !vehicleTypeMismatch &&
     !apiError;
+
+  const workflowStep: number =
+    !vehicleType ? 1
+      : (!frontImage || !rearImage || !ocrAttempted) ? 2
+        : canConfirm ? 4
+          : lookupData ? (lookupData.alreadyParked ? 2 : 3)
+            : 2;
 
   // Customer type display
   const customerTypeDisplay: 'booking' | 'monthly' | 'casual' | 'unknown' =
@@ -1239,9 +1339,9 @@ export function CheckInPage() {
                         onLibraryChange={(e) => handleImageSelect(e, setRearImage, setRearPreview, rearPreview, 'rear')}
                       />
                     </div>
-                     <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
-                       Đưa biển số vào giữa khung, chụp rõ nét và đủ gần để hệ thống nhận diện chính xác.
-                     </p>
+                    <p style={{ margin: '0.65rem 0 0', fontSize: '0.75rem', color: C.gray500, lineHeight: 1.5 }}>
+                      Đưa biển số vào giữa khung, chụp rõ nét và đủ gần để hệ thống nhận diện chính xác.
+                    </p>
                   </>
                 )}
 
@@ -1654,17 +1754,17 @@ export function CheckInPage() {
         </div>
 
       </main>
-      {renderGuestSuccessModal()}
+      {showGuestSuccessModal && guestReceiptData && renderGuestSuccessModal()}
       {renderCriticalFailureModal()}
     </div>
   );
 
   function renderGuestSuccessModal() {
-    if (!showGuestSuccessModal || !successData) return null;
+    if (!showGuestSuccessModal || !guestReceiptData) return null;
 
     const handleCopyPin = async () => {
       try {
-        await navigator.clipboard.writeText(successData.guestPin ?? '');
+        await navigator.clipboard.writeText(guestReceiptData.guestPin);
         alert('Đã sao chép mã PIN vào bộ nhớ tạm!');
       } catch (err) {
         console.error('Không thể sao chép PIN:', err);
@@ -1677,8 +1777,8 @@ export function CheckInPage() {
         alert('Vui lòng cho phép trình duyệt mở popup để in phiếu.');
         return;
       }
-      const checkInTimeFormatted = formatDateTime(successData.checkInTime);
-      
+      const checkInTimeFormatted = formatDateTime(guestReceiptData.checkInTime);
+
       printWindow.document.write(`
         <html>
           <head>
@@ -1738,18 +1838,19 @@ export function CheckInPage() {
           <body>
             <div class="title">PARKSMART</div>
             <div class="subtitle">PHIEU GUI XE VANG LAI</div>
-            <div class="info-item"><span>BIEN SO:</span> <strong>${successData.plate}</strong></div>
-            <div class="info-item"><span>LOAI XE:</span> <span>${vehicleType === 'CAR' ? 'O TO' : 'XE MAY'}</span></div>
-            <div class="info-item"><span>KHU VUC:</span> <span>${successData.zoneName ?? 'Khu vuc tu chon'}</span></div>
+            <div class="info-item"><span>BIEN SO:</span> <strong>${guestReceiptData.plate}</strong></div>
+            <div class="info-item"><span>LOAI XE:</span> <span>${guestReceiptData.vehicleType === 'CAR' ? 'O TO' : 'XE MAY'}</span></div>
+            <div class="info-item"><span>KHU VUC:</span> <span>${guestReceiptData.zoneName ?? 'Khu vuc tu chon'}</span></div>
             <div class="info-item"><span>GIO VAO:</span> <span>${checkInTimeFormatted}</span></div>
             
             <div class="pin-title">MA PIN TRA CUU VE:</div>
-            <div class="pin-container">${successData.guestPin}</div>
+            <div class="pin-container">${guestReceiptData.guestPin}</div>
             
             <div style="font-size: 10px; font-weight: bold; margin-bottom: 4px;">MA QR THANH TOAN:</div>
             <img class="qr-code" src="${qrCodeDataUrl}" alt="QR code" />
             
             <div class="footer">
+              Vui lòng giữ mã PIN để xác nhận khi lấy xe.<br/>
               Quet ma QR hoac nhap ma PIN tai cong de tra cuu va thanh toan phi truoc khi ra.
               Kinh chuc quy khach thuong lo binh an!
             </div>
@@ -1809,7 +1910,7 @@ export function CheckInPage() {
           </div>
 
           <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: C.navy, margin: '0 0 0.5rem' }}>
-            Check-in khách vãng lai thành công
+            Phiếu gửi xe khách vãng lai
           </h2>
           <p style={{ fontSize: '0.85rem', color: C.gray500, margin: '0 0 1.5rem', lineHeight: 1.5 }}>
             Thẻ thông tin đỗ xe đã được khởi tạo thành công trên hệ thống.
@@ -1830,19 +1931,19 @@ export function CheckInPage() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Biển số xe:</span>
-              <strong style={{ color: C.navy, fontSize: '0.95rem' }}>{successData.plate}</strong>
+              <strong style={{ color: C.navy, fontSize: '0.95rem' }}>{guestReceiptData.plate}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Loại xe:</span>
-              <span style={{ fontWeight: 600, color: C.gray800 }}>{vehicleType === 'CAR' ? '🚗 Ô tô' : '🛵 Xe máy'}</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{guestReceiptData.vehicleType === 'CAR' ? '🚗 Ô tô' : '🛵 Xe máy'}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Khu vực đỗ xe:</span>
-              <span style={{ fontWeight: 600, color: '#0F766E' }}>{successData.zoneName ?? 'Khu vực tự do'}</span>
+              <span style={{ fontWeight: 600, color: '#0F766E' }}>{guestReceiptData.zoneName ?? 'Khu vực tự do'}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Giờ vào:</span>
-              <span style={{ fontWeight: 600, color: C.gray800 }}>{formatDateTime(successData.checkInTime)}</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{formatDateTime(guestReceiptData.checkInTime)}</span>
             </div>
           </div>
 
@@ -1868,7 +1969,7 @@ export function CheckInPage() {
                   fontSize: '2.5rem', fontWeight: 900, color: '#1E3A8A',
                   fontFamily: 'monospace', letterSpacing: '0.08em'
                 }}>
-                  {successData.guestPin}
+                  {guestReceiptData.guestPin}
                 </span>
                 <button
                   onClick={handleCopyPin}
@@ -1900,8 +2001,8 @@ export function CheckInPage() {
               </div>
             )}
 
-            <p style={{ margin: 0, fontSize: '0.75rem', color: '#1E3A8A', lineHeight: 1.5, textAlign: 'center' }}>
-              Cung cấp mã PIN hoặc mã QR này cho khách để tra cứu và thanh toán phí.
+            <p style={{ margin: 0, fontSize: '0.75rem', color: C.red, fontWeight: 700, lineHeight: 1.5, textAlign: 'center' }}>
+              Vui lòng giữ mã PIN để xác nhận khi lấy xe.
             </p>
           </div>
 
@@ -1946,7 +2047,7 @@ export function CheckInPage() {
               onMouseOver={(e) => e.currentTarget.style.background = C.navyLight}
               onMouseOut={(e) => e.currentTarget.style.background = C.navy}
             >
-              🔄 Check-in xe mới
+              🔄 Hoàn tất
             </button>
           </div>
         </div>
@@ -1991,7 +2092,7 @@ export function CheckInPage() {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#991B1B', margin: '0 0 0.75rem' }}>
             SỰ CỐ PHÁT HÀNH THẺ KHÁCH VÃNG LAI
           </h2>
-          
+
           <div style={{
             background: '#FEF2F2',
             border: '1px solid #FCA5A5',

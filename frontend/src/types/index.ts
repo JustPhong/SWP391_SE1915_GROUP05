@@ -198,3 +198,18 @@ export interface RevenueReport {
   byMethod: Record<string, number>;
   byDay: { date: string; amount: number }[];
 }
+
+export interface PackagePlan {
+  id: string;
+  name: string;
+  durationDays: number;
+  allowedTier: 'VIP' | 'POPULAR' | 'REGULAR';
+  prices: {
+    CAR?: {
+      price: number;
+    };
+    MOTORBIKE?: {
+      price: number;
+    };
+  };
+}

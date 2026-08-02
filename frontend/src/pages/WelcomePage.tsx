@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
+import { monthlyPackageService } from '../services/monthlyPackage.service';
+import type { PackagePlan } from '../constants/packages';
 import {
   HomeIcon,
   CalendarIcon,
@@ -25,7 +27,7 @@ import { BookingPage } from './Booking';
 import { FloorMapPage } from './FloorMap';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { Floor } from '../types/index';
-import { PACKAGES, CASUAL_PRICING, type VType } from '../constants/packages';
+import { CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
 import carWatermark from '../assets/car-watermark.png';
@@ -69,6 +71,20 @@ export const WelcomePage: React.FC = () => {
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [purchasePlanId, setPurchasePlanId] = useState('');
   const [purchaseVtype, setPurchaseVtype] = useState<'CAR' | 'MOTORBIKE'>('CAR');
+
+  const [plans, setPlans] = useState<PackagePlan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [plansError, setPlansError] = useState('');
+
+  useEffect(() => {
+    monthlyPackageService.getPlans()
+      .then(setPlans)
+      .catch((err) => {
+        console.error('Failed to load plans in WelcomePage:', err);
+        setPlansError('Không thể tải cấu hình gói từ máy chủ.');
+      })
+      .finally(() => setLoadingPlans(false));
+  }, []);
 
   useEffect(() => {
     const state = location.state as { reopenPlanId?: string; reopenVtype?: 'CAR' | 'MOTORBIKE' } | null;
@@ -873,7 +889,7 @@ export const WelcomePage: React.FC = () => {
         {renderGuestTracking()}
         <ProcessSection />
         <FeaturesSection />
-        <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
+        <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} plans={plans} loadingPlans={loadingPlans} plansError={plansError} />
         <Footer navigate={navigate} />
 
         {renderSupportModal()}
@@ -1091,7 +1107,13 @@ export const WelcomePage: React.FC = () => {
           />
           <ProcessSection />
           <FeaturesSection />
-          <PricingSection navigate={navigate} onSelectPackage={handleSelectPackage} />
+          <PricingSection
+            navigate={navigate}
+            onSelectPackage={handleSelectPackage}
+            plans={plans}
+            loadingPlans={loadingPlans}
+            plansError={plansError}
+          />
         </>
       ) : activeTab === 'vehicles' ? (
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: '44px 24px' }}>
@@ -1524,7 +1546,19 @@ function ProcessCard({ num, title, desc }: { num: number; title: string; desc: s
   );
 }
 
-function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string) => void; onSelectPackage?: (planId: string, vtype: VType) => void }) {
+function PricingSection({
+  navigate,
+  onSelectPackage,
+  plans,
+  loadingPlans,
+  plansError,
+}: {
+  navigate: (path: string) => void;
+  onSelectPackage?: (planId: string, vtype: VType) => void;
+  plans: PackagePlan[];
+  loadingPlans: boolean;
+  plansError: string;
+}) {
   const [vtype, setVtype] = useState<VType>('MOTORBIKE');
   const handleSelect = (planId: string, planVtype: VType) => {
     if (onSelectPackage) {
@@ -1609,12 +1643,18 @@ function PricingSection({ navigate, onSelectPackage }: { navigate: (path: string
           <PricingGroup
             vtype="MOTORBIKE"
             onClickCard={handleSelect}
+            plans={plans}
+            loadingPlans={loadingPlans}
+            plansError={plansError}
           />
 
           {/* ── Gói Ô tô (bottom, green) ───────────────────── */}
           <PricingGroup
             vtype="CAR"
             onClickCard={handleSelect}
+            plans={plans}
+            loadingPlans={loadingPlans}
+            plansError={plansError}
           />
         </div>
       </div>
@@ -1823,7 +1863,19 @@ const CAR_TIER_PERKS: TierPerk[][] = [
 const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'CAO CẤP'];
 const CAR_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 
-function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (planId: string, vtype: VType) => void }) {
+function PricingGroup({
+  vtype,
+  onClickCard,
+  plans,
+  loadingPlans,
+  plansError,
+}: {
+  vtype: VType;
+  onClickCard: (planId: string, vtype: VType) => void;
+  plans: PackagePlan[];
+  loadingPlans: boolean;
+  plansError: string;
+}) {
   const isCar = vtype === 'CAR';
   const groupClass = isCar ? styles.pricingGroupIconGreen : styles.pricingGroupIconBlue;
   const cardFeatured = isCar ? styles.planCardFeaturedGreen : styles.planCardFeaturedBlue;
@@ -1839,6 +1891,43 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
   ) : (
     <div className={styles.motorbikeSectionIcon} />
   );
+
+  if (loadingPlans) {
+    return (
+      <div className={styles.pricingGroup}>
+        <div className={`${styles.pricingGroupHeader} ${isCar ? styles.pricingGroupHeaderCar : ''}`}>
+          <div className={`${styles.pricingGroupIcon} ${groupClass}`}>{HeaderIcon}</div>
+          <div>
+            <h4 className={styles.pricingGroupTitle}>{title}</h4>
+            <p className={styles.pricingGroupSubtitle}>{subtitle}</p>
+          </div>
+        </div>
+        <div className={`${styles.pricingPanel} ${panelClass}`} style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: '#fff', fontSize: '1rem' }}>Đang tải danh mục gói...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (plansError) {
+    return (
+      <div className={styles.pricingGroup}>
+        <div className={`${styles.pricingGroupHeader} ${isCar ? styles.pricingGroupHeaderCar : ''}`}>
+          <div className={`${styles.pricingGroupIcon} ${groupClass}`}>{HeaderIcon}</div>
+          <div>
+            <h4 className={styles.pricingGroupTitle}>{title}</h4>
+            <p className={styles.pricingGroupSubtitle}>{subtitle}</p>
+          </div>
+        </div>
+        <div className={`${styles.pricingPanel} ${panelClass}`} style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: '#ef4444', fontSize: '1rem', fontWeight: 600 }}>{plansError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter only plans that have a price for this vehicle type
+  const filteredPlans = plans.filter(p => p.prices && p.prices[vtype] !== undefined);
 
   return (
     <div className={styles.pricingGroup}>
@@ -1858,12 +1947,18 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
           draggable={false}
         />
         <div className={styles.pricingCardsRow}>
-          {PACKAGES.map((pkg, idx) => {
+          {filteredPlans.map((pkg, idx) => {
             const isFeatured = idx === 1;
             const isAnnual = idx === 2;
             const price = pkg.prices[vtype];
-            const perks = tierPerks[idx];
-            const tierLabel = tierLabels[idx];
+            if (!price) return null;
+
+            const perks = tierPerks[idx] || [];
+            const tierLabel = tierLabels[idx] || 'GÓI THÁNG';
+
+            const priceLabel = price.price.toLocaleString('vi-VN') + 'đ';
+            const pricePerDay = Math.round(price.price / pkg.durationDays).toLocaleString('vi-VN') + 'đ/ngày';
+
             return (
               <div
                 key={pkg.id}
@@ -1893,11 +1988,11 @@ function PricingGroup({ vtype, onClickCard }: { vtype: VType; onClickCard: (plan
                   {/* Price */}
                   <div className={styles.planPrice}>
                     <span className={`${styles.planPriceValue} ${isFeatured ? styles.planPriceValueLight : ''}`}>
-                      {price.priceLabel}
+                      {priceLabel}
                     </span>
                   </div>
                   <p className={`${styles.planPerDay} ${isFeatured ? styles.planPerDayLight : ''}`}>
-                    ~ {price.pricePerDay}
+                    ~ {pricePerDay}
                   </p>
 
                   {/* Saving badge */}

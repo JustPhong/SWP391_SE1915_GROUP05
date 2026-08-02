@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { AppError } from '../utils/helpers';
 import { sendOtpEmail } from './email.service';
-import { randomInt } from 'crypto';
+import { randomInt, randomBytes } from 'crypto';
 
 export interface RegisterInput {
   fullName: string;
@@ -336,6 +336,149 @@ export function createAuthService(deps: AuthServiceDependencies) {
           phoneNumber: userResult.phoneNumber ?? null,
         },
       };
+    },
+
+    async deleteAccount(userId: string, password?: string): Promise<void> {
+      if (!password) {
+        throw new AppError(400, 'Vui lòng cung cấp mật khẩu để xác nhận.');
+      }
+      const user = await deps.prisma.user.findUnique({ where: { id: userId } });
+      if (!user || !user.isActive) {
+        throw new AppError(404, 'Không tìm thấy tài khoản.');
+      }
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        throw new AppError(401, 'Mật khẩu không chính xác.', true, 'INVALID_PASSWORD');
+      }
+
+      const originalEmail = user.email;
+
+      await deps.prisma.$transaction(async (tx) => {
+        // Reload user inside transaction to guarantee idempotency and avoid duplicate anonymization
+        const freshUser = await tx.user.findUnique({ where: { id: userId } });
+        if (!freshUser || !freshUser.isActive) {
+          return;
+        }
+
+        const reasons: { type: string; message: string }[] = [];
+
+        // 1. Check for active parking sessions (vehicles currently inside the parking lot)
+        const vehicles = await tx.vehicle.findMany({
+          where: { ownerId: userId },
+        });
+        const vehicleIds = vehicles.map((v) => v.id);
+
+        if (vehicleIds.length > 0) {
+          const activeCheckIn = await tx.checkInRecord.findFirst({
+            where: {
+              vehicleId: { in: vehicleIds },
+              checkOutTime: null,
+              status: 'PARKING',
+            },
+          });
+          if (activeCheckIn) {
+            reasons.push({
+              type: 'ACTIVE_PARKING_SESSION',
+              message: 'Tài khoản đang có xe trong bãi hoặc phiên gửi xe chưa kết thúc.',
+            });
+          }
+        }
+
+        // 2. Check for unpaid or pending payments
+        const pendingPayment = await tx.payment.findFirst({
+          where: {
+            status: 'PENDING',
+            OR: [
+              { checkInRecord: { vehicle: { ownerId: userId } } },
+              { booking: { createdById: userId } },
+              { monthlyPackage: { userId: userId } },
+            ],
+          },
+        });
+        if (pendingPayment) {
+          reasons.push({
+            type: 'UNPAID_PAYMENT',
+            message: 'Tài khoản đang có khoản thanh toán chưa hoàn tất hoặc đang chờ xử lý.',
+          });
+        }
+
+        // 3. Check for active bookings
+        const activeBooking = await tx.booking.findFirst({
+          where: {
+            createdById: userId,
+            status: { in: ['ACTIVE', 'PENDING_PAYMENT'] },
+          },
+        });
+        if (activeBooking) {
+          reasons.push({
+            type: 'ACTIVE_BOOKING',
+            message: 'Tài khoản đang có lượt đặt chỗ chưa hoàn tất hoặc chưa hủy.',
+          });
+        }
+
+        // 4. Check for active monthly packages using status and expiryDate >= now
+        const activePackage = await tx.monthlyPackage.findFirst({
+          where: {
+            userId,
+            status: 'ACTIVE',
+            expiryDate: {
+              gte: new Date(),
+            },
+          },
+        });
+        if (activePackage) {
+          reasons.push({
+            type: 'ACTIVE_MONTHLY_PACKAGE',
+            message: 'Tài khoản đang có gói tháng đang hoạt động.',
+          });
+        }
+
+        if (reasons.length > 0) {
+          const err = new AppError(
+            409,
+            'Không thể xóa tài khoản khi vẫn còn phiên gửi xe, đặt chỗ, gói tháng hoặc khoản thanh toán chưa hoàn tất.',
+            true,
+            'ACCOUNT_DELETION_BLOCKED'
+          );
+          err.reasons = reasons;
+          throw err;
+        }
+
+        // Anonymize user details
+        const anonymizedEmail = `deleted-${userId}-${randomBytes(3).toString('hex')}@invalid.local`;
+
+        // Generate secure random unusable password hash
+        const anonymousPasswordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 12);
+
+        // Update User to inactive and anonymized state
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            fullName: 'Người dùng đã xóa',
+            email: anonymizedEmail,
+            phoneNumber: null,
+            avatarUrl: null,
+            passwordHash: anonymousPasswordHash,
+            isActive: false,
+          },
+        });
+
+        // Archive vehicles by clearing owner contact details while preserving owner relation for history
+        if (vehicleIds.length > 0) {
+          await tx.vehicle.updateMany({
+            where: { ownerId: userId },
+            data: {
+              ownerFullName: 'Người dùng đã xóa',
+              ownerEmail: null,
+              ownerPhone: null,
+            },
+          });
+        }
+      });
+
+      // Clear in-memory OTP stores after the transaction has successfully committed
+      otpStore.delete(originalEmail);
+      resetOtpStore.delete(originalEmail);
     }
   };
 }
@@ -456,100 +599,6 @@ export const authService = {
   },
 
   async deleteAccount(userId: string, password?: string) {
-    if (!password) {
-      throw new AppError(400, 'Vui lòng cung cấp mật khẩu để xác nhận.');
-    }
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new AppError(404, 'Không tìm thấy tài khoản.');
-    }
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
-      throw new AppError(400, 'Mật khẩu xác nhận không chính xác.');
-    }
-
-    return await prisma.$transaction(async (tx) => {
-      const vehicles = await tx.vehicle.findMany({
-        where: { ownerId: userId },
-      });
-      const vehicleIds = vehicles.map((v) => v.id);
-
-      if (vehicleIds.length > 0) {
-        const activeCheckIn = await tx.checkInRecord.findFirst({
-          where: {
-            vehicleId: { in: vehicleIds },
-            status: 'PARKING',
-          },
-        });
-        if (activeCheckIn) {
-          throw new AppError(400, 'Không thể xóa tài khoản khi xe của bạn đang đỗ trong bãi.');
-        }
-
-        const checkInRecords = await tx.checkInRecord.findMany({
-          where: { vehicleId: { in: vehicleIds } },
-        });
-        const checkInRecordIds = checkInRecords.map((r) => r.id);
-
-        if (checkInRecordIds.length > 0) {
-          await tx.payment.deleteMany({
-            where: { checkInRecordId: { in: checkInRecordIds } },
-          });
-        }
-
-        const packages = await tx.monthlyPackage.findMany({
-          where: { vehicleId: { in: vehicleIds } },
-        });
-        const packageIds = packages.map((p) => p.id);
-
-        if (packageIds.length > 0) {
-          await tx.payment.deleteMany({
-            where: { monthlyPackageId: { in: packageIds } },
-          });
-        }
-        await tx.monthlyPackage.deleteMany({
-          where: { vehicleId: { in: vehicleIds } },
-        });
-
-        await tx.booking.deleteMany({
-          where: { vehicleId: { in: vehicleIds } },
-        });
-
-        await tx.checkInRecord.deleteMany({
-          where: { vehicleId: { in: vehicleIds } },
-        });
-
-        await tx.parkingSlot.updateMany({
-          where: { assignedVehicleId: { in: vehicleIds } },
-          data: { assignedVehicleId: null },
-        });
-
-        await tx.vehicle.deleteMany({
-          where: { ownerId: userId },
-        });
-      }
-
-      await tx.checkInRecord.updateMany({
-        where: { checkedInById: userId },
-        data: { checkedInById: null },
-      });
-      await tx.checkInRecord.updateMany({
-        where: { checkedOutById: userId },
-        data: { checkedOutById: null },
-      });
-      await tx.payment.updateMany({
-        where: { collectedById: userId },
-        data: { collectedById: null },
-      });
-
-      await tx.booking.deleteMany({
-        where: { createdById: userId },
-      });
-
-      await tx.monthlyPackage.deleteMany({
-        where: { userId: userId },
-      });
-
-      await tx.user.delete({ where: { id: userId } });
-    });
+    return productionAuthService.deleteAccount(userId, password);
   },
 };
