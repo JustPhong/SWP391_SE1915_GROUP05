@@ -151,6 +151,7 @@ router.get('/:id', bookingController.getById);
 router.post('/:id/no-show', authorize('STAFF', 'MANAGER', 'ADMIN'), bookingController.markNoShow);
 
 router.post('/:id/cancel', cancelBookingSchema, validate, bookingController.cancel);
+router.post('/:id/abandon-payment', authorize('DRIVER'), cancelBookingSchema, validate, bookingController.abandonPayment);
 
 /**
  * @swagger

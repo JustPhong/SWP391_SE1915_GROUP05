@@ -5,16 +5,6 @@ import { asyncHandler, AppError } from '../utils/helpers';
 import { stripe } from '../config/stripe';
 
 export const monthlyPackageController = {
-  create: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const pkg = await monthlyPackageService.create({
-      ...req.body,
-      userId: req.user!.id,
-      startDate: new Date(req.body.startDate),
-      expiryDate: new Date(req.body.expiryDate),
-    });
-    return res.status(201).json({ success: true, data: pkg });
-  }),
-
   createCheckoutSession: asyncHandler(async (req: AuthRequest, res: Response) => {
     const { vehicleId, planId } = req.body;
     const result = await monthlyPackageService.createCheckoutSession({
@@ -22,6 +12,17 @@ export const monthlyPackageController = {
       vehicleId,
       planId,
     });
+    if (result.status === 'ALREADY_PROCESSED') {
+      return res.status(409).json({
+        success: true,
+        alreadyProcessed: true,
+        message: 'Giao dịch đã được thanh toán thành công.',
+        data: {
+          packageId: result.packageId,
+          paymentId: result.paymentId,
+        },
+      });
+    }
     return res.status(200).json({ success: true, data: result });
   }),
 
@@ -59,8 +60,39 @@ export const monthlyPackageController = {
   }),
 
   renewPackage: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const pkg = await monthlyPackageService.renewPackage(req.params.packageId, req.user!.id);
-    return res.status(200).json({ success: true, data: pkg });
+    const { selectedPlanId } = req.body;
+    const result = await monthlyPackageService.renewPackage(req.params.packageId, req.user!.id, selectedPlanId);
+    if (result.status === 'ALREADY_PROCESSED') {
+      return res.status(409).json({
+        success: true,
+        alreadyProcessed: true,
+        message: 'Giao dịch đã được thanh toán thành công.',
+        data: {
+          packageId: result.packageId,
+          paymentId: result.paymentId,
+        },
+      });
+    }
+    return res.status(200).json({ success: true, data: result });
+  }),
+
+  abandonPayment: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { paymentId, sessionId } = req.body;
+    if (!paymentId || !sessionId) {
+      throw new AppError(400, 'Missing paymentId or sessionId in request body.');
+    }
+    const result = await monthlyPackageService.abandonPayment({
+      packageId: req.params.packageId,
+      userId: req.user!.id,
+      paymentId,
+      sessionId,
+    });
+    return res.status(200).json({ success: true, data: result });
+  }),
+
+  getPlans: asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const plans = monthlyPackageService.getPlans();
+    return res.status(200).json({ success: true, data: plans });
   }),
 
   setAutoRenew: asyncHandler(async (req: AuthRequest, res: Response) => {

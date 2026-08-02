@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authController } from '../controllers/auth.controller';
 import { registerSchema, loginSchema } from '../dtos/auth.dto';
 import { validate } from '../middleware/error.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, authorize } from '../middleware/auth.middleware';
 import { uploadAvatar } from '../middleware/upload.middleware';
 
 const router = Router();
@@ -15,7 +15,7 @@ router.patch('/profile', authenticate, authController.updateProfile);
 router.patch('/password', authenticate, authController.changePassword);
 router.post('/avatar', authenticate, uploadAvatar.single('avatar'), authController.uploadAvatar);
 router.delete('/avatar', authenticate, authController.removeAvatar);
-router.delete('/profile', authenticate, authController.deleteAccount);
+router.delete('/profile', authenticate, authorize('DRIVER'), authController.deleteAccount);
 router.post('/forgot-password/send-otp', authController.forgotPasswordSendOtp);
 router.post('/forgot-password/reset', authController.resetPassword);
 

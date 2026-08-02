@@ -82,17 +82,21 @@ async function runTests() {
         planId: string,
         expectedPrice: number
       ) {
-        const session = await monthlyPackageService.createCheckoutSession({
+        const sessionResult = await monthlyPackageService.createCheckoutSession({
           userId,
           vehicleId,
           planId,
         });
 
+        if (sessionResult.status !== 'CHECKOUT') {
+          throw new Error(`Expected CHECKOUT result but got ${sessionResult.status}`);
+        }
+
         await monthlyPackageService.handleStripeWebhook({
           type: 'checkout.session.completed',
           data: {
             object: {
-              id: session.sessionId,
+              id: sessionResult.sessionId,
               payment_status: 'paid',
               currency: 'vnd',
               amount_total: expectedPrice,
@@ -100,6 +104,9 @@ async function runTests() {
                 userId,
                 vehicleId,
                 planId,
+                paymentId: sessionResult.paymentId,
+                monthlyPackageId: sessionResult.packageId,
+                type: 'purchase',
               },
             },
           },
@@ -110,7 +117,7 @@ async function runTests() {
           include: { floor: true },
         });
 
-        return { pkg, sessionId: session.sessionId };
+        return { pkg, sessionId: sessionResult.sessionId };
       }
 
       async function cleanupPackage(pkgId: string, vehicleId: string) {
@@ -212,11 +219,14 @@ async function runTests() {
               userId: testDriver.id,
               vehicleId: motoVeh.id,
               planId: '1m',
+              paymentId: 'dummy-payment-id',
+              monthlyPackageId: (p6 as any)?.id ?? 'dummy-pkg-id',
+              type: 'purchase',
             },
           },
         },
       });
-      if (!('alreadyProcessed' in duplicateRes)) {
+      if (!duplicateRes || !('alreadyProcessed' in duplicateRes)) {
         throw new Error('Expected duplicate webhook response to return alreadyProcessed indicator.');
       }
       assert(duplicateRes.alreadyProcessed === true, 'Scenario 15: Duplicate Stripe webhook processing is idempotent');

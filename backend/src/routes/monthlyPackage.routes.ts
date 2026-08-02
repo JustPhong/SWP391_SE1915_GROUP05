@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { monthlyPackageController } from '../controllers/monthlyPackage.controller';
-import { createMonthlyPackageSchema, setAutoRenewSchema } from '../dtos/monthly-package.dto';
+import { setAutoRenewSchema } from '../dtos/monthly-package.dto';
 import { validate } from '../middleware/error.middleware';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
+
+router.get('/plans', monthlyPackageController.getPlans);
 
 router.use(authenticate);
 
@@ -67,72 +69,6 @@ router.get('/mine', monthlyPackageController.getMyPackages);
  */
 router.get('/vehicle/:vehicleId', monthlyPackageController.getByVehicle);
 
-/**
- * @swagger
- * /monthly-packages:
- *   post:
- *     summary: Purchase a monthly package
- *     tags: [Monthly Package]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *               - vehicleId
- *               - startDate
- *               - expiryDate
- *               - price
- *               - paymentMethod
- *             properties:
- *               userId:
- *                 type: string
- *                 format: uuid
- *                 description: The user purchasing the package
- *               vehicleId:
- *                 type: string
- *                 format: uuid
- *                 description: The vehicle to associate with the package
- *               slotId:
- *                 type: string
- *                 format: uuid
- *                 description: Optional dedicated slot for the package
- *               startDate:
- *                 type: string
- *                 format: date-time
- *                 description: Package start date (ISO 8601)
- *               expiryDate:
- *                 type: string
- *                 format: date-time
- *                 description: Package expiry date (ISO 8601)
- *               price:
- *                 type: number
- *                 description: Package price (must be a positive number)
- *               paymentMethod:
- *                 type: string
- *                 enum: [CASH, CARD, EWALLET]
- *                 description: Payment method used
- *     responses:
- *       '201':
- *         description: Monthly package purchased successfully
- *       '400':
- *         description: Validation error
- *       '401':
- *         description: Unauthorized — missing or invalid JWT
- *       '403':
- *         description: Forbidden — missing package.buy permission
- */
-router.post(
-  '/',
-  createMonthlyPackageSchema,
-  validate,
-  monthlyPackageController.create
-);
-
 router.post(
   '/checkout-session',
   monthlyPackageController.createCheckoutSession
@@ -164,6 +100,7 @@ router.post(
  *         description: Package not found
  */
 router.post('/:packageId/renew', monthlyPackageController.renewPackage);
+router.post('/:packageId/abandon-payment', monthlyPackageController.abandonPayment);
 
 /**
  * @swagger

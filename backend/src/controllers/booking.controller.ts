@@ -75,8 +75,13 @@ export const bookingController = {
   }),
 
   cancel: asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (!req.user) throw new AppError(401, 'Chưa xác thực người dùng');
     const bookingId = req.params.id;
-    const result = await bookingService.cancel(bookingId);
+    const result = await bookingService.cancel(
+      bookingId,
+      req.user.id,
+      req.user.role
+    );
     return res.status(200).json({ success: true, data: result });
   }),
 
@@ -117,6 +122,17 @@ export const bookingController = {
       expectedArrival,
     });
 
+    return res.status(200).json({ success: true, data: result });
+  }),
+
+  abandonPayment: asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (!req.user) throw new AppError(401, 'Chưa xác thực người dùng');
+    const bookingId = req.params.id;
+    const result = await bookingService.abandonPayment(
+      bookingId,
+      req.user.id,
+      req.user.role
+    );
     return res.status(200).json({ success: true, data: result });
   }),
 
