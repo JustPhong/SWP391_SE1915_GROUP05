@@ -457,18 +457,248 @@ export const bookingService = {
     });
   },
 
-  async cancel(bookingId: string) {
-    const booking = await prisma.booking.findUnique({
+  async cancel(bookingId: string, userId: string, role: string) {
+    const initialBooking = await prisma.booking.findUnique({
       where: { id: bookingId },
     });
-    if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
-    if (booking.status === BOOKING_CANCELLED) {
-      throw new AppError(400, 'Đặt chỗ đã được hủy trước đó');
+    if (!initialBooking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
+
+    if (initialBooking.status === 'PENDING_PAYMENT') {
+      // ── PENDING_PAYMENT CANCELLATION BRANCH (WITH STRONGER WEBHOCK RACE GUARDS) ──
+      await prisma.$transaction(async (tx) => {
+        const booking = await tx.booking.findUnique({
+          where: { id: bookingId },
+          include: { vehicle: true, payments: true }
+        });
+        if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
+
+        if (booking.status !== 'PENDING_PAYMENT') {
+          throw new AppError(409, 'Trạng thái đặt chỗ đã thay đổi. Vui lòng tải lại trang.');
+        }
+
+        if (role === 'DRIVER' && userId && booking.createdById !== userId && booking.vehicle.ownerId !== userId) {
+          throw new AppError(403, 'Bạn không có quyền hủy đặt chỗ này');
+        }
+
+        const hasSuccessPayment = booking.payments.some(p => p.status === 'SUCCESS');
+        if (hasSuccessPayment) {
+          throw new AppError(409, 'Giao dịch đã được thanh toán thành công, không thể hủy đặt chỗ.');
+        }
+
+        const updateResult = await tx.booking.updateMany({
+          where: {
+            id: bookingId,
+            status: 'PENDING_PAYMENT'
+          },
+          data: {
+            status: BOOKING_CANCELLED,
+            depositStatus: 'FAILED'
+          }
+        });
+
+        if (updateResult.count !== 1) {
+          throw new AppError(409, 'Trạng thái đặt chỗ đã được cập nhật bởi một phiên làm việc khác.');
+        }
+
+        await tx.payment.updateMany({
+          where: {
+            bookingId,
+            status: 'PENDING'
+          },
+          data: {
+            status: 'FAILED'
+          }
+        });
+      });
+
+      return prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: bookingInclude,
+      });
+
+    } else {
+      // ── CONFIRMED/ACTIVE BRANCH (PRESERVED BEHAVIOR) ──
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: { vehicle: true },
+      });
+      if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ');
+      if (role === 'DRIVER' && userId && booking.createdById !== userId && booking.vehicle.ownerId !== userId) {
+        throw new AppError(403, 'Bạn không có quyền hủy đặt chỗ này');
+      }
+      if (booking.status === BOOKING_CANCELLED) {
+        throw new AppError(400, 'Đặt chỗ đã được hủy trước đó');
+      }
+
+      const newStatus = BOOKING_CANCELLED;
+      const newDepositStatus = 'FORFEITED';
+
+      await prisma.$transaction([
+        prisma.booking.update({
+          where: { id: bookingId },
+          data: { status: newStatus, depositStatus: newDepositStatus },
+        }),
+        prisma.payment.updateMany({
+          where: { bookingId, status: 'PENDING' },
+          data: { status: 'FAILED' },
+        }),
+      ]);
+
+      return prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: bookingInclude,
+      });
+    }
+  },
+
+  async abandonPayment(bookingId: string, userId: string, role: string) {
+    const initialBooking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { vehicle: true }
+    });
+    if (!initialBooking) throw new AppError(404, 'Không tìm thấy đặt chỗ.');
+
+    // Early ownership check (before Stripe network calls)
+    if (role === 'DRIVER' && initialBooking.createdById !== userId && initialBooking.vehicle.ownerId !== userId) {
+      throw new AppError(403, 'Bạn không có quyền thay đổi thông tin đặt chỗ này');
     }
 
-    return prisma.booking.update({
+    if (initialBooking.status === 'CANCELLED') {
+      return initialBooking;
+    }
+
+    if (initialBooking.status !== 'PENDING_PAYMENT') {
+      throw new AppError(409, `Đặt chỗ không còn ở trạng thái chờ thanh toán (Trạng thái hiện tại: ${initialBooking.status})`);
+    }
+
+    // Retrieve the Stripe session if available
+    let session;
+    if (initialBooking.stripeCheckoutSessionId) {
+      try {
+        session = await stripe.checkout.sessions.retrieve(initialBooking.stripeCheckoutSessionId);
+      } catch (stripeErr: any) {
+        console.error(`[StripeAbandon] Failed to retrieve session ${initialBooking.stripeCheckoutSessionId}: ${stripeErr.message}`);
+        throw new AppError(503, 'Không thể kiểm tra trạng thái thanh toán lúc này. Vui lòng thử lại sau.');
+      }
+    }
+
+    if (session) {
+      // If Stripe payment_status is paid, reject cancellation and reconcile the successful payment
+      if (session.payment_status === 'paid') {
+        console.log(`[StripeAbandon] Session is paid. Reconciling instead of abandoning: sessionId=${session.id}`);
+        await this.finalizePaidBookingCheckout(session.id);
+        throw new AppError(409, 'Thao tác không hợp lệ. Đơn đặt chỗ đã được thanh toán thành công.');
+      }
+
+      if (session.status === 'open') {
+        // Session is open and unpaid — expire it server-side
+        let expiredSession;
+        try {
+          console.log(`[StripeAbandon] Expiring Stripe checkout session ${session.id} server-side`);
+          expiredSession = await stripe.checkout.sessions.expire(session.id);
+        } catch (expireErr: any) {
+          console.warn(`[StripeAbandon] Failed to expire Stripe session ${session.id}: ${expireErr.message}. Re-verifying actual state.`);
+
+          // Re-retrieve to determine the real current state
+          let reRetrievedSession;
+          try {
+            reRetrievedSession = await stripe.checkout.sessions.retrieve(session.id);
+          } catch (retrieveErr: any) {
+            console.error(`[StripeAbandon] Failed to re-retrieve session ${session.id}: ${retrieveErr.message}`);
+            throw new AppError(503, 'Không thể kiểm tra trạng thái thanh toán lúc này. Vui lòng thử lại sau.');
+          }
+
+          if (reRetrievedSession.payment_status === 'paid') {
+            await this.finalizePaidBookingCheckout(reRetrievedSession.id);
+            throw new AppError(409, 'Thao tác không hợp lệ. Đơn đặt chỗ đã được thanh toán thành công.');
+          }
+
+          // Only status=expired is definitively safe to cancel
+          if (reRetrievedSession.status === 'expired') {
+            console.log(`[StripeAbandon] Re-verified: session is expired and unpaid. Proceeding with cancellation.`);
+            // fall through to transaction below
+          } else {
+            // complete, open, unknown — do not cancel
+            console.warn(`[StripeAbandon] Unresolved Stripe state after expire failure: status=${reRetrievedSession.status}, payment_status=${reRetrievedSession.payment_status}. Returning 503.`);
+            throw new AppError(503, 'Không thể hủy phiên thanh toán lúc này. Vui lòng thử lại sau.');
+          }
+        }
+
+        // Expiration call succeeded — verify the returned object before proceeding
+        if (expiredSession) {
+          if (expiredSession.payment_status === 'paid') {
+            await this.finalizePaidBookingCheckout(expiredSession.id);
+            throw new AppError(409, 'Thao tác không hợp lệ. Đơn đặt chỗ đã được thanh toán thành công.');
+          }
+          // Only status=expired is accepted
+          if (expiredSession.status !== 'expired') {
+            console.warn(`[StripeAbandon] Unexpected expiration result: status=${expiredSession.status}, payment_status=${expiredSession.payment_status}. Returning 503.`);
+            throw new AppError(503, 'Không thể hủy phiên thanh toán lúc này. Vui lòng thử lại sau.');
+          }
+          console.log(`[StripeAbandon] Expiration verified: session is expired and unpaid.`);
+        }
+
+      } else if (session.status === 'expired') {
+        // Already expired and unpaid — safe to proceed to cancellation
+        console.log(`[StripeAbandon] Session was already expired and unpaid.`);
+      } else {
+        // complete/unknown — do not cancel regardless of payment_status
+        // complete+unpaid is NOT treated as safe proof of abandonment
+        console.warn(`[StripeAbandon] Cannot safely abandon session: status=${session.status}, payment_status=${session.payment_status}. Returning 503.`);
+        throw new AppError(503, 'Không thể hủy phiên thanh toán lúc này. Vui lòng thử lại sau.');
+      }
+    }
+    // No stripeCheckoutSessionId — session was never created, safe to cancel directly.
+
+    // Serializable transaction with ownership re-check inside
+    await prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId },
+        include: { vehicle: true, payments: true }
+      });
+      if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ.');
+
+      // Re-verify ownership inside the transaction (defence-in-depth)
+      if (role === 'DRIVER' && booking.createdById !== userId && booking.vehicle.ownerId !== userId) {
+        throw new AppError(403, 'Bạn không có quyền thay đổi thông tin đặt chỗ này');
+      }
+
+      if (booking.status !== 'PENDING_PAYMENT') {
+        throw new AppError(409, `Đặt chỗ đã thay đổi trạng thái trong quá trình xử lý (Trạng thái hiện tại: ${booking.status})`);
+      }
+
+      const hasSuccessPayment = booking.payments.some(p => p.status === 'SUCCESS');
+      if (hasSuccessPayment) {
+        throw new AppError(409, 'Giao dịch đã được thanh toán thành công, không thể hủy.');
+      }
+
+      // Guarded updateMany — requires count === 1
+      const updateResult = await tx.booking.updateMany({
+        where: { id: bookingId, status: 'PENDING_PAYMENT' },
+        data: { status: 'CANCELLED', depositStatus: 'FAILED' }
+      });
+
+      if (updateResult.count !== 1) {
+        throw new AppError(409, 'Trạng thái đặt chỗ đã được cập nhật bởi một tiến trình khác.');
+      }
+
+      // Update only related Payment rows whose status is PENDING to FAILED
+      await tx.payment.updateMany({
+        where: {
+          bookingId,
+          status: 'PENDING'
+        },
+        data: {
+          status: 'FAILED'
+        }
+      });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable
+    });
+
+    return prisma.booking.findUnique({
       where: { id: bookingId },
-      data: { status: BOOKING_CANCELLED, depositStatus: 'FORFEITED' },
+      include: bookingInclude
     });
   },
 
@@ -600,9 +830,9 @@ export const bookingService = {
         let existingSession;
         try {
           existingSession = await stripe.checkout.sessions.retrieve(existingPending.stripeCheckoutSessionId);
-        } catch (retrieveErr: unknown) {
-          const msg = retrieveErr instanceof Error ? retrieveErr.message : String(retrieveErr);
-          console.warn(`[StripeCheckout] Failed to retrieve existing session ${existingPending.stripeCheckoutSessionId}: ${msg}. Will create replacement.`);
+        } catch (retrieveErr: any) {
+          console.error(`[StripeCheckout] Failed to retrieve existing session ${existingPending.stripeCheckoutSessionId}: ${retrieveErr.message}`);
+          throw new AppError(503, `Không thể kiểm tra trạng thái thanh toán từ Stripe: ${retrieveErr.message || 'Lỗi kết nối'}`);
         }
 
         if (existingSession) {
@@ -627,16 +857,41 @@ export const bookingService = {
               sessionId: existingSession.id,
               bookingId: existingPending.id,
             };
-          } else {
-            // Session is expired/complete but not paid — fall through to create a replacement
-            console.log(`[StripeCheckout] Existing session ${existingSession.id} has status=${existingSession.status}, payment_status=${existingSession.payment_status}. Will create replacement session.`);
+          } else if (existingSession.status === 'expired' || existingSession.status === 'complete') {
+            // Stripe explicitly reports expired or complete (but unpaid since payment_status !== paid)
+            console.log(`[StripeCheckout] Existing session ${existingSession.id} has status=${existingSession.status}, payment_status=${existingSession.payment_status}. Marking old pending payments as FAILED.`);
+            await prisma.payment.updateMany({
+              where: { bookingId: existingPending.id, status: 'PENDING' },
+              data: { status: 'FAILED' }
+            });
           }
         }
+      } else {
+        // No Stripe session linked yet, safely mark old pending payments as FAILED
+        await prisma.payment.updateMany({
+          where: { bookingId: existingPending.id, status: 'PENDING' },
+          data: { status: 'FAILED' }
+        });
       }
 
       console.log(`[StripeCheckout] Reusing existing pending booking: bookingId=${existingPending.id}`);
       booking = existingPending;
-      payment = existingPending.payments[0] || null;
+
+      // Update expectedArrival to the newly selected time since we are initiating checkout now
+      await prisma.booking.update({
+        where: { id: existingPending.id },
+        data: { expectedArrival: input.expectedArrival }
+      });
+      booking.expectedArrival = input.expectedArrival;
+
+      // Query database again for a PENDING payment rather than using stale relation data
+      payment = await prisma.payment.findFirst({
+        where: {
+          bookingId: booking.id,
+          status: 'PENDING',
+        },
+      });
+
       if (!payment) {
         payment = await prisma.payment.create({
           data: {
@@ -650,10 +905,20 @@ export const bookingService = {
             paidAt: null,
           },
         });
-        console.log(`[StripeCheckout] Recreated pending payment for existing booking: paymentId=${payment.id}`);
+        console.log(`[StripeCheckout] Created new pending payment for existing booking: paymentId=${payment.id}`);
       } else {
-        console.log(`[StripeCheckout] Reusing pending payment: paymentId=${payment.id}`);
+        console.log(`[StripeCheckout] Reusing active pending payment from database: paymentId=${payment.id}`);
       }
+
+      // Mark all other pending payments of this booking as FAILED to prevent duplicates
+      await prisma.payment.updateMany({
+        where: {
+          bookingId: booking.id,
+          id: { not: payment.id },
+          status: 'PENDING',
+        },
+        data: { status: 'FAILED' }
+      });
     } else {
       const eligibleFloors = await prisma.floor.findMany({
         where: {
@@ -862,9 +1127,18 @@ export const bookingService = {
       });
       if (!booking) throw new AppError(404, 'Không tìm thấy đặt chỗ.');
 
-      // If already processed, return success
-      if (booking.status === 'ACTIVE' && booking.depositStatus === 'PAID') {
+      // Check if SUCCESS payment already exists for this booking (idempotency check)
+      const successPayment = await tx.payment.findFirst({
+        where: { bookingId: booking.id, status: 'SUCCESS' },
+      });
+
+      if ((booking.status === 'ACTIVE' && booking.depositStatus === 'PAID') || successPayment) {
         return { success: true, alreadyProcessed: true, booking };
+      }
+
+      // Only confirm booking where status = PENDING_PAYMENT (fails closed for CANCELLED, FULFILLED, NO_SHOW, etc.)
+      if (booking.status !== 'PENDING_PAYMENT') {
+        throw new AppError(409, `Không thể xác nhận đặt chỗ đang ở trạng thái "${booking.status}"`);
       }
 
       // Check for active checkins/bookings capacity using receivableCapacity
@@ -907,14 +1181,18 @@ export const bookingService = {
       const expiresAt = new Date(confirmedAt.getTime() + 30 * 60 * 1000);
 
       if (payment) {
-        await tx.payment.update({
-          where: { id: payment.id },
+        // Only update Payment where status = PENDING (guarded update count === 1)
+        const updatePaymentResult = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'PENDING' },
           data: {
             status: 'SUCCESS',
             paidAt: confirmedAt,
             transactionCode: paymentIntentId ?? null,
           },
         });
+        if (updatePaymentResult.count !== 1) {
+          throw new AppError(409, 'Giao dịch thanh toán đã được xử lý bởi một phiên làm việc khác.');
+        }
       } else {
         await tx.payment.create({
           data: {
@@ -931,8 +1209,12 @@ export const bookingService = {
         });
       }
 
-      const updatedBooking = await tx.booking.update({
-        where: { id: booking.id },
+      // Guarded update count === 1 to ensure single webhook processing matches status: PENDING_PAYMENT
+      const updateBookingResult = await tx.booking.updateMany({
+        where: {
+          id: booking.id,
+          status: 'PENDING_PAYMENT',
+        },
         data: {
           status: 'ACTIVE',
           depositStatus: 'PAID',
@@ -940,6 +1222,14 @@ export const bookingService = {
           expiresAt,
           stripeCheckoutSessionId: sessionId,
         },
+      });
+
+      if (updateBookingResult.count !== 1) {
+        throw new AppError(409, 'Đặt chỗ đã được cập nhật bởi một phiên làm việc khác.');
+      }
+
+      const updatedBooking = await tx.booking.findUnique({
+        where: { id: booking.id },
         include: {
           vehicle: {
             include: { owner: true },
@@ -949,9 +1239,9 @@ export const bookingService = {
         },
       });
 
-      console.log(`[StripeWebhook/Reconcile] Atomic finalization succeeded: bookingId=${booking.id}, newBookingStatus=${updatedBooking.status}, newDepositStatus=${updatedBooking.depositStatus}, confirmedAt=${confirmedAt.toISOString()}, expiresAt=${expiresAt.toISOString()}`);
+      console.log(`[StripeWebhook/Reconcile] Atomic finalization succeeded: bookingId=${booking.id}, newBookingStatus=${updatedBooking?.status}, newDepositStatus=${updatedBooking?.depositStatus}, confirmedAt=${confirmedAt.toISOString()}, expiresAt=${expiresAt.toISOString()}`);
 
-      return { success: true, alreadyProcessed: false, booking: updatedBooking };
+      return { success: true, alreadyProcessed: false, booking: updatedBooking! };
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });

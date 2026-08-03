@@ -77,28 +77,47 @@ export const driverDashboardService = {
       orderBy: { checkInTime: 'desc' },
       include: {
         vehicle: true,
-        slot: true,
+        slot: {
+          include: {
+            floor: true,
+          },
+        },
         floor: true,
         payments: {
           where: {
-            type: 'PARKING_FEE',
             status: 'SUCCESS',
+            type: {
+              in: ['PARKING_FEE', 'SESSION'],
+            },
           },
           orderBy: { paidAt: 'desc' },
         },
       },
     });
 
-    const recordEntries = records.map((record) => ({
-      id: record.id,
-      recordType: 'PARKING_SESSION',
-      plateNumber: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? record.floor?.name ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      date: formatISODate(record.checkOutTime ?? record.checkInTime),
-      duration: formatDuration(record.checkInTime, record.checkOutTime ?? new Date()),
-      amount: record.payments.reduce((sum, p) => sum + Number(p.amount), 0),
-      status: record.status,
-    }));
+    const recordEntries = records.map((record) => {
+      let normalizedStatus: 'ACTIVE' | 'COMPLETED' | 'CANCELLED' = 'ACTIVE';
+      if (record.status === 'CANCELLED') {
+        normalizedStatus = 'CANCELLED';
+      } else if (record.checkOutTime !== null || record.status === 'COMPLETED') {
+        normalizedStatus = 'COMPLETED';
+      }
+
+      return {
+        id: record.id,
+        recordType: 'PARKING_SESSION',
+        plateNumber: record.vehicle.plateNumber,
+        plate: record.vehicle.plateNumber,
+        slotCode: record.slot?.code ?? record.floor?.name ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+        floor: record.slot?.floor?.name ?? record.floor?.name ?? 'Không cố định',
+        date: formatISODate(record.checkInTime),
+        checkInTime: formatISODate(record.checkInTime),
+        checkOutTime: record.checkOutTime ? formatISODate(record.checkOutTime) : null,
+        duration: formatDuration(record.checkInTime, record.checkOutTime ?? new Date()),
+        amount: record.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+        status: normalizedStatus,
+      };
+    });
 
     return recordEntries;
   },
