@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { PACKAGES, getTierAreaLabel } from '../constants/packages';
+import { getTierAreaLabel } from '../constants/packages';
 import { vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
-import { Link } from 'react-router-dom';
-import type { Vehicle } from '../types/index';
+import type { Vehicle, PackagePlan } from '../types/index';
 import { PlateInput } from './PlateInput';
 
 const C = {
@@ -58,17 +58,15 @@ export interface PackagePurchaseModalProps {
   onClose: () => void;
   planId: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
-  onSuccess?: () => void;
 }
 
 export function PackagePurchaseModal({
   isOpen,
   onClose,
   planId,
-  vehicleType,
-  onSuccess
+  vehicleType
 }: PackagePurchaseModalProps) {
-  const { user, refreshPackageStatus } = useAuth();
+  const { user } = useAuth();
 
   // States
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -77,9 +75,6 @@ export function PackagePurchaseModal({
   const [hasVehiclesOfThisType, setHasVehiclesOfThisType] = useState(true);
 
   // Payment step states
-  const [step, setStep] = useState<'CONFIRM' | 'PAYMENT_METHOD' | 'QR' | 'CARD' | 'SUCCESS'>('CONFIRM');
-  const [paymentMethod, setPaymentMethod] = useState<'EWALLET' | 'CARD'>('EWALLET');
-  const [createdPkg, setCreatedPkg] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -94,14 +89,29 @@ export function PackagePurchaseModal({
   const [addVehicleError, setAddVehicleError] = useState('');
   const [addingVehicle, setAddingVehicle] = useState(false);
 
-  // Card payment form states
-  const [cardForm, setCardForm] = useState({ number: '', name: '', expiry: '', cvv: '' });
-
   // Refs for trapping focus
   const modalRef = useRef<HTMLDivElement>(null);
   const firstInteractiveRef = useRef<any>(null);
 
-  const plan = PACKAGES.find(p => p.id === planId);
+  const [plans, setPlans] = useState<PackagePlan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [plansError, setPlansError] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setLoadingPlans(true);
+      setPlansError('');
+      monthlyPackageService.getPlans()
+        .then(setPlans)
+        .catch(err => {
+          console.error('Failed to load plans from backend:', err);
+          setPlansError('Không thể tải cấu hình gói từ máy chủ.');
+        })
+        .finally(() => setLoadingPlans(false));
+    }
+  }, [isOpen]);
+
+  const plan = plans.find(p => p.id === planId);
   const priceObj = plan?.prices[vehicleType];
   const price = priceObj?.price ?? 0;
 
@@ -141,12 +151,9 @@ export function PackagePurchaseModal({
   useEffect(() => {
     if (isOpen && user) {
       loadVehicles();
-      setStep('CONFIRM');
       setSubmitError('');
-      setCreatedPkg(null);
       setShowAddVehicle(false);
       setNewPlate('');
-      setCardForm({ number: '', name: '', expiry: '', cvv: '' });
 
       // Auto-set initial options for brand/model matching type
       const brandOpts = VEHICLE_PROFILE_OPTIONS[vehicleType];
@@ -210,12 +217,14 @@ export function PackagePurchaseModal({
     if (!currentBrand.models.includes(newModel)) setNewModel(currentBrand.models[0]);
   }, [newBrand, vehicleType]);
 
-  if (!isOpen || !plan) return null;
+  if (!isOpen) return null;
 
   // Expected dates
   const today = new Date();
   const expiryDate = new Date();
-  expiryDate.setDate(today.getDate() + plan.durationDays);
+  if (plan) {
+    expiryDate.setDate(today.getDate() + plan.durationDays);
+  }
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('vi-VN', {
@@ -232,8 +241,6 @@ export function PackagePurchaseModal({
   const getZoneText = () => {
     return getTierAreaLabel(plan?.allowedTier);
   };
-
-  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
   // Handlers
   const handleAddVehicleSubmit = async (e: React.FormEvent) => {
@@ -281,53 +288,29 @@ export function PackagePurchaseModal({
     }
   };
 
-  const handleProceedToPaymentMethod = () => {
-    if (!selectedVehicleId) return;
-    setStep('PAYMENT_METHOD');
-  };
-
   const handleProceedToPaymentScreen = async () => {
-    if (paymentMethod === 'CARD') {
-      setSubmitting(true);
-      setSubmitError('');
-      try {
-        const res = await monthlyPackageService.createCheckoutSession({
-          vehicleId: selectedVehicleId,
-          planId: planId!,
-        });
-        window.location.href = res.url;
-      } catch (err: any) {
-        setSubmitError(err.response?.data?.message ?? 'Không thể tạo phiên thanh toán Stripe');
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      setStep('QR');
-    }
-  };
-
-  const handleConfirmPurchase = async () => {
-    if (!user || !selectedVehicleId) return;
+    if (!selectedVehicleId) return;
     setSubmitting(true);
     setSubmitError('');
     try {
-      // Immediate Cash/EWallet flow
-      const created = await monthlyPackageService.create({
-        userId: user.id,
+      const res = await monthlyPackageService.createCheckoutSession({
         vehicleId: selectedVehicleId,
-        startDate: today.toISOString(),
-        expiryDate: expiryDate.toISOString(),
-        price,
-        paymentMethod,
-        planId,
-        vehicleType,
+        planId: planId!,
       });
-      setCreatedPkg(created);
-      setStep('SUCCESS');
-      if (onSuccess) onSuccess();
-      refreshPackageStatus();
-    } catch (e: any) {
-      setSubmitError(e?.response?.data?.message ?? 'Đăng ký gói tháng thất bại. Vui lòng thử lại.');
+      if (res.status === 'ALREADY_PROCESSED') {
+        // Session was already paid — treat as success
+        sessionStorage.removeItem('pending_monthly_package_id');
+        sessionStorage.removeItem('pending_monthly_payment_id');
+        sessionStorage.removeItem('pending_monthly_session_id');
+        onClose();
+        return;
+      }
+      sessionStorage.setItem('pending_monthly_package_id', res.packageId);
+      sessionStorage.setItem('pending_monthly_payment_id', res.paymentId);
+      sessionStorage.setItem('pending_monthly_session_id', res.sessionId);
+      window.location.href = res.url;
+    } catch (err: any) {
+      setSubmitError(err.response?.data?.message ?? 'Không thể tạo phiên thanh toán Stripe');
     } finally {
       setSubmitting(false);
     }
@@ -395,17 +378,17 @@ export function PackagePurchaseModal({
   };
 
   return (
-    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget && step !== 'SUCCESS' && !submitting) onClose(); }}>
+    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget && !submitting) onClose(); }}>
       <div style={containerStyle} ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="modal-title">
 
         {/* Header */}
         <div style={{ background: headerBg, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTopLeftRadius: 24, borderTopRightRadius: 24, flexShrink: 0 }}>
           <div>
             <h3 id="modal-title" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.white }}>
-              {step === 'SUCCESS' ? 'Đăng ký thành công' : step === 'QR' || step === 'CARD' ? 'Thanh toán hóa đơn' : 'Xác nhận đăng ký gói'}
+              Xác nhận đăng ký gói
             </h3>
           </div>
-          {step !== 'SUCCESS' && !submitting && (
+          {!submitting && (
             <button onClick={handleClose} aria-label="Đóng" ref={firstInteractiveRef} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.white} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
@@ -414,9 +397,34 @@ export function PackagePurchaseModal({
 
         {/* Content Body */}
         <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          {/* STEP 1: CONFIRMATION & VEHICLE SELECTION */}
-          {step === 'CONFIRM' && (
+          {loadingPlans ? (
+            <div style={{ textAlign: 'center', padding: '2rem 0', color: C.gray600 }}>
+              <div style={{ display: 'inline-block', width: 24, height: 24, border: '3px solid #3B82F6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '0.75rem' }} />
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>Đang tải thông tin cấu hình gói...</p>
+            </div>
+          ) : plansError ? (
+            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>❌</div>
+              <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#B91C1C' }}>Lỗi tải cấu hình</p>
+              <p style={{ margin: '0.5rem 0 1.5rem', fontSize: '0.85rem', color: C.gray600, lineHeight: 1.5 }}>
+                {plansError}
+              </p>
+              <button onClick={handleClose} style={{ width: '100%', padding: '0.75rem', background: C.gray100, border: `1px solid ${C.gray200}`, borderRadius: 12, fontSize: '0.88rem', fontWeight: 700, color: C.gray900, cursor: 'pointer' }}>
+                Đóng
+              </button>
+            </div>
+          ) : !plan ? (
+            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>❌</div>
+              <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#B91C1C' }}>Không tìm thấy gói</p>
+              <p style={{ margin: '0.5rem 0 1.5rem', fontSize: '0.85rem', color: C.gray600, lineHeight: 1.5 }}>
+                Gói đỗ xe đã chọn không còn tồn tại hoặc không hợp lệ.
+              </p>
+              <button onClick={handleClose} style={{ width: '100%', padding: '0.75rem', background: C.gray100, border: `1px solid ${C.gray200}`, borderRadius: 12, fontSize: '0.88rem', fontWeight: 700, color: C.gray900, cursor: 'pointer' }}>
+                Đóng
+              </button>
+            </div>
+          ) : (
             <>
               {/* If user lacks phone number */}
               {!user?.phoneNumber ? (
@@ -503,7 +511,7 @@ export function PackagePurchaseModal({
                       <span style={{ fontSize: '0.82rem', color: C.gray600 }}>Chi phí:</span>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '1.3rem', fontWeight: 900, color: themeColor }}>{formatVND(price)}</div>
-                        <span style={{ fontSize: '0.75rem', color: C.gray500 }}>~ {priceObj?.pricePerDay}</span>
+                        <span style={{ fontSize: '0.75rem', color: C.gray500 }}>~ {priceObj ? formatVND(Math.round(priceObj.price / plan.durationDays)) + '/ngày' : 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -560,11 +568,11 @@ export function PackagePurchaseModal({
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                    <button type="button" onClick={handleClose} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>
+                    <button type="button" onClick={handleClose} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
                       Hủy
                     </button>
-                    <button type="button" onClick={handleProceedToPaymentMethod} disabled={!selectedVehicleId} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: !selectedVehicleId ? C.gray300 : themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: !selectedVehicleId ? 'not-allowed' : 'pointer', boxShadow: !selectedVehicleId ? 'none' : '0 4px 12px rgba(0,0,0,0.15)' }}>
-                      Tiếp tục thanh toán
+                    <button type="button" onClick={handleProceedToPaymentScreen} disabled={!selectedVehicleId || submitting} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: !selectedVehicleId || submitting ? C.gray300 : themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: !selectedVehicleId || submitting ? 'not-allowed' : 'pointer', boxShadow: !selectedVehicleId || submitting ? 'none' : '0 4px 12px rgba(0,0,0,0.15)' }}>
+                      {submitting ? 'Đang kết nối Stripe...' : 'Thanh toán qua Stripe'}
                     </button>
                   </div>
                 </>
@@ -572,221 +580,9 @@ export function PackagePurchaseModal({
             </>
           )}
 
-          {/* STEP 2: PAYMENT METHOD SELECTION */}
-          {step === 'PAYMENT_METHOD' && (
-            <>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: C.gray900 }}>Chọn phương thức thanh toán</h4>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <button type="button" onClick={() => setPaymentMethod('EWALLET')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: `2px solid ${paymentMethod === 'EWALLET' ? themeColor : C.gray200}`, borderRadius: 16, background: C.white, cursor: 'pointer', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '1.5rem' }}>📱</div>
-                    <div>
-                      <div style={{ fontWeight: 700, color: C.gray900, fontSize: '0.9rem' }}>Ví điện tử MoMo / VNPAY</div>
-                      <div style={{ fontSize: '0.75rem', color: C.gray500 }}>Quét mã QR để hoàn tất thanh toán nhanh</div>
-                    </div>
-                  </div>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${paymentMethod === 'EWALLET' ? themeColor : C.gray300}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {paymentMethod === 'EWALLET' && <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: themeColor }}></div>}
-                  </div>
-                </button>
-
-                <button type="button" onClick={() => setPaymentMethod('CARD')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: `2px solid ${paymentMethod === 'CARD' ? themeColor : C.gray200}`, borderRadius: 16, background: C.white, cursor: 'pointer', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '1.5rem' }}>💳</div>
-                    <div>
-                      <div style={{ fontWeight: 700, color: C.gray900, fontSize: '0.9rem' }}>Thẻ Quốc tế Visa / Mastercard / JCB</div>
-                      <div style={{ fontSize: '0.75rem', color: C.gray500 }}>Nhập thông tin thẻ tín dụng của bạn</div>
-                    </div>
-                  </div>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${paymentMethod === 'CARD' ? themeColor : C.gray300}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {paymentMethod === 'CARD' && <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: themeColor }}></div>}
-                  </div>
-                </button>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setStep('CONFIRM')} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>
-                  Quay lại
-                </button>
-                <button type="button" onClick={handleProceedToPaymentScreen} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                  Tiếp tục
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* STEP 3A: QR PAYMENT FLOW */}
-          {step === 'QR' && (
-            <>
-              <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-                <p style={{ margin: 0, fontSize: '0.88rem', color: C.gray600 }}>Quét mã QR bằng ứng dụng ngân hàng hoặc Ví điện tử để thanh toán</p>
-
-                {/* QR Mock image */}
-                <div style={{ padding: '1rem', background: C.white, border: `1px solid ${C.gray200}`, borderRadius: 16, display: 'inline-block' }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=PARKSMART_PLAN_${planId}_PRICE_${price}`}
-                    alt="QR Payment Code"
-                    style={{ width: 180, height: 180 }}
-                  />
-                </div>
-
-                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: themeColor }}>{formatVND(price)}</div>
-
-                <div style={{ width: '100%', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 14, padding: '0.85rem', fontSize: '0.8rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500 }}>Gói đăng ký:</span>
-                    <span style={{ fontWeight: 600, color: C.gray800 }}>{plan.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500 }}>Phương tiện:</span>
-                    <span style={{ fontWeight: 600, color: C.gray800 }}>{selectedVehicle?.plateNumber}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.gray500 }}>Nội dung:</span>
-                    <span style={{ fontWeight: 600, color: C.gray800 }}>Dang ky goi thang {selectedVehicle?.plateNumber}</span>
-                  </div>
-                </div>
-              </div>
-
-              {submitError && (
-                <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.6rem 0.85rem', fontSize: '0.8rem', color: '#B91C1C', fontWeight: 500 }}>
-                  {submitError}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button type="button" onClick={() => setStep('PAYMENT_METHOD')} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  Quay lại
-                </button>
-                <button type="button" onClick={handleConfirmPurchase} disabled={submitting} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  {submitting ? 'Đang xử lý...' : 'Xác nhận đã chuyển khoản'}
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* STEP 3B: CARD FORM FLOW */}
-          {step === 'CARD' && (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.9rem', color: C.gray600 }}>Tổng thanh toán:</span>
-                  <span style={{ fontSize: '1.2' + 'rem', fontWeight: 900, color: themeColor }}>{formatVND(price)}</span>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Số thẻ</label>
-                  <input
-                    type="text"
-                    placeholder="0000 0000 0000 0000"
-                    value={cardForm.number}
-                    onChange={(e) => setCardForm(prev => ({ ...prev, number: e.target.value }))}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Tên chủ thẻ</label>
-                  <input
-                    type="text"
-                    placeholder="NGUYEN VAN A"
-                    value={cardForm.name}
-                    onChange={(e) => setCardForm(prev => ({ ...prev, name: e.target.value.toUpperCase() }))}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>Ngày hết hạn</label>
-                    <input
-                      type="text"
-                      placeholder="MM/YY"
-                      value={cardForm.expiry}
-                      onChange={(e) => setCardForm(prev => ({ ...prev, expiry: e.target.value }))}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.gray600, marginBottom: 4 }}>CVV</label>
-                    <input
-                      type="password"
-                      placeholder="•••"
-                      maxLength={3}
-                      value={cardForm.cvv}
-                      onChange={(e) => setCardForm(prev => ({ ...prev, cvv: e.target.value }))}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-
-                <p style={{ margin: 0, fontSize: '0.75rem', color: C.gray400, textAlign: 'center' }}>
-                  Cổng thanh toán giả lập cho mục đích trình diễn.
-                </p>
-              </div>
-
-              {submitError && (
-                <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 10, padding: '0.6rem 0.85rem', fontSize: '0.8rem', color: '#B91C1C', fontWeight: 500 }}>
-                  {submitError}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button type="button" onClick={() => setStep('PAYMENT_METHOD')} disabled={submitting} style={{ flex: 1, padding: '0.85rem', border: `1.5px solid ${C.gray200}`, borderRadius: 14, background: C.white, color: C.gray600, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  Quay lại
-                </button>
-                <button type="button" onClick={handleConfirmPurchase} disabled={submitting || !cardForm.number || !cardForm.name || !cardForm.expiry || !cardForm.cvv} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: (!cardForm.number || !cardForm.name || !cardForm.expiry || !cardForm.cvv) ? C.gray300 : themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                  {submitting ? 'Đang xử lý...' : `Thanh toán ${formatVND(price)}`}
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* STEP 4: SUCCESS SCREEN */}
-          {step === 'SUCCESS' && createdPkg && (
-            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center', padding: '1rem 0' }}>
-              <div style={{ width: 72, height: 72, background: C.greenBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `3px solid ${C.green}` }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              </div>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: C.gray900 }}>Thanh toán thành công!</h4>
-                <p style={{ margin: '0.3rem 0 0', fontSize: '0.85rem', color: C.gray600 }}>Bạn đã đăng ký gói tháng thành công.</p>
-              </div>
-
-              <div style={{ width: '100%', background: C.gray50, border: `1px solid ${C.gray200}`, borderRadius: 16, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', textAlign: 'left' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Gói:</span>
-                  <span style={{ fontWeight: 700, color: C.gray900 }}>{plan.name}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Thanh toán:</span>
-                  <span style={{ fontWeight: 700, color: C.gray900 }}>{paymentMethod === 'CARD' ? 'Thẻ Quốc tế' : 'Ví điện tử'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Số tiền:</span>
-                  <span style={{ fontWeight: 800, color: themeColor }}>{formatVND(Number(createdPkg.price))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: C.gray500 }}>Khu vực đỗ:</span>
-                  <span style={{ fontWeight: 700, color: C.gray900 }}>
-                    {createdPkg.floor?.name
-                      ? `Tầng ${createdPkg.floor.name} · ${getTierAreaLabel(createdPkg.allowedTier)}`
-                      : `Tầng G · ${getTierAreaLabel(createdPkg.allowedTier)}`}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', paddingTop: '0.5rem', borderTop: `1px solid ${C.gray200}`, marginTop: '0.25rem' }}>
-                  <span style={{ fontWeight: 700, color: C.gray900 }}>Ngày hết hạn:</span>
-                  <span style={{ fontWeight: 800, color: themeColor }}>{formatDate(new Date(createdPkg.expiryDate))}</span>
-                </div>
-              </div>
-
-              <button onClick={handleClose} style={{ width: '100%', padding: '0.85rem', border: 'none', borderRadius: 14, background: themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                Hoàn tất
-              </button>
+          {submitError && (
+            <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.85rem', color: '#B91C1C', fontWeight: 600 }}>
+              {submitError}
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle, Booking } from '../types';
@@ -61,6 +61,7 @@ export function BookingPage() {
 
   const selectedVehicleIdRef = useRef(selectedVehicleId);
   const isFirstLoadRef = useRef(true);
+  const processingRef = useRef(false);
 
   useEffect(() => {
     selectedVehicleIdRef.current = selectedVehicleId;
@@ -84,6 +85,7 @@ export function BookingPage() {
   };
 
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const successParam = searchParams.get('success');
   const bookingIdParam = searchParams.get('booking_id');
   const [pollingStatus, setPollingStatus] = useState<'IDLE' | 'POLLING' | 'SUCCESS' | 'FAILED' | 'TIMEOUT'>('IDLE');
@@ -178,6 +180,7 @@ export function BookingPage() {
   }, []);
 
   useEffect(() => {
+    // 1. Success check: if successParam === 'true' and bookingIdParam exists
     if (successParam === 'true' && bookingIdParam) {
       setPollingStatus('POLLING');
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -200,10 +203,13 @@ export function BookingPage() {
             clearInterval(interval);
             setPollingStatus('IDLE');
             setPolledBooking(null);
+            // Clear pending attempt on successful reconciliation
+            sessionStorage.removeItem('pending_booking_id');
             await loadCars();
           } else if (booking.status === 'CANCELLED' || booking.status === 'NO_SHOW') {
             clearInterval(interval);
             setPollingStatus('FAILED');
+            sessionStorage.removeItem('pending_booking_id');
           } else if (attempts >= maxAttempts) {
             clearInterval(interval);
             setPollingStatus('TIMEOUT');
@@ -220,9 +226,99 @@ export function BookingPage() {
     }
   }, [successParam, bookingIdParam, loadCars]);
 
+  // Reusable function for resolving/abandoning stored pending booking.
+  // Reads live URL params from window.location.search on every invocation
+  // to avoid stale React Router searchParams after history.replaceState calls.
+  const resolvePendingBooking = useCallback(async () => {
+    // Read live parameters from the current URL — not stale React state
+    const liveParams = new URLSearchParams(window.location.search);
+    const liveSuccess = liveParams.get('success');
+    const liveCancelledParam = liveParams.get('cancelled');
+    const liveCancelledBookingId = liveParams.get('booking_id');
+
+    // Never call abandon-payment during a success return
+    if (liveSuccess === 'true') return;
+
+    const storedPendingId = sessionStorage.getItem('pending_booking_id');
+
+    const targetBookingId = (liveCancelledParam === 'true' && liveCancelledBookingId)
+      ? liveCancelledBookingId
+      : storedPendingId;
+
+    if (!targetBookingId) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
+
+    // Clear URL via React Router navigate so later pageshow/focus reads
+    // a clean URL and cannot reuse a stale cancelled booking_id
+    if (liveCancelledParam === 'true') {
+      navigate(window.location.pathname, { replace: true });
+    }
+
+    try {
+      console.log(`[StripeAbandon] Resolving pending booking ID: ${targetBookingId}`);
+      await api.post(`/bookings/${targetBookingId}/abandon-payment`);
+      // HTTP 200: Definitive success — clear stored ID
+      sessionStorage.removeItem('pending_booking_id');
+      setErrorMsg('');
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 409 || status === 404) {
+        // Definitive backend result — clear stored ID and refetch actual state
+        sessionStorage.removeItem('pending_booking_id');
+        setErrorMsg('');
+      } else {
+        // Network error or 5xx: keep pending_booking_id so next return can retry
+        setErrorMsg('Không thể kiểm tra hoặc hủy thanh toán lúc này. Hệ thống sẽ tự động thử lại khi bạn quay lại trang.');
+      }
+    } finally {
+      try {
+        await loadCars();
+      } catch (loadErr) {
+        console.error('Failed to reload cars:', loadErr);
+      }
+      processingRef.current = false;
+    }
+  }, [navigate, loadCars]);
+
+  // Initial mount: check live URL params and sessionStorage to decide whether to resolve or just load
   useEffect(() => {
-    loadCars();
-  }, [loadCars]);
+    const liveParams = new URLSearchParams(window.location.search);
+    const liveSuccess = liveParams.get('success');
+    const liveCancelled = liveParams.get('cancelled');
+    const liveCancelledBookingId = liveParams.get('booking_id');
+    const storedPendingId = sessionStorage.getItem('pending_booking_id');
+    const hasPending = storedPendingId || (liveCancelled === 'true' && liveCancelledBookingId);
+
+    if (hasPending && liveSuccess !== 'true') {
+      resolvePendingBooking();
+    } else {
+      loadCars();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Mount-only — resolvePendingBooking is stable (useCallback with navigate + loadCars)
+
+  // Window pageshow (BFCache return) and focus listeners
+  useEffect(() => {
+    const handlePageShow = () => {
+      resolvePendingBooking();
+    };
+
+    const handleFocus = () => {
+      const storedPendingId = sessionStorage.getItem('pending_booking_id');
+      if (storedPendingId) {
+        resolvePendingBooking();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [resolvePendingBooking]);
 
   // ── Active-booking status polling (5 s) ──────────────
   // Runs only when there is an ACTIVE booking on screen.
@@ -304,12 +400,15 @@ export function BookingPage() {
       const arrival = new Date();
       arrival.setMinutes(arrival.getMinutes() + 30);
 
-      const res = await api.post<{ success: boolean; data: { checkoutUrl?: string } }>('/bookings/checkout-session', {
+      const res = await api.post<{ success: boolean; data: { checkoutUrl?: string; bookingId?: string } }>('/bookings/checkout-session', {
         vehicleId: selectedVehicle.id,
         expectedArrival: arrival.toISOString(),
       });
 
       if (res.data.data?.checkoutUrl) {
+        if (res.data.data.bookingId) {
+          sessionStorage.setItem('pending_booking_id', res.data.data.bookingId);
+        }
         window.location.assign(res.data.data.checkoutUrl);
       } else {
         throw new Error('Không nhận được đường dẫn thanh toán từ Stripe');
@@ -656,21 +755,18 @@ export function BookingPage() {
                   const hasActive = !!(v.bookings && v.bookings.some(b => b.status === 'ACTIVE'));
                   const activeBookingObj = v.bookings?.find(b => b.status === 'ACTIVE');
 
-                  const hasPending = !!(v.bookings && v.bookings.some(b => b.status === 'PENDING_PAYMENT'));
-
                   const isSelected = v.id === selectedVehicleId;
-                  const shouldDisable = isMonthlyPackage || isParked || hasActive || hasPending || hasActiveBooking;
+                  const shouldDisable = isMonthlyPackage || isParked || hasActive || hasActiveBooking;
 
                   return (
-                    <button
+                    <div
                       key={v.id}
                       onClick={() => {
                         if (shouldDisable) return;
                         setSelectedVehicleId(v.id);
                         setErrorMsg('');
                       }}
-                      disabled={shouldDisable}
-                      style={shouldDisable ? { pointerEvents: 'none', cursor: 'not-allowed', background: '#F1F5F9', border: '1px solid #E2E8F0' } : {}}
+                      style={shouldDisable ? { pointerEvents: 'none', cursor: 'not-allowed', background: '#F1F5F9', border: '1px solid #E2E8F0' } : { cursor: 'pointer' }}
                       className={`${styles.vehicleCard} ${isSelected && !shouldDisable ? styles.vehicleCardSelected : ''} ${shouldDisable ? styles.vehicleCardDisabled : ''}`}
                     >
                       {/* Radio indicator */}
@@ -716,11 +812,6 @@ export function BookingPage() {
                             <span style={{ background: '#FFFBEB', color: '#D97706', fontSize: '12px', fontWeight: 600, padding: '2px 8px', borderRadius: 12, width: 'fit-content', lineHeight: 1.35 }}>Đang giữ chỗ</span>
                             <span style={{ fontSize: '11px', color: '#D97706', fontWeight: 600, display: 'block', textAlign: 'center', width: '100%' }}>Còn {getRemainingTimeText(activeBookingObj?.expiresAt)}</span>
                           </div>
-                        ) : hasPending ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px', alignItems: 'center' }}>
-                            <span style={{ background: '#F3E8FF', color: '#6B21A8', fontSize: '12px', fontWeight: 600, padding: '2px 8px', borderRadius: 12, width: 'fit-content', lineHeight: 1.35 }}>Chờ thanh toán</span>
-                            <span style={{ fontSize: '11px', color: '#6B21A8', fontWeight: 600, display: 'block', textAlign: 'center', width: '100%' }}>Thanh toán Stripe</span>
-                          </div>
                         ) : hasActiveBooking ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px', alignItems: 'center' }}>
                             <span style={{ background: '#F1F5F9', color: '#64748B', fontSize: '12px', fontWeight: 600, padding: '2px 8px', borderRadius: 12, width: 'fit-content', lineHeight: 1.35 }}>Chưa thể đặt chỗ</span>
@@ -730,7 +821,7 @@ export function BookingPage() {
                           <span className={styles.activeBadge}>Đang chọn</span>
                         ) : null}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>

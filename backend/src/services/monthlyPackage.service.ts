@@ -9,6 +9,14 @@ const PKG_EXPIRED = 'EXPIRED';
 const VEHICLE_CAR = 'CAR';
 const VEHICLE_MOTORBIKE = 'MOTORBIKE';
 
+export type CheckoutResult =
+  | { status: 'CHECKOUT'; packageId: string; paymentId: string; sessionId: string; url: string }
+  | { status: 'ALREADY_PROCESSED'; packageId: string; paymentId: string };
+
+export type RenewResult =
+  | { status: 'CHECKOUT'; packageId: string; paymentId: string; sessionId: string; url: string }
+  | { status: 'ALREADY_PROCESSED'; packageId: string; paymentId: string };
+
 export interface CreatePackageInput {
   userId: string;
   vehicleId: string;
@@ -22,14 +30,14 @@ export interface CreatePackageInput {
 
 export const PACKAGE_PRICES: Record<string, Record<string, number>> = {
   CAR: {
-    '1y': 1200000,
-    '3m': 900000,
-    '1m': 600000,
+    '1y': 15000000,
+    '3m': 4000000,
+    '1m': 1500000,
   },
   MOTORBIKE: {
-    '1y': 500000,
-    '3m': 300000,
-    '1m': 150000,
+    '1y': 3000000,
+    '3m': 800000,
+    '1m': 300000,
   },
 };
 
@@ -79,9 +87,126 @@ async function selectFloorForPackage(vehicleType: string, allowedTier: string, t
   return null; // No floor has available capacity
 }
 
+async function sendNotificationEmailSafely(details?: { email?: string | null; subject: string; body: string }) {
+  if (details && details.email) {
+    try {
+      await sendEmail(details.email, details.subject, details.body);
+    } catch (err) {
+      console.error('[Email] Failed to send monthly package confirmation email:', err);
+    }
+  }
+}
+
 export const monthlyPackageService = {
+  // Shared verified reconciliation logic for monthly package payments
+  async reconcilePaymentSuccess(
+    tx: any,
+    paymentId: string,
+    transactionCode: string,
+    planId: string,
+    targetTier: string,
+    packageId: string,
+    userId: string,
+    amountTotal: number,
+    isRenewal: boolean
+  ) {
+    const pkg = await tx.monthlyPackage.findUnique({
+      where: { id: packageId },
+      include: { vehicle: true },
+    });
+    if (!pkg) {
+      throw new AppError(404, 'Monthly package not found.');
+    }
+    if (pkg.userId !== userId) {
+      throw new AppError(403, 'Monthly package ownership mismatch.');
+    }
+
+    const expectedPrice = PACKAGE_PRICES[pkg.vehicle.type]?.[planId];
+    if (!expectedPrice) {
+      throw new AppError(400, 'Invalid package plan configuration.');
+    }
+    if (amountTotal !== expectedPrice) {
+      throw new AppError(400, `Amount mismatch: expected ${expectedPrice}, got ${amountTotal}`);
+    }
+
+    const now = new Date();
+
+    // Guarded payment update — only update status PENDING to SUCCESS
+    const paymentUpdate = await tx.payment.updateMany({
+      where: {
+        id: paymentId,
+        status: 'PENDING',
+      },
+      data: {
+        status: 'SUCCESS',
+        transactionCode,
+        paidAt: now,
+      },
+    });
+
+    if (paymentUpdate.count !== 1) {
+      throw new AppError(400, 'Thanh toán không hợp lệ hoặc đã được xử lý.');
+    }
+
+    let newStartDate: Date;
+    let newExpiryDate: Date;
+    const durationDays = planId === '1y' ? 365 : planId === '3m' ? 90 : 30;
+
+    if (isRenewal) {
+      const isPackageActive = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
+      if (isPackageActive) {
+        if (!pkg.allowedTier) {
+          throw new AppError(400, 'Không tìm thấy phân hạng đỗ xe hiện tại.');
+        }
+        if (targetTier !== pkg.allowedTier) {
+          throw new AppError(400, `Gói đang hoạt động chỉ có thể gia hạn cùng phân hạng (${pkg.allowedTier}).`);
+        }
+      }
+      const renewFrom = pkg.expiryDate > now ? pkg.expiryDate : now;
+      newExpiryDate = new Date(renewFrom);
+      newExpiryDate.setDate(newExpiryDate.getDate() + durationDays);
+      newStartDate = pkg.expiryDate > now ? pkg.startDate : now;
+    } else {
+      newStartDate = now;
+      newExpiryDate = new Date(now);
+      newExpiryDate.setDate(newExpiryDate.getDate() + durationDays);
+    }
+
+    const floor = await selectFloorForPackage(pkg.vehicle.type, targetTier, tx);
+    const floorId = floor ? floor.id : pkg.floorId;
+
+    // Update MonthlyPackage safely
+    await tx.monthlyPackage.update({
+      where: { id: packageId },
+      data: {
+        startDate: newStartDate,
+        expiryDate: newExpiryDate,
+        status: 'ACTIVE',
+        planName: planId,
+        allowedTier: targetTier,
+        floorId,
+      },
+    });
+
+    // Update vehicle isMonthly
+    await tx.vehicle.update({
+      where: { id: pkg.vehicleId },
+      data: { isMonthly: true },
+    });
+
+    // Return email info to send after commit
+    const user = await tx.user.findUnique({ where: { id: userId } });
+    return {
+      email: user?.email,
+      subject: isRenewal ? 'Xác nhận gia hạn gói tháng thành công' : 'Xác nhận đăng ký gói tháng thành công',
+      body: isRenewal
+        ? `Chào bạn,<br/><br/>Gói tháng cho xe của bạn đã được gia hạn thành công.<br/>Ngày hết hạn mới là <strong>${newExpiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
+        : `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${pkg.vehicle.plateNumber}</strong> đã được kích hoạt thành công.<br/>Hạng vé: <strong>${targetTier}</strong>.<br/>Hạn sử dụng: <strong>${newExpiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã tin dùng.`
+    };
+  },
+
   // Real Stripe Checkout Session Creation (Accepts only trusted vehicleId and planId)
-  async createCheckoutSession(input: { userId: string; vehicleId: string; planId: string }) {
+  async createCheckoutSession(input: { userId: string; vehicleId: string; planId: string }): Promise<CheckoutResult> {
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
     if (vehicle.ownerId !== input.userId) {
@@ -89,36 +214,250 @@ export const monthlyPackageService = {
     }
 
     const now = new Date();
-    const existingActive = await prisma.monthlyPackage.findFirst({
-      where: {
-        vehicleId: input.vehicleId,
-        status: 'ACTIVE',
-        expiryDate: { gt: now },
-      },
+
+    // Check if there is an existing package for this vehicle
+    const existingPkg = await prisma.monthlyPackage.findUnique({
+      where: { vehicleId: input.vehicleId },
+      include: { payments: { where: { status: 'PENDING' } } },
     });
-    if (existingActive) {
-      throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
-    }
 
     const allowedTier = getTierFromPlan(input.planId);
-
-    // Derive price server-side from stable config
     const price = PACKAGE_PRICES[vehicle.type]?.[input.planId];
     if (!price) {
       throw new AppError(400, 'Mã gói đăng ký không hợp lệ.');
     }
 
-    // Dry-run capacity verification
-    const floor = await selectFloorForPackage(vehicle.type, allowedTier, prisma);
-    if (!floor) {
-      throw new AppError(400, 'Hiện khu vực của gói này đã hết chỗ.');
+    if (existingPkg) {
+      if (existingPkg.status === 'ACTIVE' && existingPkg.expiryDate > now) {
+        throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
+      }
+
+      if (existingPkg.status !== 'PENDING_PAYMENT') {
+        throw new AppError(400, 'Phương tiện này đã từng có gói tháng. Vui lòng sử dụng tính năng Gia hạn thay vì Đăng ký mới.');
+      }
+
+      if (existingPkg.status === 'PENDING_PAYMENT') {
+        const pendingPayment = existingPkg.payments[0];
+        if (pendingPayment && pendingPayment.transactionCode) {
+          try {
+            const session = await stripe.checkout.sessions.retrieve(pendingPayment.transactionCode);
+            if (session.payment_status === 'paid') {
+              const metadata = session.metadata;
+              if (
+                !metadata ||
+                !metadata.paymentId ||
+                !metadata.monthlyPackageId ||
+                !metadata.userId ||
+                !metadata.vehicleId ||
+                !metadata.planId ||
+                !metadata.type
+              ) {
+                throw new AppError(400, 'Missing required metadata on paid Stripe session.');
+              }
+
+              if (metadata.planId !== '1m' && metadata.planId !== '3m' && metadata.planId !== '1y') {
+                throw new AppError(400, 'Invalid planId in paid Stripe session metadata.');
+              }
+
+              if (
+                metadata.paymentId !== pendingPayment.id ||
+                metadata.monthlyPackageId !== existingPkg.id ||
+                metadata.userId !== input.userId ||
+                metadata.vehicleId !== input.vehicleId ||
+                metadata.type !== 'purchase'
+              ) {
+                throw new AppError(400, 'Metadata mismatch on paid Stripe session.');
+              }
+
+              if (session.currency?.toLowerCase() !== 'vnd') {
+                throw new AppError(400, 'Invalid currency on paid Stripe session.');
+              }
+
+              const resolvedPrice = PACKAGE_PRICES[vehicle.type]?.[metadata.planId];
+              if (!resolvedPrice || session.amount_total !== resolvedPrice) {
+                throw new AppError(400, 'Amount mismatch on paid Stripe session.');
+              }
+
+              // Fail closed: amount_total must not be null
+              if (session.amount_total === null || session.amount_total === undefined) {
+                throw new AppError(400, 'Cannot reconcile paid session: amount_total is null.');
+              }
+              // Reconcile immediately using validated metadata
+              const targetTier = getTierFromPlan(metadata.planId);
+              const emailDetails = await prisma.$transaction(async (tx) => {
+                return await monthlyPackageService.reconcilePaymentSuccess(
+                  tx,
+                  metadata.paymentId,
+                  session.id,
+                  metadata.planId,
+                  targetTier,
+                  metadata.monthlyPackageId,
+                  metadata.userId,
+                  session.amount_total as number,
+                  false
+                );
+              });
+              await sendNotificationEmailSafely(emailDetails);
+              return {
+                status: 'ALREADY_PROCESSED' as const,
+                packageId: metadata.monthlyPackageId,
+                paymentId: metadata.paymentId,
+              };
+            } else if (session.status === 'open') {
+              // Verify open session matches current inputs
+              const isValidForReuse =
+                session.id === pendingPayment.transactionCode &&
+                session.metadata?.paymentId === pendingPayment.id &&
+                session.metadata?.vehicleId === input.vehicleId &&
+                session.metadata?.userId === input.userId &&
+                session.metadata?.planId === input.planId &&
+                session.metadata?.type === 'purchase' &&
+                session.currency?.toLowerCase() === 'vnd' &&
+                session.amount_total === price &&
+                session.status === 'open';
+
+              if (isValidForReuse) {
+                return {
+                  status: 'CHECKOUT' as const,
+                  packageId: existingPkg.id,
+                  paymentId: pendingPayment.id,
+                  sessionId: session.id,
+                  url: session.url!,
+                };
+              } else {
+                // If any value differs, safely expire, retrieve and check before FAILED
+                try {
+                  await stripe.checkout.sessions.expire(pendingPayment.transactionCode);
+                } catch (e) {
+                  console.error('Error expiring mismatched purchase session:', e);
+                  throw new AppError(503, 'Không thể hủy phiên thanh toán Stripe cũ. Vui lòng thử lại sau.');
+                }
+
+                let expiredSession;
+                try {
+                  expiredSession = await stripe.checkout.sessions.retrieve(pendingPayment.transactionCode);
+                } catch (e) {
+                  console.error('Error retrieving expired purchase session:', e);
+                  throw new AppError(503, 'Không thể kiểm tra lại trạng thái Stripe sau khi hủy.');
+                }
+
+                if (expiredSession.status === 'expired' && expiredSession.payment_status !== 'paid') {
+                  const updated = await prisma.payment.updateMany({
+                    where: { id: pendingPayment.id, status: 'PENDING' },
+                    data: { status: 'FAILED' },
+                  });
+                  if (updated.count !== 1) {
+                    throw new AppError(409, 'Giao dịch đã thay đổi trạng thái.');
+                  }
+                } else {
+                  throw new AppError(503, 'Không thể xác nhận trạng thái hết hạn từ Stripe.');
+                }
+              }
+            } else if (session.status === 'expired') {
+              // Already narrowed to expired: payment_status cannot be 'paid' here in a valid Stripe flow.
+              // Transition PENDING -> FAILED.
+              const updated = await prisma.payment.updateMany({
+                where: { id: pendingPayment.id, status: 'PENDING' },
+                data: { status: 'FAILED' },
+              });
+              if (updated.count !== 1) {
+                throw new AppError(409, 'Giao dịch đã thay đổi trạng thái.');
+              }
+            } else {
+              // Any other status: do not modify, return safe 503
+              throw new AppError(503, 'Phiên thanh toán hiện tại chưa thể xác nhận trạng thái. Vui lòng thử lại sau.');
+            }
+          } catch (err: any) {
+            if (err instanceof AppError) throw err;
+            console.error('Stripe retrieval failed for purchase:', err);
+            throw new AppError(503, 'Không thể kiểm tra trạng thái thanh toán từ Stripe lúc này. Vui lòng thử lại sau.');
+          }
+        } else if (pendingPayment) {
+          // transactionCode is missing, preserve PENDING and return 503
+          throw new AppError(503, 'Phiên thanh toán chưa được khởi tạo với Stripe. Vui lòng thử lại sau.');
+        }
+      }
+    }
+
+    // Reuse existing package in PENDING_PAYMENT status or create new one
+    const startDate = new Date();
+    const durationDays = input.planId === '1y' ? 365 : input.planId === '3m' ? 90 : 30;
+    const expiryDate = new Date();
+    expiryDate.setDate(startDate.getDate() + durationDays);
+
+    let pkgId = existingPkg?.id;
+    let newPayment;
+    try {
+      newPayment = await prisma.$transaction(async (tx) => {
+        // Re-verify or select floor inside tx
+        const floorTx = await selectFloorForPackage(vehicle.type, allowedTier, tx);
+        if (!floorTx) {
+          throw new AppError(400, 'Hiện khu vực của gói này đã hết chỗ.');
+        }
+
+        let p;
+        if (existingPkg && existingPkg.status === 'PENDING_PAYMENT') {
+          p = await tx.monthlyPackage.update({
+            where: { id: existingPkg.id },
+            data: {
+              planName: input.planId,
+              startDate,
+              expiryDate,
+              price,
+              allowedTier,
+              floorId: floorTx.id,
+            },
+          });
+        } else {
+          p = await tx.monthlyPackage.create({
+            data: {
+              userId: input.userId,
+              vehicleId: input.vehicleId,
+              floorId: floorTx.id,
+              planName: input.planId,
+              startDate,
+              expiryDate,
+              price,
+              status: 'PENDING_PAYMENT',
+              allowedTier,
+            },
+          });
+        }
+        pkgId = p.id;
+
+        const pm = await tx.payment.create({
+          data: {
+            monthlyPackageId: p.id,
+            amount: price,
+            method: 'CARD',
+            type: 'MONTHLY',
+            status: 'PENDING',
+          },
+        });
+        return pm;
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        throw new AppError(409, 'Phương tiện đã được đăng ký hoặc đang trong quá trình thanh toán gói tháng.');
+      }
+      throw err;
     }
 
     const stripeSecret = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
     if (stripeSecret === 'sk_test_mock') {
+      const mockSessionId = `cs_test_${Math.random().toString(36).substring(2, 15)}`;
+      await prisma.payment.update({
+        where: { id: newPayment.id },
+        data: { transactionCode: mockSessionId },
+      });
       return {
-        sessionId: `cs_test_${Math.random().toString(36).substring(2, 15)}`,
+        status: 'CHECKOUT' as const,
+        sessionId: mockSessionId,
         url: 'https://checkout.stripe.com/c/pay/cs_test_mock',
+        packageId: pkgId!,
+        paymentId: newPayment.id,
       };
     }
 
@@ -148,10 +487,23 @@ export const monthlyPackageService = {
         userId: input.userId,
         vehicleId: input.vehicleId,
         planId: input.planId,
+        paymentId: newPayment.id,
+        monthlyPackageId: pkgId!,
+        type: 'purchase',
       },
+    }, {
+      idempotencyKey: `monthly_purchase_${newPayment.id}`,
+    });
+
+    await prisma.payment.update({
+      where: { id: newPayment.id },
+      data: { transactionCode: session.id },
     });
 
     return {
+      status: 'CHECKOUT' as const,
+      packageId: pkgId!,
+      paymentId: newPayment.id,
       sessionId: session.id,
       url: session.url!,
     };
@@ -165,137 +517,132 @@ export const monthlyPackageService = {
     const session = event.data?.object;
     if (!session) throw new AppError(400, 'Invalid Stripe webhook object format.');
 
-    const transactionCode = session.id;
+    // Require checks:
+    if (session.payment_status !== 'paid') {
+      throw new AppError(400, 'Session has not been paid.');
+    }
+    if (session.currency?.toLowerCase() !== 'vnd') {
+      throw new AppError(400, `Invalid currency: expected VND, got ${session.currency}`);
+    }
+
     const metadata = session.metadata;
-    if (!metadata || !metadata.userId || !metadata.vehicleId || !metadata.planId) {
+    if (
+      !metadata ||
+      !metadata.paymentId ||
+      !metadata.monthlyPackageId ||
+      !metadata.userId ||
+      !metadata.vehicleId ||
+      !metadata.planId ||
+      !metadata.type
+    ) {
       throw new AppError(400, 'Missing required metadata identifiers.');
     }
 
+    const paymentId = metadata.paymentId;
+    const packageId = metadata.monthlyPackageId;
     const userId = metadata.userId;
     const vehicleId = metadata.vehicleId;
     const planId = metadata.planId;
+    const type = metadata.type; // 'renew' or 'purchase'
+
+    if (planId !== '1m' && planId !== '3m' && planId !== '1y') {
+      throw new AppError(400, 'Mã gói đăng ký trong metadata không hợp lệ.');
+    }
+
+    if (type !== 'purchase' && type !== 'renew') {
+      throw new AppError(400, 'Loại giao dịch trong metadata không hợp lệ.');
+    }
 
     let attempts = 0;
     const maxAttempts = 3;
 
-    while (true) {
+    while (attempts < maxAttempts) {
       attempts++;
       try {
-        return await prisma.$transaction(async (tx) => {
-          // 1. Idempotency Check
-          const existingPayment = await tx.payment.findFirst({
-            where: { transactionCode, status: 'SUCCESS' },
+        const result = await prisma.$transaction(async (tx) => {
+          // Check if payment already processed (idempotency check)
+          const p = await tx.payment.findUnique({
+            where: { id: paymentId },
+            include: {
+              monthlyPackage: {
+                include: { vehicle: true }
+              }
+            }
           });
-          if (existingPayment) {
+
+          if (!p) {
+            throw new AppError(404, 'Payment record not found.');
+          }
+
+          if (p.status === 'SUCCESS') {
             return { success: true, alreadyProcessed: true };
           }
 
-          // 2. Validate vehicle ownership & existence
-          const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
-          if (!vehicle) throw new AppError(404, 'Vehicle not found');
-          if (vehicle.ownerId !== userId) {
-            throw new AppError(403, 'Vehicle ownership mismatch');
+          // Cross-checks:
+          if (p.id !== paymentId) {
+            throw new AppError(400, 'Payment ID mismatch.');
           }
 
-          // 3. Derive official plan details and verify actual payment amount and currency
-          const allowedTier = getTierFromPlan(planId);
-          const expectedPrice = PACKAGE_PRICES[vehicle.type]?.[planId];
-          if (!expectedPrice) {
-            throw new AppError(400, 'Invalid package plan configuration.');
+          if (!p.monthlyPackage) {
+            throw new AppError(400, 'Payment is not linked to a monthly package.');
+          }
+          const pkg = p.monthlyPackage;
+
+          if (p.monthlyPackageId !== packageId) {
+            throw new AppError(400, 'Package ID mismatch.');
+          }
+          if (pkg.userId !== userId) {
+            throw new AppError(400, 'User ID mismatch.');
+          }
+          if (pkg.vehicleId !== vehicleId) {
+            throw new AppError(400, 'Vehicle ID mismatch.');
+          }
+          if (p.type !== 'MONTHLY') {
+            throw new AppError(400, 'Payment type mismatch.');
+          }
+          if (session.id !== p.transactionCode) {
+            throw new AppError(400, 'Stripe session ID mismatch with saved transactionCode.');
           }
 
-          if (session.payment_status !== 'paid') {
-            throw new AppError(400, 'Session has not been paid.');
-          }
-          if (session.currency?.toLowerCase() !== 'vnd') {
-            throw new AppError(400, `Invalid currency: expected VND, got ${session.currency}`);
-          }
-          if (session.amount_total !== expectedPrice) {
-            throw new AppError(400, `Invalid payment amount: expected ${expectedPrice}, got ${session.amount_total}`);
+          const vehicleType = pkg.vehicle.type;
+          const targetTier = getTierFromPlan(planId);
+          const resolvedPrice = PACKAGE_PRICES[vehicleType]?.[planId];
+          if (!resolvedPrice) {
+            throw new AppError(400, 'Không tìm thấy cấu hình giá phù hợp.');
           }
 
-          // 4. Prevent duplicate active packages
-          const now = new Date();
-          const existingActive = await tx.monthlyPackage.findFirst({
-            where: {
-              vehicleId,
-              status: 'ACTIVE',
-              expiryDate: { gt: now },
-            },
-          });
-          if (existingActive) {
-            throw new AppError(400, 'Vehicle already has an active monthly package.');
+          if (session.amount_total !== resolvedPrice) {
+            throw new AppError(400, `Amount mismatch: expected ${resolvedPrice}, got ${session.amount_total}`);
           }
 
-          // 5. Resolve Floor capacity
-          const floor = await selectFloorForPackage(vehicle.type, allowedTier, tx);
-          if (!floor) {
-            throw new AppError(400, 'Khu vực đỗ xe hiện tại đã đủ số lượng đăng ký.');
-          }
+          const emailDetails = await monthlyPackageService.reconcilePaymentSuccess(
+            tx,
+            paymentId,
+            session.id,
+            planId,
+            targetTier,
+            packageId,
+            userId,
+            session.amount_total,
+            type === 'renew'
+          );
 
-          const durationDays = planId === '1y' ? 365 : planId === '3m' ? 90 : 30;
-          const startDate = new Date();
-          const expiryDate = new Date();
-          expiryDate.setDate(startDate.getDate() + durationDays);
-
-          // Create ACTIVE package
-          const pkg = await tx.monthlyPackage.create({
-            data: {
-              userId,
-              vehicleId,
-              floorId: floor.id,
-              planName: planId,
-              startDate,
-              expiryDate,
-              price: expectedPrice,
-              status: 'ACTIVE',
-              allowedTier,
-            },
-          });
-
-          // Create Payment (Triggering db unique constraint if duplicate concurrent request inserts this transactionCode)
-          await tx.payment.create({
-            data: {
-              monthlyPackageId: pkg.id,
-              bookingId: null,
-              checkInRecordId: null,
-              amount: expectedPrice,
-              method: 'CARD',
-              type: 'MONTHLY',
-              status: 'SUCCESS',
-              transactionCode,
-              paidAt: new Date(),
-            },
-          });
-
-          // Update vehicle isMonthly state
-          await tx.vehicle.update({
-            where: { id: vehicleId },
-            data: { isMonthly: true },
-          });
-
-          // Send confirmation email
-          const user = await tx.user.findUnique({ where: { id: userId } });
-          if (user?.email) {
-            await sendEmail(
-              user.email,
-              'Xác nhận đăng ký gói tháng thành công',
-              `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${vehicle.plateNumber}</strong> đã được kích hoạt thành công.<br/>Khu vực đỗ: <strong>Tầng ${floor.name} (${allowedTier === 'VIP' ? 'Khu VIP' : allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản'})</strong>.<br/>Hạn sử dụng: <strong>${expiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã tin dùng.`
-            );
-          }
-
-          return { success: true };
+          return { success: true, emailDetails };
         }, {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable
         });
+
+        if (result && result.emailDetails && !result.alreadyProcessed) {
+          await sendNotificationEmailSafely(result.emailDetails);
+        }
+
+        return result;
       } catch (err: any) {
-        // P2034 is Prisma's code for transaction serialization conflict
         if (err.code === 'P2034' && attempts < maxAttempts) {
           console.warn(`[Webhook] Transaction serialization conflict (attempt ${attempts}). Retrying...`);
           await new Promise(res => setTimeout(res, attempts * 100));
           continue;
         }
-        // P2002 is Prisma's code for unique constraint violation
         if (err.code === 'P2002' && err.meta?.target?.includes('transactionCode')) {
           return { success: true, alreadyProcessed: true };
         }
@@ -304,85 +651,7 @@ export const monthlyPackageService = {
     }
   },
 
-  // CASH / EWALLET creation flow (immediate activation)
-  async create(input: CreatePackageInput) {
-    if (input.expiryDate <= input.startDate) {
-      throw new AppError(400, 'Expiry date must be after start date');
-    }
-    if (input.expiryDate <= new Date()) {
-      throw new AppError(400, 'Expiry date must be in the future');
-    }
 
-    const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
-    if (!vehicle) throw new AppError(404, 'Vehicle not found');
-    if (vehicle.ownerId !== input.userId) {
-      throw new AppError(403, 'Bạn không có quyền với xe này');
-    }
-
-    if (input.vehicleType && vehicle.type !== input.vehicleType) {
-      throw new AppError(400, 'Phương tiện không khớp với loại gói đăng ký');
-    }
-
-    const now = new Date();
-    const existingActive = await prisma.monthlyPackage.findFirst({
-      where: {
-        vehicleId: input.vehicleId,
-        status: 'ACTIVE',
-        expiryDate: { gt: now },
-      },
-    });
-    if (existingActive) {
-      throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
-    }
-
-    const durationMs = input.expiryDate.getTime() - input.startDate.getTime();
-    const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
-    const resolvedTier = getTierFromPlan(input.planId ?? null);
-
-    return prisma.$transaction(async (tx) => {
-      const floor = await selectFloorForPackage(vehicle.type, resolvedTier, tx);
-      if (!floor) {
-        throw new AppError(400, 'Hiện khu vực của gói này đã đủ số lượng đăng ký. Vui lòng chọn gói khác.');
-      }
-
-      const pkg = await tx.monthlyPackage.create({
-        data: {
-          userId: input.userId,
-          vehicleId: input.vehicleId,
-          floorId: floor.id,
-          planName: input.planId ?? null,
-          startDate: input.startDate,
-          expiryDate: input.expiryDate,
-          price: input.price,
-          status: 'ACTIVE',
-          allowedTier: resolvedTier,
-        },
-      });
-
-      await tx.payment.create({
-        data: {
-          monthlyPackageId: pkg.id,
-          bookingId: null,
-          checkInRecordId: null,
-          amount: input.price,
-          method: input.paymentMethod,
-          type: 'MONTHLY',
-          status: 'SUCCESS',
-          paidAt: new Date(),
-        },
-      });
-
-      await tx.vehicle.update({
-        where: { id: input.vehicleId },
-        data: { isMonthly: true },
-      });
-
-      return tx.monthlyPackage.findUnique({
-        where: { id: pkg.id },
-        include: { vehicle: true, floor: true, payments: true },
-      });
-    });
-  },
 
   async expireStalePackages() {
     return prisma.monthlyPackage.updateMany({
@@ -401,10 +670,57 @@ export const monthlyPackageService = {
     });
   },
 
+  getPlans() {
+    return [
+      {
+        id: '1m',
+        name: 'Gói 1 tháng',
+        durationDays: 30,
+        allowedTier: 'REGULAR' as const,
+        prices: {
+          CAR: {
+            price: PACKAGE_PRICES.CAR['1m'],
+          },
+          MOTORBIKE: {
+            price: PACKAGE_PRICES.MOTORBIKE['1m'],
+          },
+        },
+      },
+      {
+        id: '3m',
+        name: 'Gói 3 tháng',
+        durationDays: 90,
+        allowedTier: 'POPULAR' as const,
+        prices: {
+          CAR: {
+            price: PACKAGE_PRICES.CAR['3m'],
+          },
+          MOTORBIKE: {
+            price: PACKAGE_PRICES.MOTORBIKE['3m'],
+          },
+        },
+      },
+      {
+        id: '1y',
+        name: 'Gói 1 năm',
+        durationDays: 365,
+        allowedTier: 'VIP' as const,
+        prices: {
+          CAR: {
+            price: PACKAGE_PRICES.CAR['1y'],
+          },
+          MOTORBIKE: {
+            price: PACKAGE_PRICES.MOTORBIKE['1y'],
+          },
+        },
+      },
+    ];
+  },
+
   async getByUser(userId: string) {
     return prisma.monthlyPackage.findMany({
       where: { userId },
-      include: { vehicle: true, floor: true },
+      include: { vehicle: true, floor: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
   },
@@ -417,52 +733,269 @@ export const monthlyPackageService = {
     });
   },
 
-  async renewPackage(packageId: string, userId: string) {
+  async renewPackage(packageId: string, userId: string, selectedPlanId?: string): Promise<RenewResult> {
     const pkg = await prisma.monthlyPackage.findUnique({
       where: { id: packageId },
-      include: { user: true, vehicle: { select: { type: true, plateNumber: true } } },
+      include: { user: true, vehicle: { select: { id: true, type: true, plateNumber: true } } },
     });
     if (!pkg) throw new AppError(404, 'Gói tháng không tồn tại');
     if (pkg.userId !== userId) throw new AppError(403, 'Không có quyền gia hạn gói này');
 
-    const now = new Date();
-    const durationMs = pkg.expiryDate.getTime() - pkg.startDate.getTime();
-    if (durationMs <= 0) {
-      throw new AppError(400, 'Không thể xác định thời hạn gói để gia hạn');
+    const planId = selectedPlanId || pkg.planName;
+    if (!planId) {
+      throw new AppError(400, 'Gói tháng hiện tại không có loại gói hợp lệ để gia hạn.');
     }
 
-    const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
-    const renewFrom = pkg.expiryDate > now ? pkg.expiryDate : now;
-    const newExpiryDate = new Date(renewFrom);
-    newExpiryDate.setDate(newExpiryDate.getDate() + durationDays);
-    const newStartDate = pkg.expiryDate > now ? pkg.startDate : now;
+    if (planId !== '1m' && planId !== '3m' && planId !== '1y') {
+      throw new AppError(400, 'Mã gói đăng ký không hợp lệ.');
+    }
 
-    // Check capacity before renewal
-    const floor = await selectFloorForPackage(pkg.vehicle.type, pkg.allowedTier, prisma);
+    const price = PACKAGE_PRICES[pkg.vehicle.type]?.[planId];
+    if (price == null) {
+      throw new AppError(400, 'Không tìm thấy mức giá gia hạn phù hợp cho gói này.');
+    }
+
+    const now = new Date();
+    const isPackageActive = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
+    const targetTier = getTierFromPlan(planId);
+
+    // Active package tier guard
+    if (isPackageActive) {
+      if (!pkg.allowedTier) {
+        throw new AppError(400, 'Không tìm thấy phân hạng đỗ xe hiện tại.');
+      }
+      if (targetTier !== pkg.allowedTier) {
+        throw new AppError(400, `Gói đang hoạt động chỉ có thể gia hạn cùng phân hạng (${pkg.allowedTier}). Để đổi phân hạng, vui lòng đợi gói hết hạn.`);
+      }
+    }
+
+    // Dry-run capacity verification using target tier
+    const floor = await selectFloorForPackage(pkg.vehicle.type, targetTier, prisma);
     if (!floor) {
       throw new AppError(400, 'Không thể gia hạn: Khu vực hiện tại đã hết chỗ trống.');
     }
 
-    const updated = await prisma.monthlyPackage.update({
-      where: { id: packageId },
-      data: {
-        startDate: newStartDate,
-        expiryDate: newExpiryDate,
-        status: PKG_ACTIVE,
-        floorId: floor.id,
+    // Reuse or create a PENDING payment for this renewal session
+    const existingPending = await prisma.payment.findFirst({
+      where: {
+        monthlyPackageId: packageId,
+        status: 'PENDING',
+        type: 'MONTHLY',
       },
-      include: { user: true, vehicle: true, floor: true, payments: true },
     });
 
-    if (updated.user?.email) {
-      await sendEmail(
-        updated.user.email,
-        'Xác nhận gia hạn gói tháng',
-        `Chào bạn,<br/><br/>Gói tháng cho xe <strong>${pkg.vehicle.plateNumber}</strong> đã được gia hạn thành công. Ngày hết hạn mới là <strong>${newExpiryDate.toLocaleDateString('vi-VN')}</strong>.<br/><br/>Cảm ơn bạn đã sử dụng dịch vụ.`
-      );
+    let payment = existingPending;
+    let sessionId: string | undefined;
+    let sessionUrl: string | undefined;
+
+    if (existingPending) {
+      let canReuse = false;
+      if (existingPending.transactionCode) {
+        try {
+          const session = await stripe.checkout.sessions.retrieve(existingPending.transactionCode);
+          if (session.payment_status === 'paid') {
+            const metadata = session.metadata;
+            if (
+              !metadata ||
+              !metadata.paymentId ||
+              !metadata.monthlyPackageId ||
+              !metadata.userId ||
+              !metadata.vehicleId ||
+              !metadata.planId ||
+              !metadata.type
+            ) {
+              throw new AppError(400, 'Missing required metadata on paid Stripe session.');
+            }
+
+            if (metadata.planId !== '1m' && metadata.planId !== '3m' && metadata.planId !== '1y') {
+              throw new AppError(400, 'Invalid planId in paid Stripe session metadata.');
+            }
+
+            if (
+              metadata.paymentId !== existingPending.id ||
+              metadata.monthlyPackageId !== packageId ||
+              metadata.userId !== userId ||
+              metadata.vehicleId !== pkg.vehicle.id ||
+              metadata.type !== 'renew'
+            ) {
+              throw new AppError(400, 'Metadata mismatch on paid Stripe session.');
+            }
+
+            if (session.currency?.toLowerCase() !== 'vnd') {
+              throw new AppError(400, 'Invalid currency on paid Stripe session.');
+            }
+
+            const resolvedPrice = PACKAGE_PRICES[pkg.vehicle.type]?.[metadata.planId];
+            if (!resolvedPrice || session.amount_total !== resolvedPrice) {
+              throw new AppError(400, 'Amount mismatch on paid Stripe session.');
+            }
+
+            // Fail closed: amount_total must not be null
+            if (session.amount_total === null || session.amount_total === undefined) {
+              throw new AppError(400, 'Cannot reconcile paid session: amount_total is null.');
+            }
+            const targetTierForPaid = getTierFromPlan(metadata.planId);
+            const emailDetails = await prisma.$transaction(async (tx) => {
+              return await monthlyPackageService.reconcilePaymentSuccess(
+                tx,
+                metadata.paymentId,
+                session.id,
+                metadata.planId,
+                targetTierForPaid,
+                metadata.monthlyPackageId,
+                metadata.userId,
+                session.amount_total as number,
+                true
+              );
+            });
+            await sendNotificationEmailSafely(emailDetails);
+            return {
+              status: 'ALREADY_PROCESSED' as const,
+              packageId: metadata.monthlyPackageId,
+              paymentId: metadata.paymentId,
+            };
+          } else if (session.status === 'open') {
+            // Verify open session matches current inputs
+            const isValidForReuse =
+              session.id === existingPending.transactionCode &&
+              session.metadata?.paymentId === existingPending.id &&
+              session.metadata?.monthlyPackageId === packageId &&
+              session.metadata?.vehicleId === pkg.vehicle.id &&
+              session.metadata?.userId === userId &&
+              session.metadata?.planId === planId &&
+              session.metadata?.type === 'renew' &&
+              session.currency?.toLowerCase() === 'vnd' &&
+              session.amount_total === price &&
+              session.status === 'open';
+
+            if (isValidForReuse) {
+              canReuse = true;
+              sessionId = session.id;
+              sessionUrl = session.url ?? undefined;
+            } else {
+              // If mismatched: safely expire, retrieve and check before FAILED
+              try {
+                await stripe.checkout.sessions.expire(existingPending.transactionCode);
+              } catch (e) {
+                console.error('Error expiring mismatched session in renewPackage:', e);
+                throw new AppError(503, 'Không thể hủy phiên thanh toán Stripe cũ. Vui lòng thử lại sau.');
+              }
+
+              let expiredSession;
+              try {
+                expiredSession = await stripe.checkout.sessions.retrieve(existingPending.transactionCode);
+              } catch (e) {
+                console.error('Error retrieving expired session in renewPackage:', e);
+                throw new AppError(503, 'Không thể kiểm tra lại trạng thái Stripe sau khi hủy.');
+              }
+
+              if (expiredSession.status === 'expired' && expiredSession.payment_status !== 'paid') {
+                const updated = await prisma.payment.updateMany({
+                  where: { id: existingPending.id, status: 'PENDING' },
+                  data: { status: 'FAILED' },
+                });
+                if (updated.count !== 1) {
+                  throw new AppError(409, 'Giao dịch đã thay đổi trạng thái.');
+                }
+                payment = null;
+              } else {
+                throw new AppError(503, 'Không thể xác nhận trạng thái hết hạn từ Stripe.');
+              }
+            }
+          } else if (session.status === 'expired') {
+            // Already narrowed to expired: payment_status cannot be 'paid' here in a valid Stripe flow.
+            // Transition PENDING -> FAILED.
+            const updated = await prisma.payment.updateMany({
+              where: { id: existingPending.id, status: 'PENDING' },
+              data: { status: 'FAILED' },
+            });
+            if (updated.count !== 1) {
+              throw new AppError(409, 'Giao dịch đã thay đổi trạng thái.');
+            }
+            payment = null;
+          } else {
+            throw new AppError(503, 'Phiên thanh toán hiện tại chưa thể xác nhận trạng thái. Vui lòng thử lại sau.');
+          }
+        } catch (err: any) {
+          if (err instanceof AppError) throw err;
+          // Stripe retrieval failed (API/network error/timeout).
+          // Preserve PENDING and return safe HTTP 503.
+          console.error('Stripe retrieval failed/timeout in renewPackage:', err);
+          throw new AppError(503, 'Không thể kiểm tra trạng thái thanh toán từ Stripe lúc này. Vui lòng thử lại sau.');
+        }
+      } else {
+        // transactionCode is missing, preserve PENDING and return 503
+        throw new AppError(503, 'Phiên thanh toán chưa được khởi tạo với Stripe. Vui lòng thử lại sau.');
+      }
     }
 
-    return updated;
+    if (!payment || !sessionId || !sessionUrl) {
+      payment = await prisma.payment.create({
+        data: {
+          monthlyPackageId: packageId,
+          amount: price,
+          method: 'CARD',
+          type: 'MONTHLY',
+          status: 'PENDING',
+        },
+      });
+
+      const stripeSecret = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
+      if (stripeSecret === 'sk_test_mock') {
+        sessionId = `cs_test_${Math.random().toString(36).substring(2, 15)}`;
+        sessionUrl = 'https://checkout.stripe.com/c/pay/cs_test_mock';
+      } else {
+        const frontendUrl = process.env.FRONTEND_URL;
+        if (!frontendUrl) {
+          throw new AppError(500, 'FRONTEND_URL environment variable is not configured.');
+        }
+
+        const session = await stripe.checkout.sessions.create({
+          success_url: `${frontendUrl}/driver/monthly-package?success=true&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${frontendUrl}/driver/monthly-package?cancelled=true`,
+          mode: 'payment',
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'vnd',
+                product_data: {
+                  name: `Gia hạn gói tháng - ${planId === '1y' ? '1 năm' : planId === '3m' ? '3 tháng' : '1 tháng'} (${targetTier})`,
+                },
+                unit_amount: price,
+              },
+              quantity: 1,
+            },
+          ],
+          metadata: {
+            userId: userId,
+            vehicleId: pkg.vehicle.id,
+            planId: planId,
+            paymentId: payment.id,
+            monthlyPackageId: pkg.id,
+            type: 'renew',
+          },
+        }, {
+          idempotencyKey: `monthly_renew_${payment.id}`,
+        });
+
+        sessionId = session.id;
+        sessionUrl = session.url || undefined;
+      }
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { transactionCode: sessionId },
+      });
+    }
+
+    return {
+      status: 'CHECKOUT' as const,
+      packageId,
+      paymentId: payment.id,
+      sessionId: sessionId!,
+      url: sessionUrl!,
+    };
   },
 
   async setAutoRenew(packageId: string, userId: string, enabled: boolean) {
@@ -596,5 +1129,168 @@ export const monthlyPackageService = {
     );
 
     return { floorId, quotas };
+  },
+
+
+
+  async abandonPayment(input: { packageId: string; userId: string; paymentId: string; sessionId: string }) {
+    const { packageId, userId, paymentId, sessionId } = input;
+
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        monthlyPackage: {
+          include: { vehicle: true }
+        }
+      },
+    });
+
+    if (!payment) {
+      throw new AppError(404, 'Giao dịch không tồn tại.');
+    }
+
+    if (
+      payment.monthlyPackageId !== packageId ||
+      payment.type !== 'MONTHLY' ||
+      payment.transactionCode !== sessionId ||
+      !payment.monthlyPackage ||
+      payment.monthlyPackage.userId !== userId
+    ) {
+      throw new AppError(400, 'Thông tin giao dịch không hợp lệ hoặc không thuộc về bạn.');
+    }
+
+    if (payment.status === 'SUCCESS') {
+      return { success: true, alreadyProcessed: true };
+    }
+
+    if (payment.status === 'FAILED') {
+      return { success: true, alreadyResolved: true };
+    }
+
+    if (!payment.transactionCode) {
+      throw new AppError(503, 'Phiên thanh toán chưa được khởi tạo với Stripe. Vui lòng thử lại sau.');
+    }
+
+    try {
+      const session = await stripe.checkout.sessions.retrieve(payment.transactionCode);
+
+      if (
+        session.id !== sessionId ||
+        session.metadata?.paymentId !== paymentId ||
+        session.metadata?.monthlyPackageId !== packageId ||
+        session.metadata?.userId !== userId ||
+        session.metadata?.vehicleId !== payment.monthlyPackage.vehicleId
+      ) {
+        throw new AppError(400, 'Thông tin phiên thanh toán Stripe không khớp.');
+      }
+
+      if (session.payment_status === 'paid') {
+        const metadata = session.metadata || {};
+        const metaPlanId = metadata.planId;
+        const metaType = metadata.type;
+        const metaUserId = metadata.userId;
+        const metaVehicleId = metadata.vehicleId;
+        const metaPaymentId = metadata.paymentId;
+        const metaPackageId = metadata.monthlyPackageId;
+
+        if (
+          metaPlanId !== '1m' &&
+          metaPlanId !== '3m' &&
+          metaPlanId !== '1y'
+        ) {
+          throw new AppError(400, 'Mã gói đăng ký trong metadata không hợp lệ.');
+        }
+
+        if (
+          metaType !== 'purchase' &&
+          metaType !== 'renew'
+        ) {
+          throw new AppError(400, 'Loại giao dịch trong metadata không hợp lệ.');
+        }
+
+        if (
+          metaUserId !== userId ||
+          metaVehicleId !== payment.monthlyPackage.vehicleId ||
+          metaPaymentId !== paymentId ||
+          metaPackageId !== packageId
+        ) {
+          throw new AppError(400, 'Metadata của Stripe session không khớp với thông tin yêu cầu.');
+        }
+
+        const vehicleType = payment.monthlyPackage.vehicle.type;
+        const targetTier = getTierFromPlan(metaPlanId);
+        const resolvedPrice = PACKAGE_PRICES[vehicleType]?.[metaPlanId];
+        if (!resolvedPrice) {
+          throw new AppError(400, 'Không tìm thấy mức giá phù hợp cho gói này.');
+        }
+
+        const emailDetails = await prisma.$transaction(async (tx) => {
+          return await monthlyPackageService.reconcilePaymentSuccess(
+            tx,
+            paymentId,
+            session.id,
+            metaPlanId,
+            targetTier,
+            packageId,
+            userId,
+            session.amount_total ?? resolvedPrice,
+            metaType === 'renew'
+          );
+        });
+        await sendNotificationEmailSafely(emailDetails);
+        return { success: true, alreadyProcessed: true };
+      }
+
+      if (session.status === 'open') {
+        try {
+          await stripe.checkout.sessions.expire(payment.transactionCode);
+        } catch (e) {
+          console.error('Error expiring Stripe session in abandonPayment:', e);
+          throw new AppError(503, 'Không thể hủy phiên thanh toán Stripe lúc này. Vui lòng thử lại sau.');
+        }
+
+        let expiredSession;
+        try {
+          expiredSession = await stripe.checkout.sessions.retrieve(payment.transactionCode);
+        } catch (e) {
+          console.error('Error retrieving Stripe session after expire:', e);
+          throw new AppError(503, 'Không thể kiểm tra lại trạng thái Stripe sau khi hủy.');
+        }
+
+        if (expiredSession.status === 'expired' && expiredSession.payment_status !== 'paid') {
+          const updated = await prisma.payment.updateMany({
+            where: {
+              id: paymentId,
+              status: 'PENDING',
+            },
+            data: { status: 'FAILED' },
+          });
+          if (updated.count !== 1) {
+            throw new AppError(409, 'Giao dịch đã thay đổi trạng thái.');
+          }
+        } else {
+          throw new AppError(503, 'Không thể xác nhận trạng thái hết hạn từ Stripe.');
+        }
+      } else if (session.status === 'expired') {
+        const updated = await prisma.payment.updateMany({
+          where: {
+            id: paymentId,
+            status: 'PENDING',
+          },
+          data: { status: 'FAILED' },
+        });
+        if (updated.count !== 1) {
+          throw new AppError(409, 'Giao dịch đã thay đổi trạng thái.');
+        }
+      } else {
+        throw new AppError(503, 'Trạng thái thanh toán của Stripe hiện chưa thể xác nhận.');
+      }
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      console.error('Stripe retrieval/expire failed in abandonPayment:', err);
+      throw new AppError(503, 'Lỗi kết nối đến Stripe. Vui lòng thử lại sau.');
+    }
+
+    return { success: true };
   },
 };

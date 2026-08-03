@@ -424,9 +424,9 @@ function extractTwoLineCarCandidates(rawText: string): ExtractedCandidate[] {
   const processed = new Set<string>();
 
   for (let i = 0; i < lines.length - 1; i++) {
-    const combined = lines[i] + lines[i+1];
+    const combined = lines[i] + lines[i + 1];
     if (combined.length < 7 || combined.length > 9) continue;
-    
+
     const variants = generateConfusionVariants(combined);
     for (const normalized of variants) {
       if (processed.has(normalized)) continue;
@@ -531,7 +531,7 @@ async function recognizeProcessedPlate(buffer: Buffer, worker: TesseractWorker):
     .filter((line: string) => line.length > 0);
 
   for (let i = 0; i < lines.length - 1; i++) {
-    const combined = `${lines[i]}${lines[i+1]}`;
+    const combined = `${lines[i]}${lines[i + 1]}`;
     const cleanCombined = combined.replace(/[^A-Z0-9]/gi, '').toUpperCase();
     if (/^\d{2}[A-Z][A-Z0-9]{4,6}$/.test(cleanCombined)) {
       matches.push(combined);
@@ -598,7 +598,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
     if (process.env.NODE_ENV !== 'production') {
       const prefix = vehicleType === 'CAR' ? 'CAR' : 'MOTORBIKE';
       console.log(`[OCR][${prefix}] originalImage=${normResult.originalWidth}x${normResult.originalHeight} orientation=${normResult.originalOrientation || 'unknown'}`);
-    console.log(`[OCR][${prefix}] orientedImage=${w}x${h}`);
+      console.log(`[OCR][${prefix}] orientedImage=${w}x${h}`);
     }
 
     const setPsm = async (psm: PSM) => {
@@ -754,7 +754,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           if (lines.length >= 2) {
             for (let i = 0; i < lines.length - 1; i++) {
               const topClean = lines[i].replace(/[^A-Z0-9]/gi, '').toUpperCase();
-              const bottomClean = lines[i+1].replace(/[^A-Z0-9]/gi, '').toUpperCase();
+              const bottomClean = lines[i + 1].replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
               // Require strict row validation for split results
               const upperValid = /^(\d{2}[A-Z]\d|\d{2}[A-Z]{2})$/.test(topClean);
@@ -1155,11 +1155,15 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         heightPct: number,
         name: string
       ) => {
+        const rawLeft = Math.max(0, Math.min(Math.floor(width * leftPct), width - 1));
+        const rawTop = Math.max(0, Math.min(Math.floor(height * topPct), height - 1));
+        const rawWidth = Math.max(10, Math.min(Math.floor(width * widthPct), width - rawLeft));
+        const rawHeight = Math.max(10, Math.min(Math.floor(height * heightPct), height - rawTop));
         const raw = {
-          left: Math.max(0, Math.min(Math.floor(width * leftPct), width - 1)),
-          top: Math.max(0, Math.min(Math.floor(height * topPct), height - 1)),
-          width: Math.max(10, Math.min(Math.floor(width * widthPct), width)),
-          height: Math.max(10, Math.min(Math.floor(height * heightPct), height)),
+          left: rawLeft,
+          top: rawTop,
+          width: rawWidth,
+          height: rawHeight,
         };
         return clampCropRegion(raw, width, height, name, 'CAR');
       };
@@ -1416,7 +1420,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
             }
 
             const extracted = extractCarCandidates(rawText);
-            
+
             for (const ext of extracted) {
               carCandidates.push({
                 normalizedPlate: ext.normalized,
@@ -1465,14 +1469,14 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
                 try {
                   const res = await runPassForCrop(crop, 'grayscale-normalize-threshold', rc.name, budget);
                   if (res && res.validCandidatesCount > 0) recoveryMatchFound = true;
-                } catch (e) {}
+                } catch (e) { }
               }
               if (!recoveryMatchFound) {
                 try {
                   await runPassForCrop(crop, 'grayscale-linear-sharpen', rc.name, budget);
-                } catch (e) {}
+                } catch (e) { }
               }
-              
+
               const validCandidates = carCandidates.filter(c => c.valid && c.orientationName === orientationName && c.cropName === rc.name);
               if (validCandidates.length > 0) {
                 foundInRecovery = true;
@@ -1829,7 +1833,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
       if (isOcrBudgetExhausted(budget)) return false;
       const primaryCrop = (profile === 'PORTRAIT') ? carVariants[1].crop : carVariants[0].crop;
       const primaryCropName = (profile === 'PORTRAIT') ? carVariants[1].cropName : carVariants[0].cropName;
-      
+
       if (primaryCrop && !isOcrBudgetExhausted(budget)) {
         await runPassForCrop(primaryCrop, 'grayscale-normalize-sharpen', primaryCropName, budget, 'STAGE_A_FAST_PASS');
       }
@@ -1851,6 +1855,112 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
       if (stageABest && ((stageABest.agreementCount && stageABest.agreementCount >= 2) || stageABest.confidence >= 80)) {
         selectedCandidate = stageABest;
         return true;
+      }
+
+      // ─── STAGE A.5: CENTER-TIGHT ONE-LINE PASS ───
+      if (!isOcrBudgetExhausted(budget)) {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_LINE,
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+        });
+        lastPsm = PSM.SINGLE_LINE;
+
+        const centerTightRuns = [
+          { name: 'CAR_PLATE_CENTER_TIGHT', crop: getClampedCrop(0.35, 0.48, 0.30, 0.15, 'CAR_PLATE_CENTER_TIGHT'), processing: 'grayscale-normalize-sharpen' },
+          { name: 'CAR_PLATE_CENTER_TIGHT', crop: getClampedCrop(0.35, 0.48, 0.30, 0.15, 'CAR_PLATE_CENTER_TIGHT'), processing: 'grayscale-normalize-threshold' },
+          { name: 'CAR_PLATE_CENTER_HIGH', crop: getClampedCrop(0.35, 0.43, 0.30, 0.15, 'CAR_PLATE_CENTER_HIGH'), processing: 'grayscale-normalize-sharpen' },
+          { name: 'CAR_PLATE_CENTER_HIGH', crop: getClampedCrop(0.35, 0.43, 0.30, 0.15, 'CAR_PLATE_CENTER_HIGH'), processing: 'grayscale-normalize-threshold' },
+          { name: 'CAR_PLATE_CENTER_LOW', crop: getClampedCrop(0.35, 0.53, 0.30, 0.15, 'CAR_PLATE_CENTER_LOW'), processing: 'grayscale-normalize-sharpen' },
+          { name: 'CAR_PLATE_CENTER_LOW', crop: getClampedCrop(0.35, 0.53, 0.30, 0.15, 'CAR_PLATE_CENTER_LOW'), processing: 'grayscale-normalize-threshold' },
+          { name: 'CAR_PLATE_CENTER_LEFT', crop: getClampedCrop(0.31, 0.48, 0.30, 0.15, 'CAR_PLATE_CENTER_LEFT'), processing: 'grayscale-normalize-sharpen' },
+          { name: 'CAR_PLATE_CENTER_RIGHT', crop: getClampedCrop(0.39, 0.48, 0.30, 0.15, 'CAR_PLATE_CENTER_RIGHT'), processing: 'grayscale-normalize-sharpen' }
+        ];
+
+        const restoreDefaultConfig = async () => {
+          await worker.setParameters({
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.',
+          });
+        };
+
+        for (const run of centerTightRuns) {
+          if (isOcrBudgetExhausted(budget)) break;
+          if (!run.crop) continue;
+
+          try {
+            if (!consumeOcrRun(budget)) break;
+
+            const buffer = await preprocessImageToBuffer(buf, {
+              crop: run.crop,
+              resizeWidth: 1800,
+              processing: run.processing,
+            });
+
+            const procMeta = await sharp(buffer).metadata();
+            const procW = procMeta.width || 0;
+            const procH = procMeta.height || 0;
+            if (procW < 3 || procH < 3) continue;
+
+            const { data } = await worker.recognize(buffer);
+            const rawText = data.text || '';
+
+            const extracted = extractCarCandidates(rawText);
+            const bestExt = extracted.find(e => e.valid) || extracted[0];
+            const normalized = bestExt ? bestExt.normalized : '';
+            const isValid = bestExt ? bestExt.valid : false;
+
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`[OCR][CAR][ONE_LINE]\nregion=${run.name}\nraw=${rawText.trim()}\nnormalized=${normalized}\nvalid=${isValid}\nused=${budget.used}/25`);
+            }
+
+            for (const ext of extracted) {
+              carCandidates.push({
+                normalizedPlate: ext.normalized,
+                formattedPlate: formatCarPlate(ext.normalized),
+                rawText: rawText,
+                confidence: data.confidence,
+                cropName: run.name,
+                variantName: `${run.name.toLowerCase()}-${run.processing.split('-').slice(1).join('-')}`,
+                valid: ext.valid,
+                rejectionReason: ext.reason,
+                orientationName,
+                orientationWidth: width,
+                orientationHeight: height,
+                strategy: 'CAR_ONE_LINE',
+              });
+            }
+
+            if (extracted.length === 0) {
+              carCandidates.push({
+                normalizedPlate: '',
+                formattedPlate: '',
+                rawText: rawText,
+                confidence: data.confidence,
+                cropName: run.name,
+                variantName: `${run.name.toLowerCase()}-${run.processing.split('-').slice(1).join('-')}`,
+                valid: false,
+                rejectionReason: 'No valid plate length found in raw text',
+                orientationName,
+                orientationWidth: width,
+                orientationHeight: height,
+                strategy: 'CAR_ONE_LINE',
+              });
+            }
+
+            const stageFastBest = getBestCandidateForOrientation(orientationName);
+            if (stageFastBest) {
+              if (stageFastBest.confidence >= 80 || (stageFastBest.agreementCount && stageFastBest.agreementCount >= 2)) {
+                selectedCandidate = stageFastBest;
+                await restoreDefaultConfig();
+                return true;
+              }
+            }
+          } catch (e) {
+            // Ignore error for this run and continue
+          }
+        }
+
+        // Restore default config for subsequent stages
+        await restoreDefaultConfig();
       }
 
       // ─── STAGE B: LOW BOTTOM-CENTER PASS ───
@@ -2022,7 +2132,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         }
         try {
           const rotated = await getRotatedBuffer(imageBuffer, f.angle);
-          
+
           const ratio = rotated.h / rotated.w;
           let rotProfile: 'PORTRAIT' | 'LANDSCAPE' | 'NEAR_SQUARE' = 'NEAR_SQUARE';
           if (ratio >= 1.15) {
@@ -2046,9 +2156,9 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
             width: Math.max(10, Math.floor(rotated.w * probeCropPct.width)),
             height: Math.max(10, Math.floor(rotated.h * probeCropPct.height)),
           };
-          
+
           const probeCrop = clampCropRegion(probeCropRaw, rotated.w, rotated.h, 'CAR_MEDIUM_PROBE', 'CAR');
-          
+
           if (!probeCrop) {
             if (process.env.NODE_ENV !== 'production') {
               console.log(`[OCR][CAR] [${f.name}] Probe skipped: invalid crop bounds`);
@@ -2080,7 +2190,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           await setPsm(PSM.SINGLE_LINE);
           const pRes = await worker.recognize(probeBuf);
           const pRawText = pRes.data.text || '';
-          
+
           const extracted = extractCarCandidates(pRawText);
           const hasValidCandidate = extracted.some(ext => ext.valid);
 
@@ -2155,7 +2265,7 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           height: Math.floor(h * 0.6),
         };
         const fallbackCrop = clampCropRegion(fallbackCropRaw, w, h, 'CAR_BROAD_FULL_REGION', 'CAR');
-        
+
         if (fallbackCrop) {
           const fbBuffer = await preprocessImageToBuffer(orientedBuffer, {
             crop: fallbackCrop,

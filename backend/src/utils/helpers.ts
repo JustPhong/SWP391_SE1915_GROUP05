@@ -1,4 +1,11 @@
+export interface AppErrorReason {
+  type: string;
+  message: string;
+}
+
 export class AppError extends Error {
+  public reasons?: AppErrorReason[];
+
   constructor(
     public statusCode: number,
     message: string,

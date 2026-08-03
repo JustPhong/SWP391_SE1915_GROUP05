@@ -7,7 +7,7 @@ export interface PackagePlan {
   name: string;
   durationDays: number;
   allowedTier: TierType;
-  prices: Record<VType, { price: number; priceLabel: string; pricePerDay: string }>;
+  prices: Partial<Record<VType, { price: number }>>;
 }
 
 export const getTierAreaLabel = (
@@ -53,20 +53,6 @@ export interface CasualPlan {
   blocks: CasualTimeBlock[];
 }
 
-export const PACKAGES: PackagePlan[] = [
-  { id: '1m', name: 'Gói 1 tháng', durationDays: 30, allowedTier: 'REGULAR', prices: {
-    CAR: { price: 1500000, priceLabel: '1.500.000đ', pricePerDay: '50.000đ/ngày' },
-    MOTORBIKE: { price: 300000, priceLabel: '300.000đ', pricePerDay: '10.000đ/ngày' },
-  }},
-  { id: '3m', name: 'Gói 3 tháng', durationDays: 90, allowedTier: 'POPULAR', prices: {
-    CAR: { price: 4000000, priceLabel: '4.000.000đ', pricePerDay: '44.444đ/ngày' },
-    MOTORBIKE: { price: 800000, priceLabel: '800.000đ', pricePerDay: '8.889đ/ngày' },
-  }},
-  { id: '1y', name: 'Gói 1 năm', durationDays: 365, allowedTier: 'VIP', prices: {
-    CAR: { price: 15000000, priceLabel: '15.000.000đ', pricePerDay: '41.096đ/ngày' },
-    MOTORBIKE: { price: 3000000, priceLabel: '3.000.000đ', pricePerDay: '8.219đ/ngày' },
-  }},
-];
 
 export const CASUAL_PRICING: Record<VType, CasualPlan> = {
   CAR: {
