@@ -290,13 +290,32 @@ export function PackagePurchaseModal({
 
   const handleProceedToPaymentScreen = async () => {
     if (!selectedVehicleId) return;
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (!selectedVehicle) {
+      setSubmitError('Không tìm thấy phương tiện đã chọn.');
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError('');
     try {
-      const res = await monthlyPackageService.createCheckoutSession({
-        vehicleId: selectedVehicleId,
-        planId: planId!,
-      });
+      const hasPackageHistory = !!selectedVehicle.monthlyPackage?.id;
+
+      let res;
+      if (hasPackageHistory) {
+        // CASE B & C: Use renewal endpoint
+        res = await monthlyPackageService.renewPackage(
+          selectedVehicle.monthlyPackage!.id,
+          planId!
+        );
+      } else {
+        // CASE A: Use initial purchase
+        res = await monthlyPackageService.createCheckoutSession({
+          vehicleId: selectedVehicleId,
+          planId: planId!,
+        });
+      }
+
       if (res.status === 'ALREADY_PROCESSED') {
         // Session was already paid — treat as success
         sessionStorage.removeItem('pending_monthly_package_id');
@@ -385,7 +404,13 @@ export function PackagePurchaseModal({
         <div style={{ background: headerBg, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTopLeftRadius: 24, borderTopRightRadius: 24, flexShrink: 0 }}>
           <div>
             <h3 id="modal-title" style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: C.white }}>
-              Xác nhận đăng ký gói
+              {(() => {
+                const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+                if (selectedVehicle?.monthlyPackage?.id) {
+                  return 'Xác nhận chọn gói mới';
+                }
+                return 'Xác nhận đăng ký gói';
+              })()}
             </h3>
           </div>
           {!submitting && (
@@ -560,6 +585,19 @@ export function PackagePurchaseModal({
                       </select>
                     )}
                   </div>
+
+                  {/* Expired package notice */}
+                  {(() => {
+                    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+                    if (selectedVehicle?.monthlyPackage?.id) {
+                      return (
+                        <div style={{ padding: '0.85rem 1rem', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 14, fontSize: '0.82rem', color: '#92400E', lineHeight: 1.5 }}>
+                          Phương tiện đã từng sử dụng gói tháng. Gói mới sẽ được kích hoạt sau khi thanh toán thành công.
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {/* Wording Note */}
                   <div style={{ padding: '0.85rem 1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, fontSize: '0.82rem', color: '#1E40AF', lineHeight: 1.5 }}>

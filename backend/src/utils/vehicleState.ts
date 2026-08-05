@@ -59,7 +59,7 @@ export async function getVehicleOperationalState(
   if (vehicleId) {
     vehicle = await tx.vehicle.findUnique({
       where: { id: vehicleId },
-      include: { monthlyPackage: true },
+      include: { monthlyPackage: { include: { floor: true } } },
     });
   } else if (plateNumber) {
     vehicle = await tx.vehicle.findFirst({
@@ -69,7 +69,7 @@ export async function getVehicleOperationalState(
           { plateNumber: stripped },
         ],
       },
-      include: { monthlyPackage: true },
+      include: { monthlyPackage: { include: { floor: true } } },
     });
   }
 

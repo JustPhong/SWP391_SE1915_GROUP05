@@ -20,13 +20,27 @@ const C = {
   blueLight: '#DBEAFE', blueDark: '#1D4ED8',
 };
 
-function hasMonthlyPackage(vehicle: Vehicle): boolean { return !!((vehicle as any).isMonthly || (vehicle as any).monthlyPackage); }
+/**
+ * Single shared rule: a monthly package is only effectively active when
+ * the DB status is ACTIVE **and** the expiry date has not yet passed.
+ */
+function isMonthlyPackageEffectivelyActive(pkg: any): boolean {
+  if (!pkg) return false;
+  if (pkg.status !== 'ACTIVE') return false;
+  if (!pkg.expiryDate) return false;
+  return new Date(pkg.expiryDate).getTime() > Date.now();
+}
+
+function hasMonthlyPackage(vehicle: Vehicle): boolean {
+  const pkg = (vehicle as any).monthlyPackage;
+  return isMonthlyPackageEffectivelyActive(pkg);
+}
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
 
 function getParkingAreaText(vehicle: Vehicle): string {
   try {
     const pkg = (vehicle as any).monthlyPackage;
-    if (!pkg) return 'Chưa phân khu';
+    if (!pkg || !isMonthlyPackageEffectivelyActive(pkg)) return 'Chưa phân khu';
     const tierName = pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản';
     const floorName = (pkg.floor?.name || '').replace(/^(tầng|tang)\s*/i, '');
     if (floorName) {
@@ -37,7 +51,7 @@ function getParkingAreaText(vehicle: Vehicle): string {
     return 'Chưa phân khu';
   }
 }
-function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
+function isExpiringSoon(vehicle: Vehicle): boolean { try { const pkg = (vehicle as any).monthlyPackage; if (!pkg?.expiryDate || !isMonthlyPackageEffectivelyActive(pkg)) return false; const expiry = new Date(pkg.expiryDate); if (isNaN(expiry.getTime())) return false; const diff = (expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24); return diff >= 0 && diff <= 7; } catch { return false; } }
 
 const formatParkingArea = (
   floorName?: string,
@@ -301,9 +315,12 @@ function BookingStatusBadge({ status }: { status: string }) {
   const s = map[status] ?? { label: status, bg: C.gray100, color: C.gray600 };
   return <span style={{ background: s.bg, color: s.color, fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>{s.label}</span>;
 }
-function PackageStatusBadge({ status }: { status: string }) {
-  const isActive = status === 'ACTIVE';
-  return <span style={{ background: isActive ? '#DCFCE7' : '#F3F4F6', color: isActive ? '#16A34A' : '#6B7280', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>{isActive ? 'Còn hiệu lực' : 'Hết hạn'}</span>;
+function PackageStatusBadge({ pkg }: { pkg: any }) {
+  const active = isMonthlyPackageEffectivelyActive(pkg);
+  if (active) {
+    return <span style={{ background: '#DCFCE7', color: '#16A34A', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>Còn hiệu lực</span>;
+  }
+  return <span style={{ background: '#FEF2F2', color: '#DC2626', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>Hết hạn</span>;
 }
 
 function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: string; onClose: () => void; onUpdate?: () => void }) {
@@ -625,23 +642,40 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {detail.monthlyPackage ? (
-                    <div style={{ background: 'linear-gradient(135deg,#1E3A5F 0%,#3B82F6 100%)', borderRadius: '16px', padding: '1.25rem', color: '#FFFFFF', boxShadow: '0 10px 20px -5px rgba(59,130,246,0.25)', position: 'relative', overflow: 'hidden' }}>
-                      <div style={{ position: 'absolute', right: '-20px', bottom: '-20px', width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-                      <div style={{ position: 'absolute', right: '16px', top: '16px', opacity: 0.15 }}>{detail.type === 'CAR' ? <IconCar size={56} /> : <IconBike size={56} />}</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                        <div><span style={{ background: 'rgba(255,255,255,0.2)', fontSize: '0.62rem', fontWeight: 800, padding: '2px 8px', borderRadius: '20px', letterSpacing: '0.05em' }}>GÓI ĐỖ XE THÁNG</span><h3 style={{ margin: '6px 0 0 0', fontSize: '1.1rem', fontWeight: 800 }}>{getPackageTierTitle(detail.monthlyPackage.allowedTier)}</h3></div>
-                        <PackageStatusBadge status={detail.monthlyPackage.status} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
-                        <div>Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> – <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong></div>
-                        {detail.monthlyPackage.floor ? (
-                          <div>Khu vực đỗ xe: <strong>Tầng {(detail.monthlyPackage.floor.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
-                        ) : detail.monthlyPackage.allowedTier ? (
-                          <div>Khu vực đỗ xe: <strong>Tầng G · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
-                        ) : null}
-                        <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 800, color: '#FCD34D', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
-                      </div>
-                    </div>
+                    (() => {
+                      const pkgActive = isMonthlyPackageEffectivelyActive(detail.monthlyPackage);
+                      const cardBg = pkgActive
+                        ? 'linear-gradient(135deg,#1E3A5F 0%,#3B82F6 100%)'
+                        : 'linear-gradient(135deg,#475569 0%,#64748B 100%)';
+                      const cardShadow = pkgActive
+                        ? '0 10px 20px -5px rgba(59,130,246,0.25)'
+                        : '0 10px 20px -5px rgba(71,85,105,0.18)';
+                      return (
+                        <div style={{ background: cardBg, borderRadius: '16px', padding: '1.25rem', color: '#FFFFFF', boxShadow: cardShadow, position: 'relative', overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', right: '-20px', bottom: '-20px', width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
+                          <div style={{ position: 'absolute', right: '16px', top: '16px', opacity: 0.15 }}>{detail.type === 'CAR' ? <IconCar size={56} /> : <IconBike size={56} />}</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                            <div>
+                              <span style={{ background: 'rgba(255,255,255,0.2)', fontSize: '0.62rem', fontWeight: 800, padding: '2px 8px', borderRadius: '20px', letterSpacing: '0.05em' }}>GÓI ĐỖ XE THÁNG</span>
+                              <h3 style={{ margin: '6px 0 0 0', fontSize: '1.1rem', fontWeight: 800 }}>{getPackageTierTitle(detail.monthlyPackage.allowedTier)}</h3>
+                            </div>
+                            <PackageStatusBadge pkg={detail.monthlyPackage} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.78rem', opacity: 0.9 }}>
+                            <div>Thời hạn: <strong>{fmt(detail.monthlyPackage.startDate)}</strong> – <strong>{fmt(detail.monthlyPackage.expiryDate)}</strong></div>
+                            {!pkgActive && (
+                              <div style={{ fontSize: '0.72rem', background: 'rgba(239,68,68,0.18)', borderRadius: 6, padding: '2px 7px', display: 'inline-block', fontWeight: 700, color: '#FCA5A5', marginTop: 2 }}>Gói này đã hết hạn. Vui lòng gia hạn.</div>
+                            )}
+                            {detail.monthlyPackage.floor ? (
+                              <div>Khu vực đỗ xe: <strong>Tầng {(detail.monthlyPackage.floor.name || '').replace(/^(tầng|tang)\s*/i, '') || '—'} · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
+                            ) : detail.monthlyPackage.allowedTier ? (
+                              <div>Khu vực đỗ xe: <strong>Tầng G · {getTierAreaLabel(detail.monthlyPackage.allowedTier)}</strong></div>
+                            ) : null}
+                            <div style={{ marginTop: '8px', fontSize: '1rem', fontWeight: 800, color: '#FCD34D', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>{Number(detail.monthlyPackage.price).toLocaleString('vi-VN')} đ</div>
+                          </div>
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div style={{ background: '#F8FAFC', border: '1.5px dashed #E2E8F0', borderRadius: '16px', padding: '1.25rem', textAlign: 'center' }}>
                       <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '6px' }}>🎫</span>

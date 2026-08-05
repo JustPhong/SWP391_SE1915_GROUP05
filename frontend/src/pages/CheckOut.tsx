@@ -2,12 +2,21 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
-import { 
+import {
   checkoutLookupPlate,
   createCheckoutStripeSession,
   getCheckoutStripeStatusBySession
 } from '../api/checkoutApi';
 import type { CheckInRecord } from '../types/index';
+import {
+  initializeFaceComparison,
+  loadImageFromFile,
+  loadImageFromUrl,
+  extractSingleFaceEmbedding,
+  compareEmbeddings,
+  type ModelStatus,
+  type FaceComparisonResult
+} from '../services/faceComparison';
 
 // ── Types ────────────────────────────────────────────────
 interface ActiveRecord {
@@ -17,8 +26,8 @@ interface ActiveRecord {
   checkInTime: string;
   checkOutTime: string | null;
   isMonthly: boolean;
-  vehicle?: { 
-    plateNumber: string; 
+  vehicle?: {
+    plateNumber: string;
     type?: 'CAR' | 'MOTORBIKE';
     brand?: string | null;
     model?: string | null;
@@ -245,7 +254,7 @@ export function CheckOutPage() {
   const [ownerInfo, setOwnerInfo] = useState<{ name: string | null; phone: string | null; email: string | null } | null>(null);
   const autoSearchRan = useRef(false);
   const [searchParams] = useSearchParams();
-  
+
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   type CheckoutPaymentOption = 'CASH' | 'STRIPE_CARD';
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<CheckoutPaymentOption>('CASH');
@@ -258,6 +267,112 @@ export function CheckOutPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; label: string } | null>(null);
   const [isLegacy, setIsLegacy] = useState(false);
 
+  // ── Monthly PIN Fallback Modal ──
+  const [showMonthlyPinModal, setShowMonthlyPinModal] = useState(false);
+  const [monthlyPinPlateInput, setMonthlyPinPlateInput] = useState('');
+  const [monthlyPinCodeInput, setMonthlyPinCodeInput] = useState('');
+  const [monthlyPinError, setMonthlyPinError] = useState('');
+  const [monthlyPinLoading, setMonthlyPinLoading] = useState(false);
+  const [monthlyAccessPin, setMonthlyAccessPin] = useState('');
+
+  const handleVerifyCheckoutMonthlyPin = async () => {
+    const plate = monthlyPinPlateInput.trim().toUpperCase();
+    const pin = monthlyPinCodeInput.trim();
+
+    if (!plate) {
+      setMonthlyPinError('Vui lòng nhập biển số xe.');
+      return;
+    }
+    if (!/^\d{6}$/.test(pin)) {
+      setMonthlyPinError('Mã PIN phải gồm đúng 6 chữ số.');
+      return;
+    }
+
+    setMonthlyPinError('');
+    setMonthlyPinLoading(true);
+    try {
+      const activeRes = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
+      const raw = activeRes.data.data ?? [];
+      const cleanInput = plate.replace(/[-.\s]/g, '').toUpperCase();
+      const matched = raw.find((r) => {
+        const p = (r.vehicle?.plateNumber || '').trim().replace(/[-.\s]/g, '').toUpperCase();
+        return p === cleanInput;
+      });
+
+      if (!matched) {
+        throw new Error('Không tìm thấy xe đang ở trong bãi.');
+      }
+
+      const lookup = await checkoutLookupPlate(plate, pin);
+
+      const matchedVehicle = matched.vehicle as ActiveRecord['vehicle'] | undefined;
+      const mapped: ActiveRecord = {
+        id: matched.id,
+        vehicleId: matched.vehicleId,
+        slotId: matched.slotId ?? null,
+        checkInTime: matched.checkInTime,
+        checkOutTime: matched.checkOutTime,
+        isMonthly: true,
+        vehicle: matchedVehicle ? {
+          plateNumber: matchedVehicle.plateNumber,
+          type: matchedVehicle.type,
+          brand: lookup.brand ?? matchedVehicle.brand,
+          model: lookup.model ?? matchedVehicle.model,
+          color: lookup.color ?? matchedVehicle.color,
+          year: lookup.year ?? matchedVehicle.year,
+          seats: lookup.seats ?? matchedVehicle.seats,
+        } : undefined,
+        slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : null,
+        floor: matched.floor ? { id: matched.floor.id, name: matched.floor.name, floorCode: matched.floor.floorCode } : null,
+        allowedTier: matched.allowedTier,
+        bookingId: matched.bookingId,
+      };
+
+      setFoundRecord(mapped);
+      setOwnerInfo({
+        name: lookup.ownerName ?? null,
+        phone: lookup.ownerPhone ?? null,
+        email: lookup.ownerEmail ?? null,
+      });
+      setFrontImageUrl(lookup.frontImageUrl ?? null);
+      setRearImageUrl(lookup.rearImageUrl ?? null);
+      setDriverCheckInImageUrl(lookup.driverCheckInImageUrl ?? null);
+      setIsLegacy(lookup.isLegacy ?? false);
+
+      setFeePreview({
+        recordId: matched.id,
+        plate: lookup.plate || matched.vehicle?.plateNumber || plate,
+        slotCode: lookup.slotCode || (matched.slot ? matched.slot.code : 'Không cố định'),
+        vehicleType: (lookup.vehicleType || (matched.vehicle ? matched.vehicle.type : 'CAR')) as 'CAR' | 'MOTORBIKE',
+        isMonthly: lookup.isMonthly ?? matched.isMonthly ?? true,
+        checkInTime: lookup.checkInTime || matched.checkInTime,
+        now: lookup.now || new Date().toISOString(),
+        durationMinutes: lookup.durationMinutes ?? Math.round((Date.now() - new Date(matched.checkInTime).getTime()) / 60000),
+        fee: lookup.fee ?? 0,
+        amountDue: lookup.amountDue ?? 0,
+        breakdown: lookup.breakdown || []
+      });
+
+      setMonthlyAccessPin(pin);
+      setPlateInput(plate);
+      setShowMonthlyPinModal(false);
+    } catch (err: any) {
+      setMonthlyPinError(err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    } finally {
+      setMonthlyPinLoading(false);
+    }
+  };
+
+  // ── Face Comparison States ──
+  const [driverCheckInImageUrl, setDriverCheckInImageUrl] = useState<string | null>(null);
+  const [checkoutImage, setCheckoutImage] = useState<File | null>(null);
+  const [checkoutImagePreview, setCheckoutImagePreview] = useState<string | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
+  const [comparisonResult, setComparisonResult] = useState<FaceComparisonResult | null>(null);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>('IDLE');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -267,6 +382,171 @@ export function CheckOutPage() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  // ── Face Verification Cleanup and Helpers ──
+  const resetFaceVerification = () => {
+    setDriverCheckInImageUrl(null);
+    setCheckoutImage(null);
+    if (checkoutImagePreview) {
+      URL.revokeObjectURL(checkoutImagePreview);
+      setCheckoutImagePreview(null);
+    }
+    setComparisonResult(null);
+    setComparisonError(null);
+    setIsComparing(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (checkoutImagePreview) {
+        URL.revokeObjectURL(checkoutImagePreview);
+      }
+    };
+  }, [checkoutImagePreview]);
+
+  // Lazy initialize model when record is loaded and has check-in image URL
+  useEffect(() => {
+    if (foundRecord && driverCheckInImageUrl) {
+      if (modelStatus === 'IDLE') {
+        setModelStatus('LOADING');
+        initializeFaceComparison()
+          .then(() => {
+            setModelStatus('READY');
+          })
+          .catch((err) => {
+            console.error('Failed to load face comparison model:', err);
+            setModelStatus('ERROR');
+          });
+      }
+    }
+  }, [foundRecord, driverCheckInImageUrl]);
+
+  const ensureModelInitialized = async (): Promise<boolean> => {
+    if (modelStatus === 'READY') return true;
+    setModelStatus('LOADING');
+    try {
+      await initializeFaceComparison();
+      setModelStatus('READY');
+      return true;
+    } catch (err) {
+      console.error('Failed to load face comparison model:', err);
+      setModelStatus('ERROR');
+      return false;
+    }
+  };
+
+  const handleCheckoutFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setComparisonResult(null);
+    setComparisonError(null);
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setComparisonError('Ảnh người nhận xe chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP.');
+      setCheckoutImage(null);
+      if (checkoutImagePreview) {
+        URL.revokeObjectURL(checkoutImagePreview);
+        setCheckoutImagePreview(null);
+      }
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setComparisonError('Ảnh người nhận xe không được vượt quá 5 MB.');
+      setCheckoutImage(null);
+      if (checkoutImagePreview) {
+        URL.revokeObjectURL(checkoutImagePreview);
+        setCheckoutImagePreview(null);
+      }
+      return;
+    }
+
+    if (checkoutImagePreview) {
+      URL.revokeObjectURL(checkoutImagePreview);
+    }
+    setCheckoutImage(file);
+    setCheckoutImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleRemoveCheckoutImage = () => {
+    setCheckoutImage(null);
+    if (checkoutImagePreview) {
+      URL.revokeObjectURL(checkoutImagePreview);
+      setCheckoutImagePreview(null);
+    }
+    setComparisonResult(null);
+    setComparisonError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleComparison = async () => {
+    if (!foundRecord || !driverCheckInImageUrl || !checkoutImage) return;
+
+    setIsComparing(true);
+    setComparisonError(null);
+    setComparisonResult(null);
+
+    const recordIdAtStart = foundRecord.id;
+    const checkoutImageAtStart = checkoutImage;
+
+    const startTime = performance.now();
+
+    try {
+      const initialized = await ensureModelInitialized();
+      if (!initialized) {
+        throw new Error('Không thể tải mô hình đối chiếu. Nhân viên có thể tiếp tục kiểm tra thủ công.');
+      }
+
+      let referenceImg: HTMLImageElement;
+      try {
+        referenceImg = await loadImageFromUrl(driverCheckInImageUrl);
+      } catch (err) {
+        throw new Error('Không thể đọc ảnh người gửi lúc check-in.');
+      }
+
+      const referenceExtract = await extractSingleFaceEmbedding(referenceImg, true);
+      if (referenceExtract.code !== 'OK' || !referenceExtract.embedding) {
+        throw new Error(referenceExtract.message || 'Không thể tải mô hình đối chiếu. Nhân viên vui lòng kiểm tra thủ công.');
+      }
+
+      let checkoutImg: HTMLImageElement;
+      try {
+        checkoutImg = await loadImageFromFile(checkoutImage);
+      } catch (err) {
+        throw new Error('Không thể đọc ảnh người nhận xe đã chọn.');
+      }
+
+      const checkoutExtract = await extractSingleFaceEmbedding(checkoutImg, false);
+      if (checkoutExtract.code !== 'OK' || !checkoutExtract.embedding) {
+        throw new Error(checkoutExtract.message || 'Không thể tải mô hình đối chiếu. Nhân viên vui lòng kiểm tra thủ công.');
+      }
+
+      const durationMs = Math.round(performance.now() - startTime);
+      const compResult = compareEmbeddings(referenceExtract.embedding, checkoutExtract.embedding, durationMs);
+
+      if (foundRecord.id !== recordIdAtStart || checkoutImage !== checkoutImageAtStart) {
+        return;
+      }
+
+      setComparisonResult(compResult);
+    } catch (err: any) {
+      if (foundRecord.id !== recordIdAtStart || checkoutImage !== checkoutImageAtStart) {
+        return;
+      }
+      setComparisonError(err.message || 'Không thể thực hiện đối chiếu khuôn mặt. Nhân viên vui lòng kiểm tra thủ công.');
+    } finally {
+      if (foundRecord.id === recordIdAtStart && checkoutImage === checkoutImageAtStart) {
+        setIsComparing(false);
+      }
+    }
+  };
 
   // ── Load all active records (sidebar table) ───────────
   const [loadError, setLoadError] = useState('');
@@ -284,8 +564,8 @@ export function CheckOutPage() {
         checkInTime: r.checkInTime,
         checkOutTime: r.checkOutTime,
         isMonthly: r.isMonthly ?? false,
-        vehicle: r.vehicle ? { 
-          plateNumber: r.vehicle.plateNumber, 
+        vehicle: r.vehicle ? {
+          plateNumber: r.vehicle.plateNumber,
           type: r.vehicle.type,
           brand: r.vehicle.brand,
           model: r.vehicle.model,
@@ -439,6 +719,7 @@ export function CheckOutPage() {
     setRearImgError(false);
     setPreviewImage(null);
     setIsLegacy(false);
+    resetFaceVerification();
 
     try {
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
@@ -464,8 +745,8 @@ export function CheckOutPage() {
         checkInTime: matched.checkInTime,
         checkOutTime: matched.checkOutTime,
         isMonthly: matched.isMonthly ?? false,
-        vehicle: matchedVehicle ? { 
-          plateNumber: matchedVehicle.plateNumber, 
+        vehicle: matchedVehicle ? {
+          plateNumber: matchedVehicle.plateNumber,
           type: matchedVehicle.type,
           brand: matchedVehicle.brand,
           model: matchedVehicle.model,
@@ -502,17 +783,20 @@ export function CheckOutPage() {
           });
           setFrontImageUrl(lookup.frontImageUrl ?? null);
           setRearImageUrl(lookup.rearImageUrl ?? null);
+          setDriverCheckInImageUrl(lookup.driverCheckInImageUrl ?? null);
           setIsLegacy(lookup.isLegacy ?? false);
         } else {
           setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
           setFrontImageUrl(null);
           setRearImageUrl(null);
+          setDriverCheckInImageUrl(null);
           setIsLegacy(false);
         }
       } catch (err: any) {
         setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
         setFrontImageUrl(null);
         setRearImageUrl(null);
+        setDriverCheckInImageUrl(null);
         setIsLegacy(false);
         throw err;
       }
@@ -547,6 +831,7 @@ export function CheckOutPage() {
       const res = await api.post('/checkin-out/out', {
         checkInRecordId: foundRecord.id,
         paymentMethod: 'CASH',
+        pin: monthlyAccessPin || undefined,
       });
       const resultData = res.data.data ?? res.data;
       const checkoutRes: CheckOutResponse = {
@@ -565,7 +850,9 @@ export function CheckOutPage() {
       setRearImgError(false);
       setPreviewImage(null);
       setIsLegacy(false);
+      resetFaceVerification();
       setPlateInput('');
+      setMonthlyAccessPin('');
       setIsFeeBreakdownOpen(false);
       loadAllRecords();
     } catch (err: unknown) {
@@ -588,6 +875,7 @@ export function CheckOutPage() {
         const res = await api.post('/checkin-out/out', {
           checkInRecordId: foundRecord.id,
           paymentMethod: 'CASH',
+          pin: monthlyAccessPin || undefined,
         });
         const resultData = res.data.data ?? res.data;
         const checkoutRes: CheckOutResponse = {
@@ -606,6 +894,7 @@ export function CheckOutPage() {
         setRearImgError(false);
         setPreviewImage(null);
         setIsLegacy(false);
+        resetFaceVerification();
         setPlateInput('');
         setIsPaymentModalOpen(false);
         setIsFeeBreakdownOpen(false);
@@ -660,6 +949,7 @@ export function CheckOutPage() {
     setRearImgError(false);
     setPreviewImage(null);
     setIsLegacy(false);
+    resetFaceVerification();
     setPlateInput('');
     setIsFeeBreakdownOpen(false);
   };
@@ -749,6 +1039,7 @@ export function CheckOutPage() {
               setRearImgError(false);
               setPreviewImage(null);
               setIsLegacy(false);
+              resetFaceVerification();
             }}
             onKeyDown={handleKeyDown}
             placeholder="Nhập biển số xe (VD: 51A11111)..."
@@ -787,14 +1078,37 @@ export function CheckOutPage() {
           </button>
         </div>
         {/* Compact search state indicator */}
-        <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: C.gray500 }}>
+        <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: C.gray500 }}>
           {searching ? (
             <span style={{ color: C.navy, fontWeight: 500 }}>Đang tìm xe...</span>
           ) : searchError ? (
             <span style={{ color: C.red, fontWeight: 500 }}>{searchError}</span>
           ) : !foundRecord ? (
             <span>Nhập biển số xe để tìm nhanh.</span>
-          ) : null}
+          ) : <span>&nbsp;</span>}
+
+          <button
+            type="button"
+            onClick={() => {
+              setMonthlyPinPlateInput(plateInput);
+              setMonthlyPinCodeInput('');
+              setMonthlyPinError('');
+              setShowMonthlyPinModal(true);
+            }}
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              color: C.navy,
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              padding: 0
+            }}
+          >
+            Nhập PIN vé tháng
+          </button>
         </div>
       </div>
 
@@ -891,10 +1205,10 @@ export function CheckOutPage() {
                   label: 'Phương thức thanh toán',
                   value: (() => {
                     const method = checkoutResult.paymentMethod ?? 'CASH';
-                    const labels: Record<string, string> = { 
-                      CASH: 'Tiền mặt tại quầy', 
-                      CARD: 'Thẻ quốc tế qua Stripe', 
-                      EWALLET: 'Ví điện tử' 
+                    const labels: Record<string, string> = {
+                      CASH: 'Tiền mặt tại quầy',
+                      CARD: 'Thẻ quốc tế qua Stripe',
+                      EWALLET: 'Ví điện tử'
                     };
                     return labels[method] ?? 'Tiền mặt tại quầy';
                   })()
@@ -952,7 +1266,7 @@ export function CheckOutPage() {
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.navy, borderBottom: `2px solid ${C.navy}`, paddingBottom: '0.4rem' }}>
               Thông tin xe
             </h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {[
                 { label: 'Biển số', value: foundRecord.vehicle?.plateNumber, isMono: true },
@@ -1150,7 +1464,7 @@ export function CheckOutPage() {
                   <span style={{ color: C.gray500 }}>Phí gửi xe</span>
                   <span style={{ fontWeight: 600, color: C.gray800 }}>{formatCurrency(feePreview.baseParkingFee ?? feePreview.fee)}</span>
                 </div>
-                
+
                 {feePreview.bookingDepositApplied !== undefined && feePreview.bookingDepositApplied > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                     <span style={{ color: C.gray500 }}>Cọc đặt chỗ được trừ</span>
@@ -1401,6 +1715,329 @@ export function CheckOutPage() {
         </div>
       )}
 
+      {/* ── Face Verification Section ── */}
+      {foundRecord && (
+        <div style={{
+          background: C.white,
+          borderRadius: C.radius,
+          boxShadow: C.shadow,
+          padding: '1.5rem',
+          marginBottom: '1.25rem',
+        }}>
+          {/* Header */}
+          <div style={{ borderBottom: `2px solid ${C.navy}`, paddingBottom: '0.4rem', marginBottom: '1rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.navy }}>
+              Xác minh người nhận xe
+            </h3>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: C.gray500 }}>
+              Ảnh người nhận xe được đối chiếu với ảnh người gửi đã ghi nhận khi check-in.
+            </p>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.gray500, fontStyle: 'italic' }}>
+              💡 Kết quả chỉ hỗ trợ nhân viên kiểm tra và không tự động quyết định việc cho xe rời bãi.
+            </p>
+          </div>
+
+          {/* Model Status Bar */}
+          <div style={{
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            marginBottom: '1rem',
+            color: modelStatus === 'READY' ? C.green : modelStatus === 'LOADING' ? C.navy : modelStatus === 'ERROR' ? C.red : C.gray500
+          }}>
+            Trạng thái mô hình: {
+              modelStatus === 'READY' ? '✓ Mô hình đã sẵn sàng' :
+                modelStatus === 'LOADING' ? 'Đang tải mô hình đối chiếu...' :
+                  modelStatus === 'ERROR' ? 'Không thể tải mô hình đối chiếu. Nhân viên có thể tiếp tục kiểm tra thủ công.' :
+                    'Chưa khởi tạo mô hình'
+            }
+          </div>
+
+          {/* Image Cards Row */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1.5rem',
+            marginBottom: '1rem',
+          }}>
+            {/* LEFT CARD: Check-in Image */}
+            <div style={{
+              background: '#F1F5F9',
+              border: '1px solid #E2E8F0',
+              borderRadius: 12,
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              boxSizing: 'border-box',
+            }}>
+              <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>
+                Ảnh lúc check-in
+              </h4>
+              <span style={{ fontSize: '0.75rem', color: C.gray500 }}>Ảnh người gửi xe</span>
+              <div style={{
+                flex: 1,
+                minHeight: 220,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#CBD5E1',
+                borderRadius: 8,
+                overflow: 'hidden',
+                padding: '0.25rem',
+              }}>
+                {driverCheckInImageUrl ? (
+                  <img
+                    src={driverCheckInImageUrl}
+                    alt="Ảnh người gửi xe check-in"
+                    onClick={() => setPreviewImage({ url: driverCheckInImageUrl, label: 'Ảnh người gửi xe check-in' })}
+                    style={{
+                      width: '100%',
+                      height: 220,
+                      objectFit: 'contain',
+                      cursor: 'pointer',
+                      transition: 'transform 0.15s',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                    onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  />
+                ) : (
+                  <span style={{ fontSize: '0.8rem', color: C.gray600, textAlign: 'center', padding: '1rem' }}>
+                    Phiên gửi xe này chưa có ảnh người gửi để đối chiếu.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT CARD: Check-out Image */}
+            <div style={{
+              background: '#F1F5F9',
+              border: '1px solid #E2E8F0',
+              borderRadius: 12,
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              boxSizing: 'border-box',
+            }}>
+              <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>
+                Ảnh lúc check-out
+              </h4>
+              <span style={{ fontSize: '0.75rem', color: C.gray500 }}>Ảnh người đang nhận xe</span>
+              <div style={{
+                flex: 1,
+                minHeight: 220,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#CBD5E1',
+                borderRadius: 8,
+                overflow: 'hidden',
+                position: 'relative',
+                padding: '0.25rem',
+              }}>
+                {checkoutImagePreview ? (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <img
+                      src={checkoutImagePreview}
+                      alt="Ảnh người nhận xe check-out"
+                      onClick={() => setPreviewImage({ url: checkoutImagePreview, label: 'Ảnh người nhận xe check-out' })}
+                      style={{
+                        width: '100%',
+                        height: 180,
+                        objectFit: 'contain',
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                      onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    />
+                    <div style={{ fontSize: '0.7rem', color: C.gray800, marginTop: '0.4rem', textAlign: 'center', wordBreak: 'break-all', padding: '0 0.5rem' }}>
+                      {checkoutImage?.name} ({(checkoutImage ? checkoutImage.size / 1024 / 1024 : 0).toFixed(2)} MB)
+                    </div>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.8rem', color: C.gray600, textAlign: 'center', padding: '1rem' }}>
+                    Chưa có ảnh người nhận xe
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleCheckoutFileChange}
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                />
+                {!checkoutImage ? (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      flex: 1,
+                      padding: '0.55rem',
+                      background: C.navy,
+                      color: C.white,
+                      border: 'none',
+                      borderRadius: 8,
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Chọn ảnh từ thư viện
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        flex: 1,
+                        padding: '0.55rem',
+                        background: '#EFF6FF',
+                        color: C.navy,
+                        border: `1.5px solid ${C.navy}`,
+                        borderRadius: 8,
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Chọn lại
+                    </button>
+                    <button
+                      onClick={handleRemoveCheckoutImage}
+                      style={{
+                        flex: 1,
+                        padding: '0.55rem',
+                        background: C.redBg,
+                        color: C.red,
+                        border: `1.5px solid ${C.redBorder}`,
+                        borderRadius: 8,
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Xóa ảnh
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Trigger and Comparison Results */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem', borderTop: `1px solid ${C.gray200}`, paddingTop: '1rem' }}>
+            <button
+              onClick={handleComparison}
+              disabled={!foundRecord || !driverCheckInImageUrl || !checkoutImage || isComparing}
+              style={{
+                alignSelf: 'flex-start',
+                padding: '0.65rem 1.5rem',
+                background: (!foundRecord || !driverCheckInImageUrl || !checkoutImage || isComparing) ? C.gray200 : C.navy,
+                color: (!foundRecord || !driverCheckInImageUrl || !checkoutImage || isComparing) ? C.gray400 : C.white,
+                border: 'none',
+                borderRadius: 8,
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: (!foundRecord || !driverCheckInImageUrl || !checkoutImage || isComparing) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isComparing ? 'Đang đối chiếu...' : 'So sánh khuôn mặt'}
+            </button>
+
+            {comparisonError && (
+              <div style={{
+                background: C.redBg,
+                border: `1.5px solid ${C.redBorder}`,
+                borderRadius: 8,
+                padding: '0.75rem 1rem',
+                fontSize: '0.82rem',
+                color: C.red,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}>
+                <IconAlert size={14} color={C.red} />
+                <span>{comparisonError}</span>
+              </div>
+            )}
+
+            {comparisonResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {comparisonResult.status === 'MATCHED' && (
+                  <div style={{
+                    background: C.greenBg,
+                    border: `1.5px solid ${C.greenBorder}`,
+                    borderRadius: 8,
+                    padding: '0.75rem 1rem',
+                    color: '#166534',
+                  }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <IconCheck size={18} color={C.green} />
+                      ✓ Hai ảnh có độ tương đồng cao
+                    </div>
+                    <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontWeight: 700 }}>
+                      Độ tương đồng: {(comparisonResult.similarity * 100).toFixed(2)}%
+                    </div>
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                      Kết quả phù hợp để nhân viên tiếp tục kiểm tra nghiệp vụ.
+                    </div>
+                  </div>
+                )}
+
+                {comparisonResult.status === 'REVIEW_REQUIRED' && (
+                  <div style={{
+                    background: '#FEF3C7',
+                    border: '1.5px solid #FCD34D',
+                    borderRadius: 8,
+                    padding: '0.75rem 1rem',
+                    color: '#92400E',
+                  }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <IconAlert size={18} color="#D97706" />
+                      ⚠ Kết quả chưa đủ chắc chắn
+                    </div>
+                    <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontWeight: 700 }}>
+                      Độ tương đồng: {(comparisonResult.similarity * 100).toFixed(2)}%
+                    </div>
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                      Nhân viên nên kiểm tra lại ảnh, biển số, QR/PIN và thông tin phiên gửi xe.
+                    </div>
+                  </div>
+                )}
+
+                {comparisonResult.status === 'NOT_MATCHED' && (
+                  <div style={{
+                    background: C.redBg,
+                    border: `1.5px solid ${C.redBorder}`,
+                    borderRadius: 8,
+                    padding: '0.75rem 1rem',
+                    color: '#991B1B',
+                  }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <IconAlert size={18} color={C.red} />
+                      ⚠ Hai khuôn mặt có độ tương đồng thấp
+                    </div>
+                    <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontWeight: 700 }}>
+                      Độ tương đồng: {(comparisonResult.similarity * 100).toFixed(2)}%
+                    </div>
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                      Đây chỉ là cảnh báo hỗ trợ. Nhân viên cần kiểm tra kỹ trước khi cho xe rời bãi.
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.75rem', color: C.gray500, fontStyle: 'italic', paddingLeft: '0.5rem' }}>
+                  Thời gian xử lý: {comparisonResult.processingTimeMs} ms
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── BOTTOM: all parked vehicles ── */}
       <div style={{
         background: C.white,
@@ -1508,10 +2145,10 @@ export function CheckOutPage() {
                           borderRadius: 20,
                           fontSize: '0.72rem',
                           fontWeight: 700,
-                          background: r.vehicle.type === 'MOTORBIKE' ? '#FEF9C3' : '#EFF6FF',
-                          color: r.vehicle.type === 'MOTORBIKE' ? '#854D0E' : C.navy,
+                          background: r.vehicle?.type === 'MOTORBIKE' ? '#FEF9C3' : '#EFF6FF',
+                          color: r.vehicle?.type === 'MOTORBIKE' ? '#854D0E' : C.navy,
                         }}>
-                          {r.vehicle.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'}
+                          {r.vehicle?.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô'}
                         </span>
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem' }}>
@@ -1530,11 +2167,11 @@ export function CheckOutPage() {
                       <td style={{ padding: '0.65rem 0.75rem' }}>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
                           <button
-                            onClick={async () => { 
+                            onClick={async () => {
                               const v = r.vehicle;
                               if (!v) return;
-                              setFoundRecord(r); 
-                              setPlateInput(v.plateNumber); 
+                              setFoundRecord(r);
+                              setPlateInput(v.plateNumber);
                               fetchFeePreview(r.id).then(setFeePreview);
                               setFrontImageUrl(null);
                               setRearImageUrl(null);
@@ -1542,6 +2179,7 @@ export function CheckOutPage() {
                               setRearImgError(false);
                               setPreviewImage(null);
                               setIsLegacy(false);
+                              resetFaceVerification();
                               try {
                                 const lookup = await checkoutLookupPlate(v.plateNumber);
                                 if (lookup.found) {
@@ -1563,17 +2201,20 @@ export function CheckOutPage() {
                                   });
                                   setFrontImageUrl(lookup.frontImageUrl ?? null);
                                   setRearImageUrl(lookup.rearImageUrl ?? null);
+                                  setDriverCheckInImageUrl(lookup.driverCheckInImageUrl ?? null);
                                   setIsLegacy(lookup.isLegacy ?? false);
                                 } else {
                                   setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
                                   setFrontImageUrl(null);
                                   setRearImageUrl(null);
+                                  setDriverCheckInImageUrl(null);
                                   setIsLegacy(false);
                                 }
                               } catch {
                                 setOwnerInfo({ name: 'Walk-in Customer', phone: null, email: 'walkin@system.local' });
                                 setFrontImageUrl(null);
                                 setRearImageUrl(null);
+                                setDriverCheckInImageUrl(null);
                                 setIsLegacy(false);
                               }
                             }}
@@ -1640,7 +2281,7 @@ export function CheckOutPage() {
               alignItems: 'center',
             }}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Thanh toán phí gửi xe</h3>
-              <button 
+              <button
                 onClick={() => setIsPaymentModalOpen(false)}
                 style={{
                   background: 'none',
@@ -1867,7 +2508,7 @@ export function CheckOutPage() {
           </div>
         </div>
       )}
-    {/* Evidence Image Preview Modal */}
+      {/* Evidence Image Preview Modal */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -1946,6 +2587,158 @@ export function CheckOutPage() {
           </div>
         </div>
       )}
+      {showMonthlyPinModal && renderMonthlyPinModal()}
     </div>
   );
+
+  function renderMonthlyPinModal() {
+    if (!showMonthlyPinModal) return null;
+
+    const isSubmitDisabled = !monthlyPinPlateInput.trim() || monthlyPinCodeInput.length !== 6 || monthlyPinLoading;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '1rem'
+      }}>
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          width: '100%',
+          maxWidth: '440px',
+          padding: '1.75rem',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          position: 'relative'
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
+            Nhập PIN vé tháng
+          </h3>
+          <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: C.gray500, lineHeight: 1.4 }}>
+            Vui lòng nhập biển số xe và mã PIN dự phòng của gói tháng để tra cứu.
+          </p>
+
+          {monthlyPinError && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: '1rem',
+                padding: '0.75rem 1rem',
+                background: C.redBg,
+                border: `1.5px solid ${C.redBorder}`,
+                borderRadius: '10px',
+                color: C.red,
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                lineHeight: 1.4
+              }}
+            >
+              {monthlyPinError}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                Biển số xe
+              </label>
+              <input
+                type="text"
+                value={monthlyPinPlateInput}
+                onChange={(e) => {
+                  setMonthlyPinPlateInput(e.target.value.toUpperCase());
+                  setMonthlyPinError('');
+                }}
+                placeholder="VD: 59A-22334"
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '10px',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  outline: 'none',
+                  textTransform: 'uppercase'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                Mã PIN dự phòng (6 số)
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                value={monthlyPinCodeInput}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, '');
+                  setMonthlyPinCodeInput(cleaned);
+                  setMonthlyPinError('');
+                }}
+                placeholder="000000"
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '10px',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  outline: 'none',
+                  letterSpacing: '0.1em',
+                  fontFamily: 'monospace'
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={() => setShowMonthlyPinModal(false)}
+              disabled={monthlyPinLoading}
+              style={{
+                padding: '0.55rem 1.25rem',
+                border: '1px solid #CBD5E1',
+                background: '#fff',
+                color: C.gray600,
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: monthlyPinLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitDisabled}
+              onClick={handleVerifyCheckoutMonthlyPin}
+              style={{
+                padding: '0.55rem 1.5rem',
+                border: 'none',
+                background: isSubmitDisabled ? '#E5E7EB' : C.navy,
+                color: isSubmitDisabled ? '#9CA3AF' : '#fff',
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {monthlyPinLoading ? 'Đang tra cứu...' : 'Xác nhận'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }

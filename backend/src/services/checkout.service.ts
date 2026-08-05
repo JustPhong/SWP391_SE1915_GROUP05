@@ -2,6 +2,7 @@ import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/helpers';
+import { monthlyPackageService } from './monthlyPackage.service';
 import { calcFee } from '../utils/fee';
 import { feeRuleService } from './feeRule.service';
 import { Prisma } from '@prisma/client';
@@ -64,6 +65,7 @@ export interface CheckoutLookupResult {
   graceExpiresAt?: string | null;
   frontImageUrl?: string | null;
   rearImageUrl?: string | null;
+  driverCheckInImageUrl?: string | null;
   isLegacy?: boolean;
 }
 
@@ -263,6 +265,7 @@ export const checkoutService = {
       amountDue: record.isMonthly ? 0 : amountDue,
       frontImageUrl: resolveCheckInImageUrl(record.frontImageUrl),
       rearImageUrl: resolveCheckInImageUrl(record.rearImageUrl),
+      driverCheckInImageUrl: resolveCheckInImageUrl(record.driverCheckInImageUrl),
       isLegacy,
       totalSuccessfullyPaid,
       prepaidAt: record.prepaidAt ? record.prepaidAt.toISOString() : null,
@@ -434,9 +437,10 @@ export const checkoutService = {
     checkInRecordId?: string;
     plate?: string;
     method?: 'CASH' | 'CARD' | 'EWALLET';
-    staffId: string;
+    staffId?: string;
+    pin?: string;
   }): Promise<CheckoutSubmitResult> {
-    const { checkInRecordId, plate, method = 'CASH', staffId } = params;
+    const { checkInRecordId, plate, method = 'CASH', staffId, pin } = params;
 
     if (!['CASH', 'CARD', 'EWALLET'].includes(method)) {
       throw new AppError(400, 'Phương thức thanh toán không hợp lệ.');
@@ -535,6 +539,14 @@ export const checkoutService = {
       // Authoritative checkout timestamp — used for fee calculation and all mutations
       const now = new Date();
       const checkIn = new Date(activeRecord.checkInTime);
+      let isMonthlyOverride = false;
+      if (pin) {
+        await monthlyPackageService.verifyMonthlyPackageAccessByPin(activeRecord.vehicle.plateNumber, pin, tx);
+        isMonthlyOverride = true;
+      }
+
+      const isMonthlyEffective = activeRecord.isMonthly || isMonthlyOverride;
+
       const { total, breakdown } = calcFee(
         checkIn,
         now,
@@ -544,7 +556,7 @@ export const checkoutService = {
 
       let depositCredit = 0;
       let bookingToUse = null;
-      if (!activeRecord.isMonthly) {
+      if (!isMonthlyEffective) {
         if (activeRecord.bookingId) {
           bookingToUse = await tx.booking.findUnique({
             where: { id: activeRecord.bookingId },
@@ -584,7 +596,7 @@ export const checkoutService = {
       ) ?? 0;
 
       // Outstanding balance after crediting all prior payments and booking deposit
-      let finalAmountDue = Math.max(0, total - depositCredit - totalSuccessfullyPaidBefore);
+      let finalAmountDue = isMonthlyEffective ? 0 : Math.max(0, total - depositCredit - totalSuccessfullyPaidBefore);
 
       // Five-minute grace period: no additional collection if prepayment is still active
       if (activeRecord.prepaidAt) {
@@ -603,6 +615,7 @@ export const checkoutService = {
           checkOutTime: now,
           checkedOutById: staffId,
           status: 'COMPLETED',
+          isMonthly: isMonthlyEffective ? true : undefined,
         },
       });
 

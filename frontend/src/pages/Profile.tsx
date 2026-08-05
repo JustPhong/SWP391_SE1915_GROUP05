@@ -170,13 +170,19 @@ export function ProfilePage() {
     setBlockingReasons([]);
     try {
       await deleteAccount(confirmPasswordInput);
+
+      // ── Success: reset all UI state synchronously before leaving the page ──
       setShowDeleteConfirm(false);
       setConfirmPasswordInput('');
       setDeleteError('');
       setBlockingReasons([]);
+      setDeletingAccount(false);
+
+      // Clear auth tokens and session
       logout();
-      alert('Tài khoản đã được xóa thành công.');
-      navigate('/');
+
+      // Navigate to login with a success flag so the login page can show a toast
+      navigate('/login', { state: { deletionSuccess: true }, replace: true });
     } catch (err: any) {
       const data = err.response?.data;
       setDeleteError(data?.message ?? err.message ?? 'Không thể xóa tài khoản');
@@ -185,7 +191,6 @@ export function ProfilePage() {
       } else {
         setBlockingReasons([]);
       }
-    } finally {
       setDeletingAccount(false);
     }
   };

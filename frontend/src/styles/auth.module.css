@@ -363,6 +363,15 @@
   color: #B91C1C;
 }
 
+.alert--success {
+  background: #F0FDF4;
+  border: 1px solid #86EFAC;
+  color: #15803D;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .fieldGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

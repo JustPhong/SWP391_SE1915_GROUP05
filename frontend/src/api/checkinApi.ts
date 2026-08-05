@@ -76,6 +76,8 @@ export interface CheckinSubmitPayload {
   isMonthly: boolean;
   frontImageUrl?: string;
   rearImageUrl?: string;
+  driverCheckInImageUrl?: string | null;
+  monthlyAccessPin?: string;
 }
 
 export interface CheckinSubmitResult {
@@ -89,6 +91,8 @@ export interface CheckinSubmitResult {
   guestPin?: string | null;
   guestQrToken?: string | null;
   isGuest?: boolean;
+  driverCheckInImageUrl?: string | null;
+  driverFaceCapturedAt?: string | null;
 }
 
 // ─── OCR ─────────────────────────────────────────────────────────────────
@@ -131,13 +135,18 @@ function unwrapList<T>(response: { data: { success: boolean; data: T[]; message?
  */
 export async function lookupPlate(
   plate: string,
-  vehicleType?: 'CAR' | 'MOTORBIKE'
+  vehicleType?: 'CAR' | 'MOTORBIKE',
+  pin?: string
 ): Promise<LookupResult> {
   try {
     const normalizedPlate = normalizePlateForLookup(plate);
+    const params: any = {};
+    if (vehicleType) params.vehicleType = vehicleType;
+    if (pin) params.pin = pin;
+
     const response = await api.get<{ success: boolean; data: LookupResult }>(
       `/checkin/lookup/${encodeURIComponent(normalizedPlate)}`,
-      vehicleType ? { params: { vehicleType } } : {}
+      { params }
     );
     return unwrap(response);
   } catch (err: unknown) {
@@ -248,7 +257,8 @@ export async function deleteCheckinImages(urls: string[]): Promise<{ success: bo
 export async function submitCheckIn(
   payload: CheckinSubmitPayload,
   frontFile?: File | null,
-  rearFile?: File | null
+  rearFile?: File | null,
+  driverFile?: File | null
 ): Promise<CheckinSubmitResult> {
   try {
     const formData = new FormData();
@@ -258,6 +268,9 @@ export async function submitCheckIn(
     formData.append('floorId', String(payload.floorId));
     if (payload.slotCode) formData.append('slotCode', payload.slotCode);
     formData.append('isMonthly', String(payload.isMonthly));
+    if (payload.monthlyAccessPin) {
+      formData.append('monthlyAccessPin', payload.monthlyAccessPin);
+    }
 
     if (frontFile) {
       formData.append('frontImage', frontFile);
@@ -269,6 +282,10 @@ export async function submitCheckIn(
       formData.append('rearImage', rearFile);
     } else if (payload.rearImageUrl) {
       formData.append('rearImageUrl', payload.rearImageUrl);
+    }
+
+    if (driverFile) {
+      formData.append('driverCheckInImage', driverFile);
     }
 
     const response = await api.post<{ success: boolean; data: CheckinSubmitResult }>(

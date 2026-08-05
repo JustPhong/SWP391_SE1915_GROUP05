@@ -56,7 +56,7 @@ type OcrStatus = 'idle' | 'processing' | 'success' | 'low_confidence' | 'manuall
 
 const STEP_LABELS = [
   'Chọn loại xe',
-  'Chụp và nhận diện biển số',
+  'Ghi nhận hình ảnh và biển số',
   'Kiểm tra thông tin',
   'Xác nhận check-in',
 ];
@@ -419,14 +419,14 @@ function SharedOcrStatusPanel({ status, plate }: { status: OcrStatus; plate: str
     borderColor = '#BFDBFE';
     color = '#1D4ED8';
   } else if (status === 'manually_edited') {
-    title = 'Đã hiệu chỉnh biển số';
-    supportText = 'Vui lòng nhấn Tra cứu để xác minh.';
+    title = 'Biển số đã được điều chỉnh thủ công.';
+    supportText = 'Vui lòng nhấn Tra cứu để xác nhận.';
     bgColor = C.yellowBg;
     borderColor = C.yellowBorder;
     color = C.yellow;
   } else if (status === 'low_confidence') {
-    title = 'Đã nhận diện biển số';
-    supportText = 'Vui lòng kiểm tra và nhấn Tra cứu.';
+    title = 'Đã nhận diện biển số từ ảnh. Nhân viên vui lòng kiểm tra và bấm Tra cứu để xác nhận.';
+    supportText = '';
     bgColor = C.yellowBg;
     borderColor = C.yellowBorder;
     color = C.yellow;
@@ -531,10 +531,68 @@ export function CheckInPage() {
   const [frontImageUrl, setFrontImageUrl] = useState<string | null>(null);
   const [rearImageUrl, setRearImageUrl] = useState<string | null>(null);
 
+  // ── Driver Verification Image state ──
+  const [driverCheckInImage, setDriverCheckInImage] = useState<File | null>(null);
+  const [driverCheckInPreviewUrl, setDriverCheckInPreviewUrl] = useState<string | null>(null);
+  const [driverCheckInImageError, setDriverCheckInImageError] = useState<string>('');
+
   const frontCameraRef = useRef<HTMLInputElement>(null);
   const frontLibraryRef = useRef<HTMLInputElement>(null);
   const rearCameraRef = useRef<HTMLInputElement>(null);
   const rearLibraryRef = useRef<HTMLInputElement>(null);
+  const driverLibraryRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup Preview URL on Unmount
+  const driverPreviewUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    driverPreviewUrlRef.current = driverCheckInPreviewUrl;
+  }, [driverCheckInPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (driverPreviewUrlRef.current) {
+        URL.revokeObjectURL(driverPreviewUrlRef.current);
+      }
+    };
+  }, []);
+
+  const handleDriverImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setDriverCheckInImageError('Ảnh người gửi xe chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP.');
+      setDriverCheckInImage(null);
+      if (driverCheckInPreviewUrl) URL.revokeObjectURL(driverCheckInPreviewUrl);
+      setDriverCheckInPreviewUrl(null);
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setDriverCheckInImageError('Ảnh người gửi xe không được vượt quá 5 MB.');
+      setDriverCheckInImage(null);
+      if (driverCheckInPreviewUrl) URL.revokeObjectURL(driverCheckInPreviewUrl);
+      setDriverCheckInPreviewUrl(null);
+      e.target.value = '';
+      return;
+    }
+
+    setDriverCheckInImageError('');
+    if (driverCheckInPreviewUrl) URL.revokeObjectURL(driverCheckInPreviewUrl);
+    setDriverCheckInImage(file);
+    setDriverCheckInPreviewUrl(URL.createObjectURL(file));
+    e.target.value = '';
+  };
+
+  const handleRemoveDriverImage = () => {
+    if (driverCheckInPreviewUrl) URL.revokeObjectURL(driverCheckInPreviewUrl);
+    setDriverCheckInImage(null);
+    setDriverCheckInPreviewUrl(null);
+    setDriverCheckInImageError('');
+    if (driverLibraryRef.current) driverLibraryRef.current.value = '';
+  };
 
   // ── OCR state ─────────────────────────────────────────────────────────
   const [ocrStatus, setOcrStatus] = useState<OcrStatus>('idle');
@@ -582,6 +640,49 @@ export function CheckInPage() {
     });
   }, [showGuestSuccessModal, guestReceiptData]);
 
+  // ── Monthly PIN Fallback Modal ──
+  const [showMonthlyPinModal, setShowMonthlyPinModal] = useState(false);
+  const [monthlyPinPlateInput, setMonthlyPinPlateInput] = useState('');
+  const [monthlyPinCodeInput, setMonthlyPinCodeInput] = useState('');
+  const [monthlyPinError, setMonthlyPinError] = useState('');
+  const [monthlyPinLoading, setMonthlyPinLoading] = useState(false);
+  const [monthlyAccessPin, setMonthlyAccessPin] = useState('');
+
+  const handleVerifyMonthlyPin = async () => {
+    if (!vehicleType) {
+      setMonthlyPinError('Vui lòng chọn loại xe trước.');
+      return;
+    }
+    const plate = monthlyPinPlateInput.trim().toUpperCase();
+    const pin = monthlyPinCodeInput.trim();
+
+    if (!plate) {
+      setMonthlyPinError('Vui lòng nhập biển số xe.');
+      return;
+    }
+    if (!/^\d{6}$/.test(pin)) {
+      setMonthlyPinError('Mã PIN phải gồm đúng 6 chữ số.');
+      return;
+    }
+
+    setMonthlyPinError('');
+    setMonthlyPinLoading(true);
+    try {
+      const result = await lookupPlate(plate, vehicleType, pin);
+      setPlateInput(plate);
+      setPlateInputSource('MANUAL');
+      setPlateSource('manual');
+      setLookupData(result);
+      setOcrStatus('success');
+      setMonthlyAccessPin(pin);
+      setShowMonthlyPinModal(false);
+    } catch (err: any) {
+      setMonthlyPinError(err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    } finally {
+      setMonthlyPinLoading(false);
+    }
+  };
+
   // ── Errors ─────────────────────────────────────────────────────────────
   const [apiError, setApiError] = useState('');
 
@@ -608,8 +709,16 @@ export function CheckInPage() {
     setLookupData(null);
     setVehicleTypeMismatch(false);
     setApiError('');
-    if (ocrStatus === 'success' || ocrStatus === 'guest_resolved') {
+    if (reason === 'NEW_OCR') {
       setOcrStatus('low_confidence');
+    } else if (reason === 'IMAGE_CHANGED') {
+      setOcrStatus('idle');
+      setPlateInput('');
+      setPlateInputSource(null);
+      setPlateSource('manual');
+      setMonthlyAccessPin('');
+    } else if (reason === 'PLATE_EDITED') {
+      setOcrStatus('manually_edited');
     }
   };
 
@@ -646,6 +755,11 @@ export function CheckInPage() {
     if (rearPreview) URL.revokeObjectURL(rearPreview);
     setFrontPreview(null);
     setRearPreview(null);
+    setDriverCheckInImage(null);
+    if (driverCheckInPreviewUrl) URL.revokeObjectURL(driverCheckInPreviewUrl);
+    setDriverCheckInPreviewUrl(null);
+    setDriverCheckInImageError('');
+    if (driverLibraryRef.current) driverLibraryRef.current.value = '';
     setOcrStatus('idle');
     setOcrAttempted(false);
     setPlateInput('');
@@ -875,6 +989,12 @@ export function CheckInPage() {
   // ═════════════════════════════════════════════════════
   const handleSubmit = async () => {
     if (!vehicleType || !plateInput.trim() || !lookupData) return;
+
+    if (!driverCheckInImage) {
+      setApiError('Vui lòng chọn ảnh người gửi xe trước khi xác nhận check-in.');
+      return;
+    }
+
     const floorId = lookupData.floorId;
     if (!floorId) return;
 
@@ -893,7 +1013,8 @@ export function CheckInPage() {
         slotCode: lookupData.slotCode || null,
         frontImageUrl: frontImageUrl ?? undefined,
         rearImageUrl: rearImageUrl ?? undefined,
-      }, frontImage, rearImage);
+        monthlyAccessPin: monthlyAccessPin || undefined,
+      }, frontImage, rearImage, driverCheckInImage);
 
       console.log('[GuestReceipt] response shape', {
         isGuest: result?.isGuest,
@@ -964,6 +1085,7 @@ export function CheckInPage() {
   const handleReset = () => {
     if (frontPreview) URL.revokeObjectURL(frontPreview);
     if (rearPreview) URL.revokeObjectURL(rearPreview);
+    if (driverCheckInPreviewUrl) URL.revokeObjectURL(driverCheckInPreviewUrl);
 
     if (ocrAbortControllerRef.current) {
       ocrAbortControllerRef.current.abort();
@@ -975,6 +1097,10 @@ export function CheckInPage() {
     setFrontPreview(null);
     setRearImage(null);
     setRearPreview(null);
+    setDriverCheckInImage(null);
+    setDriverCheckInPreviewUrl(null);
+    setDriverCheckInImageError('');
+    if (driverLibraryRef.current) driverLibraryRef.current.value = '';
     setFrontImageUrl(null);
     setRearImageUrl(null);
     setOcrStatus('idle');
@@ -1039,6 +1165,7 @@ export function CheckInPage() {
     !!vehicleType &&
     !!frontImage &&
     !!rearImage &&
+    !!driverCheckInImage &&
     !!plateInput.trim() &&
     validatePlate(plateInput, vehicleType).valid &&
     (isRegisteredVerified || isGuestResolved) &&
@@ -1050,7 +1177,7 @@ export function CheckInPage() {
 
   const workflowStep: number =
     !vehicleType ? 1
-      : (!frontImage || !rearImage || !ocrAttempted) ? 2
+      : (!frontImage || !rearImage || !driverCheckInImage || !ocrAttempted) ? 2
         : canConfirm ? 4
           : lookupData ? (lookupData.alreadyParked ? 2 : 3)
             : 2;
@@ -1092,6 +1219,7 @@ export function CheckInPage() {
     { label: 'Biển số', value: plateInput.trim() || '—', valueColor: plateInput.trim() ? C.navy : C.gray400 },
     { label: 'Loại xe', value: vehicleType ? (vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy') : 'Chưa chọn', valueColor: vehicleType ? C.gray800 : C.gray400 },
     { label: 'Loại khách', value: !lookupData ? '—' : lookupData.customerType === 'booking' ? 'Có đặt chỗ trước' : lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách vãng lai' },
+    { label: 'Ảnh người gửi', value: driverCheckInImage ? '✓ Đã chọn' : 'Chưa chọn', valueColor: driverCheckInImage ? C.green : C.gray400 },
     { label: 'Tầng / Khu vực', value: lookupData ? floorDisplay : '—' },
     { label: 'Hình thức đỗ', value: lookupData ? 'Tự chọn vị trí trống' : '—' },
     ...(lookupData?.alreadyParked ? [
@@ -1149,6 +1277,11 @@ export function CheckInPage() {
           .capture-preview-wrapper {
             height: 180px;
           }
+          .driver-image-box {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            text-align: center;
+          }
         }
       `}</style>
       <main style={{ padding: '1.5rem', maxWidth: 1240, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
@@ -1159,7 +1292,7 @@ export function CheckInPage() {
             Check-in xe vào bãi
           </h1>
           <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.gray500 }}>
-            Chọn loại xe → Chụp ảnh → Nhận diện biển số → Xác nhận vào bãi
+            Chọn loại xe → Ghi nhận hình ảnh và biển số → Kiểm tra thông tin → Xác nhận vào bãi
           </p>
         </div>
 
@@ -1304,7 +1437,7 @@ export function CheckInPage() {
 
             {/* ─── STEP 2: Capture & OCR ────────────────────────────────── */}
             <div style={{ opacity: vehicleType ? 1 : 0.4, pointerEvents: vehicleType ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
-              <Card title="Bước 2 · Chụp ảnh và nhận diện biển số">
+              <Card title="Bước 2 · Ghi nhận hình ảnh và nhận diện biển số">
                 {!vehicleType && (
                   <div style={{ textAlign: 'center', padding: '1.25rem 0', color: C.gray400, fontSize: '0.82rem' }}>
                     Vui lòng chọn loại xe ở Bước 1 trước.
@@ -1469,6 +1602,150 @@ export function CheckInPage() {
                         Chỉ chỉnh sửa khi kết quả nhận diện chưa chính xác.
                       </p>
                     )}
+                  </div>
+                )}
+                {vehicleType && (
+                  <div style={{ marginTop: 8, textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMonthlyPinPlateInput(plateInput);
+                        setMonthlyPinCodeInput('');
+                        setMonthlyPinError('');
+                        setShowMonthlyPinModal(true);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: C.activeBlue,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      Nhập PIN vé tháng
+                    </button>
+                  </div>
+                )}
+
+                {/* Ảnh người gửi xe Section */}
+                {vehicleType && (
+                  <div style={{ marginTop: 20, borderTop: `1px solid ${C.gray200}`, paddingTop: 20 }}>
+                    <p style={{ margin: '0 0 4px', fontSize: '0.82rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>Ảnh người gửi xe</span>
+                      <span style={{ color: C.red }}>*</span>
+                      <span style={{ fontSize: '0.7rem', color: C.red, textTransform: 'none', marginLeft: '6px', fontWeight: 600 }}>(Bắt buộc)</span>
+                    </p>
+                    <p style={{ margin: '0 0 12px', fontSize: '0.75rem', color: C.gray500 }}>
+                      Ảnh được lưu cùng lượt gửi xe để đối chiếu người nhận xe khi check-out.
+                    </p>
+
+                    {driverCheckInImageError && (
+                      <div style={{ marginBottom: 10 }}>
+                        <AlertBanner type="error">{driverCheckInImageError}</AlertBanner>
+                      </div>
+                    )}
+
+                    <div
+                      className="driver-image-box"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16,
+                        alignItems: 'center',
+                        background: driverCheckInPreviewUrl ? '#F0F8FF' : '#FAFBFF',
+                        border: `1.5px dashed ${driverCheckInPreviewUrl ? C.navy : C.gray200}`,
+                        borderRadius: 14,
+                        padding: '1.25rem',
+                        width: '100%',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {/* Preview / Placeholder on Left */}
+                      <div
+                        style={{
+                          width: 110,
+                          height: 110,
+                          borderRadius: 10,
+                          border: `1.5px solid ${driverCheckInPreviewUrl ? C.navy : C.gray200}`,
+                          background: driverCheckInPreviewUrl ? '#F1F5F9' : '#F8FAFC',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          position: 'relative',
+                          flexShrink: 0
+                        }}
+                      >
+                        {driverCheckInPreviewUrl ? (
+                          <img
+                            src={driverCheckInPreviewUrl}
+                            alt="Ảnh người gửi xe"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        ) : (
+                          <span style={{ fontSize: '2.5rem' }}>👤</span>
+                        )}
+                      </div>
+
+                      {/* Description & Controls on Right */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: C.gray800 }}>
+                          {driverCheckInPreviewUrl ? 'Đã ghi nhận ảnh người gửi xe' : 'Chưa có ảnh người gửi xe'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => driverLibraryRef.current?.click()}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              borderRadius: 8,
+                              border: `1.5px solid ${C.navy}`,
+                              background: driverCheckInPreviewUrl ? C.gray100 : C.navy,
+                              color: driverCheckInPreviewUrl ? C.gray800 : C.white,
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            {driverCheckInPreviewUrl ? 'Chọn lại' : 'Chọn ảnh từ thư viện'}
+                          </button>
+
+                          {driverCheckInPreviewUrl && (
+                            <button
+                              onClick={handleRemoveDriverImage}
+                              style={{
+                                padding: '0.5rem 1rem',
+                                borderRadius: 8,
+                                border: `1.5px solid ${C.red}`,
+                                background: C.white,
+                                color: C.red,
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              Xóa ảnh
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <input
+                        ref={driverLibraryRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        style={{ display: 'none' }}
+                        onChange={handleDriverImageSelect}
+                      />
+                    </div>
                   </div>
                 )}
               </Card>
@@ -1755,9 +2032,148 @@ export function CheckInPage() {
 
       </main>
       {showGuestSuccessModal && guestReceiptData && renderGuestSuccessModal()}
+      {showMonthlyPinModal && renderMonthlyPinModal()}
       {renderCriticalFailureModal()}
     </div>
   );
+
+  function renderMonthlyPinModal() {
+    if (!showMonthlyPinModal) return null;
+
+    const isSubmitDisabled = !monthlyPinPlateInput.trim() || monthlyPinCodeInput.length !== 6 || monthlyPinLoading;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '1rem'
+      }}>
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          width: '100%',
+          maxWidth: '440px',
+          padding: '1.75rem',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          position: 'relative'
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
+            Nhập PIN vé tháng
+          </h3>
+          <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: C.gray500, lineHeight: 1.4 }}>
+            Vui lòng nhập biển số xe và mã PIN dự phòng của gói tháng để tra cứu.
+          </p>
+
+          {monthlyPinError && (
+            <div style={{ marginBottom: '1rem' }}>
+              <AlertBanner type="error">{monthlyPinError}</AlertBanner>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                Biển số xe
+              </label>
+              <input
+                type="text"
+                value={monthlyPinPlateInput}
+                onChange={(e) => {
+                  setMonthlyPinPlateInput(e.target.value.toUpperCase());
+                  setMonthlyPinError('');
+                }}
+                placeholder="VD: 59A-22334"
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '10px',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  outline: 'none',
+                  textTransform: 'uppercase'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                Mã PIN dự phòng (6 số)
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                value={monthlyPinCodeInput}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, '');
+                  setMonthlyPinCodeInput(cleaned);
+                  setMonthlyPinError('');
+                }}
+                placeholder="000000"
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '10px',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  outline: 'none',
+                  letterSpacing: '0.1em',
+                  fontFamily: 'monospace'
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={() => setShowMonthlyPinModal(false)}
+              disabled={monthlyPinLoading}
+              style={{
+                padding: '0.55rem 1.25rem',
+                border: '1px solid #CBD5E1',
+                background: '#fff',
+                color: C.gray500,
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: monthlyPinLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitDisabled}
+              onClick={handleVerifyMonthlyPin}
+              style={{
+                padding: '0.55rem 1.5rem',
+                border: 'none',
+                background: isSubmitDisabled ? '#E5E7EB' : C.navy,
+                color: isSubmitDisabled ? '#9CA3AF' : '#fff',
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {monthlyPinLoading ? 'Đang tra cứu...' : 'Xác nhận'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function renderGuestSuccessModal() {
     if (!showGuestSuccessModal || !guestReceiptData) return null;
@@ -1840,6 +2256,7 @@ export function CheckInPage() {
             <div class="subtitle">PHIEU GUI XE VANG LAI</div>
             <div class="info-item"><span>BIEN SO:</span> <strong>${guestReceiptData.plate}</strong></div>
             <div class="info-item"><span>LOAI XE:</span> <span>${guestReceiptData.vehicleType === 'CAR' ? 'O TO' : 'XE MAY'}</span></div>
+            <div class="info-item"><span>ANH NGUOI GUI:</span> <span>DA GHI NHAN</span></div>
             <div class="info-item"><span>KHU VUC:</span> <span>${guestReceiptData.zoneName ?? 'Khu vuc tu chon'}</span></div>
             <div class="info-item"><span>GIO VAO:</span> <span>${checkInTimeFormatted}</span></div>
             
@@ -1940,6 +2357,10 @@ export function CheckInPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Khu vực đỗ xe:</span>
               <span style={{ fontWeight: 600, color: '#0F766E' }}>{guestReceiptData.zoneName ?? 'Khu vực tự do'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <span style={{ color: C.gray500 }}>Ảnh người gửi:</span>
+              <span style={{ fontWeight: 600, color: '#15803D' }}>Đã ghi nhận</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Giờ vào:</span>

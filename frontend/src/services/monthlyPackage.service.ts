@@ -111,4 +111,11 @@ export const monthlyPackageService = {
     const response = await api.get<{ success: boolean; data: PackagePlan[] }>('/monthly-packages/plans');
     return response.data.data;
   },
+
+  ensureAccessPin: async (packageId: string) => {
+    const response = await api.post<{ success: boolean; data: { monthlyAccessPin: string; monthlyAccessPinIssuedAt: string } }>(
+      `/monthly-packages/${packageId}/access-pin/ensure`
+    );
+    return response.data.data;
+  },
 };

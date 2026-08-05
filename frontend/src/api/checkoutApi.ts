@@ -12,6 +12,7 @@ export interface CheckoutLookupResult {
   now?: string;
   durationMinutes?: number;
   fee?: number;
+  amountDue?: number;
   breakdown?: {
     label: string;
     minutesInBlock: number;
@@ -32,6 +33,7 @@ export interface CheckoutLookupResult {
   packageExpiry?: string;
   frontImageUrl?: string | null;
   rearImageUrl?: string | null;
+  driverCheckInImageUrl?: string | null;
   isLegacy?: boolean;
   totalSuccessfullyPaid?: number;
   prepaidAt?: string | null;
@@ -45,10 +47,11 @@ function unwrap<T>(response: { data: { success: boolean; data: T; message?: stri
   return response.data.data;
 }
 
-export async function checkoutLookupPlate(plate: string): Promise<CheckoutLookupResult> {
+export async function checkoutLookupPlate(plate: string, pin?: string): Promise<CheckoutLookupResult> {
   try {
     const response = await api.get<{ success: boolean; data: CheckoutLookupResult }>(
-      `/checkout/lookup/${encodeURIComponent(plate)}`
+      `/checkout/lookup/${encodeURIComponent(plate)}`,
+      pin ? { params: { pin } } : {}
     );
     return unwrap(response);
   } catch (err: unknown) {
