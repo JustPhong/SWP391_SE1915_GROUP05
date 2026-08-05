@@ -94,6 +94,8 @@ export interface MonthlyPackage {
   floor?: Floor;
   payments?: Payment[];
   allowedTier?: 'VIP' | 'POPULAR' | 'REGULAR' | null;
+  monthlyAccessPin?: string | null;
+  monthlyAccessPinIssuedAt?: string | null;
   createdAt: string;
 }
 

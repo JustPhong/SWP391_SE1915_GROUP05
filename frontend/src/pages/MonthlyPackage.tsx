@@ -81,6 +81,64 @@ const getTotalDays = (startDateStr: string, expiryDateStr: string) => {
 };
 
 
+const getPlanDisplayName = (planName?: string | null): string => {
+  switch (planName) {
+    case '1m':
+      return 'Gói 1 tháng';
+    case '3m':
+      return 'Gói 3 tháng';
+    case '1y':
+      return 'Gói 1 năm';
+    default:
+      return 'Gói tháng';
+  }
+};
+
+const getPlanDurationLabel = (planName?: string | null): string => {
+  switch (planName) {
+    case '1m':
+      return '1 tháng';
+    case '3m':
+      return '3 tháng';
+    case '1y':
+      return '1 năm';
+    default:
+      return 'Tháng';
+  }
+};
+
+const getVehicleTypeLabel = (vehicleType?: string | null): string => {
+  switch (vehicleType) {
+    case 'CAR':
+      return 'Ô tô';
+    case 'MOTORBIKE':
+      return 'Xe máy';
+    default:
+      return 'Phương tiện';
+  }
+};
+
+const getPackageSummaryLabel = (vehicleType?: string | null, planName?: string | null): string => {
+  if (!planName || (planName !== '1m' && planName !== '3m' && planName !== '1y')) {
+    if (vehicleType === 'CAR') return 'Gói tháng ô tô';
+    if (vehicleType === 'MOTORBIKE') return 'Gói tháng xe máy';
+    return 'Gói tháng';
+  }
+
+  const typeLabel = getVehicleTypeLabel(vehicleType);
+  const durationLabel = getPlanDurationLabel(planName);
+
+  return typeLabel ? `${typeLabel} · ${durationLabel}` : `Gói ${durationLabel}`;
+};
+
+
+const formatFloorName = (name?: string | null): string => {
+  if (!name) return '';
+  if (name.startsWith('Tầng')) return name;
+  return `Tầng ${name}`;
+};
+
+
 // ═══════════════════════════════════════════════════════
 //  INLINE SVG ICONS (uniform visual language)
 // ═══════════════════════════════════════════════════════
@@ -105,14 +163,12 @@ function IconCalendar({ size = 16, color = 'currentColor' }: { size?: number; co
 function IconClock({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
 }
-function IconRefresh({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38" /></svg>;
-}
+
 function IconPin({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>;
 }
-function IconList({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+function IconLayers3({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /><path d="m22 12.5-8.58 3.91a2 2 0 0 1-1.66 0L3 12.5" /><path d="m22 17.5-8.58 3.91a2 2 0 0 1-1.66 0L3 17.5" /></svg>;
 }
 function IconEye({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
@@ -416,6 +472,104 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
   const [selectedDetailPkg, setSelectedDetailPkg] = useState<MonthlyPackage | null>(null);
   const [detailQrUrl, setDetailQrUrl] = useState<string>('');
 
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState(false);
+  const [copiedPin, setCopiedPin] = useState(false);
+
+  useEffect(() => {
+    if (!selectedDetailPkg) {
+      setPinError(false);
+      setPinLoading(false);
+      setCopiedPin(false);
+      return;
+    }
+
+    const isExpired = selectedDetailPkg.status === 'EXPIRED' || getRemainingDays(selectedDetailPkg.expiryDate) <= 0;
+    if (isExpired) {
+      return;
+    }
+
+    if (!selectedDetailPkg.monthlyAccessPin) {
+      let active = true;
+      const fetchPin = async () => {
+        setPinLoading(true);
+        setPinError(false);
+        try {
+          const res = await monthlyPackageService.ensureAccessPin(selectedDetailPkg.id);
+          if (active) {
+            setSelectedDetailPkg((prev) => {
+              if (prev && prev.id === selectedDetailPkg.id) {
+                return {
+                  ...prev,
+                  monthlyAccessPin: res.monthlyAccessPin,
+                  monthlyAccessPinIssuedAt: res.monthlyAccessPinIssuedAt,
+                };
+              }
+              return prev;
+            });
+            setMyPackages((prevList) =>
+              prevList.map((p) =>
+                p.id === selectedDetailPkg.id
+                  ? {
+                      ...p,
+                      monthlyAccessPin: res.monthlyAccessPin,
+                      monthlyAccessPinIssuedAt: res.monthlyAccessPinIssuedAt,
+                    }
+                  : p
+              )
+            );
+          }
+        } catch (err) {
+          if (active) {
+            setPinError(true);
+          }
+        } finally {
+          if (active) {
+            setPinLoading(false);
+          }
+        }
+      };
+      fetchPin();
+      return () => {
+        active = false;
+      };
+    }
+  }, [selectedDetailPkg]);
+
+  const handleRetryFetchPin = async () => {
+    if (!selectedDetailPkg) return;
+    setPinLoading(true);
+    setPinError(false);
+    try {
+      const res = await monthlyPackageService.ensureAccessPin(selectedDetailPkg.id);
+      setSelectedDetailPkg((prev) => {
+        if (prev && prev.id === selectedDetailPkg.id) {
+          return {
+            ...prev,
+            monthlyAccessPin: res.monthlyAccessPin,
+            monthlyAccessPinIssuedAt: res.monthlyAccessPinIssuedAt,
+          };
+        }
+        return prev;
+      });
+      setMyPackages((prevList) =>
+        prevList.map((p) =>
+          p.id === selectedDetailPkg.id
+            ? {
+                ...p,
+                monthlyAccessPin: res.monthlyAccessPin,
+                monthlyAccessPinIssuedAt: res.monthlyAccessPinIssuedAt,
+              }
+            : p
+        )
+      );
+    } catch (err) {
+      setPinError(true);
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
   const loadMyPackages = useCallback(async () => {
     setLoadingPackages(true);
     setPackageActionError('');
@@ -636,20 +790,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     setIsPurchasing(true);
   };
 
-  const handleToggleAutoRenew = async (pkg: MonthlyPackage) => {
-    setPackageActionLoading(pkg.id);
-    setPackageActionError(''); // clear old error on auto-renew toggling
-    setPackageActionSuccess('');
-    try {
-      const updated = await monthlyPackageService.setAutoRenew(pkg.id, !pkg.autoRenew);
-      setMyPackages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      setPackageActionSuccess(updated.autoRenew ? 'Tự động gia hạn đã được bật.' : 'Tự động gia hạn đã được tắt.');
-    } catch (e: any) {
-      setPackageActionError(e?.response?.data?.message ?? 'Không thể cập nhật chức năng gia hạn.');
-    } finally {
-      setPackageActionLoading(null);
-    }
-  };
+
 
 
 
@@ -673,7 +814,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     const days = getRemainingDays(pkg.expiryDate);
     return days <= 7 && days > 0;
   }).length;
-  const autoRenewCount = myPackages.filter((pkg) => isEffectivelyActive(pkg) && pkg.autoRenew).length;
+
 
   // ── DASHBOARD RENDERING ──────────────────────────────
   return (
@@ -745,7 +886,8 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
       ) : (
         <>
           {/* 2. Summary Cards Row */}
-          <div className={newStyles.summaryGrid}>
+          {/* 2. Summary Cards Row */}
+          <div className={newStyles.summaryGrid} style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             {/* Card 1: Active Packages */}
             <div className={newStyles.summaryCard}>
               <div className={`${newStyles.iconCircle} ${newStyles.iconBlue}`}>
@@ -765,17 +907,6 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
               <div className={newStyles.summaryInfo}>
                 <span className={newStyles.summaryLabel}>Sắp hết hạn</span>
                 <h3 className={newStyles.summaryValue}>{expiringSoonCount}</h3>
-              </div>
-            </div>
-
-            {/* Card 3: Auto Renewing */}
-            <div className={newStyles.summaryCard}>
-              <div className={`${newStyles.iconCircle} ${newStyles.iconGreen}`}>
-                <IconRefresh size={20} />
-              </div>
-              <div className={newStyles.summaryInfo}>
-                <span className={newStyles.summaryLabel}>Tự động gia hạn</span>
-                <h3 className={newStyles.summaryValue}>{autoRenewCount}</h3>
               </div>
             </div>
           </div>
@@ -826,7 +957,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                         </div>
                         <div className={newStyles.cardTitleBlock}>
                           <h4 className={newStyles.cardMainTitle}>
-                            {pkg.planName || (isMotorbike ? 'Gói Xe máy tháng' : 'Gói Ô tô tháng')}
+                            {getPlanDisplayName(pkg.planName)}
                           </h4>
                           <p className={newStyles.cardSubtitle}>
                             Xe: {pkg.vehicle?.plateNumber || pkg.vehicleId || '-'}
@@ -898,21 +1029,31 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                           <span className={newStyles.detailLabel}>Khu vực đỗ</span>
                           <span className={newStyles.detailValue}>
                             {pkg.floor?.name
-                              ? `Tầng ${pkg.floor.name} · ${getTierAreaLabel(pkg.allowedTier)}`
+                              ? `${formatFloorName(pkg.floor.name)} · ${getTierAreaLabel(pkg.allowedTier)}`
                               : (pkg.allowedTier ? `Tầng G · ${getTierAreaLabel(pkg.allowedTier)}` : 'Chưa phân khu')}
                           </span>
                         </div>
                       </div>
 
-                      {/* Block 4 */}
+                      {/* Block 4 — GÓI */}
                       <div className={newStyles.detailBlock}>
-                        <div className={newStyles.detailIcon}>
-                          <IconList size={18} />
+                        <div style={{
+                          width: 34,
+                          height: 34,
+                          minWidth: 34,
+                          background: '#EEF4FF',
+                          borderRadius: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <IconLayers3 size={17} color="#5B7FF5" />
                         </div>
                         <div className={newStyles.detailInfo}>
-                          <span className={newStyles.detailLabel}>Gói</span>
+                          <span className={newStyles.detailLabel}>GÓI</span>
                           <span className={newStyles.detailValue}>
-                            {isMotorbike ? 'Xe máy tháng' : 'Ô tô tháng'}
+                            {getPackageSummaryLabel(pkg.vehicle?.type, pkg.planName)}
                           </span>
                         </div>
                       </div>
@@ -952,16 +1093,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                           <IconCalendar size={16} /> {!isLegacyPackage(pkg) ? 'Gia hạn ngay' : 'Chọn gói để gia hạn'}
                         </button>
 
-                        {/* 2. Auto-renew toggle — shown only if not expired AND is not a legacy package */}
-                        {!isExpired && !isLegacyPackage(pkg) && (
-                          <button
-                            onClick={() => handleToggleAutoRenew(pkg)}
-                            disabled={packageActionLoading === pkg.id}
-                            className={newStyles.btnSecondary}
-                          >
-                            <IconRefresh size={16} /> {pkg.autoRenew ? 'Tắt gia hạn tự động' : 'Bật gia hạn tự động'}
-                          </button>
-                        )}
+                        {/* 2. Auto-renew toggle hidden — not fully implemented */}
 
                         {/* 3. Neutral button */}
                         <button
@@ -993,7 +1125,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
               <div className={`${newStyles.modalIcon} ${newStyles.modalIconInfo}`}>
                 {selectedDetailPkg.vehicle?.type === 'MOTORBIKE' ? <IconBike size={22} color="#3B82F6" /> : <IconCar size={22} color="#3B82F6" />}
               </div>
-              <h3 className={newStyles.modalTitle}>Vé Đỗ Xe Vé Tháng</h3>
+              <h3 className={newStyles.modalTitle}>Vé Đỗ Xe Tháng</h3>
             </div>
 
             <div className={newStyles.ticketGrid}>
@@ -1013,7 +1145,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 <span className={newStyles.ticketLabel}>Vị trí / Khu vực</span>
                 <span className={newStyles.ticketValue}>
                   {selectedDetailPkg.floor?.name && selectedDetailPkg.allowedTier
-                    ? `Tầng ${selectedDetailPkg.floor.name} · ${getTierAreaLabel(selectedDetailPkg.allowedTier)}`
+                    ? `${formatFloorName(selectedDetailPkg.floor.name)} · ${getTierAreaLabel(selectedDetailPkg.allowedTier)}`
                     : 'Chưa phân vị trí'}
                 </span>
               </div>
@@ -1029,10 +1161,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 <span className={newStyles.ticketLabel}>Ngày hết hạn</span>
                 <span className={newStyles.ticketValueHighlight}>{formatDate(selectedDetailPkg.expiryDate)}</span>
               </div>
-              <div className={newStyles.ticketRow}>
-                <span className={newStyles.ticketLabel}>Gia hạn tự động</span>
-                <span className={newStyles.ticketValue}>{selectedDetailPkg.autoRenew ? 'Đang bật' : 'Đang tắt'}</span>
-              </div>
+
               <div className={newStyles.ticketRow}>
                 <span className={newStyles.ticketLabel}>Trạng thái</span>
                 <span style={{ fontWeight: 800, color: selectedDetailPkg.status === 'ACTIVE' ? '#10B981' : '#EF4444' }}>
@@ -1048,6 +1177,104 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
                   Quét mã này tại cổng kiểm soát để tự động ra vào
                 </p>
+              </div>
+            )}
+
+            {/* PIN Fallback Section */}
+            {selectedDetailPkg && (
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '1rem',
+                background: '#F8FAFC',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                textAlign: 'center'
+              }}>
+                <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: C.gray600, fontWeight: 700, display: 'block', marginBottom: '0.5rem' }}>
+                  Mã PIN dự phòng
+                </span>
+
+                {(() => {
+                  const isExpired = selectedDetailPkg.status === 'EXPIRED' || getRemainingDays(selectedDetailPkg.expiryDate) <= 0;
+                  if (isExpired) {
+                    return (
+                      <span style={{ fontSize: '0.9rem', color: C.red, fontWeight: 700 }}>
+                        Mã PIN đã hết hiệu lực
+                      </span>
+                    );
+                  }
+                  if (pinLoading) {
+                    return (
+                      <span style={{ fontSize: '0.9rem', color: C.blue, fontWeight: 600 }}>
+                        Đang tạo mã PIN...
+                      </span>
+                    );
+                  }
+                  if (pinError) {
+                    return (
+                      <div>
+                        <span style={{ fontSize: '0.9rem', color: C.red, fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                          Lỗi tải mã PIN
+                        </span>
+                        <button
+                          onClick={handleRetryFetchPin}
+                          style={{
+                            background: C.blue,
+                            color: '#fff',
+                            border: 'none',
+                            padding: '4px 12px',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Thử lại
+                        </button>
+                      </div>
+                    );
+                  }
+                  if (selectedDetailPkg.monthlyAccessPin) {
+                    return (
+                      <div>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <span style={{ fontSize: '1.8rem', fontFamily: 'monospace', fontWeight: 800, color: C.navy, letterSpacing: '0.1em' }}>
+                            {selectedDetailPkg.monthlyAccessPin}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedDetailPkg.monthlyAccessPin || '');
+                              setCopiedPin(true);
+                              setTimeout(() => setCopiedPin(false), 2000);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: copiedPin ? C.green : C.blue,
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              fontSize: '0.8rem',
+                              fontWeight: 600
+                            }}
+                          >
+                            {copiedPin ? 'Đã sao chép!' : 'Sao chép'}
+                          </button>
+                        </div>
+                        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: C.gray600, lineHeight: 1.4 }}>
+                          Dùng mã PIN này tại quầy khi không thể quét mã QR.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             )}
 

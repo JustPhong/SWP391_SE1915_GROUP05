@@ -291,7 +291,7 @@
 
 .detailBlock {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75rem;
   position: relative;
 }
@@ -299,7 +299,7 @@
 .detailBlock:not(:last-child)::after {
   content: "";
   position: absolute;
-  right: -0.625rem;
+  right: 0;
   top: 10%;
   height: 80%;
   width: 1px;
