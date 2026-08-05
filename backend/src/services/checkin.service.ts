@@ -74,6 +74,8 @@ export interface SubmitCheckinInput {
   isMonthly: boolean;
   frontImageUrl?: string;
   rearImageUrl?: string;
+  driverCheckInImageUrl?: string;
+  driverCheckInImagePublicId?: string;
 }
 
 export interface SubmitCheckinResult {
@@ -89,6 +91,8 @@ export interface SubmitCheckinResult {
   isGuest?: boolean;
   guestPin?: string | null;
   guestQrToken?: string | null;
+  driverCheckInImageUrl?: string | null;
+  driverFaceCapturedAt?: string | null;
 }
 
 export const checkinService = {
@@ -489,6 +493,9 @@ export const checkinService = {
             isMonthly: false,
             frontImageUrl: frontImageUrl ?? null,
             rearImageUrl: rearImageUrl ?? null,
+            driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+            driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
+            driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
           },
         });
 
@@ -508,6 +515,8 @@ export const checkinService = {
           isGuest: false,
           guestPin: null,
           guestQrToken: null,
+          driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+          driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
         };
       }
 
@@ -543,6 +552,9 @@ export const checkinService = {
             allowedTier: pkg.allowedTier,
             frontImageUrl: frontImageUrl ?? null,
             rearImageUrl: rearImageUrl ?? null,
+            driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+            driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
+            driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
           },
         });
 
@@ -558,6 +570,8 @@ export const checkinService = {
           isGuest: false,
           guestPin: null,
           guestQrToken: null,
+          driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+          driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
         };
       }
 
@@ -640,6 +654,9 @@ export const checkinService = {
           isMonthly: false,
           frontImageUrl: frontImageUrl ?? null,
           rearImageUrl: rearImageUrl ?? null,
+          driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+          driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
+          driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
           guestCredential: isGuest && guestPin && guestQrToken ? {
             create: {
               pin: guestPin,
@@ -662,6 +679,8 @@ export const checkinService = {
         guestPin,
         guestQrToken,
         isGuest,
+        driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+        driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
       };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (err: any) {

@@ -3,6 +3,7 @@ import { AppError } from '../utils/helpers';
 import { sendEmail } from './email.service';
 import { stripe } from '../config/stripe';
 import { Prisma } from '@prisma/client';
+import { generateMonthlyAccessPin } from '../utils/pin';
 
 const PKG_ACTIVE = 'ACTIVE';
 const PKG_EXPIRED = 'EXPIRED';
@@ -152,9 +153,9 @@ export const monthlyPackageService = {
     let newExpiryDate: Date;
     const durationDays = planId === '1y' ? 365 : planId === '3m' ? 90 : 30;
 
+    const wasEffectivelyActive = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
     if (isRenewal) {
-      const isPackageActive = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
-      if (isPackageActive) {
+      if (wasEffectivelyActive) {
         if (!pkg.allowedTier) {
           throw new AppError(400, 'Không tìm thấy phân hạng đỗ xe hiện tại.');
         }
@@ -172,6 +173,27 @@ export const monthlyPackageService = {
       newExpiryDate.setDate(newExpiryDate.getDate() + durationDays);
     }
 
+    let newPin: string | null = pkg.monthlyAccessPin;
+    let newPinIssuedAt: Date | null = pkg.monthlyAccessPinIssuedAt;
+
+    if (!isRenewal) {
+      // NEW PACKAGE
+      newPin = generateMonthlyAccessPin();
+      newPinIssuedAt = now;
+    } else {
+      // RENEWAL
+      if (wasEffectivelyActive) {
+        if (!newPin) {
+          newPin = generateMonthlyAccessPin();
+          newPinIssuedAt = now;
+        }
+      } else {
+        // EXPIRED OR INACTIVE REACTIVATION
+        newPin = generateMonthlyAccessPin();
+        newPinIssuedAt = now;
+      }
+    }
+
     const floor = await selectFloorForPackage(pkg.vehicle.type, targetTier, tx);
     const floorId = floor ? floor.id : pkg.floorId;
 
@@ -183,8 +205,11 @@ export const monthlyPackageService = {
         expiryDate: newExpiryDate,
         status: 'ACTIVE',
         planName: planId,
+        price: expectedPrice,
         allowedTier: targetTier,
         floorId,
+        monthlyAccessPin: newPin,
+        monthlyAccessPinIssuedAt: newPinIssuedAt,
       },
     });
 
@@ -1292,5 +1317,93 @@ export const monthlyPackageService = {
     }
 
     return { success: true };
+  },
+
+  async ensureAccessPin(packageId: string, userId: string) {
+    const pkg = await prisma.monthlyPackage.findUnique({
+      where: { id: packageId },
+    });
+    if (!pkg) {
+      throw new AppError(404, 'Không tìm thấy gói tháng.');
+    }
+    if (pkg.userId !== userId) {
+      throw new AppError(403, 'Bạn không có quyền với gói tháng này.');
+    }
+    if (pkg.status !== 'ACTIVE') {
+      throw new AppError(400, 'Gói tháng không ở trạng thái hoạt động.');
+    }
+    const now = new Date();
+    if (pkg.expiryDate.getTime() <= now.getTime()) {
+      throw new AppError(400, 'Gói tháng đã hết hạn.');
+    }
+
+    if (pkg.monthlyAccessPin) {
+      return {
+        monthlyAccessPin: pkg.monthlyAccessPin,
+        monthlyAccessPinIssuedAt: pkg.monthlyAccessPinIssuedAt,
+      };
+    }
+
+    const generatedPin = generateMonthlyAccessPin();
+    const updated = await prisma.monthlyPackage.update({
+      where: { id: packageId },
+      data: {
+        monthlyAccessPin: generatedPin,
+        monthlyAccessPinIssuedAt: now,
+      },
+      select: {
+        monthlyAccessPin: true,
+        monthlyAccessPinIssuedAt: true,
+      },
+    });
+
+    return updated;
+  },
+
+  async verifyMonthlyPackageAccessByPin(plateNumber: string, pin: string, txClient?: any) {
+    if (!pin || !/^\d{6}$/.test(pin)) {
+      throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    }
+
+    const cleanPlate = plateNumber.trim().toUpperCase();
+    const strippedPlate = cleanPlate.replace(/[-.\s]/g, '');
+
+    const client = txClient || prisma;
+    const vehicle = await client.vehicle.findFirst({
+      where: {
+        OR: [
+          { plateNumber: cleanPlate },
+          { plateNumber: strippedPlate },
+        ]
+      },
+      include: {
+        monthlyPackage: {
+          include: {
+            floor: true
+          }
+        }
+      }
+    });
+
+    if (!vehicle || !vehicle.isMonthly || !vehicle.monthlyPackage) {
+      throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    }
+
+    const pkg = vehicle.monthlyPackage;
+    const now = new Date();
+
+    if (pkg.monthlyAccessPin !== pin) {
+      throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    }
+
+    if (pkg.status !== 'ACTIVE' || pkg.expiryDate.getTime() <= now.getTime()) {
+      throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    }
+
+    if (!pkg.floorId || !pkg.floor) {
+      throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    }
+
+    return { vehicle, monthlyPackage: pkg };
   },
 };

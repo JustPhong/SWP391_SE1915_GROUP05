@@ -315,6 +315,27 @@ export function formatMotorbikePlate(p: string): string {
   return p;
 }
 
+function getCropPriority(cropName: string): number {
+  const priorities: Record<string, number> = {
+    'CAR_PLATE_CENTER_TIGHT': 10,
+    'CAR_SMALL_TIGHT': 9,
+    'LANDSCAPE_CENTER_TIGHT': 8,
+    'PORTRAIT_CENTER_TIGHT': 8,
+    'CAR_SMALL_MEDIUM': 7,
+    'LANDSCAPE_CENTER_MEDIUM': 6,
+    'PORTRAIT_CENTER_MEDIUM': 6,
+    'CAR_SMALL_WIDE': 5,
+    'LANDSCAPE_CENTER_WIDE': 4,
+    'PORTRAIT_CENTER_WIDE': 4,
+    'CAR_LOW_CENTER': 3,
+    'CAR_LOW_NARROW': 3,
+    'CAR_LOW_WIDE': 2,
+    'CAR_SMALL_LOWER_HALF': 1,
+    'CAR_BROAD_FULL_REGION': 0
+  };
+  return priorities[cropName] ?? 5;
+}
+
 function isValidCarPlate(p: string): boolean {
   return /^\d{2}[A-Z]\d{5}$/.test(p);
 }
@@ -465,9 +486,9 @@ async function preprocessImageToBuffer(
   }
 ): Promise<Buffer> {
   let pipeline = sharp(imageBuffer);
+  const meta = options.metadata || await pipeline.metadata();
 
   if (options.crop) {
-    const meta = options.metadata || await pipeline.metadata();
     const imgWidth = meta.width || 0;
     const imgHeight = meta.height || 0;
     if (imgWidth > 0 && imgHeight > 0) {
@@ -488,8 +509,30 @@ async function preprocessImageToBuffer(
 
 
 
-  if (options.resizeWidth) {
-    pipeline = pipeline.resize(options.resizeWidth);
+  let finalResizeWidth = options.resizeWidth;
+  let sourceWidth = options.crop ? options.crop.width : (meta.width || 0);
+
+  if (finalResizeWidth && sourceWidth > 0) {
+    const rawFactor = finalResizeWidth / sourceWidth;
+    if (rawFactor > 4.0) {
+      finalResizeWidth = Math.round(sourceWidth * 4.0);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[OCR][ADAPTIVE_RESIZE] sourceWidth=${sourceWidth} rawFactor=${rawFactor.toFixed(2)}x -> capped to 4.0x -> resizeWidth=${finalResizeWidth}`);
+      }
+    } else if (rawFactor < 1.0) {
+      finalResizeWidth = sourceWidth;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[OCR][ADAPTIVE_RESIZE] sourceWidth=${sourceWidth} rawFactor=${rawFactor.toFixed(2)}x -> preserve source width -> resizeWidth=${finalResizeWidth}`);
+      }
+    } else {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[OCR][ADAPTIVE_RESIZE] sourceWidth=${sourceWidth} rawFactor=${rawFactor.toFixed(2)}x -> resizeWidth=${finalResizeWidth}`);
+      }
+    }
+  }
+
+  if (finalResizeWidth) {
+    pipeline = pipeline.resize(finalResizeWidth);
   }
 
   if (options.processing === 'grayscale-normalize-threshold') {
@@ -1220,7 +1263,14 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
           const bAg = b.agreementCount || 0;
           if (aAg !== bAg) return bAg - aAg;
 
-          return b.confidence - a.confidence;
+          const confDiff = b.confidence - a.confidence;
+          if (Math.abs(confDiff) >= 1.0) {
+            return confDiff;
+          }
+
+          const aCropPri = getCropPriority(a.cropName);
+          const bCropPri = getCropPriority(b.cropName);
+          return bCropPri - aCropPri;
         })[0];
       };
 
@@ -2004,6 +2054,57 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         return true;
       }
 
+      // ─── STAGE B.5: SMALL PLATE FALLBACK ───
+      if (!isOcrBudgetExhausted(budget)) {
+        let currentBest = getBestCandidateForOrientation(orientationName);
+        const needsSmallPlateFallback = !currentBest ||
+          currentBest.confidence < 80 ||
+          !currentBest.agreementCount ||
+          currentBest.agreementCount < 2;
+
+        if (needsSmallPlateFallback) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[OCR][CAR] Weak candidate or no candidate. Triggering STAGE_B5_SMALL_PLATE. currentBest=${currentBest?.normalizedPlate || 'NONE'} conf=${currentBest?.confidence || 0} agreement=${currentBest?.agreementCount || 0}`);
+          }
+
+          const smallPlateCrops = [
+            { name: 'CAR_SMALL_TIGHT', crop: getClampedCrop(0.38, 0.53, 0.24, 0.15, 'CAR_SMALL_TIGHT') },
+            { name: 'CAR_SMALL_MEDIUM', crop: getClampedCrop(0.35, 0.48, 0.30, 0.22, 'CAR_SMALL_MEDIUM') },
+            { name: 'CAR_SMALL_WIDE', crop: getClampedCrop(0.27, 0.45, 0.46, 0.26, 'CAR_SMALL_WIDE') },
+            { name: 'CAR_SMALL_LOWER_HALF', crop: getClampedCrop(0.18, 0.45, 0.64, 0.40, 'CAR_SMALL_LOWER_HALF') },
+          ];
+
+          for (const sc of smallPlateCrops) {
+            if (isOcrBudgetExhausted(budget)) break;
+            if (!sc.crop) continue;
+
+            try {
+              const res = await runPassForCrop(sc.crop, 'grayscale-normalize-sharpen', sc.name, budget, 'STAGE_B5_SMALL_PLATE');
+              const hasValid = res && res.validCandidatesCount > 0;
+
+              if (!hasValid && !isOcrBudgetExhausted(budget)) {
+                await runPassForCrop(sc.crop, 'grayscale-normalize-threshold', sc.name, budget, 'STAGE_B5_SMALL_PLATE');
+              }
+              if (!hasValid && !isOcrBudgetExhausted(budget)) {
+                await runPassForCrop(sc.crop, 'grayscale-threshold-100', sc.name, budget, 'STAGE_B5_SMALL_PLATE');
+              }
+              if (!hasValid && !isOcrBudgetExhausted(budget)) {
+                await runPassForCrop(sc.crop, 'grayscale-threshold-145', sc.name, budget, 'STAGE_B5_SMALL_PLATE');
+              }
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+      }
+
+      // Early exit Stage B.5
+      let stageB5Best = getBestCandidateForOrientation(orientationName);
+      if (stageB5Best && ((stageB5Best.agreementCount && stageB5Best.agreementCount >= 2) || stageB5Best.confidence >= 80)) {
+        selectedCandidate = stageB5Best;
+        return true;
+      }
+
       // ─── STAGE C: TARGETED TWO-LINE SPLIT ───
       if (isOcrBudgetExhausted(budget)) return false;
       const stageCCrops = [
@@ -2410,7 +2511,14 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
         const bAg = b.agreementCount || 0;
         if (aAg !== bAg) return bAg - aAg;
 
-        return b.confidence - a.confidence;
+        const confDiff = b.confidence - a.confidence;
+        if (Math.abs(confDiff) >= 1.0) {
+          return confDiff;
+        }
+
+        const aCropPri = getCropPriority(a.cropName);
+        const bCropPri = getCropPriority(b.cropName);
+        return bCropPri - aCropPri;
       });
       selectedCandidate = sortedCarCandidates[0];
     }
@@ -2503,32 +2611,37 @@ export function reconcilePlates(
   normalizedPlate: string;
   sourceUsed: 'FRONT' | 'REAR' | 'MERGED';
   confidence: number;
+  reliability?: OcrReliability;
 } {
   if (!frontNormalized && !rearNormalized) {
-    return { bestPlate: '', normalizedPlate: '', sourceUsed: 'REAR', confidence: 0 };
+    return { bestPlate: '', normalizedPlate: '', sourceUsed: 'REAR', confidence: 0, reliability: 'REVIEW' };
   }
   if (!frontNormalized) {
     return {
-      bestPlate: vehicleType === 'CAR' ? formatCarPlate(rearNormalized) : rearNormalized,
+      bestPlate: vehicleType === 'CAR' ? formatCarPlate(rearNormalized) : (vehicleType === 'MOTORBIKE' ? formatMotorbikePlate(rearNormalized) : rearNormalized),
       normalizedPlate: rearNormalized,
       sourceUsed: 'REAR',
       confidence: rearConf,
+      reliability: rearConf >= 80 ? 'VERIFIED' : 'REVIEW',
     };
   }
   if (!rearNormalized) {
     return {
-      bestPlate: vehicleType === 'CAR' ? formatCarPlate(frontNormalized) : frontNormalized,
+      bestPlate: vehicleType === 'CAR' ? formatCarPlate(frontNormalized) : (vehicleType === 'MOTORBIKE' ? formatMotorbikePlate(frontNormalized) : frontNormalized),
       normalizedPlate: frontNormalized,
       sourceUsed: 'FRONT',
       confidence: frontConf,
+      reliability: frontConf >= 80 ? 'VERIFIED' : 'REVIEW',
     };
   }
   if (frontNormalized === rearNormalized) {
+    const finalPlate = vehicleType === 'CAR' ? formatCarPlate(rearNormalized) : (vehicleType === 'MOTORBIKE' ? formatMotorbikePlate(rearNormalized) : rearNormalized);
     return {
-      bestPlate: vehicleType === 'CAR' ? formatCarPlate(rearNormalized) : rearNormalized,
+      bestPlate: finalPlate,
       normalizedPlate: rearNormalized,
       sourceUsed: 'MERGED',
       confidence: Math.max(frontConf, rearConf),
+      reliability: Math.max(frontConf, rearConf) >= 80 ? 'VERIFIED' : 'REVIEW',
     };
   }
 
@@ -2552,8 +2665,11 @@ export function reconcilePlates(
 
       // Compare lower lines
       let bestLower = '';
+      let reliability: OcrReliability = 'REVIEW';
+
       if (frontLower === rearLower) {
         bestLower = frontLower;
+        reliability = Math.max(frontConf, rearConf) >= 80 ? 'VERIFIED' : 'REVIEW';
       } else {
         let diffCount = 0;
         let diffIdx = -1;
@@ -2577,13 +2693,22 @@ export function reconcilePlates(
             (fc === '1' && rc === '7') || (fc === '7' && rc === '1')
           );
 
-          if (frontConf >= rearConf) {
-            bestLower = frontLower;
+          if (isCommonConfusion) {
+            const confDiff = Math.abs(frontConf - rearConf);
+            if (confDiff >= 15) {
+              bestLower = frontConf >= rearConf ? frontLower : rearLower;
+              reliability = Math.max(frontConf, rearConf) >= 80 ? 'VERIFIED' : 'REVIEW';
+            } else {
+              bestLower = frontConf >= rearConf ? frontLower : rearLower;
+              reliability = 'REVIEW';
+            }
           } else {
-            bestLower = rearLower;
+            bestLower = frontConf >= rearConf ? frontLower : rearLower;
+            reliability = Math.max(frontConf, rearConf) >= 80 ? 'VERIFIED' : 'REVIEW';
           }
         } else {
           bestLower = frontConf >= rearConf ? frontLower : rearLower;
+          reliability = 'REVIEW';
         }
       }
 
@@ -2593,16 +2718,19 @@ export function reconcilePlates(
         normalizedPlate: mergedNorm,
         sourceUsed: 'MERGED',
         confidence: Math.max(frontConf, rearConf),
+        reliability,
       };
     }
   }
 
   const chosenNorm = frontConf >= rearConf ? frontNormalized : rearNormalized;
+  const finalPlate = vehicleType === 'CAR' ? formatCarPlate(chosenNorm) : (vehicleType === 'MOTORBIKE' ? formatMotorbikePlate(chosenNorm) : chosenNorm);
   return {
-    bestPlate: vehicleType === 'CAR' ? formatCarPlate(chosenNorm) : (vehicleType === 'MOTORBIKE' ? formatMotorbikePlate(chosenNorm) : chosenNorm),
+    bestPlate: finalPlate,
     normalizedPlate: chosenNorm,
     sourceUsed: frontConf >= rearConf ? 'FRONT' : 'REAR',
     confidence: Math.max(frontConf, rearConf),
+    reliability: Math.max(frontConf, rearConf) >= 80 ? 'VERIFIED' : 'REVIEW',
   };
 }
 

@@ -46,7 +46,11 @@ export const monthlyPackageController = {
 
   getActivePackages: asyncHandler(async (_req: AuthRequest, res: Response) => {
     const packages = await monthlyPackageService.getActivePackages();
-    return res.status(200).json({ success: true, data: packages });
+    const sanitized = packages.map((pkg: any) => {
+      const { monthlyAccessPin, ...rest } = pkg;
+      return rest;
+    });
+    return res.status(200).json({ success: true, data: sanitized });
   }),
 
   getMyPackages: asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -56,6 +60,13 @@ export const monthlyPackageController = {
 
   getByVehicle: asyncHandler(async (req: AuthRequest, res: Response) => {
     const pkg = await monthlyPackageService.getByVehicle(req.params.vehicleId);
+    if (!pkg) {
+      return res.status(200).json({ success: true, data: null });
+    }
+    const isOwner = pkg.userId === req.user!.id;
+    if (!isOwner) {
+      (pkg as any).monthlyAccessPin = undefined;
+    }
     return res.status(200).json({ success: true, data: pkg });
   }),
 
@@ -117,5 +128,11 @@ export const monthlyPackageController = {
     }
     const quotas = await monthlyPackageService.getFloorQuotas(floorId);
     return res.status(200).json({ success: true, data: quotas });
+  }),
+
+  ensureAccessPin: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { packageId } = req.params;
+    const result = await monthlyPackageService.ensureAccessPin(packageId, req.user!.id);
+    return res.status(200).json({ success: true, data: result });
   }),
 };

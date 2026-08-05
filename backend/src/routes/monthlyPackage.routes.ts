@@ -101,6 +101,7 @@ router.post(
  */
 router.post('/:packageId/renew', monthlyPackageController.renewPackage);
 router.post('/:packageId/abandon-payment', monthlyPackageController.abandonPayment);
+router.post('/:packageId/access-pin/ensure', monthlyPackageController.ensureAccessPin);
 
 /**
  * @swagger

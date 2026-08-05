@@ -107,7 +107,13 @@ export const vehicleService = {
 
       owner: vehicle.owner,
 
-      isMonthly: vehicle.isMonthly || (vehicle.monthlyPackage?.status === 'ACTIVE'),
+      isMonthly: (() => {
+        const pkg = vehicle.monthlyPackage;
+        if (!pkg) return false;
+        if (pkg.status !== 'ACTIVE') return false;
+        if (!pkg.expiryDate) return false;
+        return new Date(pkg.expiryDate).getTime() > Date.now();
+      })(),
 
       monthlyPackage: vehicle.monthlyPackage,
 

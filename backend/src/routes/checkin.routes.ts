@@ -116,7 +116,8 @@ router.post(
   '/',
   uploadCheckinImage.fields([
     { name: 'frontImage', maxCount: 1 },
-    { name: 'rearImage', maxCount: 1 }
+    { name: 'rearImage', maxCount: 1 },
+    { name: 'driverCheckInImage', maxCount: 1 }
   ]),
   parseMultipartCheckin,
   submitCheckinSchema,
