@@ -1,7 +1,8 @@
 import { Response } from 'express';
 import { checkoutService } from '../services/checkout.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { asyncHandler } from '../utils/helpers';
+import { asyncHandler, AppError } from '../utils/helpers';
+import { monthlyPackageService } from '../services/monthlyPackage.service';
 
 export const checkoutController = {
   // GET /api/checkout/lookup?plate=51A-222.22
@@ -10,7 +11,23 @@ export const checkoutController = {
     if (!plate) {
       return res.status(400).json({ success: false, message: 'plate là bắt buộc.' });
     }
+    const pin = (req.query.pin as string) || (req.query.monthlyAccessPin as string);
+    if (pin) {
+      if (!/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ success: false, message: 'Mã PIN hoặc thông tin vé tháng không hợp lệ.' });
+      }
+      try {
+        await monthlyPackageService.verifyMonthlyPackageAccessByPin(plate, pin);
+      } catch (err: any) {
+        return res.status(400).json({ success: false, message: err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.' });
+      }
+    }
     const result = await checkoutService.lookupPlate(plate);
+    if (pin && result.found) {
+      result.isMonthly = true;
+      result.fee = 0;
+      result.amountDue = 0;
+    }
     return res.status(200).json({ success: true, data: result });
   }),
 
@@ -37,7 +54,19 @@ export const checkoutController = {
       });
     }
 
-    const result = await checkoutService.submit({ plate, method, staffId: req.user!.id });
+    const pin = (req.body.pin as string) || (req.body.monthlyAccessPin as string);
+    if (pin) {
+      if (!/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ success: false, message: 'Mã PIN hoặc thông tin vé tháng không hợp lệ.' });
+      }
+      try {
+        await monthlyPackageService.verifyMonthlyPackageAccessByPin(plate, pin);
+      } catch (err: any) {
+        return res.status(400).json({ success: false, message: err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.' });
+      }
+    }
+
+    const result = await checkoutService.submit({ plate, method, staffId: req.user!.id, pin });
 
     return res.status(200).json({
       success: true,

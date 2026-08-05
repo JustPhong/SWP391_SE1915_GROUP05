@@ -76,14 +76,11 @@ export const ocrController = {
       vehicleType
     );
 
-    let reliability = 'REVIEW';
+    const reliability = reconciliation.reliability || 'REVIEW';
+
     const chosenResult = (reconciliation.sourceUsed === 'FRONT' || (reconciliation.sourceUsed === 'MERGED' && frontResult && frontResult.confidence >= (rearResult?.confidence || 0)))
       ? frontResult
       : rearResult;
-
-    if (chosenResult) {
-      reliability = chosenResult.reliability || 'REVIEW';
-    }
 
     const durationMs = Date.now() - startTotal;
     if (process.env.NODE_ENV !== 'production') {

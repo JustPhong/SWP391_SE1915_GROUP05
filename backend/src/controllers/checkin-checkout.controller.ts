@@ -39,6 +39,7 @@ export const checkOutController = {
       checkInRecordId: req.body.checkInRecordId,
       method: req.body.paymentMethod ?? 'CASH',
       staffId: req.user!.id,
+      pin: req.body.pin || req.body.monthlyAccessPin,
     });
     return res.status(200).json({ success: true, data: result });
   }),
