@@ -766,3 +766,30 @@
     justify-content: center;
   }
 }
+
+.vehiclePackageIcon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.vehiclePackageImage {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+  transform-origin: center;
+}
+
+.carVehicleImage {
+  transform: scale(3.0);
+}
+
+.motorbikeVehicleImage {
+  transform: scale(1.2);
+}

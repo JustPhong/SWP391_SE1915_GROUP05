@@ -41,7 +41,7 @@ const C = {
 // ═════════════════════════════════════════════════════
 //  DERIVED STATUS TYPE
 // ═════════════════════════════════════════════════════
-type DerivedStatus = 'SAP_DEN' | 'QUA_GIO' | 'DA_VAO' | 'VANG_MAT';
+type DerivedStatus = 'SAP_DEN' | 'QUA_GIO' | 'DA_VAO' | 'VANG_MAT' | 'HIDDEN';
 type TabKey = 'DANG_CHO' | 'DA_VAO' | 'VANG_MAT';
 
 const TAB_CONFIG: { key: TabKey; label: string; icon: string }[] = [
@@ -117,10 +117,12 @@ function deriveStatus(
 ): DerivedStatus {
   if (b.status === 'FULFILLED') return 'DA_VAO';
   if (b.status === 'NO_SHOW') return 'VANG_MAT';
-  // ACTIVE — derive from expected arrival
-  const arrival = new Date(b.expectedArrival).getTime();
-  if (isNaN(arrival) || arrival > _now) return 'SAP_DEN';
-  return 'QUA_GIO';
+  if (b.status === 'ACTIVE') {
+    const arrival = new Date(b.expectedArrival).getTime();
+    if (isNaN(arrival) || arrival > _now) return 'SAP_DEN';
+    return 'QUA_GIO';
+  }
+  return 'HIDDEN';
 }
 
 
@@ -255,6 +257,11 @@ function StatusBadge({ derivedStatus }: { derivedStatus: DerivedStatus }) {
       bg: '#F1F5F9', border: '#E2E8F0', color: '#64748B',
       icon: <IconUserX size={12} />,
       label: 'Vắng mặt',
+    },
+    HIDDEN: {
+      bg: '#F1F5F9', border: '#E2E8F0', color: '#64748B',
+      icon: <IconUserX size={12} />,
+      label: 'Không xác định',
     },
   };
   const s = config[derivedStatus];
@@ -460,14 +467,14 @@ export function BookingManagementPage() {
   const tabFiltered = useMemo(() => {
     if (tab === 'DANG_CHO') {
       return bookingsWithStatus.filter(
-        (b) => b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO'
+        (b) => (b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO') && b.status === 'ACTIVE'
       );
     }
     if (tab === 'DA_VAO') {
-      return bookingsWithStatus.filter((b) => b._derivedStatus === 'DA_VAO');
+      return bookingsWithStatus.filter((b) => b._derivedStatus === 'DA_VAO' && b.status === 'FULFILLED');
     }
     // VANG_MAT
-    return bookingsWithStatus.filter((b) => b._derivedStatus === 'VANG_MAT');
+    return bookingsWithStatus.filter((b) => b._derivedStatus === 'VANG_MAT' && b.status === 'NO_SHOW');
   }, [bookingsWithStatus, tab]);
 
   // Apply filters
@@ -499,10 +506,10 @@ export function BookingManagementPage() {
   const tabCounts = useMemo(() => {
     return {
       DANG_CHO: bookingsWithStatus.filter(
-        (b) => b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO'
+        (b) => (b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO') && b.status === 'ACTIVE'
       ).length,
-      DA_VAO: bookingsWithStatus.filter((b) => b._derivedStatus === 'DA_VAO').length,
-      VANG_MAT: bookingsWithStatus.filter((b) => b._derivedStatus === 'VANG_MAT').length,
+      DA_VAO: bookingsWithStatus.filter((b) => b._derivedStatus === 'DA_VAO' && b.status === 'FULFILLED').length,
+      VANG_MAT: bookingsWithStatus.filter((b) => b._derivedStatus === 'VANG_MAT' && b.status === 'NO_SHOW').length,
     };
   }, [bookingsWithStatus]);
 
@@ -898,7 +905,7 @@ export function BookingManagementPage() {
                         {/* Thao tác */}
                         <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            {(b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO') && (
+                            {b.status === 'ACTIVE' && b.depositStatus === 'PAID' && (b._derivedStatus === 'SAP_DEN' || b._derivedStatus === 'QUA_GIO') && (
                               <button
                                 onClick={() => handleConfirmArrival(b)}
                                 disabled={busyId === b.id}

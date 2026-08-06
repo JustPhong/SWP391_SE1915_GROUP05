@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import {
   checkoutLookupPlate,
   createCheckoutStripeSession,
-  getCheckoutStripeStatusBySession
+  getCheckoutStripeStatusBySession,
+  lookupCheckoutByPin
 } from '../api/checkoutApi';
+import type { CheckoutLookupResult, CheckoutLookupByPinResult } from '../api/checkoutApi';
+import { lookupGuestVehicle } from '../api/guestApi';
 import type { CheckInRecord } from '../types/index';
 import {
   initializeFaceComparison,
@@ -18,7 +21,7 @@ import {
   type FaceComparisonResult
 } from '../services/faceComparison';
 
-// ── Types ────────────────────────────────────────────────
+// ���� Types ������������������������������������������������������������������������������������������������
 interface ActiveRecord {
   id: string;
   vehicleId: string;
@@ -99,12 +102,13 @@ interface CheckOutResponse {
   grossParkingFee?: number;
   bookingDepositPaid?: number;
   bookingId?: string | null;
+  vehicleType?: 'CAR' | 'MOTORBIKE' | string | null;
 }
 
 
 
 
-// ── Design tokens ────────────────────────────────────────
+// ���� Design tokens ��������������������������������������������������������������������������������
 const C = {
   navy: '#1E3A5F',
   white: '#FFFFFF',
@@ -160,7 +164,7 @@ function IconAlert({ size = 16, color = C.red }: { size?: number; color?: string
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
 }
@@ -209,7 +213,8 @@ function formatFloorLocation(
 function formatReceiptLocation(
   floorName?: string | null,
   floorCode?: string | null,
-  slotCode?: string | null
+  slotCode?: string | null,
+  vehicleType?: 'CAR' | 'MOTORBIKE' | string | null
 ): string {
   let label = '';
   const name = floorName ? floorName.trim() : '';
@@ -228,17 +233,32 @@ function formatReceiptLocation(
     label = 'Không cố định';
   }
 
-  if (slotCode?.startsWith('Khu ')) {
-    label += ` · ${slotCode}`;
-  } else if (slotCode && slotCode !== 'Không cố định') {
-    label += ` · Vị trí ${slotCode}`;
+  const cleanSlot = slotCode?.trim();
+  const isSlotMissingOrGeneric = !cleanSlot || 
+    cleanSlot === 'Không cố định' || 
+    cleanSlot.includes('Không') || 
+    cleanSlot.includes('cố định') || 
+    cleanSlot.includes('c');
+
+  if (!isSlotMissingOrGeneric) {
+    if (cleanSlot.startsWith('Khu ')) {
+      label += ` · ${cleanSlot}`;
+    } else {
+      label += ` · Vị trí ${cleanSlot}`;
+    }
   }
+
+  if (vehicleType) {
+    const area = vehicleType === 'CAR' ? 'Khu ô tô' : 'Khu xe máy';
+    label += ` · ${area}`;
+  }
+
   return label;
 }
 
 
 
-// ── Main component ───────────────────────────────────────
+// ���� Main component ������������������������������������������������������������������������������
 export function CheckOutPage() {
   const [plateInput, setPlateInput] = useState('');
   const [searching, setSearching] = useState(false);
@@ -267,103 +287,405 @@ export function CheckOutPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; label: string } | null>(null);
   const [isLegacy, setIsLegacy] = useState(false);
 
-  // ── Monthly PIN Fallback Modal ──
-  const [showMonthlyPinModal, setShowMonthlyPinModal] = useState(false);
-  const [monthlyPinPlateInput, setMonthlyPinPlateInput] = useState('');
-  const [monthlyPinCodeInput, setMonthlyPinCodeInput] = useState('');
-  const [monthlyPinError, setMonthlyPinError] = useState('');
-  const [monthlyPinLoading, setMonthlyPinLoading] = useState(false);
+  // ���� Lookup Panel State ����
+  // Plate fallback (collapsed by default)
+  const [plateFallbackOpen, setPlateFallbackOpen] = useState(false);
+
+  // QR section state
+  const [qrError, setQrError] = useState('');
+  const [qrLoading, setQrLoading] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const qrControlsRef = useRef<{ stop: () => void } | null>(null);
+
+  // PIN section state
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+
+  // monthlyAccessPin is kept in state because POST /api/checkin-out/out
+  // re-verifies it server-side for monthly packages
   const [monthlyAccessPin, setMonthlyAccessPin] = useState('');
 
-  const handleVerifyCheckoutMonthlyPin = async () => {
-    const plate = monthlyPinPlateInput.trim().toUpperCase();
-    const pin = monthlyPinCodeInput.trim();
+  // Camera helpers
+  const stopCamera = useCallback(() => {
+    qrControlsRef.current?.stop();
+    qrControlsRef.current = null;
 
-    if (!plate) {
-      setMonthlyPinError('Vui lòng nhập biển số xe.');
-      return;
-    }
-    if (!/^\d{6}$/.test(pin)) {
-      setMonthlyPinError('Mã PIN phải gồm đúng 6 chữ số.');
-      return;
+    const video = videoRef.current;
+    const stream = video?.srcObject;
+
+    if (stream instanceof MediaStream) {
+      stream.getTracks().forEach((track) => track.stop());
     }
 
-    setMonthlyPinError('');
-    setMonthlyPinLoading(true);
+    if (video) {
+      video.srcObject = null;
+    }
+
+    setCameraActive(false);
+  }, []);
+
+  useEffect(() => {
+    return () => { stopCamera(); };
+  }, [stopCamera]);
+
+  // ���� Shared success handler ����
+  interface ValidatedLookupResult {
+    recordId: string;
+    vehicleId: string;
+    plate: string;
+    vehicleType: 'CAR' | 'MOTORBIKE';
+    checkInTime: string;
+    isMonthly: boolean;
+    slotCode?: string;
+    now?: string;
+    durationMinutes?: number;
+    fee?: number;
+    amountDue?: number;
+    breakdown?: {
+      label: string;
+      minutesInBlock: number;
+      lots: number;
+      lotHours: number;
+      rate: number;
+      amount: number;
+      note?: string;
+    }[];
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    seats?: number | null;
+    ownerName?: string | null;
+    ownerPhone?: string | null;
+    ownerEmail?: string | null;
+    frontImageUrl?: string | null;
+    rearImageUrl?: string | null;
+    driverCheckInImageUrl?: string | null;
+    isLegacy?: boolean;
+  }
+
+  const validateLookupResult = (
+    res: CheckoutLookupResult | CheckoutLookupByPinResult
+  ): ValidatedLookupResult => {
+    if (
+      !res.found ||
+      typeof res.recordId !== 'string' || !res.recordId ||
+      typeof res.vehicleId !== 'string' || !res.vehicleId ||
+      typeof res.plate !== 'string' || !res.plate ||
+      (res.vehicleType !== 'CAR' && res.vehicleType !== 'MOTORBIKE') ||
+      typeof res.checkInTime !== 'string' || !res.checkInTime
+    ) {
+      throw new Error('Dữ li�!u phiên gửi xe không �ầy �ủ. Vui lòng thử lại.');
+    }
+    return {
+      ...res,
+      recordId: res.recordId,
+      vehicleId: res.vehicleId,
+      plate: res.plate,
+      vehicleType: res.vehicleType,
+      checkInTime: res.checkInTime,
+      isMonthly: res.isMonthly ?? false,
+    };
+  };
+
+  const onLookupSuccess = (
+    result: CheckoutLookupResult | CheckoutLookupByPinResult,
+    resolvedMonthlyPin?: string
+  ) => {
+    const validated = validateLookupResult(result);
+
+    // Reset face comparison and payments from previous vehicle
+    setFoundRecord(null);
+    setFeePreview(null);
+    setOwnerInfo(null);
+    setFrontImageUrl(null);
+    setRearImageUrl(null);
+    setFrontImgError(false);
+    setRearImgError(false);
+    setPreviewImage(null);
+    setIsLegacy(false);
+    resetFaceVerification();
+    setMonthlyAccessPin(resolvedMonthlyPin ?? '');
+    setPlateInput(validated.plate);
+
+    const mapped: ActiveRecord = {
+      id: validated.recordId,
+      vehicleId: validated.vehicleId,
+      slotId: null,
+      checkInTime: validated.checkInTime,
+      checkOutTime: null,
+      isMonthly: validated.isMonthly,
+      vehicle: {
+        plateNumber: validated.plate,
+        type: validated.vehicleType,
+        brand: validated.brand ?? null,
+        model: validated.model ?? null,
+        color: validated.color ?? null,
+        year: validated.year ?? null,
+        seats: validated.seats ?? null,
+      },
+      slot: validated.slotCode ? { code: validated.slotCode, floor: 0 } : null,
+      floor: null,
+    };
+
+    setFoundRecord(mapped);
+    setOwnerInfo({
+      name: validated.ownerName ?? null,
+      phone: validated.ownerPhone ?? null,
+      email: validated.ownerEmail ?? null,
+    });
+    setFrontImageUrl(validated.frontImageUrl ?? null);
+    setRearImageUrl(validated.rearImageUrl ?? null);
+    setDriverCheckInImageUrl(validated.driverCheckInImageUrl ?? null);
+    setIsLegacy(validated.isLegacy ?? false);
+
+    setFeePreview({
+      recordId: validated.recordId,
+      plate: validated.plate,
+      slotCode: validated.slotCode || 'Không c� ��9nh',
+      vehicleType: validated.vehicleType,
+      isMonthly: validated.isMonthly,
+      checkInTime: validated.checkInTime,
+      now: validated.now || new Date().toISOString(),
+      durationMinutes: validated.durationMinutes || 0,
+      fee: validated.fee || 0,
+      amountDue: validated.amountDue || 0,
+      breakdown: validated.breakdown || [],
+    });
+  };
+
+  // ���� Guest QR verification ����
+  const extractQrToken = (raw: string): { type: 'GUEST_TOKEN'; token: string } | { type: 'MONTHLY_PLATE'; plate: string } | { type: 'RAW_TOKEN'; token: string } | null => {
+    const trimmed = raw.trim();
+    // Try parse as URL
     try {
+      const url = new URL(trimmed);
+      const qr = url.searchParams.get('qr');
+      if (qr && /^[0-9a-f]{64}$/i.test(qr)) {
+        return { type: 'GUEST_TOKEN', token: qr };
+      }
+    } catch { /* not a URL */ }
+    // Try parse as monthly QR JSON
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      if (parsed.ticketType === 'MONTHLY_PASS' && typeof parsed.plateNumber === 'string' && parsed.plateNumber) {
+        return { type: 'MONTHLY_PLATE', plate: parsed.plateNumber as string };
+      }
+    } catch { /* not JSON */ }
+    // Treat raw 64-char hex as guest token
+    if (/^[0-9a-f]{64}$/i.test(trimmed)) {
+      return { type: 'RAW_TOKEN', token: trimmed };
+    }
+    return null;
+  };
+
+  const handleQrConfirm = async (rawValue: string) => {
+    setQrError('');
+    const parsed = extractQrToken(rawValue);
+    if (!parsed) {
+      setQrError('N�"i dung không phải mã QR hợp l�!. Vui lòng thử lại.');
+      return;
+    }
+    if (parsed.type === 'MONTHLY_PLATE') {
+      // Monthly QR: plate-prefill only � not credential verification
+      setQrError('');
+      setPlateInput(parsed.plate.toUpperCase());
+      setPlateFallbackOpen(true);
+      setSearchError('Mã QR xe tháng �ã �iền biỒn s�. Vui lòng dùng "Tra cứu bằng biỒn s�" bên dư�:i �Ồ xác nhận.');
+      return;
+    }
+
+    setQrLoading(true);
+
+    // Reset details to prevent stale checkout
+    setFoundRecord(null);
+    setFeePreview(null);
+    setOwnerInfo(null);
+    setFrontImageUrl(null);
+    setRearImageUrl(null);
+    setFrontImgError(false);
+    setRearImgError(false);
+    setPreviewImage(null);
+    setIsLegacy(false);
+    resetFaceVerification();
+    setMonthlyAccessPin('');
+
+    try {
+      const guestResult = await lookupGuestVehicle(undefined, parsed.token);
       const activeRes = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
       const raw = activeRes.data.data ?? [];
-      const cleanInput = plate.replace(/[-.\s]/g, '').toUpperCase();
+      const cleanPlate = guestResult.plate.replace(/[-.\s]/g, '').toUpperCase();
       const matched = raw.find((r) => {
         const p = (r.vehicle?.plateNumber || '').trim().replace(/[-.\s]/g, '').toUpperCase();
-        return p === cleanInput;
+        return p === cleanPlate;
       });
+      if (!matched) throw new Error('Không tìm thấy phiên gửi xe �ang hoạt ��"ng.');
 
-      if (!matched) {
-        throw new Error('Không tìm thấy xe đang ở trong bãi.');
-      }
-
-      const lookup = await checkoutLookupPlate(plate, pin);
-
-      const matchedVehicle = matched.vehicle as ActiveRecord['vehicle'] | undefined;
-      const mapped: ActiveRecord = {
-        id: matched.id,
-        vehicleId: matched.vehicleId,
-        slotId: matched.slotId ?? null,
-        checkInTime: matched.checkInTime,
-        checkOutTime: matched.checkOutTime,
-        isMonthly: true,
-        vehicle: matchedVehicle ? {
-          plateNumber: matchedVehicle.plateNumber,
-          type: matchedVehicle.type,
-          brand: lookup.brand ?? matchedVehicle.brand,
-          model: lookup.model ?? matchedVehicle.model,
-          color: lookup.color ?? matchedVehicle.color,
-          year: lookup.year ?? matchedVehicle.year,
-          seats: lookup.seats ?? matchedVehicle.seats,
-        } : undefined,
-        slot: matched.slot ? { code: matched.slot.code, floor: matched.slot.floorId } : null,
-        floor: matched.floor ? { id: matched.floor.id, name: matched.floor.name, floorCode: matched.floor.floorCode } : null,
-        allowedTier: matched.allowedTier,
-        bookingId: matched.bookingId,
-      };
-
-      setFoundRecord(mapped);
-      setOwnerInfo({
-        name: lookup.ownerName ?? null,
-        phone: lookup.ownerPhone ?? null,
-        email: lookup.ownerEmail ?? null,
-      });
-      setFrontImageUrl(lookup.frontImageUrl ?? null);
-      setRearImageUrl(lookup.rearImageUrl ?? null);
-      setDriverCheckInImageUrl(lookup.driverCheckInImageUrl ?? null);
-      setIsLegacy(lookup.isLegacy ?? false);
-
-      setFeePreview({
-        recordId: matched.id,
-        plate: lookup.plate || matched.vehicle?.plateNumber || plate,
-        slotCode: lookup.slotCode || (matched.slot ? matched.slot.code : 'Không cố định'),
-        vehicleType: (lookup.vehicleType || (matched.vehicle ? matched.vehicle.type : 'CAR')) as 'CAR' | 'MOTORBIKE',
-        isMonthly: lookup.isMonthly ?? matched.isMonthly ?? true,
-        checkInTime: lookup.checkInTime || matched.checkInTime,
-        now: lookup.now || new Date().toISOString(),
-        durationMinutes: lookup.durationMinutes ?? Math.round((Date.now() - new Date(matched.checkInTime).getTime()) / 60000),
-        fee: lookup.fee ?? 0,
-        amountDue: lookup.amountDue ?? 0,
-        breakdown: lookup.breakdown || []
-      });
-
-      setMonthlyAccessPin(pin);
-      setPlateInput(plate);
-      setShowMonthlyPinModal(false);
+      const lookup = await checkoutLookupPlate(matched.vehicle?.plateNumber || '');
+      onLookupSuccess(lookup);
     } catch (err: any) {
-      setMonthlyPinError(err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Mã QR không hợp l�! hoặc �ã hết hạn.';
+      setQrError(msg);
     } finally {
-      setMonthlyPinLoading(false);
+      setQrLoading(false);
     }
   };
 
-  // ── Face Comparison States ──
+  // ���� Camera QR scanning ����
+  const startCamera = async () => {
+    setQrError('');
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setQrError('Trình duy�!t không h�· trợ truy cập camera.');
+      return;
+    }
+
+    if (!videoRef.current) {
+      setQrError('Không thỒ kh�xi ��"ng camera quét QR.');
+      return;
+    }
+
+    stopCamera();
+
+    try {
+      const { BrowserQRCodeReader } = await import('@zxing/browser');
+      const reader = new BrowserQRCodeReader();
+
+      const constraints = {
+        audio: false,
+        video: { facingMode: { ideal: 'environment' } }
+      };
+
+      let qrHandled = false;
+
+      const controls = await reader.decodeFromConstraints(
+        constraints,
+        videoRef.current,
+        (result) => {
+          if (!result || qrHandled) return;
+          const decodedText = result.getText();
+          if (!decodedText) return;
+          qrHandled = true;
+
+          controls.stop();
+          qrControlsRef.current = null;
+          setCameraActive(false);
+
+          void handleQrConfirm(decodedText);
+        }
+      );
+
+      qrControlsRef.current = controls;
+      setCameraActive(true);
+    } catch (err: any) {
+      stopCamera();
+
+      const errName = err?.name;
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setQrError('Không có quyền sử dụng camera. Vui lòng cấp quyền camera cho trình duy�!t.');
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        setQrError('Không tìm thấy camera trên thiết b�9.');
+      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        setQrError('Không thỒ m�x camera. Camera có thỒ �ang �ược ứng dụng khác sử dụng.');
+      } else {
+        setQrError('Không thỒ kh�xi ��"ng camera quét QR.');
+      }
+    }
+  };
+
+  // ���� Local QR Photo Library Select ����
+  const handleQrImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    stopCamera();
+    setQrError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setQrError('Ảnh mã QR ch�0 h�· trợ ��9nh dạng JPG, PNG hoặc WEBP.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setQrError('Ảnh mã QR không �ược vượt quá 5 MB.');
+      return;
+    }
+
+    let objectUrl = '';
+    try {
+      const { BrowserQRCodeReader } = await import('@zxing/browser');
+      const reader = new BrowserQRCodeReader();
+
+      objectUrl = URL.createObjectURL(file);
+      const result = await reader.decodeFromImageUrl(objectUrl);
+      const decodedText = result.getText();
+
+      if (decodedText) {
+        await handleQrConfirm(decodedText);
+      } else {
+        setQrError('Không tìm thấy mã QR trong ảnh �ã chọn.');
+      }
+    } catch (err) {
+      setQrError('Không tìm thấy mã QR trong ảnh �ã chọn.');
+    } finally {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      e.target.value = '';
+    }
+  };
+
+  // ���� Unified PIN verification ����
+  const handlePinConfirm = async () => {
+    stopCamera();
+    setPinError('');
+    const pin = pinInput.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      setPinError('Mã PIN phải g�m �úng 6 chữ s�.');
+      return;
+    }
+    setPinLoading(true);
+
+    // Reset details to prevent stale checkout
+    setFoundRecord(null);
+    setFeePreview(null);
+    setOwnerInfo(null);
+    setFrontImageUrl(null);
+    setRearImageUrl(null);
+    setFrontImgError(false);
+    setRearImgError(false);
+    setPreviewImage(null);
+    setIsLegacy(false);
+    resetFaceVerification();
+    setMonthlyAccessPin('');
+
+    try {
+      const result = await lookupCheckoutByPin(pin);
+      onLookupSuccess(result, result.credentialType === 'MONTHLY_PIN' ? pin : undefined);
+      setPinInput('');
+    } catch (err: any) {
+      setPinError(err.message || 'Mã PIN không �úng hoặc �ã hết hạn.');
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
+  // ���� Full lookup panel reset ����
+  const resetLookupPanel = useCallback(() => {
+    stopCamera();
+    setQrError('');
+    setPinInput('');
+    setPinError('');
+    setPlateInput('');
+    setSearchError('');
+    setPlateFallbackOpen(false);
+    setMonthlyAccessPin('');
+  }, [stopCamera]);
+
+  // ���� Face Comparison States ����
   const [driverCheckInImageUrl, setDriverCheckInImageUrl] = useState<string | null>(null);
   const [checkoutImage, setCheckoutImage] = useState<File | null>(null);
   const [checkoutImagePreview, setCheckoutImagePreview] = useState<string | null>(null);
@@ -383,7 +705,7 @@ export function CheckOutPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  // ── Face Verification Cleanup and Helpers ──
+  // ���� Face Verification Cleanup and Helpers ����
   const resetFaceVerification = () => {
     setDriverCheckInImageUrl(null);
     setCheckoutImage(null);
@@ -447,7 +769,7 @@ export function CheckOutPage() {
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      setComparisonError('Ảnh người nhận xe chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP.');
+      setComparisonError('Ảnh người nhận xe ch�0 h�· trợ ��9nh dạng JPG, PNG hoặc WEBP.');
       setCheckoutImage(null);
       if (checkoutImagePreview) {
         URL.revokeObjectURL(checkoutImagePreview);
@@ -457,7 +779,7 @@ export function CheckOutPage() {
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setComparisonError('Ảnh người nhận xe không được vượt quá 5 MB.');
+      setComparisonError('Ảnh người nhận xe không �ược vượt quá 5 MB.');
       setCheckoutImage(null);
       if (checkoutImagePreview) {
         URL.revokeObjectURL(checkoutImagePreview);
@@ -501,31 +823,31 @@ export function CheckOutPage() {
     try {
       const initialized = await ensureModelInitialized();
       if (!initialized) {
-        throw new Error('Không thể tải mô hình đối chiếu. Nhân viên có thể tiếp tục kiểm tra thủ công.');
+        throw new Error('Không thỒ tải mô hình ��i chiếu. Nhân viên có thỒ tiếp tục kiỒm tra thủ công.');
       }
 
       let referenceImg: HTMLImageElement;
       try {
         referenceImg = await loadImageFromUrl(driverCheckInImageUrl);
       } catch (err) {
-        throw new Error('Không thể đọc ảnh người gửi lúc check-in.');
+        throw new Error('Không thỒ �ọc ảnh người gửi lúc check-in.');
       }
 
       const referenceExtract = await extractSingleFaceEmbedding(referenceImg, true);
       if (referenceExtract.code !== 'OK' || !referenceExtract.embedding) {
-        throw new Error(referenceExtract.message || 'Không thể tải mô hình đối chiếu. Nhân viên vui lòng kiểm tra thủ công.');
+        throw new Error(referenceExtract.message || 'Không thỒ tải mô hình ��i chiếu. Nhân viên vui lòng kiỒm tra thủ công.');
       }
 
       let checkoutImg: HTMLImageElement;
       try {
         checkoutImg = await loadImageFromFile(checkoutImage);
       } catch (err) {
-        throw new Error('Không thể đọc ảnh người nhận xe đã chọn.');
+        throw new Error('Không thỒ �ọc ảnh người nhận xe �ã chọn.');
       }
 
       const checkoutExtract = await extractSingleFaceEmbedding(checkoutImg, false);
       if (checkoutExtract.code !== 'OK' || !checkoutExtract.embedding) {
-        throw new Error(checkoutExtract.message || 'Không thể tải mô hình đối chiếu. Nhân viên vui lòng kiểm tra thủ công.');
+        throw new Error(checkoutExtract.message || 'Không thỒ tải mô hình ��i chiếu. Nhân viên vui lòng kiỒm tra thủ công.');
       }
 
       const durationMs = Math.round(performance.now() - startTime);
@@ -540,7 +862,7 @@ export function CheckOutPage() {
       if (foundRecord.id !== recordIdAtStart || checkoutImage !== checkoutImageAtStart) {
         return;
       }
-      setComparisonError(err.message || 'Không thể thực hiện đối chiếu khuôn mặt. Nhân viên vui lòng kiểm tra thủ công.');
+      setComparisonError(err.message || 'Không thỒ thực hi�!n ��i chiếu khuôn mặt. Nhân viên vui lòng kiỒm tra thủ công.');
     } finally {
       if (foundRecord.id === recordIdAtStart && checkoutImage === checkoutImageAtStart) {
         setIsComparing(false);
@@ -548,7 +870,7 @@ export function CheckOutPage() {
     }
   };
 
-  // ── Load all active records (sidebar table) ───────────
+  // ���� Load all active records (sidebar table) ����������������������
   const [loadError, setLoadError] = useState('');
 
   const loadAllRecords = async () => {
@@ -583,7 +905,7 @@ export function CheckOutPage() {
       setAllRecords([]);
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? 'Không thể tải danh sách xe. Bạn có thể cần đăng nhập lại.';
+        ?? 'Không thỒ tải danh sách xe. Bạn có thỒ cần �Ēng nhập lại.';
       setLoadError(msg);
     } finally {
       setLoadingAll(false);
@@ -594,7 +916,7 @@ export function CheckOutPage() {
 
   useRefreshOnFocus({ enabled: true, onRefresh: loadAllRecords });
 
-  // ── Stripe success polling / cancel state restoration ──
+  // ���� Stripe success polling / cancel state restoration ����
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const stripeParam = params.get('stripe');
@@ -612,6 +934,7 @@ export function CheckOutPage() {
           const res = await getCheckoutStripeStatusBySession(sessionId);
           if (res.status === 'SUCCESS' && res.receipt) {
             clearInterval(interval);
+            const savedType = localStorage.getItem('checkout_stripe_vehicle_type_' + sessionId);
             const checkoutRes: CheckOutResponse = {
               recordId: sessionId,
               paymentRequired: true,
@@ -628,7 +951,11 @@ export function CheckOutPage() {
               paymentMethod: 'CARD',
               grossParkingFee: res.receipt.grossParkingFee,
               bookingDepositPaid: res.receipt.bookingDepositPaid,
+              vehicleType: savedType || undefined,
             };
+            if (savedType) {
+              localStorage.removeItem('checkout_stripe_vehicle_type_' + sessionId);
+            }
             setCheckoutResult(checkoutRes);
             setStripeStatus('SUCCESS');
             setIsFeeBreakdownOpen(false);
@@ -640,7 +967,7 @@ export function CheckOutPage() {
             clearInterval(interval);
             setStripeStatus('FAILED');
             setCheckoutLoading(false);
-            setCheckoutError('Xác nhận thanh toán từ Stripe quá lâu. Vui lòng kiểm tra lại trạng thái.');
+            setCheckoutError('Xác nhận thanh toán từ Stripe quá lâu. Vui lòng kiỒm tra lại trạng thái.');
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } catch (err: unknown) {
@@ -658,7 +985,7 @@ export function CheckOutPage() {
       return () => clearInterval(interval);
     } else if (stripeParam === 'cancelled') {
       setStripeStatus('CANCELLED');
-      setCheckoutError('Thanh toán đã được hủy. Xe chưa được check-out.');
+      setCheckoutError('Thanh toán �ã �ược hủy. Xe chưa �ược check-out.');
       window.history.replaceState({}, document.title, window.location.pathname);
 
       const saved = localStorage.getItem('checkout_cancelled_record');
@@ -683,7 +1010,7 @@ export function CheckOutPage() {
     }
   }, []);
 
-  // ── Fetch fee preview from backend ───────────────────
+  // ���� Fetch fee preview from backend ��������������������������������������
   const fetchFeePreview = async (recordId: string): Promise<FeePreview | null> => {
     try {
       const res = await api.get<{ success: boolean; data: FeePreview }>(`/checkin-out/preview/${recordId}`);
@@ -693,7 +1020,7 @@ export function CheckOutPage() {
     }
   };
 
-  // ── Auto-search if plate was passed via ?plate= ──────
+  // ���� Auto-search if plate was passed via ?plate= ������������
   useEffect(() => {
     if (autoSearchRan.current) return;
     const incoming = searchParams.get('plate');
@@ -701,11 +1028,13 @@ export function CheckOutPage() {
     autoSearchRan.current = true;
     const raw = incoming.trim().toUpperCase();
     setPlateInput(raw);
+    setPlateFallbackOpen(true);
     setTimeout(() => performSearch(raw), 50);
   }, []);
 
-  // ── Search ─────────────────────────────────────────────
+  // ���� Search ������������������������������������������������������������������������������������������
   const performSearch = async (plate: string) => {
+    stopCamera();
     if (!plate) return;
     setIsFeeBreakdownOpen(false);
     setSearching(true);
@@ -732,7 +1061,7 @@ export function CheckOutPage() {
       });
 
       if (!matched) {
-        setSearchError('Không tìm thấy xe đang ở trong bãi.');
+        setSearchError('Không tìm thấy xe �ang �x trong bãi.');
         setSearching(false);
         return;
       }
@@ -807,7 +1136,7 @@ export function CheckOutPage() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? (err instanceof Error ? err.message : 'Không thể tra cứu. Vui lòng thử lại.');
+        ?? (err instanceof Error ? err.message : 'Không thỒ tra cứu. Vui lòng thử lại.');
       setSearchError(msg);
     } finally {
       setSearching(false);
@@ -822,7 +1151,7 @@ export function CheckOutPage() {
 
 
 
-  // ── Submit check-out (for zero amount due or monthly packages) ──
+  // ���� Submit check-out (for zero amount due or monthly packages) ����
   const handleConfirm = async () => {
     if (!foundRecord) return;
     setCheckoutError('');
@@ -839,6 +1168,7 @@ export function CheckOutPage() {
         recordId: foundRecord.id,
         paymentRequired: false,
         bookingId: foundRecord.bookingId,
+        vehicleType: foundRecord.vehicle?.type,
       };
       setCheckoutResult(checkoutRes);
       setFoundRecord(null);
@@ -851,10 +1181,10 @@ export function CheckOutPage() {
       setPreviewImage(null);
       setIsLegacy(false);
       resetFaceVerification();
-      setPlateInput('');
-      setMonthlyAccessPin('');
+      resetLookupPanel();
       setIsFeeBreakdownOpen(false);
       loadAllRecords();
+
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -883,6 +1213,7 @@ export function CheckOutPage() {
           recordId: foundRecord.id,
           paymentRequired: true,
           bookingId: foundRecord.bookingId,
+          vehicleType: foundRecord.vehicle?.type,
         };
         setCheckoutResult(checkoutRes);
         setFoundRecord(null);
@@ -895,10 +1226,11 @@ export function CheckOutPage() {
         setPreviewImage(null);
         setIsLegacy(false);
         resetFaceVerification();
-        setPlateInput('');
         setIsPaymentModalOpen(false);
         setIsFeeBreakdownOpen(false);
+        resetLookupPanel();
         loadAllRecords();
+
       } catch (err: unknown) {
         const msg =
           (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -917,10 +1249,11 @@ export function CheckOutPage() {
             record: foundRecord,
             ownerInfo,
           }));
+          localStorage.setItem('checkout_stripe_vehicle_type_' + res.sessionId, foundRecord.vehicle?.type || '');
           setIsFeeBreakdownOpen(false);
           window.location.href = res.checkoutUrl;
         } else {
-          throw new Error('Không nhận được URL thanh toán từ Stripe.');
+          throw new Error('Không nhận �ược URL thanh toán từ Stripe.');
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Tạo phiên thanh toán Stripe thất bại.';
@@ -932,13 +1265,15 @@ export function CheckOutPage() {
     }
   };
 
-  // ── Reset after success ───────────────────────────────
+  // ���� Reset after success ��������������������������������������������������������������
   const handleDismissResult = () => {
     setCheckoutResult(null);
     setIsFeeBreakdownOpen(false);
+    resetLookupPanel();
   };
 
-  // ── Dismiss found record ───────────────────────────────
+
+  // ���� Dismiss found record ��������������������������������������������������������������
   const handleDismissFound = () => {
     setFoundRecord(null);
     setFeePreview(null);
@@ -950,8 +1285,8 @@ export function CheckOutPage() {
     setPreviewImage(null);
     setIsLegacy(false);
     resetFaceVerification();
-    setPlateInput('');
     setIsFeeBreakdownOpen(false);
+    resetLookupPanel();
   };
 
 
@@ -965,7 +1300,7 @@ export function CheckOutPage() {
       boxSizing: 'border-box',
     }}>
 
-      {/* ── PAGE TITLE ── */}
+      {/* --- PAGE TITLE --- */}
       <div style={{ marginBottom: '1.25rem' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: C.navy }}>
           Check-out xe
@@ -1011,7 +1346,7 @@ export function CheckOutPage() {
         </div>
       )}
 
-      {/* ── TOP: plate search ── */}
+      {/* --- TOP: Credential Lookup Panel --- */}
       <div style={{
         background: C.white,
         borderRadius: C.radius,
@@ -1019,96 +1354,248 @@ export function CheckOutPage() {
         padding: '1.25rem 1.5rem',
         marginBottom: '1.25rem',
       }}>
-        <p style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: 700, color: C.gray800 }}>
-          Tìm xe
-        </p>
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <input
-            type="text"
-            value={plateInput}
-            onChange={(e) => {
-              setPlateInput(e.target.value.toUpperCase());
-              setSearchError('');
-              setFoundRecord(null);
-              setFeePreview(null);
-              setOwnerInfo(null);
-              setFrontImageUrl(null);
-              setRearImageUrl(null);
-              setFrontImgError(false);
-              setRearImgError(false);
-              setPreviewImage(null);
-              setIsLegacy(false);
-              resetFaceVerification();
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Nhập biển số xe (VD: 51A11111)..."
-            style={{
-              flex: 1,
-              padding: '0.65rem 0.85rem',
-              border: `1.5px solid ${searchError ? C.redBorder : C.gray200}`,
-              borderRadius: 10,
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              fontFamily: "'Consolas','Courier New',monospace",
-              color: C.gray800,
-              background: C.white,
-              outline: 'none',
-              boxSizing: 'border-box',
-              letterSpacing: '0.04em',
-            }}
-          />
-          <button
-            onClick={handleSearch}
-            disabled={!plateInput.trim() || searching}
-            style={{
-              padding: '0.65rem 1.25rem',
-              background: plateInput.trim() && !searching ? C.navy : C.gray200,
-              color: plateInput.trim() && !searching ? C.white : C.gray400,
-              border: 'none',
-              borderRadius: 10,
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              cursor: plateInput.trim() && !searching ? 'pointer' : 'not-allowed',
-              transition: 'all 0.15s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {searching ? 'Đang tìm...' : 'Tìm xe'}
-          </button>
+        {/* Panel header */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <p style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: C.navy }}>Xác thực phiếu gửi xe</p>
+          <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.gray500 }}>Ưu tiên sử dụng mã QR hoặc PIN được cấp khi check-in. Biển số chỉ dùng để tra cứu dự phòng.</p>
         </div>
-        {/* Compact search state indicator */}
-        <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: C.gray500 }}>
-          {searching ? (
-            <span style={{ color: C.navy, fontWeight: 500 }}>Đang tìm xe...</span>
-          ) : searchError ? (
-            <span style={{ color: C.red, fontWeight: 500 }}>{searchError}</span>
-          ) : !foundRecord ? (
-            <span>Nhập biển số xe để tìm nhanh.</span>
-          ) : <span>&nbsp;</span>}
 
-          <button
-            type="button"
-            onClick={() => {
-              setMonthlyPinPlateInput(plateInput);
-              setMonthlyPinCodeInput('');
-              setMonthlyPinError('');
-              setShowMonthlyPinModal(true);
-            }}
-            style={{
-              marginLeft: 'auto',
-              background: 'none',
-              border: 'none',
-              color: C.navy,
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              textDecoration: 'underline',
-              cursor: 'pointer',
-              padding: 0
-            }}
-          >
-            Nhập PIN vé tháng
-          </button>
+        {/* SECTION 1: Quét mã QR */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem', borderBottom: `1px solid ${C.gray100}`, paddingBottom: '1.5rem' }}>
+          <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>1. Quét mã QR</p>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray500 }}>Đưa mã QR của khách vào khung quét hoặc tải lên hình ảnh từ thư viện để xác định phiên gửi xe.</p>
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => cameraActive ? stopCamera() : startCamera()}
+              disabled={qrLoading}
+              style={{
+                padding: '0.55rem 1.1rem',
+                border: `1.5px solid ${C.navy}`,
+                borderRadius: 10,
+                background: cameraActive ? C.redBg : '#EFF6FF',
+                color: cameraActive ? C.red : C.navy,
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: qrLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {cameraActive ? 'Dừng camera' : 'Bật camera quét QR'}
+            </button>
+
+            <input
+              type="file"
+              id="qr-image-upload"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleQrImageSelect}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => document.getElementById('qr-image-upload')?.click()}
+              style={{
+                padding: '0.55rem 1.1rem',
+                border: `1.5px solid ${C.gray400}`,
+                borderRadius: 10,
+                background: C.white,
+                color: C.gray600,
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Chọn ảnh QR từ thư viện
+            </button>
+          </div>
+
+          {/* Bounded Camera Preview Container (always mounted to keep videoRef active, shown only when cameraActive is true) */}
+          <div style={{
+            display: cameraActive ? 'block' : 'none',
+            width: '100%',
+            maxWidth: 360,
+            height: 240,
+            borderRadius: 12,
+            overflow: 'hidden',
+            border: `2px solid ${C.navy}`,
+            background: '#000',
+            position: 'relative',
+            marginTop: '0.5rem',
+          }}>
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+            }}>
+              <div style={{
+                width: 160,
+                height: 160,
+                border: '2.5px solid rgba(255,255,255,0.7)',
+                borderRadius: 10,
+                boxShadow: '0 0 0 2000px rgba(0,0,0,0.35)',
+              }} />
+            </div>
+          </div>
+
+          {qrError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.red, fontSize: '0.82rem', fontWeight: 600 }}>
+              <IconAlert size={14} color={C.red} />
+              <span>{qrError}</span>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 2: Nhập mã PIN */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.25rem' }}>
+          <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>2. Nhập mã PIN</p>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray500 }}>Nhập mã PIN 6 số được cấp khi check-in hoặc mã PIN dự phòng của vé tháng để tra cứu nhanh.</p>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={pinInput}
+              onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, '')); setPinError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && pinInput.length === 6) handlePinConfirm(); }}
+              placeholder="Nhập mã PIN 6 chữ số..."
+              style={{
+                flex: 1,
+                padding: '0.65rem 0.85rem',
+                border: `1.5px solid ${pinError ? C.redBorder : C.gray200}`,
+                borderRadius: 10,
+                fontSize: '0.95rem',
+                fontWeight: 700,
+                letterSpacing: '0.15em',
+                fontFamily: 'Consolas, monospace',
+                color: C.gray800,
+                background: C.white,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <button
+              onClick={handlePinConfirm}
+              disabled={pinInput.length !== 6 || pinLoading}
+              style={{
+                padding: '0.65rem 1.25rem',
+                background: pinInput.length === 6 && !pinLoading ? C.navy : C.gray200,
+                color: pinInput.length === 6 && !pinLoading ? C.white : C.gray400,
+                border: 'none',
+                borderRadius: 10,
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: pinInput.length === 6 && !pinLoading ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {pinLoading ? 'Đang xác nhận...' : 'Xác nhận mã PIN'}
+            </button>
+          </div>
+
+          {pinError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.red, fontSize: '0.82rem', fontWeight: 600 }}>
+              <IconAlert size={14} color={C.red} />
+              <span>{pinError}</span>
+            </div>
+          )}
+        </div>
+
+        {/* --- PLATE FALLBACK BLOCK (separated, collapsed by default) --- */}
+        <div style={{ marginTop: '1.25rem', borderTop: `1px solid ${C.gray200}`, paddingTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.82rem', color: C.gray500, fontWeight: 600 }}>
+              Không có mã QR hoặc PIN?
+            </span>
+            <button
+              onClick={() => { setPlateFallbackOpen((v) => !v); setSearchError(''); }}
+              style={{
+                background: 'none',
+                border: `1.5px solid ${C.gray200}`,
+                borderRadius: 8,
+                padding: '0.3rem 0.85rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: plateFallbackOpen ? C.gray500 : C.navy,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+              }}
+            >
+              {plateFallbackOpen ? 'Thu gọn' : 'Tra cứu bằng biển số'}
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"
+                style={{ transform: plateFallbackOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+
+          {plateFallbackOpen && (
+            <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray500 }}>Chỉ sử dụng khi khách không có mã QR hoặc PIN.</p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={plateInput}
+                  onChange={(e) => {
+                    setPlateInput(e.target.value.toUpperCase());
+                    setSearchError('');
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Nhập biển số xe (VD: 51A11111)..."
+                  style={{
+                    flex: 1,
+                    padding: '0.65rem 0.85rem',
+                    border: `1.5px solid ${searchError ? C.redBorder : C.gray200}`,
+                    borderRadius: 10,
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    fontFamily: "'Consolas','Courier New',monospace",
+                    color: C.gray800,
+                    background: C.white,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    letterSpacing: '0.04em',
+                  }}
+                />
+                <button
+                  onClick={handleSearch}
+                  disabled={!plateInput.trim() || searching}
+                  style={{
+                    padding: '0.65rem 1.1rem',
+                    background: plateInput.trim() && !searching ? C.navy : C.gray200,
+                    color: plateInput.trim() && !searching ? C.white : C.gray400,
+                    border: 'none',
+                    borderRadius: 10,
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: plateInput.trim() && !searching ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {searching ? 'Đang tìm...' : 'Tìm xe'}
+                </button>
+              </div>
+              {searching && <span style={{ fontSize: '0.82rem', color: C.navy, fontWeight: 500 }}>Đang tìm xe...</span>}
+              {searchError && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.red, fontSize: '0.82rem', fontWeight: 600 }}>
+                  <IconAlert size={14} color={C.red} />
+                  <span>{searchError}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1128,7 +1615,7 @@ export function CheckOutPage() {
         </div>
       )}
 
-      {/* ── SUCCESS STATE VIEW ── */}
+      {/* --- SUCCESS STATE VIEW --- */}
       {checkoutResult && (
         <div style={{
           background: C.white,
@@ -1165,7 +1652,7 @@ export function CheckOutPage() {
                 { label: 'Loại khách', value: checkoutResult.isMonthly ? 'Khách tháng' : checkoutResult.bookingId ? 'Khách đặt trước' : 'Khách vãng lai' },
                 {
                   label: 'Tầng/Khu vực',
-                  value: formatReceiptLocation(checkoutResult.floorName, checkoutResult.floorCode, checkoutResult.slotCode)
+                  value: formatReceiptLocation(checkoutResult.floorName, checkoutResult.floorCode, checkoutResult.slotCode, checkoutResult.vehicleType)
                 },
                 { label: 'Giờ vào', value: formatDateTime(checkoutResult.checkInTime) },
                 { label: 'Giờ ra', value: formatDateTime(checkoutResult.checkOutTime) },
@@ -1194,7 +1681,7 @@ export function CheckOutPage() {
               {[
                 { label: 'Phí gửi xe', value: formatCurrency(checkoutResult.grossParkingFee ?? checkoutResult.fee ?? 0) },
                 {
-                  label: 'Cọc đặt chỗ được trừ',
+                  label: 'Cọc đặt chỗ đã được trừ',
                   value: checkoutResult.bookingDepositPaid && checkoutResult.bookingDepositPaid > 0
                     ? `- ${formatCurrency(checkoutResult.bookingDepositPaid)}`
                     : '0 đ',
@@ -1249,7 +1736,7 @@ export function CheckOutPage() {
         </div>
       )}
 
-      {/* ── TWO COLUMN CHECKOUT DETAILS ── */}
+      {/* --- TWO COLUMN CHECKOUT DETAILS --- */}
       {foundRecord && (
         <div style={{
           display: 'grid',
@@ -1306,7 +1793,7 @@ export function CheckOutPage() {
                 fontSize: '0.82rem',
                 fontWeight: 600,
               }}>
-                <span style={{ display: 'block', marginBottom: '0.2rem' }}>ℹ️ Xe sử dụng gói tháng đang hoạt động.</span>
+                <span style={{ display: 'block', marginBottom: '0.2rem' }}>✅ Xe sử dụng gói tháng đang hoạt động.</span>
                 {ownerInfo && ownerInfo.name && (
                   <span style={{ display: 'block', fontSize: '0.75rem', color: '#166534' }}>
                     Chủ xe: {ownerInfo.name} ({ownerInfo.phone || 'N/A'})
@@ -1467,7 +1954,7 @@ export function CheckOutPage() {
 
                 {feePreview.bookingDepositApplied !== undefined && feePreview.bookingDepositApplied > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <span style={{ color: C.gray500 }}>Cọc đặt chỗ được trừ</span>
+                    <span style={{ color: C.gray500 }}>Cọc đặt chỗ đã được trừ</span>
                     <span style={{ fontWeight: 600, color: C.green }}>
                       - {formatCurrency(feePreview.bookingDepositApplied)}
                     </span>
@@ -1551,7 +2038,7 @@ export function CheckOutPage() {
                                 const amount = item.amount;
                                 if (Math.abs(units * rate - amount) < 1) {
                                   const unitLabel = item.lotHours === 1 ? 'giờ' : 'lượt';
-                                  desc = `${units} ${unitLabel} × ${formatCurrency(rate)}/${unitLabel}`;
+                                  desc = `${units} ${unitLabel} ở ${formatCurrency(rate)}/${unitLabel}`;
                                 }
                               }
 
@@ -1715,7 +2202,7 @@ export function CheckOutPage() {
         </div>
       )}
 
-      {/* ── Face Verification Section ── */}
+      {/* --- Face Verification Section --- */}
       {foundRecord && (
         <div style={{
           background: C.white,
@@ -1733,7 +2220,7 @@ export function CheckOutPage() {
               Ảnh người nhận xe được đối chiếu với ảnh người gửi đã ghi nhận khi check-in.
             </p>
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.gray500, fontStyle: 'italic' }}>
-              💡 Kết quả chỉ hỗ trợ nhân viên kiểm tra và không tự động quyết định việc cho xe rời bãi.
+              * Kết quả chỉ hỗ trợ nhân viên kiểm tra và không tự động quyết định việc cho xe rời bãi.
             </p>
           </div>
 
@@ -1745,7 +2232,7 @@ export function CheckOutPage() {
             color: modelStatus === 'READY' ? C.green : modelStatus === 'LOADING' ? C.navy : modelStatus === 'ERROR' ? C.red : C.gray500
           }}>
             Trạng thái mô hình: {
-              modelStatus === 'READY' ? '✓ Mô hình đã sẵn sàng' :
+              modelStatus === 'READY' ? '✅ Mô hình đã sẵn sàng' :
                 modelStatus === 'LOADING' ? 'Đang tải mô hình đối chiếu...' :
                   modelStatus === 'ERROR' ? 'Không thể tải mô hình đối chiếu. Nhân viên có thể tiếp tục kiểm tra thủ công.' :
                     'Chưa khởi tạo mô hình'
@@ -1976,7 +2463,7 @@ export function CheckOutPage() {
                   }}>
                     <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <IconCheck size={18} color={C.green} />
-                      ✓ Hai ảnh có độ tương đồng cao
+                      ✅ Hai ảnh có độ tương đồng cao
                     </div>
                     <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontWeight: 700 }}>
                       Độ tương đồng: {(comparisonResult.similarity * 100).toFixed(2)}%
@@ -1997,7 +2484,7 @@ export function CheckOutPage() {
                   }}>
                     <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <IconAlert size={18} color="#D97706" />
-                      ⚠ Kết quả chưa đủ chắc chắn
+                      ⚠️ Kết quả chưa đủ chắc chắn
                     </div>
                     <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontWeight: 700 }}>
                       Độ tương đồng: {(comparisonResult.similarity * 100).toFixed(2)}%
@@ -2018,7 +2505,7 @@ export function CheckOutPage() {
                   }}>
                     <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <IconAlert size={18} color={C.red} />
-                      ⚠ Hai khuôn mặt có độ tương đồng thấp
+                      ⚠️ Hai khuôn mặt có độ tương đồng thấp
                     </div>
                     <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontWeight: 700 }}>
                       Độ tương đồng: {(comparisonResult.similarity * 100).toFixed(2)}%
@@ -2038,7 +2525,7 @@ export function CheckOutPage() {
         </div>
       )}
 
-      {/* ── BOTTOM: all parked vehicles ── */}
+      {/* --- BOTTOM: all parked vehicles --- */}
       <div style={{
         background: C.white,
         borderRadius: C.radius,
@@ -2244,7 +2731,7 @@ export function CheckOutPage() {
 
 
 
-      {/* ── PAYMENT MODAL ── */}
+      {/* --- PAYMENT MODAL --- */}
       {isPaymentModalOpen && foundRecord && feePreview && (
         <div style={{
           position: 'fixed',
@@ -2587,158 +3074,6 @@ export function CheckOutPage() {
           </div>
         </div>
       )}
-      {showMonthlyPinModal && renderMonthlyPinModal()}
     </div>
   );
-
-  function renderMonthlyPinModal() {
-    if (!showMonthlyPinModal) return null;
-
-    const isSubmitDisabled = !monthlyPinPlateInput.trim() || monthlyPinCodeInput.length !== 6 || monthlyPinLoading;
-
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(4px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: '1rem'
-      }}>
-        <div style={{
-          background: '#ffffff',
-          borderRadius: '16px',
-          width: '100%',
-          maxWidth: '440px',
-          padding: '1.75rem',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          position: 'relative'
-        }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 800, color: C.navy }}>
-            Nhập PIN vé tháng
-          </h3>
-          <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: C.gray500, lineHeight: 1.4 }}>
-            Vui lòng nhập biển số xe và mã PIN dự phòng của gói tháng để tra cứu.
-          </p>
-
-          {monthlyPinError && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: '1rem',
-                padding: '0.75rem 1rem',
-                background: C.redBg,
-                border: `1.5px solid ${C.redBorder}`,
-                borderRadius: '10px',
-                color: C.red,
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                lineHeight: 1.4
-              }}
-            >
-              {monthlyPinError}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
-                Biển số xe
-              </label>
-              <input
-                type="text"
-                value={monthlyPinPlateInput}
-                onChange={(e) => {
-                  setMonthlyPinPlateInput(e.target.value.toUpperCase());
-                  setMonthlyPinError('');
-                }}
-                placeholder="VD: 59A-22334"
-                style={{
-                  width: '100%',
-                  padding: '0.65rem 0.85rem',
-                  border: '1.5px solid #CBD5E1',
-                  borderRadius: '10px',
-                  fontSize: '0.95rem',
-                  fontWeight: 700,
-                  outline: 'none',
-                  textTransform: 'uppercase'
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
-                Mã PIN dự phòng (6 số)
-              </label>
-              <input
-                type="text"
-                maxLength={6}
-                value={monthlyPinCodeInput}
-                onChange={(e) => {
-                  const cleaned = e.target.value.replace(/\D/g, '');
-                  setMonthlyPinCodeInput(cleaned);
-                  setMonthlyPinError('');
-                }}
-                placeholder="000000"
-                style={{
-                  width: '100%',
-                  padding: '0.65rem 0.85rem',
-                  border: '1.5px solid #CBD5E1',
-                  borderRadius: '10px',
-                  fontSize: '0.95rem',
-                  fontWeight: 700,
-                  outline: 'none',
-                  letterSpacing: '0.1em',
-                  fontFamily: 'monospace'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => setShowMonthlyPinModal(false)}
-              disabled={monthlyPinLoading}
-              style={{
-                padding: '0.55rem 1.25rem',
-                border: '1px solid #CBD5E1',
-                background: '#fff',
-                color: C.gray600,
-                borderRadius: '10px',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                cursor: monthlyPinLoading ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              disabled={isSubmitDisabled}
-              onClick={handleVerifyCheckoutMonthlyPin}
-              style={{
-                padding: '0.55rem 1.5rem',
-                border: 'none',
-                background: isSubmitDisabled ? '#E5E7EB' : C.navy,
-                color: isSubmitDisabled ? '#9CA3AF' : '#fff',
-                borderRadius: '10px',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              {monthlyPinLoading ? 'Đang tra cứu...' : 'Xác nhận'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 }

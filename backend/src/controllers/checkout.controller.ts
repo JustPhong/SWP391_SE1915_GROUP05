@@ -4,6 +4,28 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler, AppError } from '../utils/helpers';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 
+interface RateLimitBucket {
+  attempts: number;
+  resetTime: number;
+}
+const pinRateLimitStore = new Map<string, RateLimitBucket>();
+
+function checkPinRateLimit(ip: string, limit = 10, windowMs = 60000): boolean {
+  const now = Date.now();
+  const bucket = pinRateLimitStore.get(ip);
+  if (!bucket) {
+    pinRateLimitStore.set(ip, { attempts: 1, resetTime: now + windowMs });
+    return true;
+  }
+  if (now > bucket.resetTime) {
+    bucket.attempts = 1;
+    bucket.resetTime = now + windowMs;
+    return true;
+  }
+  bucket.attempts += 1;
+  return bucket.attempts <= limit;
+}
+
 export const checkoutController = {
   // GET /api/checkout/lookup?plate=51A-222.22
   lookup: asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -28,6 +50,23 @@ export const checkoutController = {
       result.fee = 0;
       result.amountDue = 0;
     }
+    return res.status(200).json({ success: true, data: result });
+  }),
+
+  // POST /api/checkout/lookup-by-pin
+  lookupByPin: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const clientIp = (req.ip || req.socket.remoteAddress || 'unknown').toString();
+    if (!checkPinRateLimit(clientIp)) {
+      return res.status(429).json({ success: false, message: 'Bạn đã thực hiện quá nhiều yêu cầu tra cứu PIN. Vui lòng đợi 1 phút.' });
+    }
+    const { pin } = req.body as { pin?: string };
+    if (!pin) {
+      return res.status(400).json({ success: false, message: 'pin là bắt buộc.' });
+    }
+    if (!/^\d{6}$/.test(pin)) {
+      return res.status(400).json({ success: false, message: 'Mã PIN không hợp lệ. Phải gồm đúng 6 chữ số.' });
+    }
+    const result = await checkoutService.lookupByPin(pin);
     return res.status(200).json({ success: true, data: result });
   }),
 

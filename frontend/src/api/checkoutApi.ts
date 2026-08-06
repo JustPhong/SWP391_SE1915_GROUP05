@@ -62,6 +62,25 @@ export async function checkoutLookupPlate(plate: string, pin?: string): Promise<
   }
 }
 
+export interface CheckoutLookupByPinResult extends CheckoutLookupResult {
+  credentialType: 'GUEST_PIN' | 'MONTHLY_PIN';
+}
+
+export async function lookupCheckoutByPin(pin: string): Promise<CheckoutLookupByPinResult> {
+  try {
+    const response = await api.post<{ success: boolean; data: CheckoutLookupByPinResult }>(
+      '/checkout/lookup-by-pin',
+      { pin }
+    );
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể tra cứu mã PIN. Vui lòng thử lại.';
+    throw new Error(msg);
+  }
+}
+
 export interface CheckoutCompletedResponse {
   ok: boolean;
   plate: string;

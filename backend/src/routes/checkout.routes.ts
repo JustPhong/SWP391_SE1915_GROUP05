@@ -10,6 +10,7 @@ router.use(authorize('STAFF', 'MANAGER', 'ADMIN'));
 
 router.get('/lookup', checkoutController.lookup);
 router.get('/lookup/:plate', checkoutController.lookup);
+router.post('/lookup-by-pin', checkoutController.lookupByPin);
 router.get('/parked', checkoutController.parked);
 router.get('/stripe-status', requirePermission('checkout.process'), checkoutController.getStripeStatusBySession);
 router.post('/', requirePermission('checkout.process'), checkoutController.submit);

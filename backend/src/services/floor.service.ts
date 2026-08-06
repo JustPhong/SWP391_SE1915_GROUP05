@@ -298,17 +298,29 @@ export const floorService = {
     const now = new Date();
     const cutoff = new Date(now.getTime() - NO_SHOW_CUTOFF_MINUTES * 60 * 1000);
 
-    const bookings = await prisma.booking.findMany({
+    const pendingCount = await prisma.booking.count({
       where: {
         status: 'ACTIVE',
         depositStatus: 'PAID',
-        expiresAt: {
-          lte: now,
-          not: null
-        },
-        checkInRecords: {
-          none: {}
-        }
+        checkInRecords: { none: {} }
+      }
+    });
+
+    const expiredCount = await prisma.booking.count({
+      where: {
+        status: 'ACTIVE',
+        depositStatus: 'PAID',
+        checkInRecords: { none: {} },
+        expectedArrival: { lte: cutoff }
+      }
+    });
+
+    const expiredBookings = await prisma.booking.findMany({
+      where: {
+        status: 'ACTIVE',
+        depositStatus: 'PAID',
+        checkInRecords: { none: {} },
+        expectedArrival: { lte: cutoff }
       },
       include: {
         vehicle: { select: { plateNumber: true } },
@@ -316,35 +328,55 @@ export const floorService = {
       },
     });
 
-    for (const booking of bookings) {
-      await prisma.$transaction(async (tx) => {
-        // 1. Đánh NO_SHOW + mất cọc
-        await tx.booking.update({
-          where: { id: booking.id },
-          data: { status: "NO_SHOW", depositStatus: "FORFEITED" },
-        });
+    let updatedCount = 0;
 
-        // 3. Ghi AuditLog
-        await tx.auditLog.create({
-          data: {
-            actorId:     null,
-            actorName:   "System",
-            actorRole:   "SYSTEM",
-            action:      "booking.no_show",
-            targetType:  "Booking",
-            targetId:    String(booking.id),
-            description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại tầng ${booking.floor.name} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
-            metadata:    JSON.stringify({
-              bookingId:        booking.id,
-              plate:            booking.vehicle.plateNumber,
-              floorName:        booking.floor.name,
-              expectedArrival:  booking.expectedArrival,
-              depositForfeited: true,
-            }),
-          },
+    for (const booking of expiredBookings) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          const result = await tx.booking.updateMany({
+            where: {
+              id: booking.id,
+              status: 'ACTIVE',
+              depositStatus: 'PAID',
+              checkInRecords: { none: {} },
+              expectedArrival: { lte: cutoff }
+            },
+            data: {
+              status: 'NO_SHOW',
+              depositStatus: 'FORFEITED'
+            }
+          });
+
+          if (result.count === 1) {
+            await tx.auditLog.create({
+              data: {
+                actorId:     null,
+                actorName:   "System",
+                actorRole:   "SYSTEM",
+                action:      "booking.no_show",
+                targetType:  "Booking",
+                targetId:    String(booking.id),
+                description: `Tự động hủy booking xe ${booking.vehicle.plateNumber} tại tầng ${booking.floor.name} — quá ${NO_SHOW_CUTOFF_MINUTES} phút không vào bãi, mất cọc`,
+                metadata:    JSON.stringify({
+                  bookingId:        booking.id,
+                  plate:            booking.vehicle.plateNumber,
+                  floorName:        booking.floor.name,
+                  expectedArrival:  booking.expectedArrival,
+                  depositForfeited: true,
+                }),
+              },
+            });
+            updatedCount++;
+          }
         });
-      });
+      } catch (updateErr) {
+        console.error(`[NoShowJob] Failed to update booking ${booking.id}:`, updateErr);
+      }
     }
-    return bookings.length;
+
+    console.log(`[NoShowJob] Run at ${now.toISOString()}`);
+    console.log(`[NoShowJob] Pending=${pendingCount} Expired=${expiredCount} Updated=${updatedCount}`);
+
+    return updatedCount;
   },
 };

@@ -108,6 +108,146 @@ export interface CheckoutSubmitResult {
   paymentMethod: 'CASH' | 'CARD' | 'EWALLET';
 }
 
+type CheckInRecordWithRelations = Prisma.CheckInRecordGetPayload<{
+  include: {
+    vehicle: {
+      include: {
+        owner: {
+          select: {
+            fullName: true;
+            phoneNumber: true;
+            email: true;
+          };
+        };
+      };
+    };
+    slot: {
+      include: {
+        floor: true;
+      };
+    };
+    floor: true;
+    payments: true;
+    guestCredential: true;
+  };
+}>;
+
+async function mapRecordToLookupResult(
+  record: CheckInRecordWithRelations,
+  now: Date,
+  isMonthlyOverride: boolean
+): Promise<CheckoutLookupResult> {
+  const vehicle = record.vehicle;
+  const checkIn = new Date(record.checkInTime);
+  const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
+  const config = await feeRuleService.getFeeConfig();
+  const { total, breakdown } = calcFee(
+    checkIn,
+    now,
+    vehicle.type as 'CAR' | 'MOTORBIKE',
+    config,
+  );
+
+  let depositCredit = 0;
+  let bookingToUse = null;
+  if (!isMonthlyOverride) {
+    if (record.bookingId) {
+      bookingToUse = await prisma.booking.findUnique({
+        where: { id: record.bookingId },
+      });
+      if (bookingToUse && bookingToUse.status === 'FULFILLED' && bookingToUse.depositStatus === 'PAID' && bookingToUse.bookingDepositAppliedAt === null) {
+        const paidPayment = await prisma.payment.findFirst({
+          where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+        });
+        if (paidPayment) {
+          depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+        }
+      }
+    } else {
+      bookingToUse = await prisma.booking.findFirst({
+        where: {
+          vehicleId: vehicle.id,
+          status: 'FULFILLED',
+          depositStatus: 'PAID',
+          bookingDepositAppliedAt: null,
+        },
+        orderBy: { bookingTime: 'desc' },
+      });
+      if (bookingToUse) {
+        const paidPayment = await prisma.payment.findFirst({
+          where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+        });
+        if (paidPayment) {
+          depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+        }
+      }
+    }
+  }
+
+  const totalSuccessfullyPaid = record.payments?.reduce((sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0) ?? 0;
+  let amountDue = Math.max(0, total - depositCredit - totalSuccessfullyPaid);
+  let graceExpiresAt = null;
+  if (record.prepaidAt) {
+    graceExpiresAt = new Date(new Date(record.prepaidAt).getTime() + 300 * 1000);
+    if (now <= graceExpiresAt) {
+      amountDue = 0;
+    }
+  }
+
+  let packageExpiry: string | undefined;
+  if (isMonthlyOverride) {
+    const pkg = await prisma.monthlyPackage.findFirst({
+      where: {
+        vehicleId: vehicle.id,
+        status: 'ACTIVE',
+      },
+      select: {
+        expiryDate: true,
+      },
+    });
+    if (pkg) {
+      packageExpiry = pkg.expiryDate.toISOString();
+    }
+  }
+
+  const isLegacy = !((record.frontImageUrl && record.frontImageUrl.startsWith('https://res.cloudinary.com')) ||
+                     (record.rearImageUrl && record.rearImageUrl.startsWith('https://res.cloudinary.com')));
+
+  return {
+    found: true,
+    recordId: record.id,
+    vehicleId: vehicle.id,
+    plate: vehicle.plateNumber,
+    vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
+    slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+    isMonthly: isMonthlyOverride,
+    checkInTime: record.checkInTime.toISOString(),
+    now: now.toISOString(),
+    durationMinutes,
+    fee: isMonthlyOverride ? 0 : amountDue,
+    breakdown,
+    brand: vehicle.brand,
+    model: vehicle.model,
+    color: vehicle.color,
+    year: vehicle.year,
+    seats: vehicle.seats,
+    ownerName: vehicle.owner?.fullName ?? null,
+    ownerPhone: vehicle.owner?.phoneNumber ?? null,
+    ownerEmail: vehicle.owner?.email ?? null,
+    packageExpiry,
+    grossParkingFee: isMonthlyOverride ? 0 : total,
+    bookingDepositPaid: isMonthlyOverride ? 0 : depositCredit,
+    amountDue: isMonthlyOverride ? 0 : amountDue,
+    frontImageUrl: resolveCheckInImageUrl(record.frontImageUrl),
+    rearImageUrl: resolveCheckInImageUrl(record.rearImageUrl),
+    driverCheckInImageUrl: resolveCheckInImageUrl(record.driverCheckInImageUrl),
+    isLegacy,
+    totalSuccessfullyPaid,
+    prepaidAt: record.prepaidAt ? record.prepaidAt.toISOString() : null,
+    graceExpiresAt: graceExpiresAt ? graceExpiresAt.toISOString() : null,
+  };
+}
+
 // ── Service ──────────────────────────────────────────────
 export const checkoutService = {
   // ── GET /api/checkout/lookup/:plate ───────────────────────
@@ -160,116 +300,126 @@ export const checkoutService = {
       );
     }
     const record = records[0];
+    return mapRecordToLookupResult(record, new Date(), record.isMonthly);
+  },
 
-    const vehicle = record.vehicle;
+  // ── POST /api/checkout/lookup-by-pin ─────────────────────
+  async lookupByPin(pin: string): Promise<CheckoutLookupResult & { credentialType: 'GUEST_PIN' | 'MONTHLY_PIN' }> {
+    if (!pin || !/^\d{6}$/.test(pin)) {
+      throw new AppError(400, 'Mã PIN không hợp lệ. Phải gồm đúng 6 chữ số.');
+    }
+
     const now = new Date();
-    const checkIn = new Date(record.checkInTime);
-    const durationMinutes = Math.round((now.getTime() - checkIn.getTime()) / 60_000);
-    const config = await feeRuleService.getFeeConfig();
-    const { total, breakdown } = calcFee(
-      checkIn,
-      now,
-      vehicle.type as 'CAR' | 'MOTORBIKE',
-      config,
-    );
 
-    let depositCredit = 0;
-    let bookingToUse = null;
-    if (!record.isMonthly) {
-      if (record.bookingId) {
-        bookingToUse = await prisma.booking.findUnique({
-          where: { id: record.bookingId },
-        });
-        if (bookingToUse && bookingToUse.status === 'FULFILLED' && bookingToUse.depositStatus === 'PAID' && bookingToUse.bookingDepositAppliedAt === null) {
-          const paidPayment = await prisma.payment.findFirst({
-            where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
-          });
-          if (paidPayment) {
-            depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
-          }
+    // 1. Guest PIN candidates
+    const guestRecords = await prisma.checkInRecord.findMany({
+      where: {
+        checkOutTime: null,
+        status: 'PARKING',
+        guestCredential: {
+          pin: pin,
+          active: true
         }
-      } else {
-        bookingToUse = await prisma.booking.findFirst({
-          where: {
-            vehicleId: vehicle.id,
-            status: 'FULFILLED',
-            depositStatus: 'PAID',
-            bookingDepositAppliedAt: null,
+      },
+      include: {
+        vehicle: {
+          include: {
+            owner: {
+              select: {
+                fullName: true,
+                phoneNumber: true,
+                email: true,
+              },
+            },
           },
-          orderBy: { bookingTime: 'desc' },
-        });
-        if (bookingToUse) {
-          const paidPayment = await prisma.payment.findFirst({
-            where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
-          });
-          if (paidPayment) {
-            depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+        },
+        slot: {
+          include: {
+            floor: true,
+          },
+        },
+        floor: true,
+        payments: true,
+        guestCredential: true,
+      }
+    });
+
+    // 2. Monthly PIN candidates
+    const monthlyRecords = await prisma.checkInRecord.findMany({
+      where: {
+        checkOutTime: null,
+        status: 'PARKING',
+        vehicle: {
+          isMonthly: true,
+          monthlyPackage: {
+            monthlyAccessPin: pin,
+            status: 'ACTIVE',
+            expiryDate: {
+              gt: now
+            }
           }
         }
-      }
-    }
-
-    const totalSuccessfullyPaid = record.payments?.reduce((sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0) ?? 0;
-    let amountDue = Math.max(0, total - depositCredit - totalSuccessfullyPaid);
-    let graceExpiresAt = null;
-    if (record.prepaidAt) {
-      graceExpiresAt = new Date(new Date(record.prepaidAt).getTime() + 300 * 1000);
-      if (now <= graceExpiresAt) {
-        amountDue = 0;
-      }
-    }
-
-    let packageExpiry: string | undefined;
-    if (record.isMonthly) {
-      const pkg = await prisma.monthlyPackage.findFirst({
-        where: {
-          vehicleId: vehicle.id,
-          status: 'ACTIVE',
+      },
+      include: {
+        vehicle: {
+          include: {
+            owner: {
+              select: {
+                fullName: true,
+                phoneNumber: true,
+                email: true,
+              },
+            },
+          },
         },
-        select: {
-          expiryDate: true,
+        slot: {
+          include: {
+            floor: true,
+          },
         },
-      });
-      if (pkg) {
-        packageExpiry = pkg.expiryDate.toISOString();
+        floor: true,
+        payments: true,
+        guestCredential: true,
+      }
+    });
+
+    // Deduplicate candidates by CheckInRecord ID
+    const seenIds = new Set<string>();
+    const candidates: { record: CheckInRecordWithRelations; type: 'GUEST_PIN' | 'MONTHLY_PIN' }[] = [];
+
+    for (const record of guestRecords) {
+      if (!seenIds.has(record.id)) {
+        seenIds.add(record.id);
+        candidates.push({ record, type: 'GUEST_PIN' });
       }
     }
 
-    const isLegacy = !((record.frontImageUrl && record.frontImageUrl.startsWith('https://res.cloudinary.com')) ||
-                       (record.rearImageUrl && record.rearImageUrl.startsWith('https://res.cloudinary.com')));
+    for (const record of monthlyRecords) {
+      const isAlreadyGuest = seenIds.has(record.id);
+      if (isAlreadyGuest) {
+        throw new AppError(409, 'Mã PIN trùng với nhiều phiên gửi xe. Vui lòng sử dụng mã QR hoặc tra cứu biển số.');
+      }
+      seenIds.add(record.id);
+      candidates.push({ record, type: 'MONTHLY_PIN' });
+    }
 
+    if (candidates.length === 0) {
+      throw new AppError(404, 'Mã PIN không hợp lệ, đã hết hạn hoặc không có phiên gửi xe đang hoạt động.');
+    }
+
+    if (candidates.length > 1) {
+      throw new AppError(
+        409,
+        'Mã PIN trùng với nhiều phiên gửi xe. Vui lòng sử dụng mã QR hoặc tra cứu biển số.'
+      );
+    }
+
+    const { record, type } = candidates[0];
+
+    const result = await mapRecordToLookupResult(record, now, type === 'MONTHLY_PIN');
     return {
-      found: true,
-      recordId: record.id,
-      vehicleId: vehicle.id,
-      plate: vehicle.plateNumber,
-      vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
-      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      isMonthly: record.isMonthly,
-      checkInTime: record.checkInTime.toISOString(),
-      now: now.toISOString(),
-      durationMinutes,
-      fee: record.isMonthly ? 0 : amountDue,
-      breakdown,
-      brand: vehicle.brand,
-      model: vehicle.model,
-      color: vehicle.color,
-      year: vehicle.year,
-      seats: vehicle.seats,
-      ownerName: vehicle.owner?.fullName ?? null,
-      ownerPhone: vehicle.owner?.phoneNumber ?? null,
-      ownerEmail: vehicle.owner?.email ?? null,
-      packageExpiry,
-      grossParkingFee: record.isMonthly ? 0 : total,
-      bookingDepositPaid: record.isMonthly ? 0 : depositCredit,
-      amountDue: record.isMonthly ? 0 : amountDue,
-      frontImageUrl: resolveCheckInImageUrl(record.frontImageUrl),
-      rearImageUrl: resolveCheckInImageUrl(record.rearImageUrl),
-      driverCheckInImageUrl: resolveCheckInImageUrl(record.driverCheckInImageUrl),
-      isLegacy,
-      totalSuccessfullyPaid,
-      prepaidAt: record.prepaidAt ? record.prepaidAt.toISOString() : null,
-      graceExpiresAt: graceExpiresAt ? graceExpiresAt.toISOString() : null,
+      ...result,
+      credentialType: type
     };
   },
 

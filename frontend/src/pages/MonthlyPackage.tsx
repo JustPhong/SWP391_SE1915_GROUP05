@@ -151,6 +151,46 @@ function IconCar({ size = 16, color = 'currentColor' }: { size?: number; color?:
 function IconBike({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="18" r="3" /><circle cx="19" cy="18" r="3" /><path d="M12 18V10H9m3 0 4-4H9" /></svg>;
 }
+
+interface VehiclePackageIconProps {
+  vehicleType?: string | null;
+  variant?: 'card' | 'ticket';
+}
+
+function VehiclePackageIcon({
+  vehicleType,
+  variant = 'card',
+}: VehiclePackageIconProps) {
+  if (vehicleType === 'CAR') {
+    return (
+      <span className={newStyles.vehiclePackageIcon}>
+        <img
+          src="/oto.png"
+          alt="Ô tô"
+          className={`${newStyles.vehiclePackageImage} ${newStyles.carVehicleImage}`}
+        />
+      </span>
+    );
+  }
+
+  if (vehicleType === 'MOTORBIKE') {
+    return (
+      <span className={newStyles.vehiclePackageIcon}>
+        <img
+          src="/xemay.png"
+          alt="Xe máy"
+          className={`${newStyles.vehiclePackageImage} ${newStyles.motorbikeVehicleImage}`}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className={variant === 'ticket' ? `${newStyles.modalIcon} ${newStyles.modalIconInfo}` : newStyles.avatarIcon}>
+      <IconCar size={variant === 'ticket' ? 22 : 20} color={variant === 'ticket' ? '#3B82F6' : undefined} />
+    </span>
+  );
+}
 function IconPlus({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
 }
@@ -944,17 +984,15 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 // Ratio calculation
                 const ratio = isExpired ? 0 : (totalDays > 0 ? Math.min(1, Math.max(0, remainingDays / totalDays)) : 0);
 
-                // Icons dynamic to vehicle
-                const isMotorbike = pkg.vehicle?.type === 'MOTORBIKE';
-                
                 return (
                   <div key={pkg.id} className={newStyles.packageCard}>
                     {/* A. Card top row */}
                     <div className={newStyles.cardTopRow}>
                       <div className={newStyles.cardTopLeft}>
-                        <div className={newStyles.avatarIcon}>
-                          {isMotorbike ? <IconBike size={20} /> : <IconCar size={20} />}
-                        </div>
+                        <VehiclePackageIcon
+                          vehicleType={pkg.vehicle?.type}
+                          variant="card"
+                        />
                         <div className={newStyles.cardTitleBlock}>
                           <h4 className={newStyles.cardMainTitle}>
                             {getPlanDisplayName(pkg.planName)}
@@ -1122,9 +1160,10 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
             </button>
 
             <div className={newStyles.modalHeader}>
-              <div className={`${newStyles.modalIcon} ${newStyles.modalIconInfo}`}>
-                {selectedDetailPkg.vehicle?.type === 'MOTORBIKE' ? <IconBike size={22} color="#3B82F6" /> : <IconCar size={22} color="#3B82F6" />}
-              </div>
+              <VehiclePackageIcon
+                vehicleType={selectedDetailPkg.vehicle?.type}
+                variant="ticket"
+              />
               <h3 className={newStyles.modalTitle}>Vé Đỗ Xe Tháng</h3>
             </div>
 
