@@ -2,6 +2,7 @@ import prisma from '../config/db';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../utils/helpers';
 import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
+import { normalizeLicensePlate } from '../utils/plate';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const PKG_ACTIVE = 'ACTIVE';
@@ -102,19 +103,13 @@ export const checkinService = {
     vehicleType?: 'CAR' | 'MOTORBIKE'
   ): Promise<LookupResult> {
     const cleaned = plate.trim().toUpperCase();
-    const stripped = cleaned.replace(/[-. \s]/g, '');
+    const stripped = normalizeLicensePlate(plate);
 
-    // 1. Authoritative check for existing active parking session for this plate
-    const activeParkingSession = await prisma.checkInRecord.findFirst({
+    // 1. Authoritative check for existing active parking session for this plate using normalized matching
+    const activeSessions = await prisma.checkInRecord.findMany({
       where: {
         checkOutTime: null,
         status: 'PARKING',
-        vehicle: {
-          OR: [
-            { plateNumber: cleaned },
-            { plateNumber: stripped },
-          ],
-        },
       },
       include: {
         vehicle: {
@@ -135,9 +130,13 @@ export const checkinService = {
       },
     });
 
+    const activeParkingSession = activeSessions.find(
+      (s) => s.vehicle && normalizeLicensePlate(s.vehicle.plateNumber) === stripped
+    ) ?? null;
+
     const requestedPlateNormalized = stripped;
     const activeMatchedPlateNormalized = activeParkingSession?.vehicle?.plateNumber
-      ? activeParkingSession.vehicle.plateNumber.replace(/[-. \s]/g, '').toUpperCase()
+      ? normalizeLicensePlate(activeParkingSession.vehicle.plateNumber)
       : null;
 
     if (activeParkingSession) {
@@ -161,13 +160,8 @@ export const checkinService = {
       };
     }
 
-    const vehicle = await prisma.vehicle.findFirst({
-      where: {
-        OR: [
-          { plateNumber: cleaned },
-          { plateNumber: stripped },
-        ],
-      },
+    // 2. Resolve vehicle by normalized plate number (handling punctuation/whitespace differences)
+    const allVehicles = await prisma.vehicle.findMany({
       include: {
         monthlyPackage: {
           include: { floor: true },
@@ -181,6 +175,17 @@ export const checkinService = {
         },
       },
     });
+
+    const matchingVehicles = allVehicles.filter(
+      (v) => normalizeLicensePlate(v.plateNumber) === stripped
+    );
+
+    let vehicle = null;
+    if (matchingVehicles.length > 1) {
+      throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
+    } else if (matchingVehicles.length === 1) {
+      vehicle = matchingVehicles[0];
+    }
 
     const vType = (vehicle?.type || vehicleType || 'CAR') as 'CAR' | 'MOTORBIKE';
 
@@ -423,14 +428,9 @@ export const checkinService = {
         return await prisma.$transaction(async (tx) => {
           const now = new Date();
 
-      // 1. Resolve vehicle
-      let vehicle = await tx.vehicle.findFirst({
-        where: {
-          OR: [
-            { plateNumber: cleaned },
-            { plateNumber: stripped },
-          ],
-        },
+      // 1. Resolve vehicle by normalized plate number (handling punctuation/whitespace differences)
+      const normalizedInputPlate = normalizeLicensePlate(plate);
+      const allVehicles = await tx.vehicle.findMany({
         include: {
           monthlyPackage: {
             include: { floor: true },
@@ -438,6 +438,17 @@ export const checkinService = {
           owner: true,
         },
       });
+
+      const matchingVehicles = allVehicles.filter(
+        (v) => normalizeLicensePlate(v.plateNumber) === normalizedInputPlate
+      );
+
+      let vehicle = null;
+      if (matchingVehicles.length > 1) {
+        throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
+      } else if (matchingVehicles.length === 1) {
+        vehicle = matchingVehicles[0];
+      }
 
       // 2. Concurrency Lock
       await acquireVehicleOrPlateLock(tx, vehicle?.id, plate);

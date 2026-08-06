@@ -5,12 +5,22 @@ import { asyncHandler, AppError } from '../utils/helpers';
 import { stripe } from '../config/stripe';
 
 export const monthlyPackageController = {
+  reconcileSession: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { sessionId } = req.body;
+    if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) {
+      throw new AppError(400, 'sessionId không hợp lệ.');
+    }
+    const result = await monthlyPackageService.reconcileStripeSession(sessionId, req.user!.id);
+    return res.status(200).json({ success: true, data: result });
+  }),
+
   createCheckoutSession: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { vehicleId, planId } = req.body;
+    const { vehicleId, planId, sessionId } = req.body;
     const result = await monthlyPackageService.createCheckoutSession({
       userId: req.user!.id,
       vehicleId,
       planId,
+      sessionId,
     });
     if (result.status === 'ALREADY_PROCESSED') {
       return res.status(409).json({
@@ -71,8 +81,8 @@ export const monthlyPackageController = {
   }),
 
   renewPackage: asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { selectedPlanId } = req.body;
-    const result = await monthlyPackageService.renewPackage(req.params.packageId, req.user!.id, selectedPlanId);
+    const { selectedPlanId, sessionId } = req.body;
+    const result = await monthlyPackageService.renewPackage(req.params.packageId, req.user!.id, selectedPlanId, sessionId);
     if (result.status === 'ALREADY_PROCESSED') {
       return res.status(409).json({
         success: true,

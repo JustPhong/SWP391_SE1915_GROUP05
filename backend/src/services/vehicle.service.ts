@@ -1,5 +1,6 @@
 import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
+import { normalizeLicensePlate } from '../utils/plate';
 
 export interface CreateVehicleInput {
   plateNumber: string;
@@ -27,14 +28,39 @@ async function loadOwnedVehicleOrThrow(vehicleId: string, userId: string) {
   }
   return vehicle;
 }
+function validateLicensePlate(normalizedPlate: string, vehicleType: string) {
+  if (vehicleType === 'CAR') {
+    if (!/^\d{2}[A-Z]\d{5}$/.test(normalizedPlate)) {
+      throw new AppError(400, 'Biển số ô tô không hợp lệ. Ví dụ: 51A-731.89');
+    }
+  } else if (vehicleType === 'MOTORBIKE') {
+    if (!/^\d{2}.+$/.test(normalizedPlate)) {
+      throw new AppError(400, 'Biển xe máy không hợp lệ. Phải bắt đầu bằng 2 số tỉnh (ví dụ: 59-AB 234.56).');
+    }
+  }
+}
 
 export const vehicleService = {
   async create(input: CreateVehicleInput) {
-    const existing = await prisma.vehicle.findUnique({
-      where: { plateNumber: input.plateNumber },
+    const normalizedPlate = normalizeLicensePlate(input.plateNumber);
+    if (!normalizedPlate) {
+      throw new AppError(400, 'Biển số xe không hợp lệ.');
+    }
+
+    validateLicensePlate(normalizedPlate, input.type);
+
+    // Fetch all vehicles to perform global duplicate comparison in-memory
+    // to correctly match historical records with surrounding whitespace
+    const candidates = await prisma.vehicle.findMany({
+      select: {
+        id: true,
+        plateNumber: true,
+      },
     });
-    if (existing) {
-      throw new AppError(409, 'Vehicle with this plate number already exists');
+
+    const isDuplicate = candidates.some(v => normalizeLicensePlate(v.plateNumber) === normalizedPlate);
+    if (isDuplicate) {
+      throw new AppError(409, 'Biển số xe này đã được đăng ký.');
     }
 
     const owner = await prisma.user.findUnique({
@@ -45,7 +71,7 @@ export const vehicleService = {
     }
 
     const data = {
-      plateNumber: input.plateNumber,
+      plateNumber: normalizedPlate,
       type: input.type,
       ownerId: input.ownerId,
       isMonthly: input.isMonthly ?? false,
@@ -187,11 +213,31 @@ export const vehicleService = {
   async update(id: string, userId: string, data: Partial<CreateVehicleInput>) {
     const vehicle = await loadOwnedVehicleOrThrow(id, userId);
 
-    if (data.plateNumber && data.plateNumber !== vehicle.plateNumber) {
-      const existing = await prisma.vehicle.findUnique({
-        where: { plateNumber: data.plateNumber },
-      });
-      if (existing) throw new AppError(409, 'Plate number already in use');
+    if (data.plateNumber !== undefined) {
+      const normalizedPlate = normalizeLicensePlate(data.plateNumber);
+      if (!normalizedPlate) {
+        throw new AppError(400, 'Biển số xe không hợp lệ.');
+      }
+
+      const resolvedType = data.type || vehicle.type;
+      validateLicensePlate(normalizedPlate, resolvedType);
+
+      if (normalizedPlate !== normalizeLicensePlate(vehicle.plateNumber)) {
+        const candidates = await prisma.vehicle.findMany({
+          where: {
+            id: { not: id },
+          },
+          select: {
+            id: true,
+            plateNumber: true,
+          },
+        });
+        const isDuplicate = candidates.some(v => normalizeLicensePlate(v.plateNumber) === normalizedPlate);
+        if (isDuplicate) {
+          throw new AppError(409, 'Biển số xe này đã được đăng ký.');
+        }
+      }
+      data.plateNumber = normalizedPlate;
     }
 
     return prisma.vehicle.update({ where: { id }, data });

@@ -31,6 +31,7 @@ import { CASUAL_PRICING, type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
 import carWatermark from '../assets/car-watermark.png';
+import { formatPlateNumber } from '../utils/plate';
 
 type Tab = 'home' | 'vehicles' | 'profile' | 'history' | 'monthly' | 'booking' | 'floormap';
 
@@ -535,8 +536,10 @@ export const WelcomePage: React.FC = () => {
   // ── Fetch session (casual users only) ────────────────────
   useEffect(() => {
     if (!user || hasPackage || pkgLoading) return;
-    getCurrentSession().then(setSession);
-  }, [user, hasPackage, pkgLoading]);
+    getCurrentSession().then((sessions) => {
+      setSession(sessions && sessions.length > 0 ? sessions[0] : null);
+    });
+  }, [user?.id, hasPackage, pkgLoading]);
 
   // ── Add vehicle ──────────────────────────────────────────
   const handleAddVehicle = async (e: React.FormEvent) => {
@@ -910,6 +913,7 @@ export const WelcomePage: React.FC = () => {
           onClose={() => setPurchaseModalOpen(false)}
           planId={purchasePlanId}
           vehicleType={purchaseVtype}
+          onSuccess={() => navigate('/driver/monthly-package')}
         />
       </div>
     );
@@ -1258,6 +1262,7 @@ export const WelcomePage: React.FC = () => {
         onClose={() => setPurchaseModalOpen(false)}
         planId={purchasePlanId}
         vehicleType={purchaseVtype}
+        onSuccess={() => navigate('/driver/monthly-package')}
       />
     </div>
   );
@@ -1386,7 +1391,7 @@ function HeroLoggedIn({
           </h1>
           <p className={styles.heroSubtitle}>
             {session
-              ? `Xe ${session.plateNumber} đang đỗ tại ${session.slotCode} · ${session.floor}. Phí ước tính: ${formatCurrencyInline(session.estimatedAmount ?? 0)}.`
+              ? `Xe ${formatPlateNumber(session.plateNumber, undefined, session.vehicleType)} đang đỗ tại ${session.slotCode} · ${session.floor}. Phí ước tính: ${formatCurrencyInline(session.estimatedAmount ?? 0)}.`
               : heroContent.description}
           </p>
           <div className={styles.heroHighlights}>
@@ -1823,7 +1828,7 @@ const MOTO_TIER_PERKS: TierPerk[][] = [
   ],
   // 1 năm
   [
-    { icon: 'parking', text: 'Đỗ xe máy tại khu VIP' },
+    { icon: 'location', text: 'Sử dụng Khu VIP' },
     { icon: 'infinity', text: 'Ra vào không giới hạn' },
     { icon: 'checklist', text: 'Không tính phí theo lượt' },
     { icon: 'map', text: 'Xem sơ đồ tầng' },
@@ -1860,7 +1865,7 @@ const CAR_TIER_PERKS: TierPerk[][] = [
   ],
 ];
 
-const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'CAO CẤP'];
+const MOTO_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 const CAR_TIER_LABELS = ['CƠ BẢN', 'PHỔ BIẾN', 'VIP'];
 
 function PricingGroup({
@@ -1971,10 +1976,10 @@ function PricingGroup({
                 <div className={`${styles.planCardHeader}`}>
                   {/* Tier label */}
                   <span className={`${styles.planTierLabel} ${isFeatured ? styles.planTierLabelFeatured :
-                    isAnnual ? (isCar ? styles.planTierLabelVip : styles.planTierLabelPremium) :
+                    isAnnual ? styles.planTierLabelVip :
                       styles.planTierLabelBasic
                     }`}>
-                    {isAnnual && isCar ? '👑 ' : ''}{tierLabel}
+                    {isAnnual ? '👑 ' : ''}{tierLabel}
                   </span>
 
                   {/* Duration + Name */}

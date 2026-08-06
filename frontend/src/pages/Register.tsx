@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleHomePath } from '../utils/authRoutes';
 import { validatePlate } from '../utils/plate';
 import { authService } from '../services/auth.service';
+import { PlateInput } from '../components/PlateInput';
 import {
   PersonIcon,
   EmailIcon,
@@ -323,13 +324,13 @@ export function RegisterPage() {
             <label className={styles.inputLabel}>Biển số xe</label>
             <div className={styles.inputWrapper}>
               <span className={styles.inputIcon}><LicensePlateIcon size={15} /></span>
-              <input
-                type="text"
-                placeholder="51A-123.45"
+              <PlateInput
+                placeholder={form.vehicleType === 'CAR' ? 'Ví dụ: 51A-731.89' : 'Ví dụ: 59-AB 234.56'}
                 className={`${styles.input} ${errors.licensePlate ? styles['input--error'] : ''}`}
                 value={form.licensePlate}
-                onChange={(e) => {
-                  setForm({ ...form, licensePlate: e.target.value.toUpperCase() });
+                vehicleType={form.vehicleType}
+                onChange={(formatted) => {
+                  setForm({ ...form, licensePlate: formatted });
                   if (plateError) setPlateError('');
                 }}
                 onBlur={(e) => {

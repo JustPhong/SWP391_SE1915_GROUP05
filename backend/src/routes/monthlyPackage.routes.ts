@@ -69,6 +69,8 @@ router.get('/mine', monthlyPackageController.getMyPackages);
  */
 router.get('/vehicle/:vehicleId', monthlyPackageController.getByVehicle);
 
+router.post('/reconcile-session', monthlyPackageController.reconcileSession);
+
 router.post(
   '/checkout-session',
   monthlyPackageController.createCheckoutSession

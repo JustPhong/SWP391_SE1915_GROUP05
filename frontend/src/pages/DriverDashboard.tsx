@@ -5,10 +5,12 @@ import api from '../services/api';
 import { CarIcon, ChevronRightIcon } from '../components/ui/Icons';
 import styles from '../styles/driver.module.css';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { formatPlateNumber } from '../utils/plate';
 
 interface ParkingSession {
   id: string;
   plateNumber: string;
+  vehicleType?: 'CAR' | 'MOTORBIKE';
   slotCode: string;
   floor: string;
   checkInTime: string;
@@ -108,7 +110,9 @@ export function DriverDashboardPage() {
         api.get('/driver-dashboard/history'),
       ]);
 
-      setSession(sessionRes.data.data ?? null);
+      const activeSessions = sessionRes.data.data;
+      const firstSession = Array.isArray(activeSessions) && activeSessions.length > 0 ? activeSessions[0] : null;
+      setSession(firstSession);
       setMonthlyPkg(packageRes.data.data ?? null);
       setHistory(historyRes.data.data ?? []);
     } catch {
@@ -176,7 +180,7 @@ export function DriverDashboardPage() {
 
               <div className={styles.cardFooter}>
                 <span className={styles.cardFooterLabel}>Biển số xe</span>
-                <span className={styles.plateChip}>{session.plateNumber}</span>
+                <span className={styles.plateChip}>{formatPlateNumber(session.plateNumber, '', session.vehicleType)}</span>
               </div>
 
               <div className={styles.cardFooter}>

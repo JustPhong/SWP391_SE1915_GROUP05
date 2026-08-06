@@ -26,7 +26,7 @@ export function validatePlate(
 
   if (vehicleType === 'CAR') {
     if (!/^\d{2}[A-Z]\d{5}$/.test(clean)) {
-      return { valid: false, message: 'Biển ô tô không hợp lệ. Phải gồm 2 số tỉnh, 1 chữ cái và 5 số (ví dụ: 51K-604.73).' };
+      return { valid: false, message: 'Biển số ô tô không hợp lệ. Ví dụ: 51A-731.89' };
     }
   } else if (vehicleType === 'MOTORBIKE') {
     if (!MOTORBIKE_REGEX.test(normalize(s))) {
@@ -47,7 +47,7 @@ export function validatePlate(
   return { valid: true };
 }
 
-export function formatPlateNumber(val: string, prevVal: string = ''): string {
+export function formatPlateNumber(val: string, prevVal: string = '', vehicleType?: 'CAR' | 'MOTORBIKE'): string {
   // Convert to uppercase, decompose, and strip diacritical marks/Vietnamese characters to ASCII
   let normalized = val.toUpperCase()
     .normalize('NFD')
@@ -67,17 +67,38 @@ export function formatPlateNumber(val: string, prevVal: string = ''): string {
     return clean;
   }
 
-  // Explicitly handle the common structure: XXA-12345  (e.g. 79C-76767)
-  // That means clean looks like: [0..1]=XX, [2]=Letter, [3..] = 5 digits (total length = 8)
-  const matchCommon = clean.match(/^(\d{2})([A-Z])(\d{5})/);
-  if (matchCommon) {
-    return `${matchCommon[1]}${matchCommon[2]}-${matchCommon[3]}`;
+  if (vehicleType === 'CAR') {
+    // Progressive formatting for CAR: XXL-NNN.NN
+    const province = clean.slice(0, 2);
+    const char3 = clean[2] || '';
+    const isChar3Letter = /[A-Z]/.test(char3);
+    if (!isChar3Letter) {
+      return province + char3;
+    }
+    const letter = char3;
+    const remaining = clean.slice(3);
+    if (remaining.length === 0) {
+      return `${province}${letter}`;
+    }
+    if (remaining.length <= 3) {
+      return `${province}${letter}-${remaining}`;
+    }
+    const firstThree = remaining.slice(0, 3);
+    const lastTwo = remaining.slice(3, 5); // Max length 8 for CAR
+    return `${province}${letter}-${firstThree}.${lastTwo}`;
   }
 
   // Detect backspace/deletion (keep it minimal to avoid interfering with the common XXA-12345 rule)
   // If the previous value ended with a hyphen and the user deleted it, just continue formatting from the new raw value.
   if (prevVal.endsWith('-') && val === prevVal.slice(0, -1)) {
-    return formatPlateNumber(val, '');
+    return formatPlateNumber(val, '', vehicleType);
+  }
+
+  // Explicitly handle the common structure: XXA-12345  (e.g. 79C-76767)
+  // That means clean looks like: [0..1]=XX, [2]=Letter, [3..] = 5 digits (total length = 8)
+  const matchCommon = clean.match(/^(\d{2})([A-Z])(\d{5})/);
+  if (matchCommon) {
+    return `${matchCommon[1]}${matchCommon[2]}-${matchCommon[3]}`;
   }
 
   const char3 = clean[2];

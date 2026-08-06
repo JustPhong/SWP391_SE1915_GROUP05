@@ -187,7 +187,9 @@ export function DriverLayout({ children, title = 'Trang chủ' }: DriverLayoutPr
             <div className={styles.avatarCircle}>{getInitials(displayName)}</div>
             <div className={styles.userMeta}>
               <span className={styles.userName}>{displayName}</span>
-              <span className={styles.roleBadge}>{getRoleLabel(user?.role)}</span>
+              <span className={styles.roleBadge}>
+                {hasActiveMonthlyPackage ? 'Cư dân' : getRoleLabel(user?.role)}
+              </span>
             </div>
           </Link>
         </div>

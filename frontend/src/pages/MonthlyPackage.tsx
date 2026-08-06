@@ -6,6 +6,7 @@ import { monthlyPackageService } from '../services/monthlyPackage.service';
 import type { MonthlyPackage } from '../types/index';
 import { type PackagePlan, getTierAreaLabel } from '../constants/packages';
 import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
+import { useMonthlyPaymentReturn } from '../hooks/useMonthlyPaymentReturn';
 import styles from '../styles/driver.module.css';
 import newStyles from '../styles/monthlyPackage.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
@@ -471,9 +472,6 @@ function PricingGroup({ vtype, selectedPlanId, plans, onSelect }: { vtype: VType
   );
 }
 
-// ═══════════════════════════════════════════════════════
-//  MAIN COMPONENT
-// ═══════════════════════════════════════════════════════
 export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehicle?: () => void } = {}) {
   const { user, isLoading: authLoading, refreshPackageStatus } = useAuth();
 
@@ -495,9 +493,16 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
   const [myPackages, setMyPackages] = useState<MonthlyPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [packageActionLoading, setPackageActionLoading] = useState<string | null>(null);
-  const [packageActionError, setPackageActionError] = useState('');
-  const [packageActionSuccess, setPackageActionSuccess] = useState('');
-  const [stripeStatus, setStripeStatus] = useState<'IDLE' | 'POLLING' | 'SUCCESS' | 'FAILED'>('IDLE');
+
+  const {
+    paymentReturnState,
+    successDetails,
+    packageActionError,
+    setPackageActionError,
+    packageActionSuccess,
+    setPackageActionSuccess,
+    handleRetryVerification,
+  } = useMonthlyPaymentReturn(setMyPackages);
 
   // Backend plans catalogue state
   const [plans, setPlans] = useState<PackagePlan[]>([]);
@@ -699,53 +704,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     fetchPlans();
   }, []);
 
-  // Stripe success polling
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const isSuccess = params.get('success') === 'true';
-    const sessionId = params.get('session_id');
 
-    if (isSuccess && sessionId && user) {
-      setStripeStatus('POLLING');
-      let attempts = 0;
-      const maxAttempts = 6;
-
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          const pkgs = await monthlyPackageService.getMyPackages();
-          const hasSuccessPayment = pkgs.some(p => p.payments?.some(pay => pay.transactionCode === sessionId && pay.status === 'SUCCESS'));
-          if (hasSuccessPayment) {
-            clearInterval(poll);
-            setMyPackages(pkgs);
-            setStripeStatus('SUCCESS');
-            setPackageActionSuccess('Thanh toán và kích hoạt gói tháng thành công!');
-            setPackageActionError(''); // clear error banner upon payment success
-            // Clear pending session identifiers now that payment is confirmed
-            sessionStorage.removeItem('pending_monthly_package_id');
-            sessionStorage.removeItem('pending_monthly_payment_id');
-            sessionStorage.removeItem('pending_monthly_session_id');
-            // Refresh the auth context package status to update nav badge etc.
-            refreshPackageStatus();
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } else if (attempts >= maxAttempts) {
-            clearInterval(poll);
-            setStripeStatus('FAILED');
-            setPackageActionError('Giao dịch đang xử lý. Vui lòng làm mới lại trang sau vài phút.');
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        } catch (err) {
-          if (attempts >= maxAttempts) {
-            clearInterval(poll);
-            setStripeStatus('FAILED');
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        }
-      }, 2500);
-
-      return () => clearInterval(poll);
-    }
-  }, [user]);
 
   // Detail Modal QR Code generation
   useEffect(() => {
@@ -796,6 +755,9 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
         sessionStorage.setItem('pending_monthly_package_id', checkoutData.packageId);
         sessionStorage.setItem('pending_monthly_payment_id', checkoutData.paymentId);
         sessionStorage.setItem('pending_monthly_session_id', checkoutData.sessionId);
+        sessionStorage.setItem('pending_monthly_plan_id', selectedPlanId || pkg.planName || '');
+        sessionStorage.setItem('pending_monthly_vehicle_id', pkg.vehicleId);
+        sessionStorage.setItem('pending_monthly_checkout_type', 'renew');
         window.location.href = checkoutData.url;
       } else {
         throw new Error('Không nhận được URL thanh toán.');
@@ -842,8 +804,6 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
     return <div style={{ padding: '3rem', textAlign: 'center', color: C.navy, fontSize: '0.9rem' }}>Vui lòng đăng nhập để mua gói tháng.</div>;
   }
 
-  // Effective-status rule: a package is only truly active when the DB says ACTIVE
-  // AND its expiryDate is not yet in the past.
   const isEffectivelyActive = (pkg: MonthlyPackage) =>
     pkg.status === 'ACTIVE' && getRemainingDays(pkg.expiryDate) > 0;
 
@@ -875,18 +835,72 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
       </div>
 
       {/* Action Notification Banners */}
-      {stripeStatus === 'POLLING' && (
-        <div style={{ background: C.blueBg, border: `1.5px solid ${C.blue}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: C.blue, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: 16, height: 16, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-          Đang xác nhận thanh toán với Stripe. Vui lòng đợi trong giây lát...
+      {paymentReturnState === 'VERIFYING' && (
+        <div role="status" aria-live="polite" style={{ background: C.blueBg, border: `1.5px solid ${C.blue}`, borderRadius: 12, padding: '1rem', fontSize: '0.875rem', color: C.blue, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
+            <div style={{ width: 16, height: 16, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            Đang xác nhận thanh toán
+          </div>
+          <div style={{ color: C.gray600, fontSize: '0.8rem', paddingLeft: '1.5rem' }}>
+            Giao dịch đã được gửi đến Stripe. Hệ thống đang kích hoạt gói của bạn.
+          </div>
         </div>
       )}
-      {packageActionError && (
+
+      {paymentReturnState === 'SUCCESS' && (
+        <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 12, padding: '1rem', fontSize: '0.875rem', color: C.green, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ fontWeight: 800 }}>Thanh toán thành công</div>
+          <div style={{ color: C.gray600, fontSize: '0.8rem' }}>
+            {successDetails ? (() => {
+              const duration = getPlanDurationLabel(successDetails.planId);
+              const plate = successDetails.plateNumber || '';
+              return `Gói ${duration} đã được kích hoạt cho xe ${plate}.`;
+            })() : 'Gói tháng của bạn đã được thanh toán và kích hoạt thành công.'}
+          </div>
+        </div>
+      )}
+
+      {paymentReturnState === 'FAILED' && (
+        <div role="alert" style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 12, padding: '1rem', fontSize: '0.875rem', color: '#B91C1C', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ fontWeight: 800 }}>Chưa thể xác nhận thanh toán</div>
+          <div style={{ color: C.gray600, fontSize: '0.8rem' }}>
+            {packageActionError || 'Giao dịch không thành công hoặc không khớp thông tin.'}
+          </div>
+          <div>
+            <button
+              onClick={handleRetryVerification}
+              style={{ background: '#B91C1C', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Thử xác nhận lại
+            </button>
+          </div>
+        </div>
+      )}
+
+      {paymentReturnState === 'TIMEOUT' && (
+        <div role="alert" style={{ background: C.amberBg, border: `1.5px solid ${C.amberBorder}`, borderRadius: 12, padding: '1rem', fontSize: '0.875rem', color: C.amber, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ fontWeight: 800 }}>Thanh toán đang được xử lý</div>
+          <div style={{ color: C.gray600, fontSize: '0.8rem' }}>
+            Hệ thống chưa nhận được kết quả cuối cùng từ Stripe. Bạn có thể tải lại trạng thái sau.
+          </div>
+          <div>
+            <button
+              onClick={handleRetryVerification}
+              style={{ background: C.amber, color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Tải lại trạng thái
+            </button>
+          </div>
+        </div>
+      )}
+
+      {paymentReturnState === 'IDLE' && packageActionError && (
         <div style={{ background: C.redBg, border: `1.5px solid ${C.redBorder}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#B91C1C', fontWeight: 600 }}>
           {packageActionError}
         </div>
       )}
-      {packageActionSuccess && (
+
+      {paymentReturnState === 'IDLE' && packageActionSuccess && (
         <div style={{ background: C.greenBg, border: `1.5px solid ${C.greenBorder}`, borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.875rem', color: C.green, fontWeight: 600 }}>
           {packageActionSuccess}
         </div>
@@ -1456,6 +1470,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
         onClose={() => setPurchaseModalOpen(false)}
         planId={purchasePlanId}
         vehicleType={purchaseVtype}
+        onSuccess={loadMyPackages}
       />
     </div>
   );

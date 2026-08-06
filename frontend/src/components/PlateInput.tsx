@@ -4,9 +4,10 @@ import { formatPlateNumber } from '../utils/plate';
 interface PlateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> {
   value: string;
   onChange: (val: string) => void;
+  vehicleType?: 'CAR' | 'MOTORBIKE';
 }
 
-export const PlateInput: React.FC<PlateInputProps> = ({ value, onChange, ...props }) => {
+export const PlateInput: React.FC<PlateInputProps> = ({ value, onChange, vehicleType, ...props }) => {
   const isComposing = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +26,7 @@ export const PlateInput: React.FC<PlateInputProps> = ({ value, onChange, ...prop
       onChange(rawVal);
       return;
     }
-    const formatted = formatPlateNumber(rawVal, value);
+    const formatted = formatPlateNumber(rawVal, value, vehicleType);
     if (inputRef.current) {
       inputRef.current.value = formatted;
     }
@@ -39,7 +40,7 @@ export const PlateInput: React.FC<PlateInputProps> = ({ value, onChange, ...prop
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
     isComposing.current = false;
     const rawVal = e.currentTarget.value;
-    const formatted = formatPlateNumber(rawVal, value);
+    const formatted = formatPlateNumber(rawVal, value, vehicleType);
     if (inputRef.current) {
       inputRef.current.value = formatted;
     }

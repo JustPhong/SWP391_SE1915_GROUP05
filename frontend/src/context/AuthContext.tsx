@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { User, MonthlyPackage } from '../types/index';
 import { authService } from '../services/auth.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
@@ -28,7 +28,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const u = localStorage.getItem('user');
+    try {
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
 
@@ -93,7 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
   };
 
-  const refreshPackageStatus = async () => {
+  const refreshPackageStatus = useCallback(async () => {
+    if (isLoading) return;
     if (!user || user.role !== 'DRIVER') {
       setHasActiveMonthlyPackage(false);
       setActivePackages([]);
@@ -104,23 +112,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const data = await monthlyPackageService.getMyPackages();
       const list = Array.isArray(data) ? data : [];
-      setActivePackages(list);
+
+      setActivePackages((prev) => {
+        if (prev.length !== list.length) return list;
+        const isSame = prev.every(
+          (pkg, idx) =>
+            pkg.id === list[idx].id &&
+            pkg.status === list[idx].status &&
+            pkg.expiryDate === list[idx].expiryDate
+        );
+        return isSame ? prev : list;
+      });
 
       const active = list.some((pkg) => {
         if (pkg.status !== 'ACTIVE') return false;
         const expiryTime = new Date(pkg.expiryDate).getTime();
         return Number.isFinite(expiryTime) && expiryTime > Date.now();
       });
-      setHasActiveMonthlyPackage(active);
+      setHasActiveMonthlyPackage((prev) => (prev === active ? prev : active));
     } catch {
       setHasActiveMonthlyPackage(false);
       setActivePackages([]);
     } finally {
       setIsPackageLoading(false);
     }
-  };
+  }, [user?.id, user?.role, isLoading]);
 
   useEffect(() => {
+    if (isLoading) return;
     if (!user) {
       setHasActiveMonthlyPackage(false);
       setActivePackages([]);
@@ -128,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       refreshPackageStatus();
     }
-  }, [user]);
+  }, [user?.id, user?.role, isLoading, refreshPackageStatus]);
 
   return (
     <AuthContext.Provider

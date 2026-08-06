@@ -7,6 +7,9 @@ import { vehicleService } from '../services/vehicle.service';
 import type { Vehicle } from '../types/index';
 import { PlateInput } from '../components/PlateInput';
 import { getTierAreaLabel, getPackageTierTitle } from '../constants/packages';
+import { getCurrentSession } from '../api/driverDashboardApi';
+import type { CurrentSession } from '../api/driverDashboardApi';
+import { formatPlateNumber } from '../utils/plate';
 
 
 const C = {
@@ -36,6 +39,22 @@ function hasMonthlyPackage(vehicle: Vehicle): boolean {
   return isMonthlyPackageEffectivelyActive(pkg);
 }
 function getVehicleTypeLabel(vehicle: Vehicle): string { if (!vehicle?.type) return 'Phương tiện'; return vehicle.type === 'CAR' ? 'Ô tô' : 'Xe máy'; }
+
+/** Format elapsed time from checkInTime to now for live display. */
+function formatElapsed(checkInTime: string): string {
+  const ms = Date.now() - new Date(checkInTime).getTime();
+  if (ms < 0) return '0 phút';
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} phút`;
+  if (minutes === 0) return `${hours} giờ`;
+  return `${hours} giờ ${minutes} phút`;
+}
+
+function formatVND(amount: number): string {
+  return amount.toLocaleString('vi-VN') + ' đ';
+}
 
 function getParkingAreaText(vehicle: Vehicle): string {
   try {
@@ -206,13 +225,14 @@ function SummaryCard({ label, value, icon, accentColor, accentBg, customCircleCl
 
 type DeletePhase = 'idle' | 'confirming' | 'deleting';
 
-function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCancelDelete, onViewDetail }: {
-  vehicle: Vehicle; phase: DeletePhase;
+function RichVehicleCard({ vehicle, phase, activeSession, onAskDelete, onConfirmDelete, onCancelDelete, onViewDetail }: {
+  vehicle: Vehicle; phase: DeletePhase; activeSession: CurrentSession | null;
   onAskDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onViewDetail: () => void;
 }) {
   const isCar = vehicle.type === 'CAR';
   const isMonthly = hasMonthlyPackage(vehicle);
   const busy = phase === 'deleting';
+  const isParked = activeSession !== null && activeSession.vehicleId === vehicle.id;
 
   const areaText = getParkingAreaText(vehicle);
 
@@ -231,7 +251,7 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
       {phase === 'confirming' && (
         <div style={{ position: 'absolute', inset: 0, borderRadius: 20, background: 'rgba(254,242,242,0.97)', border: `2px solid ${C.redBorder}`, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '1rem' }}>
           <IconTrash size={18} color={C.red} />
-          <span style={{ fontSize: '0.9rem', color: '#B91C1C', fontWeight: 700 }}>Xác nhận xoá xe <span style={{ fontFamily: 'Consolas, monospace' }}>{vehicle.plateNumber}</span>?</span>
+          <span style={{ fontSize: '0.9rem', color: '#B91C1C', fontWeight: 700 }}>Xác nhận xoá xe <span style={{ fontFamily: 'Consolas, monospace' }}>{formatPlateNumber(vehicle.plateNumber, undefined, vehicle.type)}</span>?</span>
           <button type="button" onClick={onConfirmDelete} disabled={busy} style={{ padding: '0.5rem 1.1rem', background: C.red, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>Xoá</button>
           <button type="button" onClick={onCancelDelete} disabled={busy} style={{ padding: '0.5rem 1.1rem', background: C.white, color: C.gray600, border: `1px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>Huỷ</button>
         </div>
@@ -243,7 +263,7 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: "'Consolas','Courier New',monospace", fontSize: '1.05rem', fontWeight: 900, color: C.gray900, letterSpacing: '0.04em' }}>{vehicle.plateNumber}</span>
+              <span style={{ fontFamily: "'Consolas','Courier New',monospace", fontSize: '1.05rem', fontWeight: 900, color: C.gray900, letterSpacing: '0.04em' }}>{formatPlateNumber(vehicle.plateNumber, undefined, vehicle.type)}</span>
               <span style={{ background: isMonthly ? C.greenBg : C.orangeLight, color: isMonthly ? C.green : C.orange, fontSize: '0.6rem', fontWeight: 800, padding: '0.15rem 0.6rem', borderRadius: 20, letterSpacing: '0.06em', border: `1px solid ${isMonthly ? '#A7F3D0' : '#FED7AA'}` }}>{isMonthly ? 'GÓI THÁNG' : 'VÃNG LAI'}</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: C.gray600, fontWeight: 500, marginBottom: '0.3rem' }}>{getVehicleTypeLabel(vehicle)}</div>
@@ -251,6 +271,12 @@ function RichVehicleCard({ vehicle, phase, onAskDelete, onConfirmDelete, onCance
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'mv-pulse 2s infinite', boxShadow: '0 0 0 2px #DCFCE7' }} />
                 <span style={{ fontSize: '0.75rem', color: C.green, fontWeight: 600 }}>Đang hoạt động</span>
+              </div>
+            )}
+            {isParked && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', display: 'inline-block', animation: 'mv-pulse 2s infinite', boxShadow: '0 0 0 2px #DBEAFE' }} />
+                <span style={{ fontSize: '0.75rem', color: C.blue, fontWeight: 600 }}>Đang trong bãi</span>
               </div>
             )}
           </div>
@@ -323,7 +349,72 @@ function PackageStatusBadge({ pkg }: { pkg: any }) {
   return <span style={{ background: '#FEF2F2', color: '#DC2626', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20 }}>Hết hạn</span>;
 }
 
-function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: string; onClose: () => void; onUpdate?: () => void }) {
+// ── Live elapsed-time display for the active session ──────────────────────
+function ActiveSessionSection({ session }: { session: CurrentSession | null }) {
+  const [elapsed, setElapsed] = useState(() =>
+    session ? formatElapsed(session.checkInTime) : ''
+  );
+
+  useEffect(() => {
+    if (!session) return;
+    setElapsed(formatElapsed(session.checkInTime));
+    const tid = setInterval(() => {
+      setElapsed(formatElapsed(session.checkInTime));
+    }, 60000); // update once per minute
+    return () => clearInterval(tid);
+  }, [session]);
+
+  const checkInFormatted = session
+    ? new Date(session.checkInTime).toLocaleString('vi-VN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
+  const sessionRow = (label: string, value: React.ReactNode) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', fontSize: '0.82rem', padding: '4px 0', borderBottom: '1px solid #F1F5F9' }}>
+      <span style={{ color: '#64748B', fontWeight: 500, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: '#0F172A', fontWeight: 700, textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div>
+      <h4 style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', fontWeight: 800, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>PHIÊN GỬI HIỆN TẠI</h4>
+      {session ? (
+        <div style={{ background: 'linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%)', border: '1.5px solid #BFDBFE', borderRadius: '14px', padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {sessionRow('Trạng thái', (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3B82F6', display: 'inline-block', animation: 'mv-pulse 2s infinite' }} />
+              <span style={{ color: '#1D4ED8' }}>Đang trong bãi</span>
+            </span>
+          ))}
+          {sessionRow('Giờ vào', checkInFormatted)}
+          {sessionRow('Biển số xe', formatPlateNumber(session.plateNumber, undefined, session.vehicleType))}
+          {sessionRow('Thời gian đã gửi', elapsed)}
+          {sessionRow('Vị trí', `${session.floor} · ${session.slotCode}`)}
+          {sessionRow('Hình thức', session.isMonthly ? 'Gói tháng' : 'Vãng lai / Theo lượt')}
+          {session.estimatedAmount !== null && sessionRow('Phí tạm tính', formatVND(session.estimatedAmount))}
+          {sessionRow('Trạng thái thanh toán', (() => {
+            if (session.paymentStatus === 'SUCCESS') {
+              return <span style={{ color: '#16A34A' }}>Đã thanh toán</span>;
+            }
+            if (session.paymentStatus === 'PENDING') {
+              return <span style={{ color: '#EA580C' }}>Đang chờ xử lý</span>;
+            }
+            return <span style={{ color: '#EF4444' }}>Chưa thanh toán</span>;
+          })())}
+        </div>
+      ) : (
+        <div style={{ background: '#F8FAFC', border: '1.5px dashed #E2E8F0', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: '0.8rem', color: '#94A3B8', fontWeight: 500 }}>Xe hiện không có phiên gửi đang hoạt động.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VehicleDetailModal({ vehicleId, activeSession, onClose, onUpdate }: { vehicleId: string; activeSession: CurrentSession | null; onClose: () => void; onUpdate?: () => void }) {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -358,6 +449,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
         setLoading(false);
       }
     });
+
     return () => { cancelled = true; };
   }, [vehicleId]);
 
@@ -434,7 +526,7 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
               <div style={{ background: '#FFFFFF', border: '2px solid #1E293B', borderRadius: '10px', boxShadow: '0 8px 16px -4px rgba(0,0,0,0.2)', padding: '8px 20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Consolas','Courier New',monospace", fontWeight: 900, color: '#0F172A', fontSize: '1.4rem', letterSpacing: '2px', position: 'relative', minWidth: '160px' }}>
                 <div style={{ position: 'absolute', top: '3px', left: '50%', transform: 'translateX(-50%)', width: '5px', height: '5px', borderRadius: '50%', background: '#CBD5E1', border: '1px solid #94A3B8' }} />
-                {detail.plateNumber}
+                {formatPlateNumber(detail.plateNumber, undefined, detail.type)}
               </div>
               <span style={{ marginTop: '4px', background: 'rgba(255,255,255,0.15)', fontSize: '0.75rem', fontWeight: 700, padding: '3px 12px', borderRadius: '20px', letterSpacing: '0.04em' }}>{detail.type === 'CAR' ? '🚗 Ô TÔ' : '🛵 XE MÁY'}</span>
             </div>
@@ -641,6 +733,8 @@ function VehicleDetailModal({ vehicleId, onClose, onUpdate }: { vehicleId: strin
                 </>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Active parking session — displayed automatically for the authenticated owner */}
+                  <ActiveSessionSection session={activeSession} />
                   {detail.monthlyPackage ? (
                     (() => {
                       const pkgActive = isMonthlyPackageEffectivelyActive(detail.monthlyPackage);
@@ -891,7 +985,7 @@ function AddVehicleForm({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: C.gray600 }}>Biển số xe</span>
-            <PlateInput value={plateNumber} onChange={setPlateNumber} placeholder="VD: 51A-12345" disabled={submitting} autoFocus style={{ ...sel, fontFamily: "'Consolas',monospace", fontWeight: 600 }} />
+            <PlateInput value={plateNumber} onChange={setPlateNumber} vehicleType={type} placeholder={type === 'CAR' ? 'Ví dụ: 51A-731.89' : 'Ví dụ: 59-AB 234.56'} disabled={submitting} autoFocus style={{ ...sel, fontFamily: "'Consolas',monospace", fontWeight: 600 }} />
           </label>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -990,6 +1084,10 @@ export function MyVehiclePage() {
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
   const [tipVisible, setTipVisible] = useState(true);
   const addVehicleBtnRef = useRef<HTMLButtonElement>(null);
+  // Active parking sessions — fetched once when the page loads for the authenticated user.
+  // Used to show "Đang trong bãi" on the vehicle row. Matched to a vehicle by vehicleId,
+  // not plate number, to prevent showing another user's session.
+  const [activeSessions, setActiveSessions] = useState<CurrentSession[]>([]);
 
   /* ── Scroll-lock while modal is open ── */
   useEffect(() => {
@@ -1035,7 +1133,15 @@ export function MyVehiclePage() {
     if (authLoading) return;
     if (!user) return;
     loadVehicles();
-  }, [authLoading, user, loadVehicles]);
+    // Fetch current active sessions once — run alongside vehicle list load.
+    // No polling: a manual refresh (e.g. after check-in) calls loadVehicles again
+    // and will re-trigger this effect if needed.
+    getCurrentSession()
+      .then((sessions) => setActiveSessions(sessions ?? []))
+      .catch(() => setActiveSessions([]));
+  // Stable primitive: user.id avoids re-running when unrelated user fields change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, loadVehicles]);
 
   const handleAddVehicle = async (
     plateNumber: string,
@@ -1161,9 +1267,10 @@ export function MyVehiclePage() {
               const cardState = deleteState[v.id];
               const phase: DeletePhase = cardState?.phase ?? 'idle';
               const err = cardState?.error ?? '';
+              const matchingSession = activeSessions.find((s) => s.vehicleId === v.id) ?? null;
               return (
                 <div key={v.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <RichVehicleCard vehicle={v} phase={phase} onAskDelete={() => askDelete(v.id)} onConfirmDelete={() => handleDelete(v.id)} onCancelDelete={() => cancelDelete(v.id)} onViewDetail={() => setDetailVehicleId(v.id)} />
+                  <RichVehicleCard vehicle={v} phase={phase} activeSession={matchingSession} onAskDelete={() => askDelete(v.id)} onConfirmDelete={() => handleDelete(v.id)} onCancelDelete={() => cancelDelete(v.id)} onViewDetail={() => setDetailVehicleId(v.id)} />
                   {err && phase !== 'deleting' && <DeleteErrorBanner message={err} onDismiss={() => clearDeleteError(v.id)} />}
                 </div>
               );
@@ -1215,7 +1322,14 @@ export function MyVehiclePage() {
 
       {tipVisible && !loading && <TipBanner onClose={() => setTipVisible(false)} />}
 
-      {detailVehicleId && <VehicleDetailModal vehicleId={detailVehicleId} onClose={() => setDetailVehicleId(null)} onUpdate={loadVehicles} />}
+      {detailVehicleId && (
+        <VehicleDetailModal
+          vehicleId={detailVehicleId}
+          activeSession={activeSessions.find((s) => s.vehicleId === detailVehicleId) ?? null}
+          onClose={() => setDetailVehicleId(null)}
+          onUpdate={loadVehicles}
+        />
+      )}
 
 
     </div>

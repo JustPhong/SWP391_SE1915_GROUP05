@@ -2,13 +2,16 @@ import api from '../services/api';
 
 export interface CurrentSession {
   id: string;
+  vehicleId: string;
   plateNumber: string;
+  vehicleType: 'CAR' | 'MOTORBIKE';
   slotCode: string;
-  floor: string;
+  floor: string | null;
   checkInTime: string;
   estimatedAmount: number | null;
   customerType: 'MONTHLY' | 'CASUAL';
   isMonthly: boolean;
+  paymentStatus: 'UNPAID' | 'PENDING' | 'SUCCESS';
 }
 
 export interface MyPackage {
@@ -35,14 +38,14 @@ function unwrap<T>(response: { data: { success: boolean; data: T; message?: stri
   return response.data.data;
 }
 
-export async function getCurrentSession(): Promise<CurrentSession | null> {
+export async function getCurrentSession(): Promise<CurrentSession[]> {
   try {
-    const response = await api.get<{ success: boolean; data: CurrentSession | null }>(
+    const response = await api.get<{ success: boolean; data: CurrentSession[] }>(
       '/driver-dashboard/sessions/current'
     );
     return unwrap(response);
   } catch {
-    return null;
+    return [];
   }
 }
 

@@ -13,39 +13,63 @@ function formatISODate(date: Date) {
   return date.toISOString();
 }
    
-function floorIdToLabel(floorId: number) {
-  const labels: Record<number, string> = { 1: 'Tầng G', 2: 'Tầng 1', 3: 'Tầng 2', 4: 'Tầng 3' };
-  return labels[floorId] ?? `Tầng ${floorId}`;
+/** Returns a human-readable floor name from the related Floor record, or null. */
+function resolveFloorName(
+  slot: { floor: { name: string } | null } | null,
+  floor: { name: string } | null
+): string | null {
+  return slot?.floor?.name ?? floor?.name ?? null;
 }
 
 export const driverDashboardService = {
   async getCurrentSession(userId: string) {
-    const record = await prisma.checkInRecord.findFirst({
+    const records = await prisma.checkInRecord.findMany({
       where: {
         checkOutTime: null,
         vehicle: {
           ownerId: userId,
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { checkInTime: 'desc' },
       include: {
         slot: { include: { floor: true } },
+        floor: true,
         vehicle: true,
+        payments: true,
       },
     });
 
-    if (!record) return null;
+    return records.map((record) => {
+      // Determine paymentStatus
+      let paymentStatus: 'UNPAID' | 'PENDING' | 'SUCCESS' = 'UNPAID';
+      if (record.isMonthly) {
+        paymentStatus = 'SUCCESS';
+      } else {
+        const hasSuccess = record.payments.some(p => p.status === 'SUCCESS' && p.type === 'PARKING_FEE');
+        if (hasSuccess) {
+          paymentStatus = 'SUCCESS';
+        } else {
+          const hasPending = record.payments.some(p => p.status === 'PENDING');
+          if (hasPending) {
+            paymentStatus = 'PENDING';
+          }
+        }
+      }
 
-    return {
-      id: record.id,
-      plateNumber: record.vehicle.plateNumber,
-      slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-      floor: record.slot ? floorIdToLabel(record.slot.floorId) : 'Tầng G',
-      checkInTime: formatISODate(record.checkInTime),
-      estimatedAmount: record.isMonthly ? null : Math.ceil((Date.now() - record.checkInTime.getTime()) / (1000 * 60 * 60)) * SESSION_RATE,
-      customerType: record.isMonthly ? 'MONTHLY' : 'CASUAL',
-      isMonthly: record.isMonthly,
-    };
+      return {
+        id: record.id,
+        vehicleId: record.vehicleId,
+        plateNumber: record.vehicle.plateNumber,
+        vehicleType: record.vehicle.type as 'CAR' | 'MOTORBIKE',
+        slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+        floor: resolveFloorName(record.slot, record.floor),
+        checkInTime: formatISODate(record.checkInTime),
+        estimatedAmount: record.isMonthly ? null : Math.ceil((Date.now() - record.checkInTime.getTime()) / (1000 * 60 * 60)) * SESSION_RATE,
+        customerType: record.isMonthly ? ('MONTHLY' as const) : ('CASUAL' as const),
+        isMonthly: record.isMonthly,
+        paymentStatus,
+      };
+    });
   },
 
   async getMyPackage(userId: string) {

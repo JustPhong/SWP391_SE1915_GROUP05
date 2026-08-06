@@ -17,10 +17,24 @@ export interface AlreadyProcessedResult {
 
 export type CheckoutResult = CheckoutSessionResult | AlreadyProcessedResult;
 
+export type ReconcileSessionResult =
+  | { type: 'SUCCESS'; packageId: string; paymentId: string; planId: string; plateNumber: string }
+  | { type: 'ALREADY_PROCESSED'; packageId: string; paymentId: string; planId: string; plateNumber: string }
+  | { type: 'PENDING' };
+
 export const monthlyPackageService = {
+  reconcileSession: async (sessionId: string): Promise<ReconcileSessionResult> => {
+    const response = await api.post<{ success: boolean; data: ReconcileSessionResult }>(
+      '/monthly-packages/reconcile-session',
+      { sessionId }
+    );
+    return response.data.data;
+  },
+
   createCheckoutSession: async (data: {
     vehicleId: string;
     planId: string;
+    sessionId?: string;
   }): Promise<CheckoutResult> => {
     try {
       const response = await api.post<{ success: boolean; data: CheckoutSessionResult }>(
@@ -61,11 +75,11 @@ export const monthlyPackageService = {
     return response.data.data;
   },
 
-  renewPackage: async (packageId: string, selectedPlanId?: string): Promise<CheckoutResult> => {
+  renewPackage: async (packageId: string, selectedPlanId?: string, sessionId?: string): Promise<CheckoutResult> => {
     try {
       const response = await api.post<{ success: boolean; data: CheckoutSessionResult }>(
         `/monthly-packages/${packageId}/renew`,
-        { selectedPlanId }
+        { selectedPlanId, sessionId }
       );
       return { ...response.data.data, status: 'CHECKOUT' };
     } catch (err: any) {

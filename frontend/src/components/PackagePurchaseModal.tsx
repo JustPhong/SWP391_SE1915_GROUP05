@@ -58,15 +58,17 @@ export interface PackagePurchaseModalProps {
   onClose: () => void;
   planId: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
+  onSuccess?: () => void;
 }
 
 export function PackagePurchaseModal({
   isOpen,
   onClose,
   planId,
-  vehicleType
+  vehicleType,
+  onSuccess
 }: PackagePurchaseModalProps) {
-  const { user } = useAuth();
+  const { user, refreshPackageStatus } = useAuth();
 
   // States
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -318,15 +320,25 @@ export function PackagePurchaseModal({
 
       if (res.status === 'ALREADY_PROCESSED') {
         // Session was already paid — treat as success
+        await refreshPackageStatus();
         sessionStorage.removeItem('pending_monthly_package_id');
         sessionStorage.removeItem('pending_monthly_payment_id');
         sessionStorage.removeItem('pending_monthly_session_id');
+        sessionStorage.removeItem('pending_monthly_plan_id');
+        sessionStorage.removeItem('pending_monthly_vehicle_id');
+        sessionStorage.removeItem('pending_monthly_checkout_type');
+        if (onSuccess) {
+          onSuccess();
+        }
         onClose();
         return;
       }
       sessionStorage.setItem('pending_monthly_package_id', res.packageId);
       sessionStorage.setItem('pending_monthly_payment_id', res.paymentId);
       sessionStorage.setItem('pending_monthly_session_id', res.sessionId);
+      sessionStorage.setItem('pending_monthly_plan_id', planId!);
+      sessionStorage.setItem('pending_monthly_vehicle_id', selectedVehicleId);
+      sessionStorage.setItem('pending_monthly_checkout_type', hasPackageHistory ? 'renew' : 'purchase');
       window.location.href = res.url;
     } catch (err: any) {
       setSubmitError(err.response?.data?.message ?? 'Không thể tạo phiên thanh toán Stripe');
@@ -610,7 +622,7 @@ export function PackagePurchaseModal({
                       Hủy
                     </button>
                     <button type="button" onClick={handleProceedToPaymentScreen} disabled={!selectedVehicleId || submitting} style={{ flex: 1.5, padding: '0.85rem', border: 'none', borderRadius: 14, background: !selectedVehicleId || submitting ? C.gray300 : themeColor, color: C.white, fontSize: '0.9rem', fontWeight: 700, cursor: !selectedVehicleId || submitting ? 'not-allowed' : 'pointer', boxShadow: !selectedVehicleId || submitting ? 'none' : '0 4px 12px rgba(0,0,0,0.15)' }}>
-                      {submitting ? 'Đang kết nối Stripe...' : 'Thanh toán qua Stripe'}
+                      {submitting ? 'Đang chuyển đến Stripe...' : 'Thanh toán qua Stripe'}
                     </button>
                   </div>
                 </>

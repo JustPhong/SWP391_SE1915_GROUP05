@@ -18,6 +18,11 @@ export type RenewResult =
   | { status: 'CHECKOUT'; packageId: string; paymentId: string; sessionId: string; url: string }
   | { status: 'ALREADY_PROCESSED'; packageId: string; paymentId: string };
 
+export type ReconcileSessionResult =
+  | { type: 'SUCCESS'; packageId: string; paymentId: string; planId: string; plateNumber: string }
+  | { type: 'ALREADY_PROCESSED'; packageId: string; paymentId: string; planId: string; plateNumber: string }
+  | { type: 'PENDING' };
+
 export interface CreatePackageInput {
   userId: string;
   vehicleId: string;
@@ -132,21 +137,29 @@ export const monthlyPackageService = {
 
     const now = new Date();
 
-    // Guarded payment update — only update status PENDING to SUCCESS
-    const paymentUpdate = await tx.payment.updateMany({
-      where: {
-        id: paymentId,
-        status: 'PENDING',
-      },
-      data: {
-        status: 'SUCCESS',
-        transactionCode,
-        paidAt: now,
-      },
+    const existingPayment = await tx.payment.findUnique({
+      where: { id: paymentId },
     });
+    if (!existingPayment) {
+      throw new AppError(404, 'Payment record not found.');
+    }
 
-    if (paymentUpdate.count !== 1) {
-      throw new AppError(400, 'Thanh toán không hợp lệ hoặc đã được xử lý.');
+    if (existingPayment.status !== 'SUCCESS') {
+      const paymentUpdate = await tx.payment.updateMany({
+        where: {
+          id: paymentId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'SUCCESS',
+          transactionCode,
+          paidAt: now,
+        },
+      });
+
+      if (paymentUpdate.count !== 1) {
+        throw new AppError(400, 'Thanh toán không hợp lệ hoặc đã được xử lý.');
+      }
     }
 
     let newStartDate: Date;
@@ -230,8 +243,186 @@ export const monthlyPackageService = {
     };
   },
 
+  // Dedicated Stripe return reconciliation — requires only sessionId from the browser
+  // All trusted IDs (paymentId, packageId, userId, vehicleId, planId) are obtained from the database
+  async reconcileStripeSession(sessionId: string, userId: string): Promise<ReconcileSessionResult> {
+    // Step 1: Find Payment by transactionCode (trusted DB lookup, not browser-supplied)
+    const payment = await prisma.payment.findFirst({
+      where: { transactionCode: sessionId, type: 'MONTHLY' },
+      include: {
+        monthlyPackage: {
+          include: { vehicle: true },
+        },
+      },
+    });
+
+    if (!payment) {
+      // Session not found in our DB — may not have been processed yet
+      return { type: 'PENDING' };
+    }
+
+    if (!payment.monthlyPackage) {
+      throw new AppError(400, 'Giao dịch không liên kết với gói tháng hợp lệ.');
+    }
+
+    const pkg = payment.monthlyPackage;
+
+    // Step 2: Verify this payment belongs to the authenticated user
+    if (pkg.userId !== userId) {
+      throw new AppError(403, 'Giao dịch này không thuộc về tài khoản của bạn.');
+    }
+
+    const plateNumber = pkg.vehicle?.plateNumber ?? pkg.vehicleId;
+    const paymentId = payment.id;
+    const packageId = pkg.id;
+
+    // Step 3: Already fully processed — verify package is actually active before returning
+    if (payment.status === 'SUCCESS') {
+      const now = new Date();
+      const isConsistent =
+        pkg.status === 'ACTIVE' &&
+        pkg.expiryDate > now &&
+        pkg.vehicle?.isMonthly === true;
+
+      if (isConsistent) {
+        return {
+          type: 'ALREADY_PROCESSED',
+          packageId,
+          paymentId,
+          planId: pkg.planName ?? '',
+          plateNumber,
+        };
+      }
+      // Payment is SUCCESS but package is stale — fall through to repair via Stripe verification
+    }
+
+    // Step 4: Retrieve and verify the Stripe Checkout Session
+    let stripeSession;
+    try {
+      stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch (err: any) {
+      console.error('[reconcileStripeSession] Stripe retrieval failed:', err);
+      throw new AppError(503, 'Không thể kiểm tra trạng thái thanh toán từ Stripe. Vui lòng thử lại sau.');
+    }
+
+    if (stripeSession.payment_status !== 'paid') {
+      // Not paid yet — treat as pending
+      return { type: 'PENDING' };
+    }
+
+    // Step 5: Validate Stripe session metadata against our trusted DB data
+    const metadata = stripeSession.metadata;
+    if (
+      !metadata ||
+      !metadata.paymentId ||
+      !metadata.monthlyPackageId ||
+      !metadata.userId ||
+      !metadata.vehicleId ||
+      !metadata.planId ||
+      !metadata.type
+    ) {
+      throw new AppError(400, 'Stripe session metadata không đầy đủ.');
+    }
+
+    if (metadata.planId !== '1m' && metadata.planId !== '3m' && metadata.planId !== '1y') {
+      throw new AppError(400, 'Mã gói trong Stripe session metadata không hợp lệ.');
+    }
+
+    if (metadata.type !== 'purchase' && metadata.type !== 'renew') {
+      throw new AppError(400, 'Loại giao dịch trong Stripe session metadata không hợp lệ.');
+    }
+
+    // Cross-check Stripe metadata against trusted DB records
+    if (
+      metadata.paymentId !== paymentId ||
+      metadata.monthlyPackageId !== packageId ||
+      metadata.userId !== userId ||
+      metadata.vehicleId !== pkg.vehicleId
+    ) {
+      throw new AppError(400, 'Stripe session metadata không khớp với thông tin giao dịch.');
+    }
+
+    if (stripeSession.currency?.toLowerCase() !== 'vnd') {
+      throw new AppError(400, `Đơn vị tiền tệ không hợp lệ: expected VND, got ${stripeSession.currency}`);
+    }
+
+    const vehicleType = pkg.vehicle.type;
+    const planId = metadata.planId;
+    const resolvedPrice = PACKAGE_PRICES[vehicleType]?.[planId];
+    if (!resolvedPrice) {
+      throw new AppError(400, 'Không tìm thấy cấu hình giá phù hợp.');
+    }
+
+    if (stripeSession.amount_total === null || stripeSession.amount_total === undefined) {
+      throw new AppError(400, 'Stripe session amount_total không hợp lệ.');
+    }
+
+    if (stripeSession.amount_total !== resolvedPrice) {
+      throw new AppError(400, `Số tiền không khớp: expected ${resolvedPrice}, got ${stripeSession.amount_total}`);
+    }
+
+    const targetTier = getTierFromPlan(planId);
+    const isRenewal = metadata.type === 'renew';
+
+    // Step 6: Call the shared idempotent reconciliation function
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        const emailDetails = await prisma.$transaction(async (tx) => {
+          return await monthlyPackageService.reconcilePaymentSuccess(
+            tx,
+            paymentId,
+            sessionId,
+            planId,
+            targetTier,
+            packageId,
+            userId,
+            stripeSession.amount_total as number,
+            isRenewal
+          );
+        }, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+
+        await sendNotificationEmailSafely(emailDetails);
+
+        // Determine which result type to return
+        const resultType = payment.status === 'SUCCESS' ? 'ALREADY_PROCESSED' : 'SUCCESS';
+        return {
+          type: resultType,
+          packageId,
+          paymentId,
+          planId,
+          plateNumber,
+        };
+      } catch (err: any) {
+        if (err.code === 'P2034' && attempts < maxAttempts) {
+          console.warn(`[reconcileStripeSession] Serialization conflict (attempt ${attempts}). Retrying...`);
+          await new Promise(res => setTimeout(res, attempts * 100));
+          continue;
+        }
+        if (err.code === 'P2002' && err.meta?.target?.includes('transactionCode')) {
+          // Duplicate transactionCode — already processed concurrently
+          return {
+            type: 'ALREADY_PROCESSED',
+            packageId,
+            paymentId,
+            planId,
+            plateNumber,
+          };
+        }
+        throw err;
+      }
+    }
+
+    throw new AppError(503, 'Không thể hoàn tất xác nhận thanh toán sau nhiều lần thử.');
+  },
+
   // Real Stripe Checkout Session Creation (Accepts only trusted vehicleId and planId)
-  async createCheckoutSession(input: { userId: string; vehicleId: string; planId: string }): Promise<CheckoutResult> {
+  async createCheckoutSession(input: { userId: string; vehicleId: string; planId: string; sessionId?: string }): Promise<CheckoutResult> {
     const vehicle = await prisma.vehicle.findUnique({ where: { id: input.vehicleId } });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
     if (vehicle.ownerId !== input.userId) {
@@ -243,7 +434,17 @@ export const monthlyPackageService = {
     // Check if there is an existing package for this vehicle
     const existingPkg = await prisma.monthlyPackage.findUnique({
       where: { vehicleId: input.vehicleId },
-      include: { payments: { where: { status: 'PENDING' } } },
+      include: {
+        payments: {
+          where: {
+            OR: [
+              ...(input.sessionId ? [{ transactionCode: input.sessionId }] : []),
+              { status: 'PENDING' }
+            ]
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      },
     });
 
     const allowedTier = getTierFromPlan(input.planId);
@@ -253,6 +454,33 @@ export const monthlyPackageService = {
     }
 
     if (existingPkg) {
+      const successPayment = existingPkg.payments.find(p => p.status === 'SUCCESS' || (input.sessionId && p.transactionCode === input.sessionId && p.status === 'SUCCESS'));
+      if (successPayment) {
+        const isPkgUpdated = existingPkg.status === 'ACTIVE' && existingPkg.expiryDate > now;
+        if (!isPkgUpdated) {
+          const targetTier = getTierFromPlan(input.planId);
+          const emailDetails = await prisma.$transaction(async (tx) => {
+            return await monthlyPackageService.reconcilePaymentSuccess(
+              tx,
+              successPayment.id,
+              successPayment.transactionCode || input.sessionId || '',
+              input.planId,
+              targetTier,
+              existingPkg.id,
+              input.userId,
+              Number(successPayment.amount),
+              false
+            );
+          });
+          await sendNotificationEmailSafely(emailDetails);
+        }
+        return {
+          status: 'ALREADY_PROCESSED' as const,
+          packageId: existingPkg.id,
+          paymentId: successPayment.id,
+        };
+      }
+
       if (existingPkg.status === 'ACTIVE' && existingPkg.expiryDate > now) {
         throw new AppError(400, 'Phương tiện này đang có gói tháng còn hiệu lực.');
       }
@@ -262,7 +490,7 @@ export const monthlyPackageService = {
       }
 
       if (existingPkg.status === 'PENDING_PAYMENT') {
-        const pendingPayment = existingPkg.payments[0];
+        const pendingPayment = existingPkg.payments.find(p => p.status === 'PENDING');
         if (pendingPayment && pendingPayment.transactionCode) {
           try {
             const session = await stripe.checkout.sessions.retrieve(pendingPayment.transactionCode);
@@ -492,8 +720,8 @@ export const monthlyPackageService = {
     }
 
     const session = await stripe.checkout.sessions.create({
-      success_url: `${frontendUrl}/driver/monthly-package?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${frontendUrl}/driver/monthly-package?cancelled=true`,
+      success_url: `${frontendUrl}/monthly-package?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/monthly-package?payment=cancelled`,
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [
@@ -758,7 +986,7 @@ export const monthlyPackageService = {
     });
   },
 
-  async renewPackage(packageId: string, userId: string, selectedPlanId?: string): Promise<RenewResult> {
+  async renewPackage(packageId: string, userId: string, selectedPlanId?: string, searchSessionId?: string): Promise<RenewResult> {
     const pkg = await prisma.monthlyPackage.findUnique({
       where: { id: packageId },
       include: { user: true, vehicle: { select: { id: true, type: true, plateNumber: true } } },
@@ -803,11 +1031,49 @@ export const monthlyPackageService = {
     // Reuse or create a PENDING payment for this renewal session
     const existingPending = await prisma.payment.findFirst({
       where: {
-        monthlyPackageId: packageId,
-        status: 'PENDING',
-        type: 'MONTHLY',
+        OR: [
+          ...(searchSessionId ? [{ transactionCode: searchSessionId }] : []),
+          {
+            monthlyPackageId: packageId,
+            status: 'PENDING',
+            type: 'MONTHLY',
+          },
+        ],
       },
+      orderBy: { createdAt: 'desc' },
     });
+
+    if (existingPending && existingPending.status === 'SUCCESS') {
+      const isPkgUpdated = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
+      if (isPkgUpdated) {
+        return {
+          status: 'ALREADY_PROCESSED' as const,
+          packageId: pkg.id,
+          paymentId: existingPending.id,
+        };
+      } else {
+        const targetTierForPaid = getTierFromPlan(planId);
+        const emailDetails = await prisma.$transaction(async (tx) => {
+          return await monthlyPackageService.reconcilePaymentSuccess(
+            tx,
+            existingPending.id,
+            existingPending.transactionCode || searchSessionId || '',
+            planId,
+            targetTierForPaid,
+            pkg.id,
+            userId,
+            Number(existingPending.amount),
+            true
+          );
+        });
+        await sendNotificationEmailSafely(emailDetails);
+        return {
+          status: 'ALREADY_PROCESSED' as const,
+          packageId: pkg.id,
+          paymentId: existingPending.id,
+        };
+      }
+    }
 
     let payment = existingPending;
     let sessionId: string | undefined;
@@ -955,7 +1221,7 @@ export const monthlyPackageService = {
     }
 
     if (!payment || !sessionId || !sessionUrl) {
-      payment = await prisma.payment.create({
+      const newPayment = await prisma.payment.create({
         data: {
           monthlyPackageId: packageId,
           amount: price,
@@ -964,6 +1230,7 @@ export const monthlyPackageService = {
           status: 'PENDING',
         },
       });
+      payment = newPayment;
 
       const stripeSecret = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
       if (stripeSecret === 'sk_test_mock') {
@@ -976,8 +1243,8 @@ export const monthlyPackageService = {
         }
 
         const session = await stripe.checkout.sessions.create({
-          success_url: `${frontendUrl}/driver/monthly-package?success=true&session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${frontendUrl}/driver/monthly-package?cancelled=true`,
+          success_url: `${frontendUrl}/monthly-package?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${frontendUrl}/monthly-package?payment=cancelled`,
           mode: 'payment',
           payment_method_types: ['card'],
           line_items: [
@@ -996,12 +1263,12 @@ export const monthlyPackageService = {
             userId: userId,
             vehicleId: pkg.vehicle.id,
             planId: planId,
-            paymentId: payment.id,
+            paymentId: newPayment.id,
             monthlyPackageId: pkg.id,
             type: 'renew',
           },
         }, {
-          idempotencyKey: `monthly_renew_${payment.id}`,
+          idempotencyKey: `monthly_renew_${newPayment.id}`,
         });
 
         sessionId = session.id;
@@ -1009,15 +1276,20 @@ export const monthlyPackageService = {
       }
 
       await prisma.payment.update({
-        where: { id: payment.id },
+        where: { id: newPayment.id },
         data: { transactionCode: sessionId },
       });
     }
 
+    if (!payment) {
+      throw new AppError(500, 'Không thể khởi tạo giao dịch thanh toán.');
+    }
+    const resolvedPayment = payment;
+
     return {
       status: 'CHECKOUT' as const,
       packageId,
-      paymentId: payment.id,
+      paymentId: resolvedPayment.id,
       sessionId: sessionId!,
       url: sessionUrl!,
     };
