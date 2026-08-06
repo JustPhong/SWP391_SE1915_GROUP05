@@ -1391,7 +1391,7 @@ function HeroLoggedIn({
           </h1>
           <p className={styles.heroSubtitle}>
             {session
-              ? `Xe ${formatPlateNumber(session.plateNumber, undefined, session.vehicleType)} đang đỗ tại ${session.slotCode} · ${session.floor}. Phí ước tính: ${formatCurrencyInline(session.estimatedAmount ?? 0)}.`
+              ? `Xe ${formatPlateNumber(session.plateNumber, undefined, session.vehicleType)} đang đỗ tại ${session.floor ? `${session.floor} · ${session.slotCode}` : session.slotCode}. Phí ước tính: ${formatCurrencyInline(session.estimatedAmount ?? 0)}.`
               : heroContent.description}
           </p>
           <div className={styles.heroHighlights}>

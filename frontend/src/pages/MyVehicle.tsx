@@ -392,7 +392,7 @@ function ActiveSessionSection({ session }: { session: CurrentSession | null }) {
           {sessionRow('Giờ vào', checkInFormatted)}
           {sessionRow('Biển số xe', formatPlateNumber(session.plateNumber, undefined, session.vehicleType))}
           {sessionRow('Thời gian đã gửi', elapsed)}
-          {sessionRow('Vị trí', `${session.floor} · ${session.slotCode}`)}
+          {sessionRow('Vị trí', session.floor ? `${session.floor} · ${session.slotCode}` : session.slotCode)}
           {sessionRow('Hình thức', session.isMonthly ? 'Gói tháng' : 'Vãng lai / Theo lượt')}
           {session.estimatedAmount !== null && sessionRow('Phí tạm tính', formatVND(session.estimatedAmount))}
           {sessionRow('Trạng thái thanh toán', (() => {

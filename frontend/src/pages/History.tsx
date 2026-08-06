@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../services/api';
 import styles from '../styles/history.module.css';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { formatPlateNumber } from '../utils/plate';
 
 interface HistoryEntry {
   id: string;
@@ -13,6 +14,7 @@ interface HistoryEntry {
     licensePlate: string;
   };
   slotCode?: string | null;
+  floor?: string | null;
   slot?: {
     code: string;
   };
@@ -25,12 +27,17 @@ interface HistoryEntry {
   date?: string;
   entryTime?: string;
   createdAt?: string;
+  /** Exact duration in minutes from the backend (preferred over pre-formatted string). */
+  durationMinutes?: number;
   duration?: string;
   parkingDuration?: string;
   amount?: number;
   totalPrice?: number;
   price?: number;
   status?: string;
+  /** amountType distinguishes provisional (active) from final (completed) amounts */
+  amountType?: 'PROVISIONAL' | 'FINAL';
+  vehicleType?: 'CAR' | 'MOTORBIKE';
 }
 
 // Vietnamese date formatting
@@ -55,6 +62,19 @@ const formatDateTime = (value?: string | Date) => {
 // Vietnamese currency formatting
 const formatCurrency = (value?: number) => {
   return new Intl.NumberFormat('vi-VN').format(value || 0) + ' đ';
+};
+
+/**
+ * Format an exact duration in minutes as a human-readable Vietnamese string.
+ * Examples: 35 → "35 phút"; 60 → "1 giờ"; 266 → "4 giờ 26 phút"; 0 → "0 phút"
+ */
+const formatDurationMinutes = (minutes?: number): string => {
+  if (minutes == null || minutes < 0) return '0 phút';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} phút`;
+  if (m === 0) return `${h} giờ`;
+  return `${h} giờ ${m} phút`;
 };
 
 export const isCompletedParkingStatus = (status?: string): boolean => {
@@ -171,16 +191,18 @@ export function HistoryPage() {
 
   // Safe data extraction helpers for a record
   const getPlate = (record: HistoryEntry) => {
-    return record.plateNumber || record.licensePlate || record.vehicle?.licensePlate || record.vehiclePlate || '-';
+    const raw = record.plateNumber || record.licensePlate || record.vehicle?.licensePlate || record.vehiclePlate || '';
+    if (!raw) return '-';
+    // Use the shared formatter: vehicleType is optional here — the formatter infers CAR pattern
+    return formatPlateNumber(raw, undefined, record.vehicleType) || raw;
   };
 
   const getLocationLabel = (record: HistoryEntry): string => {
-    return (
-      record.floorName ||
-      record.parkingArea ||
-      (record.slotCode || record.slot?.code || record.parkingSlot?.code || '') ||
-      'Chưa xác định'
-    );
+    // Prefer the backend-provided floor name + slotCode combination.
+    const floorLabel = record.floor ?? record.floorName ?? record.parkingArea ?? null;
+    const slotLabel = record.slotCode || record.slot?.code || record.parkingSlot?.code || 'Không cố định';
+    if (floorLabel) return `${floorLabel} · ${slotLabel}`;
+    return slotLabel || 'Chưa xác định';
   };
 
   const getDate = (record: HistoryEntry) => {
@@ -188,6 +210,8 @@ export function HistoryPage() {
   };
 
   const getDuration = (record: HistoryEntry) => {
+    // Prefer exact backend-provided durationMinutes over pre-formatted string
+    if (record.durationMinutes != null) return formatDurationMinutes(record.durationMinutes);
     return record.duration || record.parkingDuration || '-';
   };
 
@@ -306,7 +330,7 @@ export function HistoryPage() {
             </svg>
           </div>
           <div className={styles.cardMeta}>
-            <span className={styles.cardLabel}>Tổng chi phí</span>
+            <span className={styles.cardLabel}>Đã thanh toán</span>
             <p className={styles.cardValue}>{formatCurrency(totalCost)}</p>
           </div>
         </div>
@@ -460,7 +484,11 @@ export function HistoryPage() {
                         <td style={{ fontWeight: 600 }}>{slot}</td>
                         <td>{formatDateTime(date)}</td>
                         <td>{duration}</td>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>{formatCurrency(amount)}</td>
+                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                          {entry.amountType === 'PROVISIONAL'
+                            ? `Tạm tính ${formatCurrency(amount)}`
+                            : formatCurrency(amount)}
+                        </td>
                         <td>
                           <span className={`${styles.statusBadge} ${statusClass}`}>
                             {statusLabel}
@@ -557,9 +585,7 @@ export function HistoryPage() {
               </div>
 
               <div className={styles.modalField}>
-                <span className={styles.modalLabel}>
-                  {selectedEntry.floorName || selectedEntry.parkingArea ? 'Khu vực đỗ' : 'Mã chỗ đỗ'}
-                </span>
+                <span className={styles.modalLabel}>Vị trí</span>
                 <span className={styles.modalValue}>{getLocationLabel(selectedEntry)}</span>
               </div>
 
@@ -574,7 +600,9 @@ export function HistoryPage() {
               </div>
 
               <div className={styles.modalField}>
-                <span className={styles.modalLabel}>Tổng chi phí</span>
+                <span className={styles.modalLabel}>
+                  {selectedEntry.amountType === 'PROVISIONAL' ? 'Phí tạm tính' : 'Tổng chi phí'}
+                </span>
                 <span className={styles.modalValue} style={{ color: '#1E3A5F', fontWeight: 700 }}>
                   {formatCurrency(getAmount(selectedEntry))}
                 </span>
@@ -590,7 +618,7 @@ export function HistoryPage() {
               </div>
 
               <div className={`${styles.modalField} ${styles.modalFieldFull}`}>
-                <span className={styles.modalLabel}>Mã giao dịch</span>
+                <span className={styles.modalLabel}>Mã lượt gửi</span>
                 <span className={styles.modalValue} style={{ fontFamily: 'monospace', color: '#64748B', fontSize: '0.85rem' }}>
                   {selectedEntry.id}
                 </span>

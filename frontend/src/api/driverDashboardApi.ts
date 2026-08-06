@@ -9,6 +9,8 @@ export interface CurrentSession {
   floor: string | null;
   checkInTime: string;
   estimatedAmount: number | null;
+  calculatedAt: string;
+  durationMinutes: number;
   customerType: 'MONTHLY' | 'CASUAL';
   isMonthly: boolean;
   paymentStatus: 'UNPAID' | 'PENDING' | 'SUCCESS';
@@ -25,10 +27,15 @@ export interface HistoryItem {
   id: string;
   plateNumber: string;
   slotCode: string;
+  floor: string | null;
   date: string;
-  duration: string;
+  checkInTime?: string;
+  checkOutTime?: string | null;
+  durationMinutes: number;
   amount: number;
-  status: string;
+  amountType: 'PROVISIONAL' | 'FINAL';
+  status?: string;
+  vehicleType: 'CAR' | 'MOTORBIKE';
 }
 
 function unwrap<T>(response: { data: { success: boolean; data: T; message?: string } }): T {
