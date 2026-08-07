@@ -44,10 +44,16 @@ function formatExpiryDeadline(dateInput: string | Date): string {
   return `${hh}:${mm} · ${dd}/${MM}/${yyyy}`;
 }
 
+const formatVND = (value?: number) => {
+  return new Intl.NumberFormat('vi-VN').format(value || 0) + ' đ';
+};
+
 // ── Main Page ──────────────────────────────────────────────
 export function BookingPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [depositPrice, setDepositPrice] = useState<number>(15000);
+  const [configError, setConfigError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState<Booking | null>(null);
@@ -94,7 +100,16 @@ export function BookingPage() {
   const loadCars = useCallback(async () => {
     setLoading(true);
     setErrorMsg('');
+    setConfigError(false);
     try {
+      // Load current booking deposit config
+      const configRes = await api.get<{ success: boolean; data: { depositAmount: number } }>('/booking-config');
+      if (configRes.data?.success && configRes.data?.data) {
+        setDepositPrice(configRes.data.data.depositAmount);
+      } else {
+        throw new Error('Failed to load booking config');
+      }
+
       const data = await vehicleService.getMyVehicles();
       const cars = (data ?? []).filter((v) => v.type === 'CAR');
 
@@ -172,8 +187,9 @@ export function BookingPage() {
           }
         }
       }
-    } catch {
-      setErrorMsg('Không thể tải danh sách xe. Vui lòng tải lại trang.');
+    } catch (err: any) {
+      setErrorMsg('Không thể tải dữ liệu cấu hình hoặc xe. Vui lòng tải lại trang.');
+      setConfigError(true);
     } finally {
       setLoading(false);
     }
@@ -197,7 +213,7 @@ export function BookingPage() {
 
           const isPaid =
             bookingFeePayment?.status === 'SUCCESS' &&
-            Number(bookingFeePayment.amount) === 15000;
+            Number(bookingFeePayment.amount) === Number(booking.depositAmount);
 
           if (booking.status === 'ACTIVE' && isPaid && booking.expiresAt) {
             clearInterval(interval);
@@ -558,7 +574,7 @@ export function BookingPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phí đặt cọc đã thanh toán</span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#10B981' }}>
-                  {Number(displayBooking.depositAmount) > 0 ? '15.000đ' : 'Miễn phí (Thuê bao tháng)'}
+                  {Number(displayBooking.depositAmount) > 0 ? formatVND(Number(displayBooking.depositAmount)) : 'Miễn phí (Thuê bao tháng)'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -688,7 +704,7 @@ export function BookingPage() {
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '2px', lineHeight: 1.35, letterSpacing: '0.04em' }}>Trạng thái cọc</span>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#10B981', lineHeight: 1.4 }}>Đã thanh toán (15.000đ)</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#10B981', lineHeight: 1.4 }}>Đã thanh toán ({formatVND(Number(activeBooking.depositAmount))})</span>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: '2px', lineHeight: 1.35, letterSpacing: '0.04em' }}>Trạng thái chỗ</span>
@@ -715,6 +731,44 @@ export function BookingPage() {
               }}>
                 Thời gian còn lại: <span style={{ color: '#FBBF24', fontFamily: 'monospace', fontWeight: 700 }}>{getRemainingTimeText(activeBooking.expiresAt)}</span>
               </div>
+            </div>
+          )}
+
+          {/* Configuration Load Error Banner */}
+          {configError && (
+            <div style={{
+              background: '#FEF2F2',
+              border: '1.5px solid #FCA5A5',
+              borderRadius: 16,
+              padding: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                <span style={{ fontSize: '0.875rem', color: '#DC2626', fontWeight: 600 }}>
+                  Không thể tải thông tin phí đặt cọc. Vui lòng kiểm tra lại.
+                </span>
+              </div>
+              <button
+                onClick={loadCars}
+                style={{
+                  background: '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: 10,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Thử lại
+              </button>
             </div>
           )}
 
@@ -858,7 +912,7 @@ export function BookingPage() {
                 </div>
                 <div className={styles.summaryColText}>
                   <p className={styles.summaryColLabel}>Phí đặt cọc</p>
-                  <p className={`${styles.summaryColValue} ${styles.summaryColValueGreen}`}>15.000đ</p>
+                  <p className={`${styles.summaryColValue} ${styles.summaryColValueGreen}`}>{formatVND(depositPrice)}</p>
                 </div>
               </div>
 
@@ -914,7 +968,7 @@ export function BookingPage() {
           {!hasActiveBooking && (
             <button
               onClick={handleOpenPaymentModal}
-              disabled={submitting || !selectedVehicleId}
+              disabled={submitting || !selectedVehicleId || configError}
               className={styles.confirmBtn}
             >
               {submitting ? (
@@ -965,7 +1019,7 @@ export function BookingPage() {
 
                 <div className={styles.summaryRow}>
                   <span className={styles.rowLabel}>Tiền cọc đã trả</span>
-                  <span className={styles.rowValueGreen} style={{ fontWeight: 600 }}>15.000đ</span>
+                  <span className={styles.rowValueGreen} style={{ fontWeight: 600 }}>{formatVND(Number(activeBooking.depositAmount))}</span>
                 </div>
 
                 <div className={styles.rowDivider} />
@@ -1011,7 +1065,7 @@ export function BookingPage() {
 
                 <div className={styles.summaryRow}>
                   <span className={styles.rowLabel}>Phí đặt cọc</span>
-                  <span className={styles.rowValueGreen}>15.000đ</span>
+                  <span className={styles.rowValueGreen}>{formatVND(depositPrice)}</span>
                 </div>
 
                 <div className={styles.rowDivider} />
@@ -1083,7 +1137,7 @@ export function BookingPage() {
 
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: 600 }}>Phí giữ chỗ:</span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#2563EB' }}>15.000đ</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#2563EB' }}>{formatVND(depositPrice)}</span>
             </div>
 
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>

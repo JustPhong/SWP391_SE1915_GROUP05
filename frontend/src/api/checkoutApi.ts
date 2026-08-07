@@ -168,3 +168,18 @@ export async function getCheckoutStripeStatusBySession(sessionId: string): Promi
     throw new Error(msg);
   }
 }
+
+export async function lookupCheckoutByMonthlyQr(qrToken: string): Promise<CheckoutLookupResult> {
+  try {
+    const response = await api.post<{ success: boolean; data: CheckoutLookupResult }>(
+      '/checkout/lookup-monthly-qr',
+      { qrToken }
+    );
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Mã QR gói tháng không hợp lệ hoặc không còn hiệu lực. Vui lòng thử lại hoặc nhập mã PIN.';
+    throw new Error(msg);
+  }
+}

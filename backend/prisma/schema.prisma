@@ -25,6 +25,7 @@ model User {
   paymentsCollected Payment[]
   roleRef           Role             @relation(fields: [roleId], references: [id], onUpdate: NoAction)
   vehicles          Vehicle[]
+  drivenSessions    CheckInRecord[]  @relation("DriverOf")
 
   @@index([roleId])
 }
@@ -155,12 +156,15 @@ model CheckInRecord {
 
   prepaidAt       DateTime?
   guestCredential GuestAccessCredential?
+  driverId        String?
+  driver          User?        @relation("DriverOf", fields: [driverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([status])
   @@index([vehicleId])
   @@index([checkInTime])
   @@index([floorId])
   @@index([bookingId])
+  @@index([driverId])
 }
 
 model GuestAccessCredential {
@@ -271,6 +275,7 @@ model Vehicle {
   monthlyPackage MonthlyPackage?
   fixedSlots     ParkingSlot[]
   owner          User            @relation(fields: [ownerId], references: [id], onUpdate: NoAction)
+  isArchived     Boolean         @default(false)
 
   @@index([ownerId])
 }

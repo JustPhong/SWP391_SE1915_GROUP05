@@ -139,4 +139,13 @@ export const checkoutController = {
     const result = await checkoutService.getStripeStatusBySession(session_id as string);
     return res.status(200).json({ success: true, data: result });
   }),
+
+  lookupMonthlyQr: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { qrToken } = req.body as { qrToken?: string };
+    if (!qrToken) {
+      return res.status(400).json({ success: false, message: 'qrToken là bắt buộc.' });
+    }
+    const result = await checkoutService.lookupMonthlyQr(qrToken);
+    return res.status(200).json({ success: true, data: result });
+  }),
 };

@@ -132,4 +132,12 @@ export const monthlyPackageService = {
     );
     return response.data.data;
   },
+
+  getQrToken: async (packageId: string, vehicleId: string) => {
+    const response = await api.post<{ success: boolean; data: { qrToken: string } }>(
+      `/monthly-packages/${packageId}/qr-token`,
+      { vehicleId }
+    );
+    return response.data.data;
+  },
 };

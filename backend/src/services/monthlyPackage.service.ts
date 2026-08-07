@@ -4,11 +4,27 @@ import { sendEmail } from './email.service';
 import { stripe } from '../config/stripe';
 import { Prisma } from '@prisma/client';
 import { generateMonthlyAccessPin } from '../utils/pin';
+import { normalizeLicensePlate } from '../utils/plate';
+import jwt from 'jsonwebtoken';
+import { config } from '../config';
 
 const PKG_ACTIVE = 'ACTIVE';
 const PKG_EXPIRED = 'EXPIRED';
 const VEHICLE_CAR = 'CAR';
 const VEHICLE_MOTORBIKE = 'MOTORBIKE';
+
+function mapEffectiveStatus(pkg: any) {
+  if (!pkg) return pkg;
+  const now = new Date();
+  const isExpiredActive = pkg.status === PKG_ACTIVE && pkg.expiryDate <= now;
+  const effectiveStatus = isExpiredActive ? PKG_EXPIRED : pkg.status;
+  const isEffectivelyActive = pkg.status === PKG_ACTIVE && pkg.expiryDate > now;
+  return {
+    ...pkg,
+    effectiveStatus,
+    isEffectivelyActive,
+  };
+}
 
 export type CheckoutResult =
   | { status: 'CHECKOUT'; packageId: string; paymentId: string; sessionId: string; url: string }
@@ -917,10 +933,14 @@ export const monthlyPackageService = {
   },
 
   async getActivePackages() {
-    return prisma.monthlyPackage.findMany({
-      where: { status: PKG_ACTIVE },
+    const packages = await prisma.monthlyPackage.findMany({
+      where: {
+        status: PKG_ACTIVE,
+        expiryDate: { gt: new Date() },
+      },
       include: { user: true, vehicle: true, floor: true },
     });
+    return packages.map((pkg) => mapEffectiveStatus(pkg));
   },
 
   getPlans() {
@@ -971,19 +991,21 @@ export const monthlyPackageService = {
   },
 
   async getByUser(userId: string) {
-    return prisma.monthlyPackage.findMany({
+    const packages = await prisma.monthlyPackage.findMany({
       where: { userId },
       include: { vehicle: true, floor: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
+    return packages.map((pkg) => mapEffectiveStatus(pkg));
   },
 
   async getByVehicle(vehicleId: string) {
-    return prisma.monthlyPackage.findFirst({
+    const pkg = await prisma.monthlyPackage.findFirst({
       where: { vehicleId },
       include: { user: true, vehicle: true, floor: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
+    return mapEffectiveStatus(pkg);
   },
 
   async renewPackage(packageId: string, userId: string, selectedPlanId?: string, searchSessionId?: string): Promise<RenewResult> {
@@ -1351,7 +1373,7 @@ export const monthlyPackageService = {
         );
       }
 
-      return updated;
+      return mapEffectiveStatus(updated);
     });
   },
 
@@ -1637,17 +1659,10 @@ export const monthlyPackageService = {
       throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
     }
 
-    const cleanPlate = plateNumber.trim().toUpperCase();
-    const strippedPlate = cleanPlate.replace(/[-.\s]/g, '');
+    const targetNormalized = normalizeLicensePlate(plateNumber);
 
     const client = txClient || prisma;
-    const vehicle = await client.vehicle.findFirst({
-      where: {
-        OR: [
-          { plateNumber: cleanPlate },
-          { plateNumber: strippedPlate },
-        ]
-      },
+    const vehicles = await client.vehicle.findMany({
       include: {
         monthlyPackage: {
           include: {
@@ -1656,6 +1671,10 @@ export const monthlyPackageService = {
         }
       }
     });
+
+    const vehicle = vehicles.find(
+      (v: { plateNumber: string }) => normalizeLicensePlate(v.plateNumber) === targetNormalized
+    );
 
     if (!vehicle || !vehicle.isMonthly || !vehicle.monthlyPackage) {
       throw new AppError(400, 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
@@ -1677,5 +1696,50 @@ export const monthlyPackageService = {
     }
 
     return { vehicle, monthlyPackage: pkg };
+  },
+
+  async getQrToken(packageId: string, vehicleId: string, userId: string) {
+    const pkg = await prisma.monthlyPackage.findUnique({
+      where: { id: packageId },
+      include: { vehicle: true },
+    });
+    if (!pkg) {
+      throw new AppError(404, 'Không tìm thấy gói tháng.');
+    }
+    if (pkg.userId !== userId) {
+      throw new AppError(403, 'Bạn không có quyền với gói tháng này.');
+    }
+    if (pkg.status !== 'ACTIVE') {
+      throw new AppError(400, 'Gói tháng không ở trạng thái hoạt động.');
+    }
+    const now = new Date();
+    if (pkg.expiryDate.getTime() <= now.getTime()) {
+      throw new AppError(400, 'Gói tháng đã hết hạn.');
+    }
+    if (pkg.vehicleId !== vehicleId || !pkg.vehicle || pkg.vehicle.ownerId !== userId) {
+      throw new AppError(400, 'Thông tin xe không hợp lệ cho gói tháng này.');
+    }
+
+    const timeToExpiry = Math.floor((pkg.expiryDate.getTime() - now.getTime()) / 1000);
+    if (timeToExpiry <= 0) {
+      throw new AppError(400, 'Gói tháng đã hết hạn.');
+    }
+
+    const qrToken = jwt.sign(
+      {
+        purpose: 'MONTHLY_CHECKOUT_QR',
+        packageId: pkg.id,
+        vehicleId: pkg.vehicleId,
+      },
+      config.jwtSecret,
+      {
+        expiresIn: timeToExpiry,
+        issuer: 'smart-parking-backend',
+        audience: 'smart-parking-checkout',
+        algorithm: 'HS256',
+      }
+    );
+
+    return { qrToken };
   },
 };

@@ -11,6 +11,8 @@ import Stripe from 'stripe';
 import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
 import fs from 'fs';
 import path from 'path';
+import jwt from 'jsonwebtoken';
+import { config as appConfig } from '../config';
 
 function resolveCheckInImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -589,8 +591,9 @@ export const checkoutService = {
     method?: 'CASH' | 'CARD' | 'EWALLET';
     staffId?: string;
     pin?: string;
+    monthlyQrToken?: string;
   }): Promise<CheckoutSubmitResult> {
-    const { checkInRecordId, plate, method = 'CASH', staffId, pin } = params;
+    const { checkInRecordId, plate, method = 'CASH', staffId, pin, monthlyQrToken } = params;
 
     if (!['CASH', 'CARD', 'EWALLET'].includes(method)) {
       throw new AppError(400, 'Phương thức thanh toán không hợp lệ.');
@@ -690,9 +693,62 @@ export const checkoutService = {
       const now = new Date();
       const checkIn = new Date(activeRecord.checkInTime);
       let isMonthlyOverride = false;
-      if (pin) {
-        await monthlyPackageService.verifyMonthlyPackageAccessByPin(activeRecord.vehicle.plateNumber, pin, tx);
-        isMonthlyOverride = true;
+      const requiresMonthlyCreds = activeRecord.isMonthly || (pin !== undefined && pin !== '') || (monthlyQrToken !== undefined && monthlyQrToken !== '');
+
+      if (requiresMonthlyCreds) {
+        if (!pin && !monthlyQrToken) {
+          throw new AppError(400, 'Checkout xe tháng yêu cầu mã PIN hoặc mã QR gói tháng.');
+        }
+        if (pin && monthlyQrToken) {
+          throw new AppError(400, 'Vui lòng chỉ cung cấp một phương thức xác thực: mã PIN hoặc mã QR.');
+        }
+
+        if (pin) {
+          await monthlyPackageService.verifyMonthlyPackageAccessByPin(activeRecord.vehicle.plateNumber, pin, tx);
+          isMonthlyOverride = true;
+        } else if (monthlyQrToken) {
+          let decoded: any;
+          try {
+            decoded = jwt.verify(monthlyQrToken, appConfig.jwtSecret, {
+              issuer: 'smart-parking-backend',
+              audience: 'smart-parking-checkout',
+              algorithms: ['HS256'],
+            });
+          } catch (err) {
+            throw new AppError(400, 'Mã QR gói tháng không hợp lệ hoặc đã hết hạn.');
+          }
+
+          if (!decoded || decoded.purpose !== 'MONTHLY_CHECKOUT_QR' || !decoded.packageId || !decoded.vehicleId) {
+            throw new AppError(400, 'Mã QR gói tháng không hợp lệ.');
+          }
+
+          const pkg = await tx.monthlyPackage.findUnique({
+            where: { id: decoded.packageId },
+            include: { vehicle: true },
+          });
+
+          if (!pkg) {
+            throw new AppError(404, 'Gói tháng của mã QR không tồn tại.');
+          }
+
+          if (pkg.status !== 'ACTIVE' || pkg.expiryDate.getTime() <= now.getTime() || pkg.startDate.getTime() > now.getTime()) {
+            throw new AppError(400, 'Gói tháng đã hết hạn hoặc không còn hiệu lực.');
+          }
+
+          if (pkg.vehicleId !== decoded.vehicleId || !pkg.vehicle) {
+            throw new AppError(400, 'Thông tin xe trong mã QR không khớp.');
+          }
+
+          if (activeRecord.vehicleId !== pkg.vehicleId) {
+            throw new AppError(400, 'Mã QR không trùng khớp với xe đang thực hiện Checkout.');
+          }
+
+          isMonthlyOverride = true;
+        }
+      } else {
+        if (pin || monthlyQrToken) {
+          throw new AppError(400, 'Mã PIN hoặc QR gói tháng không hợp lệ cho lượt gửi xe vãng lai hoặc đặt trước.');
+        }
       }
 
       const isMonthlyEffective = activeRecord.isMonthly || isMonthlyOverride;
@@ -1501,5 +1557,87 @@ export const checkoutService = {
         throw err;
       }
     }
+  },
+
+  async lookupMonthlyQr(qrToken: string): Promise<CheckoutLookupResult> {
+    if (!qrToken || typeof qrToken !== 'string') {
+      throw new AppError(400, 'Mã QR không hợp lệ.');
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(qrToken, appConfig.jwtSecret, {
+        issuer: 'smart-parking-backend',
+        audience: 'smart-parking-checkout',
+        algorithms: ['HS256'],
+      });
+    } catch (err) {
+      throw new AppError(400, 'Mã QR gói tháng không hợp lệ hoặc không còn hiệu lực. Vui lòng thử lại hoặc nhập mã PIN.');
+    }
+
+    if (!decoded || decoded.purpose !== 'MONTHLY_CHECKOUT_QR' || !decoded.packageId || !decoded.vehicleId) {
+      throw new AppError(400, 'Mã QR gói tháng không hợp lệ hoặc không còn hiệu lực. Vui lòng thử lại hoặc nhập mã PIN.');
+    }
+
+    const { packageId, vehicleId } = decoded;
+    const now = new Date();
+
+    const pkg = await prisma.monthlyPackage.findUnique({
+      where: { id: packageId },
+      include: { vehicle: true },
+    });
+
+    if (!pkg) {
+      throw new AppError(404, 'Không tìm thấy thông tin gói tháng của mã QR.');
+    }
+
+    if (pkg.status !== 'ACTIVE' || pkg.expiryDate.getTime() <= now.getTime() || pkg.startDate.getTime() > now.getTime()) {
+      throw new AppError(400, 'Gói tháng không còn hiệu lực hoặc đã bị khóa.');
+    }
+
+    if (pkg.vehicleId !== vehicleId || !pkg.vehicle) {
+      throw new AppError(400, 'Thông tin xe của gói tháng không trùng khớp.');
+    }
+
+    const activeRecords = await prisma.checkInRecord.findMany({
+      where: {
+        vehicleId: pkg.vehicleId,
+        checkOutTime: null,
+        status: 'PARKING',
+      },
+      include: {
+        vehicle: {
+          include: {
+            owner: {
+              select: {
+                fullName: true,
+                phoneNumber: true,
+                email: true,
+              },
+            },
+          },
+        },
+        slot: {
+          include: {
+            floor: true,
+          },
+        },
+        floor: true,
+        payments: true,
+        guestCredential: true,
+      },
+    });
+
+    if (activeRecords.length === 0) {
+      throw new AppError(404, 'Không tìm thấy phiên gửi xe đang hoạt động cho xe này.');
+    }
+
+    if (activeRecords.length > 1) {
+      throw new AppError(409, 'Phát hiện nhiều lượt gửi xe đang hoạt động trùng lặp cho xe này.');
+    }
+
+    const activeRecord = activeRecords[0];
+
+    return mapRecordToLookupResult(activeRecord, now, true);
   },
 };

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AppError } from '../utils/helpers';
 import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
 import { normalizeLicensePlate } from '../utils/plate';
+import { monthlyPackageService } from './monthlyPackage.service';
 
 const SLOT_AVAILABLE = 'AVAILABLE';
 const PKG_ACTIVE = 'ACTIVE';
@@ -77,6 +78,8 @@ export interface SubmitCheckinInput {
   rearImageUrl?: string;
   driverCheckInImageUrl?: string;
   driverCheckInImagePublicId?: string;
+  checkedInById?: string | null;
+  monthlyAccessPin?: string | null;
 }
 
 export interface SubmitCheckinResult {
@@ -94,6 +97,8 @@ export interface SubmitCheckinResult {
   guestQrToken?: string | null;
   driverCheckInImageUrl?: string | null;
   driverFaceCapturedAt?: string | null;
+  bookingId?: string | null;
+  checkInType?: 'BOOKING' | 'MONTHLY' | 'CASUAL';
 }
 
 export const checkinService = {
@@ -409,9 +414,76 @@ export const checkinService = {
     return { capacityUsed, capacityTotal, monthlyToday };
   },
 
+  // ── POST /api/checkin/precheck ───────────────────────────────────────
+  async precheck(plate: string, vehicleType: 'CAR' | 'MOTORBIKE') {
+    const strippedInput = normalizeLicensePlate(plate);
+    const now = new Date();
+
+    // 1. Check active check-in session
+    const activeSessions = await prisma.checkInRecord.findMany({
+      where: { checkOutTime: null, status: 'PARKING' },
+      include: { vehicle: true }
+    });
+    const activeParkingSession = activeSessions.find(
+      (s) => s.vehicle && normalizeLicensePlate(s.vehicle.plateNumber) === strippedInput
+    );
+    if (activeParkingSession) {
+      throw new AppError(400, `Biển số ${activeParkingSession.vehicle.plateNumber} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`);
+    }
+
+    // 2. Check active booking (CAR only)
+    if (vehicleType === 'CAR') {
+      const activeBookings = await prisma.booking.findMany({
+        where: {
+          status: 'ACTIVE',
+          depositStatus: 'PAID',
+          expiresAt: { gt: now },
+          checkInRecords: { none: {} }
+        },
+        include: { vehicle: true }
+      });
+      const matchedBooking = activeBookings.find(
+        (b) => b.vehicle && normalizeLicensePlate(b.vehicle.plateNumber) === strippedInput
+      );
+      if (matchedBooking) {
+        return {
+          checkInType: 'BOOKING' as const,
+          requiresMonthlyPin: false,
+          message: 'Phát hiện đặt chỗ hợp lệ.'
+        };
+      }
+    }
+
+    // 3. Check active monthly package
+    const activePackages = await prisma.monthlyPackage.findMany({
+      where: {
+        status: 'ACTIVE',
+        expiryDate: { gt: now }
+      },
+      include: { vehicle: true }
+    });
+    const matchedPackage = activePackages.find(
+      (p) => p.vehicle && normalizeLicensePlate(p.vehicle.plateNumber) === strippedInput && p.vehicle.type === vehicleType
+    );
+    if (matchedPackage) {
+      return {
+        checkInType: 'MONTHLY_CANDIDATE' as const,
+        requiresMonthlyPin: true,
+        message: 'Phát hiện xe có gói tháng. Vui lòng nhập mã PIN 6 chữ số để xác thực.'
+      };
+    }
+
+    // 4. Default to CASUAL
+    return {
+      checkInType: 'CASUAL' as const,
+      requiresMonthlyPin: false,
+      message: 'Phương tiện sẽ được tiếp nhận theo lượt khách vãng lai.'
+    };
+  },
+
   // ── POST /api/checkin ─────────────────────────────────────────────────
   async submit(input: SubmitCheckinInput): Promise<SubmitCheckinResult> {
-    const { plate, vehicleType, floorId, isMonthly, frontImageUrl, rearImageUrl } = input;
+    const { plate, vehicleType, floorId, frontImageUrl, rearImageUrl, checkedInById, monthlyAccessPin } = input;
     const normalizedPlate = normalizePlate(plate);
 
     if (floorId === undefined || floorId === null) {
@@ -419,7 +491,6 @@ export const checkinService = {
     }
 
     const cleaned = plate.trim().toUpperCase();
-    const stripped = cleaned.replace(/[-.\s]/g, '');
 
     let attempts = 0;
     const maxAttempts = 5;
@@ -428,272 +499,295 @@ export const checkinService = {
         return await prisma.$transaction(async (tx) => {
           const now = new Date();
 
-      // 1. Resolve vehicle by normalized plate number (handling punctuation/whitespace differences)
-      const normalizedInputPlate = normalizeLicensePlate(plate);
-      const allVehicles = await tx.vehicle.findMany({
-        include: {
-          monthlyPackage: {
-            include: { floor: true },
-          },
-          owner: true,
-        },
-      });
-
-      const matchingVehicles = allVehicles.filter(
-        (v) => normalizeLicensePlate(v.plateNumber) === normalizedInputPlate
-      );
-
-      let vehicle = null;
-      if (matchingVehicles.length > 1) {
-        throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
-      } else if (matchingVehicles.length === 1) {
-        vehicle = matchingVehicles[0];
-      }
-
-      // 2. Concurrency Lock
-      await acquireVehicleOrPlateLock(tx, vehicle?.id, plate);
-
-      // 3. Resolve authoritative operational state
-      const state = await getVehicleOperationalState(tx, {
-        vehicleId: vehicle?.id,
-        plateNumber: plate
-      });
-
-      // 4. Duplicate Check-in guard (must return 409)
-      if (state.activeCheckIn) {
-        throw new AppError(
-          409,
-          `Biển số ${plate} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`,
-          true,
-          'ACTIVE_PARKING_SESSION'
-        );
-      }
-
-      // 5. Inconsistency Check
-      if (state.activeBooking && state.activeMonthlyPackage) {
-        throw new AppError(
-          409,
-          'Trạng thái xe không nhất quán. Vui lòng kiểm tra lượt đặt chỗ và gói tháng.'
-        );
-      }
-
-      // Flow A: Active Booking exists
-      if (state.activeBooking) {
-        const activeBooking = state.activeBooking;
-        if (activeBooking.floorId !== floorId) {
-          throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin đặt chỗ');
-        }
-
-        const totalCapacity = activeBooking.floor.capacity;
-        const activeParkingCount = await tx.checkInRecord.count({
-          where: { floorId: activeBooking.floorId, checkOutTime: null },
-        });
-
-        if (activeParkingCount >= totalCapacity) {
-          throw new AppError(400, `Tầng ${activeBooking.floor.name} đã đầy xe, không thể nhận thêm.`);
-        }
-
-        const checkInTime = new Date();
-        await tx.checkInRecord.create({
-          data: {
-            vehicleId: activeBooking.vehicleId,
-            slotId: null,
-            floorId: activeBooking.floorId,
-            bookingId: activeBooking.id,
-            checkInTime,
-            isMonthly: false,
-            frontImageUrl: frontImageUrl ?? null,
-            rearImageUrl: rearImageUrl ?? null,
-            driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
-            driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
-            driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
-          },
-        });
-
-        await tx.booking.update({
-          where: { id: activeBooking.id },
-          data: { status: 'FULFILLED' },
-        });
-
-        return {
-          ok: true,
-          plate: normalizedPlate,
-          slotCode: 'Tự chọn',
-          checkInTime: checkInTime.toISOString(),
-          floorCode: activeBooking.floor.floorCode,
-          zoneName: `Đặt chỗ - ${activeBooking.floor.name}`,
-          message: `Đặt chỗ hợp lệ. Vui lòng di chuyển vào ${activeBooking.floor.name} và tự chọn vị trí trống phù hợp.`,
-          isGuest: false,
-          guestPin: null,
-          guestQrToken: null,
-          driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
-          driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
-        };
-      }
-
-      // Flow B: No Active Booking, Monthly Package exists
-      if (state.activeMonthlyPackage) {
-        const pkg = state.activeMonthlyPackage;
-        const pkgFloorId = pkg.floorId;
-        if (!pkgFloorId) {
-          throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe.');
-        }
-
-        if (pkgFloorId !== floorId) {
-          throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin gói tháng');
-        }
-
-        const totalCapacity = pkg.floor.capacity;
-        const activeParkingCount = await tx.checkInRecord.count({
-          where: { floorId: pkgFloorId, checkOutTime: null },
-        });
-
-        if (totalCapacity - activeParkingCount <= 0) {
-          throw new AppError(400, `Khu vực đỗ xe của gói tháng tại ${pkg.floor.name} đã hết chỗ trống.`);
-        }
-
-        const checkInTime = new Date();
-        await tx.checkInRecord.create({
-          data: {
-            vehicleId: pkg.vehicleId,
-            slotId: null,
-            floorId: pkgFloorId,
-            checkInTime,
-            isMonthly: true,
-            allowedTier: pkg.allowedTier,
-            frontImageUrl: frontImageUrl ?? null,
-            rearImageUrl: rearImageUrl ?? null,
-            driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
-            driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
-            driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
-          },
-        });
-
-        return {
-          ok: true,
-          plate: normalizedPlate,
-          slotCode: `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
-          checkInTime: checkInTime.toISOString(),
-          floorCode: pkg.floor.floorCode,
-          allowedTier: pkg.allowedTier,
-          zoneName: `Khách tháng - ${pkg.floor.name}`,
-          message: `Vui lòng di chuyển vào tầng ${pkg.floor.name} và đỗ tại vị trí trống phù hợp.`,
-          isGuest: false,
-          guestPin: null,
-          guestQrToken: null,
-          driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
-          driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
-        };
-      }
-
-      // Flow C: Casual Walk-in
-      const floor = await tx.floor.findFirst({
-        where: { vehicleType, customerType: 'CASUAL' },
-      });
-      if (!floor) {
-        throw new AppError(400, 'Không tìm thấy tầng đỗ xe phù hợp cho khách vãng lai.');
-      }
-
-      if (floor.id !== floorId) {
-        throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin khách vãng lai');
-      }
-
-      const activeParkingCount = await tx.checkInRecord.count({
-        where: { floorId: floor.id, checkOutTime: null },
-      });
-      const activeBookingCount = await tx.booking.count({
-        where: {
-          floorId: floor.id,
-          status: 'ACTIVE',
-          depositStatus: 'PAID',
-          expiresAt: { gt: now },
-          checkInRecords: { none: {} },
-        },
-      });
-
-      const receivableCapacity = floor.capacity - activeParkingCount - activeBookingCount;
-      if (receivableCapacity <= 0) {
-        throw new AppError(400, `Bãi đỗ xe đã hết chỗ trống tại ${floor.name}.`);
-      }
-
-      const isGuest = !vehicle || !vehicle.owner || vehicle.owner.email === 'walkin@system.local';
-      let effectiveVehicleId: string;
-
-      if (!vehicle) {
-        const walkinUser = await findOrCreateWalkinUser();
-        const newVehicle = await tx.vehicle.create({
-          data: {
-            plateNumber: cleaned,
-            type: vehicleType,
-            isMonthly: false,
-            ownerId: walkinUser.id,
-          },
-        });
-        effectiveVehicleId = newVehicle.id;
-      } else {
-        effectiveVehicleId = vehicle.id;
-      }
-
-      let guestPin: string | null = null;
-      let guestQrToken: string | null = null;
-
-      if (isGuest) {
-        const crypto = require('crypto');
-        let pin = '';
-        let pinAttempts = 0;
-        while (pinAttempts < 10) {
-          const rand = crypto.randomInt(0, 1000000);
-          pin = rand.toString().padStart(6, '0');
-          // Check collision against all previously issued PIN values in GuestAccessCredential
-          const existing = await tx.guestAccessCredential.findFirst({
-            where: { pin },
+          // 1. Resolve vehicle by normalized plate number (handling punctuation/whitespace differences)
+          const normalizedInputPlate = normalizeLicensePlate(plate);
+          const allVehicles = await tx.vehicle.findMany({
+            include: {
+              monthlyPackage: {
+                include: { floor: true },
+              },
+              owner: true,
+            },
           });
-          if (!existing) break;
-          pinAttempts++;
-        }
-        guestPin = pin;
-        guestQrToken = crypto.randomBytes(32).toString('hex');
-      }
 
-      const checkInTime = new Date();
-      await tx.checkInRecord.create({
-        data: {
-          vehicleId: effectiveVehicleId,
-          slotId: null,
-          floorId: floor.id,
-          checkInTime,
-          isMonthly: false,
-          frontImageUrl: frontImageUrl ?? null,
-          rearImageUrl: rearImageUrl ?? null,
-          driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
-          driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
-          driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
-          guestCredential: isGuest && guestPin && guestQrToken ? {
-            create: {
-              pin: guestPin,
-              qrToken: guestQrToken,
-              active: true,
-              issuedAt: checkInTime,
+          const matchingVehicles = allVehicles.filter(
+            (v) => normalizeLicensePlate(v.plateNumber) === normalizedInputPlate
+          );
+
+          let vehicle = null;
+          if (matchingVehicles.length > 1) {
+            throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
+          } else if (matchingVehicles.length === 1) {
+            vehicle = matchingVehicles[0];
+          }
+
+          // 2. Concurrency Lock
+          await acquireVehicleOrPlateLock(tx, vehicle?.id, plate);
+
+          // 3. Resolve authoritative operational state
+          const state = await getVehicleOperationalState(tx, {
+            vehicleId: vehicle?.id,
+            plateNumber: plate
+          });
+
+          // 4. Duplicate Check-in guard (must return 409)
+          if (state.activeCheckIn) {
+            throw new AppError(
+              409,
+              `Biển số ${plate} hiện đang có lượt gửi xe trong bãi. Vui lòng check-out lượt hiện tại trước khi check-in lại.`,
+              true,
+              'ACTIVE_PARKING_SESSION'
+            );
+          }
+
+          // 5. Inconsistency Check
+          if (state.activeBooking && state.activeMonthlyPackage) {
+            throw new AppError(
+              409,
+              'Trạng thái xe không nhất quán. Vui lòng kiểm tra lượt đặt chỗ và gói tháng.'
+            );
+          }
+
+          // 6. Flow classification and validation
+          // Flow A: Active Booking exists
+          if (state.activeBooking) {
+            const activeBooking = state.activeBooking;
+            if (activeBooking.floorId !== floorId) {
+              throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin đặt chỗ');
             }
-          } : undefined,
-        },
-      });
 
-      return {
-        ok: true,
-        plate: normalizedPlate,
-        slotCode: 'Tự chọn',
-        checkInTime: checkInTime.toISOString(),
-        floorCode: floor.floorCode,
-        zoneName: `Khách vãng lai - ${floor.name}`,
-        message: `Vui lòng di chuyển vào ${floor.name} và tự chọn vị trí trống phù hợp.`,
-        guestPin,
-        guestQrToken,
-        isGuest,
-        driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
-        driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
-      };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+            const totalCapacity = activeBooking.floor.capacity;
+            const activeParkingCount = await tx.checkInRecord.count({
+              where: { floorId: activeBooking.floorId, checkOutTime: null },
+            });
+
+            if (activeParkingCount >= totalCapacity) {
+              throw new AppError(400, `Tầng ${activeBooking.floor.name} đã đầy xe, không thể nhận thêm.`);
+            }
+
+            const checkInTime = new Date();
+            const { pin: guestPin, qrToken: guestQrToken } = await generateGuestCredential(tx);
+
+            await tx.checkInRecord.create({
+              data: {
+                vehicleId: activeBooking.vehicleId,
+                slotId: null,
+                floorId: activeBooking.floorId,
+                bookingId: activeBooking.id,
+                checkInTime,
+                isMonthly: false,
+                driverId: activeBooking.vehicle.ownerId,
+                frontImageUrl: frontImageUrl ?? null,
+                rearImageUrl: rearImageUrl ?? null,
+                driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+                driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
+                driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
+                checkedInById: checkedInById ?? null,
+                guestCredential: {
+                  create: {
+                    pin: guestPin,
+                    qrToken: guestQrToken,
+                    active: true,
+                    issuedAt: checkInTime,
+                  }
+                }
+              },
+            });
+
+            await tx.booking.update({
+              where: { id: activeBooking.id },
+              data: { status: 'FULFILLED' },
+            });
+
+            return {
+              ok: true,
+              plate: normalizedPlate,
+              slotCode: 'Tự chọn',
+              checkInTime: checkInTime.toISOString(),
+              floorCode: activeBooking.floor.floorCode,
+              zoneName: `Đặt chỗ - ${activeBooking.floor.name}`,
+              message: `Đặt chỗ hợp lệ. Vui lòng di chuyển vào ${activeBooking.floor.name} và tự chọn vị trí trống phù hợp.`,
+              isGuest: false,
+              guestPin,
+              guestQrToken,
+              driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+              driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
+              bookingId: activeBooking.id,
+              checkInType: 'BOOKING',
+            };
+          }
+
+          // Flow B: No Active Booking, Monthly Package exists
+          if (state.activeMonthlyPackage) {
+            const pkg = state.activeMonthlyPackage;
+            const pkgFloorId = pkg.floorId;
+            if (!pkgFloorId) {
+              throw new AppError(400, 'Gói tháng chưa được bố trí tầng đỗ xe.');
+            }
+
+            if (pkgFloorId !== floorId) {
+              throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin gói tháng');
+            }
+
+            if (!monthlyAccessPin) {
+              throw new AppError(400, 'Phương tiện có gói tháng. Vui lòng nhập mã PIN để xác thực.');
+            }
+
+            try {
+              const verified = await monthlyPackageService.verifyMonthlyPackageAccessByPin(plate, monthlyAccessPin, tx);
+              if (verified.vehicle.type !== vehicleType) {
+                throw new AppError(400, 'Loại xe không khớp với gói tháng đăng ký.');
+              }
+              if (verified.monthlyPackage.startDate.getTime() > now.getTime()) {
+                throw new AppError(400, 'Gói tháng chưa đến thời hạn bắt đầu sử dụng.');
+              }
+            } catch (err: any) {
+              throw new AppError(400, err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+            }
+
+            const totalCapacity = pkg.floor.capacity;
+            const activeParkingCount = await tx.checkInRecord.count({
+              where: { floorId: pkgFloorId, checkOutTime: null },
+            });
+
+            if (totalCapacity - activeParkingCount <= 0) {
+              throw new AppError(400, `Khu vực đỗ xe của gói tháng tại ${pkg.floor.name} đã hết chỗ trống.`);
+            }
+
+            const checkInTime = new Date();
+            await tx.checkInRecord.create({
+              data: {
+                vehicleId: pkg.vehicleId,
+                slotId: null,
+                floorId: pkgFloorId,
+                checkInTime,
+                isMonthly: true,
+                allowedTier: pkg.allowedTier,
+                driverId: state.vehicle.ownerId,
+                frontImageUrl: frontImageUrl ?? null,
+                rearImageUrl: rearImageUrl ?? null,
+                driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+                driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
+                driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
+                checkedInById: checkedInById ?? null,
+              },
+            });
+
+            return {
+              ok: true,
+              plate: normalizedPlate,
+              slotCode: `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
+              checkInTime: checkInTime.toISOString(),
+              floorCode: pkg.floor.floorCode,
+              allowedTier: pkg.allowedTier,
+              zoneName: `Khách tháng - ${pkg.floor.name}`,
+              message: `Vui lòng di chuyển vào tầng ${pkg.floor.name} và đỗ tại vị trí trống phù hợp.`,
+              isGuest: false,
+              guestPin: null,
+              guestQrToken: null,
+              driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+              driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
+              checkInType: 'MONTHLY',
+            };
+          }
+
+          // Flow C: Casual Walk-in
+          const floor = await tx.floor.findFirst({
+            where: { vehicleType, customerType: 'CASUAL' },
+          });
+          if (!floor) {
+            throw new AppError(400, 'Không tìm thấy tầng đỗ xe phù hợp cho khách vãng lai.');
+          }
+
+          if (floor.id !== floorId) {
+            throw new AppError(400, 'Tầng đỗ xe không khớp với thông tin khách vãng lai');
+          }
+
+          const activeParkingCount = await tx.checkInRecord.count({
+            where: { floorId: floor.id, checkOutTime: null },
+          });
+          const activeBookingCount = await tx.booking.count({
+            where: {
+              floorId: floor.id,
+              status: 'ACTIVE',
+              depositStatus: 'PAID',
+              expiresAt: { gt: now },
+              checkInRecords: { none: {} },
+            },
+          });
+
+          const receivableCapacity = floor.capacity - activeParkingCount - activeBookingCount;
+          if (receivableCapacity <= 0) {
+            throw new AppError(400, `Bãi đỗ xe đã hết chỗ trống tại ${floor.name}.`);
+          }
+
+          const isGuest = !vehicle || vehicle.isArchived || !vehicle.owner || vehicle.owner.email === 'walkin@system.local';
+          let effectiveVehicleId: string;
+
+          if (!vehicle) {
+            const walkinUser = await findOrCreateWalkinUser();
+            const newVehicle = await tx.vehicle.create({
+              data: {
+                plateNumber: cleaned,
+                type: vehicleType,
+                isMonthly: false,
+                ownerId: walkinUser.id,
+              },
+            });
+            effectiveVehicleId = newVehicle.id;
+          } else {
+            effectiveVehicleId = vehicle.id;
+          }
+
+          const checkInTime = new Date();
+          const { pin: guestPin, qrToken: guestQrToken } = await generateGuestCredential(tx);
+
+          // Resolve driverId: if it is a registered, non-archived, non-walkin vehicle, use its ownerId; else NULL.
+          const driverId = (vehicle && !vehicle.isArchived && vehicle.owner?.email !== 'walkin@system.local')
+            ? vehicle.ownerId
+            : null;
+
+          await tx.checkInRecord.create({
+            data: {
+              vehicleId: effectiveVehicleId,
+              slotId: null,
+              floorId: floor.id,
+              checkInTime,
+              isMonthly: false,
+              driverId,
+              frontImageUrl: frontImageUrl ?? null,
+              rearImageUrl: rearImageUrl ?? null,
+              driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+              driverCheckInImagePublicId: input.driverCheckInImagePublicId ?? null,
+              driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime : null,
+              checkedInById: checkedInById ?? null,
+              guestCredential: {
+                create: {
+                  pin: guestPin,
+                  qrToken: guestQrToken,
+                  active: true,
+                  issuedAt: checkInTime,
+                }
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            plate: normalizedPlate,
+            slotCode: 'Tự chọn',
+            checkInTime: checkInTime.toISOString(),
+            floorCode: floor.floorCode,
+            zoneName: `Khách vãng lai - ${floor.name}`,
+            message: `Vui lòng di chuyển vào ${floor.name} và tự chọn vị trí trống phù hợp.`,
+            guestPin,
+            guestQrToken,
+            isGuest,
+            driverCheckInImageUrl: input.driverCheckInImageUrl ?? null,
+            driverFaceCapturedAt: input.driverCheckInImageUrl ? checkInTime.toISOString() : null,
+            checkInType: 'CASUAL',
+          };
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (err: any) {
         if (err.code === 'P2002' && (
           err.meta?.target?.includes('GuestAccessCredential') ||
@@ -713,6 +807,23 @@ export const checkinService = {
     throw new AppError(500, 'Không thể thực hiện Check-in.');
   },
 };
+
+async function generateGuestCredential(tx: any) {
+  const crypto = require('crypto');
+  let pin = '';
+  let pinAttempts = 0;
+  while (pinAttempts < 10) {
+    const rand = crypto.randomInt(0, 1000000);
+    pin = rand.toString().padStart(6, '0');
+    const existing = await tx.guestAccessCredential.findFirst({
+      where: { pin },
+    });
+    if (!existing) break;
+    pinAttempts++;
+  }
+  const qrToken = crypto.randomBytes(32).toString('hex');
+  return { pin, qrToken };
+}
 
 function normalizePlate(input: string): string {
   return (input ?? '').trim().toUpperCase();

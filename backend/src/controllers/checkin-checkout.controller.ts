@@ -40,6 +40,7 @@ export const checkOutController = {
       method: req.body.paymentMethod ?? 'CASH',
       staffId: req.user!.id,
       pin: req.body.pin || req.body.monthlyAccessPin,
+      monthlyQrToken: req.body.monthlyQrToken,
     });
     return res.status(200).json({ success: true, data: result });
   }),

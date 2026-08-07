@@ -29,6 +29,7 @@ const C = {
  */
 function isMonthlyPackageEffectivelyActive(pkg: any): boolean {
   if (!pkg) return false;
+  if (pkg.isEffectivelyActive !== undefined) return pkg.isEffectivelyActive;
   if (pkg.status !== 'ACTIVE') return false;
   if (!pkg.expiryDate) return false;
   return new Date(pkg.expiryDate).getTime() > Date.now();
@@ -251,8 +252,8 @@ function RichVehicleCard({ vehicle, phase, activeSession, onAskDelete, onConfirm
       {phase === 'confirming' && (
         <div style={{ position: 'absolute', inset: 0, borderRadius: 20, background: 'rgba(254,242,242,0.97)', border: `2px solid ${C.redBorder}`, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '1rem' }}>
           <IconTrash size={18} color={C.red} />
-          <span style={{ fontSize: '0.9rem', color: '#B91C1C', fontWeight: 700 }}>Xác nhận xoá xe <span style={{ fontFamily: 'Consolas, monospace' }}>{formatPlateNumber(vehicle.plateNumber, undefined, vehicle.type)}</span>?</span>
-          <button type="button" onClick={onConfirmDelete} disabled={busy} style={{ padding: '0.5rem 1.1rem', background: C.red, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>Xoá</button>
+          <span style={{ fontSize: '0.9rem', color: '#B91C1C', fontWeight: 700 }}>Xác nhận gỡ xe <span style={{ fontFamily: 'Consolas, monospace' }}>{formatPlateNumber(vehicle.plateNumber, undefined, vehicle.type)}</span> khỏi danh sách?</span>
+          <button type="button" onClick={onConfirmDelete} disabled={busy} style={{ padding: '0.5rem 1.1rem', background: C.red, color: C.white, border: 'none', borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>Gỡ</button>
           <button type="button" onClick={onCancelDelete} disabled={busy} style={{ padding: '0.5rem 1.1rem', background: C.white, color: C.gray600, border: `1px solid ${C.gray200}`, borderRadius: 10, fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>Huỷ</button>
         </div>
       )}
@@ -325,8 +326,8 @@ function RichVehicleCard({ vehicle, phase, activeSession, onAskDelete, onConfirm
             onClick={onAskDelete}
             disabled={busy}
             className="mv-delete-btn"
-            aria-label="Xóa xe"
-            title="Xóa xe"
+            aria-label="Gỡ xe"
+            title="Gỡ xe"
           >
             <IconTrash size={16} color="currentColor" />
           </button>

@@ -28,3 +28,18 @@ export async function updateFeeRuleAmount(id: number, amount: number): Promise<F
     await api.patch<{ success: boolean; data: FeeRule }>(`/admin/fee-rules/${id}`, { amount })
   );
 }
+
+export interface BookingConfig {
+  depositAmount: number;
+  updatedAt: string;
+}
+
+export async function getBookingConfig(): Promise<BookingConfig> {
+  return unwrap(await api.get<{ success: boolean; data: BookingConfig }>('/booking-config'));
+}
+
+export async function updateBookingConfig(depositAmount: number): Promise<BookingConfig> {
+  return unwrap(
+    await api.patch<{ success: boolean; data: BookingConfig }>('/admin/booking-config', { depositAmount })
+  );
+}

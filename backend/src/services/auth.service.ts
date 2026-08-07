@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { AppError } from '../utils/helpers';
+import { normalizeLicensePlate } from '../utils/plate';
 import { sendOtpEmail } from './email.service';
 import { randomInt, randomBytes } from 'crypto';
 
@@ -266,9 +267,15 @@ export function createAuthService(deps: AuthServiceDependencies) {
         throw new AppError(409, 'Email đã được sử dụng');
       }
 
-      // 6. Validate plate is not registered
-      const existingPlate = await deps.prisma.vehicle.findUnique({ where: { plateNumber: input.plateNumber } });
-      if (existingPlate) {
+      // 6. Validate plate is not registered (handling formatting differences)
+      const normalizedRegPlate = normalizeLicensePlate(input.plateNumber);
+      const allVehicles = await deps.prisma.vehicle.findMany({
+        select: { plateNumber: true }
+      });
+      const isPlateDuplicate = allVehicles.some(
+        (v) => normalizeLicensePlate(v.plateNumber) === normalizedRegPlate
+      );
+      if (isPlateDuplicate) {
         throw new AppError(409, 'Biển số xe này đã được đăng ký trong hệ thống');
       }
 
@@ -362,12 +369,13 @@ export function createAuthService(deps: AuthServiceDependencies) {
 
         const reasons: { type: string; message: string }[] = [];
 
-        // 1. Check for active parking sessions (vehicles currently inside the parking lot)
+        // 1. Check for active parking sessions (vehicles currently inside the parking lot or active driver sessions)
         const vehicles = await tx.vehicle.findMany({
-          where: { ownerId: userId },
+          where: { ownerId: userId, isArchived: false },
         });
         const vehicleIds = vehicles.map((v) => v.id);
 
+        let hasActiveSession = false;
         if (vehicleIds.length > 0) {
           const activeCheckIn = await tx.checkInRecord.findFirst({
             where: {
@@ -376,12 +384,25 @@ export function createAuthService(deps: AuthServiceDependencies) {
               status: 'PARKING',
             },
           });
-          if (activeCheckIn) {
-            reasons.push({
-              type: 'ACTIVE_PARKING_SESSION',
-              message: 'Tài khoản đang có xe trong bãi hoặc phiên gửi xe chưa kết thúc.',
-            });
-          }
+          if (activeCheckIn) hasActiveSession = true;
+        }
+
+        if (!hasActiveSession) {
+          const activeDriverSession = await tx.checkInRecord.findFirst({
+            where: {
+              driverId: userId,
+              checkOutTime: null,
+              status: 'PARKING',
+            },
+          });
+          if (activeDriverSession) hasActiveSession = true;
+        }
+
+        if (hasActiveSession) {
+          reasons.push({
+            type: 'ACTIVE_PARKING_SESSION',
+            message: 'Tài khoản đang có xe trong bãi hoặc phiên gửi xe chưa kết thúc.',
+          });
         }
 
         // 2. Check for unpaid or pending payments
@@ -389,7 +410,8 @@ export function createAuthService(deps: AuthServiceDependencies) {
           where: {
             status: 'PENDING',
             OR: [
-              { checkInRecord: { vehicle: { ownerId: userId } } },
+              { checkInRecord: { driverId: userId } },
+              { checkInRecord: { vehicle: { ownerId: userId, isArchived: false } } },
               { booking: { createdById: userId } },
               { monthlyPackage: { userId: userId } },
             ],
@@ -471,6 +493,8 @@ export function createAuthService(deps: AuthServiceDependencies) {
               ownerFullName: 'Người dùng đã xóa',
               ownerEmail: null,
               ownerPhone: null,
+              isArchived: true,
+              isMonthly: false,
             },
           });
         }

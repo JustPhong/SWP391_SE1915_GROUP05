@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFeeRules, FeeRule } from '../api/feeRuleApi';
+import { getFeeRules, FeeRule, getBookingConfig, updateBookingConfig, BookingConfig } from '../api/feeRuleApi';
 
 const C = {
   navy: '#1E3A5F',
@@ -29,16 +29,21 @@ function formatTimeWindow(startHour: number, endHour: number, ruleType: string) 
 
 export function FeeRulesPage() {
   const [rules, setRules] = useState<FeeRule[]>([]);
+  const [bookingConfig, setBookingConfig] = useState<BookingConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await getFeeRules();
-      setRules(data);
+      const [rulesData, configData] = await Promise.all([
+        getFeeRules(),
+        getBookingConfig(),
+      ]);
+      setRules(rulesData);
+      setBookingConfig(configData);
     } catch {
-      setError('Không thể tải quy tắc phí.');
+      setError('Không thể tải quy tắc phí hoặc cấu hình đặt chỗ.');
     } finally {
       setLoading(false);
     }
@@ -78,6 +83,12 @@ export function FeeRulesPage() {
 
           {/* Car section */}
           <Section title="Ô tô" color={C.gray800} rules={carRules} />
+
+          {/* Booking section */}
+          <BookingConfigSection
+            config={bookingConfig}
+            onSaveSuccess={(updated) => setBookingConfig(updated)}
+          />
         </>
       )}
     </div>
@@ -247,6 +258,144 @@ function RuleRow({ rule }: { rule: FeeRule }) {
         </div>
       </td>
     </tr>
+  );
+}
+
+function BookingConfigSection({
+  config,
+  onSaveSuccess,
+}: {
+  config: BookingConfig | null;
+  onSaveSuccess: (updated: BookingConfig) => void;
+}) {
+  const [localVal, setLocalVal] = useState(config ? String(config.depositAmount) : '15000');
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'ok' | 'err'>('idle');
+  const [validationError, setValidationError] = useState('');
+
+  useEffect(() => {
+    if (config) {
+      setLocalVal(String(config.depositAmount));
+    }
+  }, [config]);
+
+  if (!config) return null;
+
+  const handleSave = async () => {
+    const val = parseInt(localVal, 10);
+    if (isNaN(val) || val < 0) {
+      setValidationError('Số tiền cọc phải là số nguyên không âm.');
+      setStatus('err');
+      return;
+    }
+    setSaving(true);
+    setStatus('idle');
+    setValidationError('');
+    try {
+      const updated = await updateBookingConfig(val);
+      onSaveSuccess(updated);
+      setStatus('ok');
+      setTimeout(() => setStatus('idle'), 2500);
+    } catch (err: any) {
+      setValidationError(err.message || 'Lỗi khi lưu cấu hình.');
+      setStatus('err');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isChanged = localVal !== String(config.depositAmount);
+
+  return (
+    <div style={{ background: C.white, borderRadius: C.radius, boxShadow: C.shadow, marginBottom: '1.25rem', overflow: 'hidden' }}>
+      <div style={{ padding: '0.85rem 1.25rem', background: C.gray50, borderBottom: `2px solid ${C.gray200}` }}>
+        <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: C.gray800 }}>Đặt chỗ trước</p>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: `2px solid ${C.gray200}`, background: C.gray100 }}>
+            {['Khung áp dụng', 'Quy tắc', 'Đơn vị tính', 'Đơn giá (VND)', ''].map(h => (
+              <th key={h} style={{ padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.gray400 }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr style={{ borderBottom: `1px solid ${C.gray100}` }}>
+            <td style={{ padding: '0.75rem 1rem' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.gray800 }}>Ô tô vãng lai</span>
+            </td>
+            <td style={{ padding: '0.75rem 1rem' }}>
+              <span style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.15rem 0.5rem',
+                borderRadius: 20,
+                background: '#E0F2FE',
+                color: '#0369A1',
+              }}>
+                Phí đặt cọc
+              </span>
+            </td>
+            <td style={{ padding: '0.75rem 1rem' }}>
+              <span style={{ fontSize: '0.82rem', color: C.gray600 }}>Mỗi lượt đặt chỗ</span>
+            </td>
+            <td style={{ padding: '0.75rem 1rem', minWidth: 160 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <input
+                  type="number"
+                  value={localVal}
+                  onChange={e => {
+                    setLocalVal(e.target.value);
+                    setValidationError('');
+                    if (status === 'err') setStatus('idle');
+                  }}
+                  style={{
+                    width: 110,
+                    padding: '0.35rem 0.5rem',
+                    border: `1.5px solid ${status === 'err' ? C.redBorder : C.gray200}`,
+                    borderRadius: 6,
+                    fontSize: '0.82rem',
+                    color: C.gray800,
+                    background: C.white,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !isChanged}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    background: saving || !isChanged ? C.gray200 : C.navy,
+                    color: saving || !isChanged ? C.gray400 : C.white,
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: saving || !isChanged ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {saving ? '...' : status === 'ok' ? '✓' : 'Lưu'}
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div style={{ padding: '0.75rem 1.25rem', borderTop: `1px solid ${C.gray200}`, background: C.gray50 }}>
+        <p style={{ margin: 0, fontSize: '0.75rem', color: C.gray500, lineHeight: 1.4 }}>
+          Áp dụng cho lượt đặt chỗ mới. Các lượt đã tạo vẫn giữ nguyên mức đặt cọc ban đầu.
+        </p>
+        {validationError && (
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: C.red, fontWeight: 600 }}>
+            {validationError}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

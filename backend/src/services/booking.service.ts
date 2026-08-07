@@ -5,6 +5,7 @@ import { sendBookingEmail } from './email.service';
 import { stripe } from '../config/stripe';
 import { Prisma, MonthlyPackage, Vehicle } from '@prisma/client';
 import { acquireVehicleOrPlateLock, getVehicleOperationalState } from '../utils/vehicleState';
+import { normalizeLicensePlate } from '../utils/plate';
 
 const BOOKING_ACTIVE = 'ACTIVE';
 const BOOKING_FULFILLED = 'FULFILLED';
@@ -95,10 +96,29 @@ async function runWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 100): 
 export const bookingService = {
   async create(input: CreateBookingInput) {
     // 1. Find or create vehicle (casual bookings are allowed)
-    let vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber: input.plateNumber },
+    const normalizedInputPlate = normalizeLicensePlate(input.plateNumber);
+    const allVehicles = await prisma.vehicle.findMany({
       include: { monthlyPackage: true }
     });
+    const matchingVehicles = allVehicles.filter(
+      (v) => normalizeLicensePlate(v.plateNumber) === normalizedInputPlate
+    );
+
+    let vehicle = null;
+    if (matchingVehicles.length > 1) {
+      throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
+    } else if (matchingVehicles.length === 1) {
+      vehicle = matchingVehicles[0];
+    }
+
+    if (vehicle && vehicle.isArchived) {
+      if (vehicle.ownerId === input.createdById) {
+        throw new AppError(400, 'Xe đã được gỡ khỏi danh sách. Vui lòng khôi phục/thêm lại xe trước khi đặt chỗ.');
+      } else {
+        throw new AppError(409, 'Biển số xe này đã được đăng ký.');
+      }
+    }
+
     if (!vehicle) {
       // Xe chưa từng đăng ký → bắt buộc thông tin liên hệ chủ xe
       const ownerFullName = input.ownerFullName?.trim();
@@ -898,7 +918,7 @@ export const bookingService = {
             bookingId: booking.id,
             checkInRecordId: null,
             monthlyPackageId: null,
-            amount: 15000,
+            amount: Number(booking.depositAmount),
             method: 'CARD',
             type: 'BOOKING_FEE',
             status: 'PENDING',
@@ -1010,6 +1030,17 @@ export const bookingService = {
           throw new AppError(409, 'Xe này đang có một giao dịch đặt chỗ đang chờ xử lý.');
         }
 
+        // Load dynamic booking deposit amount configuration
+        let configRecord = await tx.bookingConfig.findUnique({
+          where: { id: 1 }
+        });
+        if (!configRecord) {
+          configRecord = await tx.bookingConfig.create({
+            data: { id: 1, depositAmount: 15000 }
+          });
+        }
+        const currentDeposit = Number(configRecord.depositAmount);
+
         const newBooking = await tx.booking.create({
           data: {
             id: bookingCode,
@@ -1017,7 +1048,7 @@ export const bookingService = {
             floorId: finalFloorId,
             expectedArrival: input.expectedArrival,
             status: 'PENDING_PAYMENT',
-            depositAmount: 15000,
+            depositAmount: currentDeposit,
             depositStatus: 'PENDING',
             createdById: input.userId,
           },
@@ -1028,7 +1059,7 @@ export const bookingService = {
             bookingId: newBooking.id,
             checkInRecordId: null,
             monthlyPackageId: null,
-            amount: 15000,
+            amount: currentDeposit,
             method: 'CARD',
             type: 'BOOKING_FEE',
             status: 'PENDING',
@@ -1051,6 +1082,8 @@ export const bookingService = {
 
     console.log(`[StripeCheckout] Initiating Stripe Checkout Session create for bookingId=${booking.id}`);
 
+    const depositAmount = Number(booking.depositAmount);
+
     let session;
     try {
       session = await stripe.checkout.sessions.create({
@@ -1066,7 +1099,7 @@ export const bookingService = {
                 name: 'Phí giữ chỗ ParkSmart',
                 description: 'Đặt chỗ ô tô - Phí giữ chỗ 30 phút',
               },
-              unit_amount: 15000,
+              unit_amount: depositAmount,
             },
             quantity: 1,
           },
@@ -1199,7 +1232,7 @@ export const bookingService = {
             bookingId: booking.id,
             checkInRecordId: null,
             monthlyPackageId: null,
-            amount: 15000,
+            amount: Number(booking.depositAmount),
             method: 'CARD',
             type: 'BOOKING_FEE',
             status: 'SUCCESS',
@@ -1335,7 +1368,7 @@ export const bookingService = {
               floorName: finalBooking.floor.name,
               parkingArea: 'Khu ô tô',
               expectedArrival: finalBooking.expiresAt,
-              depositAmount: 15000,
+              depositAmount: Number(finalBooking.depositAmount),
             });
           } catch (mailErr: unknown) {
             const mailMsg = mailErr instanceof Error ? mailErr.message : String(mailErr);
@@ -1446,7 +1479,7 @@ export const bookingService = {
                   floorName: finalBooking.floor.name,
                   parkingArea: 'Khu ô tô',
                   expectedArrival: finalBooking.expiresAt,
-                  depositAmount: 15000,
+                  depositAmount: Number(finalBooking.depositAmount),
                 });
               } catch (mailErr: unknown) {
                 const mailMsg = mailErr instanceof Error ? mailErr.message : String(mailErr);

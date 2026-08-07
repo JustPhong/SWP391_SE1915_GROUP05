@@ -2,11 +2,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { formatPlateNumber } from '../utils/plate';
 import {
   checkoutLookupPlate,
   createCheckoutStripeSession,
   getCheckoutStripeStatusBySession,
-  lookupCheckoutByPin
+  lookupCheckoutByPin,
+  lookupCheckoutByMonthlyQr
 } from '../api/checkoutApi';
 import type { CheckoutLookupResult, CheckoutLookupByPinResult } from '../api/checkoutApi';
 import { lookupGuestVehicle } from '../api/guestApi';
@@ -308,6 +310,10 @@ export function CheckOutPage() {
   // re-verifies it server-side for monthly packages
   const [monthlyAccessPin, setMonthlyAccessPin] = useState('');
 
+  // monthlyQrToken is kept in state because POST /api/checkin-out/out
+  // re-verifies it server-side for monthly packages
+  const [monthlyQrToken, setMonthlyQrToken] = useState('');
+
   // Camera helpers
   const stopCamera = useCallback(() => {
     qrControlsRef.current?.stop();
@@ -393,7 +399,8 @@ export function CheckOutPage() {
 
   const onLookupSuccess = (
     result: CheckoutLookupResult | CheckoutLookupByPinResult,
-    resolvedMonthlyPin?: string
+    resolvedMonthlyPin?: string,
+    resolvedMonthlyQrToken?: string
   ) => {
     const validated = validateLookupResult(result);
 
@@ -409,6 +416,7 @@ export function CheckOutPage() {
     setIsLegacy(false);
     resetFaceVerification();
     setMonthlyAccessPin(resolvedMonthlyPin ?? '');
+    setMonthlyQrToken(resolvedMonthlyQrToken ?? '');
     setPlateInput(validated.plate);
 
     const mapped: ActiveRecord = {
@@ -445,7 +453,7 @@ export function CheckOutPage() {
     setFeePreview({
       recordId: validated.recordId,
       plate: validated.plate,
-      slotCode: validated.slotCode || 'Không c� ��9nh',
+      slotCode: validated.slotCode || 'Không có định danh',
       vehicleType: validated.vehicleType,
       isMonthly: validated.isMonthly,
       checkInTime: validated.checkInTime,
@@ -457,8 +465,8 @@ export function CheckOutPage() {
     });
   };
 
-  // ���� Guest QR verification ����
-  const extractQrToken = (raw: string): { type: 'GUEST_TOKEN'; token: string } | { type: 'MONTHLY_PLATE'; plate: string } | { type: 'RAW_TOKEN'; token: string } | null => {
+  // — —— — Guest QR verification — —— —
+  const extractQrToken = (raw: string): { type: 'GUEST_TOKEN'; token: string } | { type: 'MONTHLY_QR_TOKEN'; token: string } | { type: 'OLD_MONTHLY_QR' } | { type: 'RAW_TOKEN'; token: string } | null => {
     const trimmed = raw.trim();
     // Try parse as URL
     try {
@@ -471,8 +479,11 @@ export function CheckOutPage() {
     // Try parse as monthly QR JSON
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-      if (parsed.ticketType === 'MONTHLY_PASS' && typeof parsed.plateNumber === 'string' && parsed.plateNumber) {
-        return { type: 'MONTHLY_PLATE', plate: parsed.plateNumber as string };
+      if (parsed.ticketType === 'MONTHLY_PASS') {
+        if (typeof parsed.qrToken === 'string' && parsed.qrToken) {
+          return { type: 'MONTHLY_QR_TOKEN', token: parsed.qrToken };
+        }
+        return { type: 'OLD_MONTHLY_QR' };
       }
     } catch { /* not JSON */ }
     // Treat raw 64-char hex as guest token
@@ -486,15 +497,47 @@ export function CheckOutPage() {
     setQrError('');
     const parsed = extractQrToken(rawValue);
     if (!parsed) {
-      setQrError('N�"i dung không phải mã QR hợp l�!. Vui lòng thử lại.');
+      setQrError('Nội dung không phải mã QR hợp lệ. Vui lòng thử lại.');
       return;
     }
-    if (parsed.type === 'MONTHLY_PLATE') {
-      // Monthly QR: plate-prefill only � not credential verification
-      setQrError('');
-      setPlateInput(parsed.plate.toUpperCase());
-      setPlateFallbackOpen(true);
-      setSearchError('Mã QR xe tháng �ã �iền biỒn s�. Vui lòng dùng "Tra cứu bằng biỒn s�" bên dư�:i �Ồ xác nhận.');
+    if (parsed.type === 'OLD_MONTHLY_QR') {
+      setQrError('Mã QR gói tháng cũ không còn được hỗ trợ. Vui lòng sử dụng mã QR mới hoặc nhập mã PIN.');
+      return;
+    }
+    if (parsed.type === 'MONTHLY_QR_TOKEN') {
+      setQrLoading(true);
+      setFoundRecord(null);
+      setFeePreview(null);
+      setOwnerInfo(null);
+      setFrontImageUrl(null);
+      setRearImageUrl(null);
+      setFrontImgError(false);
+      setRearImgError(false);
+      setPreviewImage(null);
+      setIsLegacy(false);
+      resetFaceVerification();
+      setMonthlyAccessPin('');
+      setMonthlyQrToken('');
+
+      try {
+        const lookupResult = await lookupCheckoutByMonthlyQr(parsed.token);
+        if (!lookupResult.found || !lookupResult.recordId) {
+          throw new Error('Dữ liệu phiên gửi xe không đầy đủ. Vui lòng thử lại.');
+        }
+        onLookupSuccess(lookupResult, undefined, parsed.token);
+        setPlateInput(lookupResult.plate || '');
+        const preview = await fetchFeePreview(lookupResult.recordId);
+        setFeePreview(preview);
+
+        // Clear stale error states upon successful lookup
+        setQrError('');
+        setSearchError('');
+      } catch (err: any) {
+        const msg = err?.message ?? 'Mã QR gói tháng không hợp lệ hoặc không còn hiệu lực. Vui lòng thử lại hoặc nhập mã PIN.';
+        setQrError(msg);
+      } finally {
+        setQrLoading(false);
+      }
       return;
     }
 
@@ -522,29 +565,33 @@ export function CheckOutPage() {
         const p = (r.vehicle?.plateNumber || '').trim().replace(/[-.\s]/g, '').toUpperCase();
         return p === cleanPlate;
       });
-      if (!matched) throw new Error('Không tìm thấy phiên gửi xe �ang hoạt ��"ng.');
+      if (!matched) throw new Error('Không tìm thấy phiên gửi xe đang hoạt động.');
 
       const lookup = await checkoutLookupPlate(matched.vehicle?.plateNumber || '');
       onLookupSuccess(lookup);
+
+      // Clear stale error states upon successful lookup
+      setQrError('');
+      setSearchError('');
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Mã QR không hợp l�! hoặc �ã hết hạn.';
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Mã QR không hợp lệ hoặc đã hết hạn.';
       setQrError(msg);
     } finally {
       setQrLoading(false);
     }
   };
 
-  // ���� Camera QR scanning ����
+  //    Camera QR scanning
   const startCamera = async () => {
     setQrError('');
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setQrError('Trình duy�!t không h�· trợ truy cập camera.');
+      setQrError('Trình duyệt không hỗ trợ truy cập camera.');
       return;
     }
 
     if (!videoRef.current) {
-      setQrError('Không thỒ kh�xi ��"ng camera quét QR.');
+      setQrError('Không thể khởi động camera quét QR.');
       return;
     }
 
@@ -585,18 +632,18 @@ export function CheckOutPage() {
 
       const errName = err?.name;
       if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setQrError('Không có quyền sử dụng camera. Vui lòng cấp quyền camera cho trình duy�!t.');
+        setQrError('Không có quyền sử dụng camera. Vui lòng cấp quyền camera cho trình duyệt.');
       } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
-        setQrError('Không tìm thấy camera trên thiết b�9.');
+        setQrError('Không tìm thấy camera trên thiết bị.');
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
-        setQrError('Không thỒ m�x camera. Camera có thỒ �ang �ược ứng dụng khác sử dụng.');
+        setQrError('Không thể mở camera. Camera có thể đang được ứng dụng khác sử dụng.');
       } else {
-        setQrError('Không thỒ kh�xi ��"ng camera quét QR.');
+        setQrError('Không thể khởi động camera quét QR.');
       }
     }
   };
 
-  // ���� Local QR Photo Library Select ����
+  //    Local QR Photo Library Select
   const handleQrImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     stopCamera();
     setQrError('');
@@ -605,12 +652,12 @@ export function CheckOutPage() {
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      setQrError('Ảnh mã QR ch�0 h�· trợ ��9nh dạng JPG, PNG hoặc WEBP.');
+      setQrError('Ảnh mã QR chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP.');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setQrError('Ảnh mã QR không �ược vượt quá 5 MB.');
+      setQrError('Ảnh mã QR không được vượt quá 5 MB.');
       return;
     }
 
@@ -626,10 +673,10 @@ export function CheckOutPage() {
       if (decodedText) {
         await handleQrConfirm(decodedText);
       } else {
-        setQrError('Không tìm thấy mã QR trong ảnh �ã chọn.');
+        setQrError('Không tìm thấy mã QR trong ảnh đã chọn.');
       }
     } catch (err) {
-      setQrError('Không tìm thấy mã QR trong ảnh �ã chọn.');
+      setQrError('Không tìm thấy mã QR trong ảnh đã chọn.');
     } finally {
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
@@ -638,13 +685,13 @@ export function CheckOutPage() {
     }
   };
 
-  // ���� Unified PIN verification ����
+  //    Unified PIN verification
   const handlePinConfirm = async () => {
     stopCamera();
     setPinError('');
     const pin = pinInput.trim();
     if (!/^\d{6}$/.test(pin)) {
-      setPinError('Mã PIN phải g�m �úng 6 chữ s�.');
+      setPinError('Mã PIN phải gồm đúng 6 chữ số.');
       return;
     }
     setPinLoading(true);
@@ -661,19 +708,21 @@ export function CheckOutPage() {
     setIsLegacy(false);
     resetFaceVerification();
     setMonthlyAccessPin('');
+    setMonthlyQrToken('');
 
     try {
+      // Generic PIN lookup (Guest parking PIN or Monthly PIN fallback)
       const result = await lookupCheckoutByPin(pin);
       onLookupSuccess(result, result.credentialType === 'MONTHLY_PIN' ? pin : undefined);
       setPinInput('');
     } catch (err: any) {
-      setPinError(err.message || 'Mã PIN không �úng hoặc �ã hết hạn.');
+      setPinError(err.message || 'Mã PIN không đúng hoặc đã hết hạn.');
     } finally {
       setPinLoading(false);
     }
   };
 
-  // ���� Full lookup panel reset ����
+  // — —— — Full lookup panel reset — —— —
   const resetLookupPanel = useCallback(() => {
     stopCamera();
     setQrError('');
@@ -683,9 +732,10 @@ export function CheckOutPage() {
     setSearchError('');
     setPlateFallbackOpen(false);
     setMonthlyAccessPin('');
+    setMonthlyQrToken('');
   }, [stopCamera]);
 
-  // ���� Face Comparison States ����
+  // — —— — Face Comparison States — —— —
   const [driverCheckInImageUrl, setDriverCheckInImageUrl] = useState<string | null>(null);
   const [checkoutImage, setCheckoutImage] = useState<File | null>(null);
   const [checkoutImagePreview, setCheckoutImagePreview] = useState<string | null>(null);
@@ -705,7 +755,7 @@ export function CheckOutPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  // ���� Face Verification Cleanup and Helpers ����
+  // — —— — Face Verification Cleanup and Helpers — —— —
   const resetFaceVerification = () => {
     setDriverCheckInImageUrl(null);
     setCheckoutImage(null);
@@ -769,7 +819,7 @@ export function CheckOutPage() {
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      setComparisonError('Ảnh người nhận xe ch�0 h�· trợ ��9nh dạng JPG, PNG hoặc WEBP.');
+      setComparisonError('Ảnh người nhận xe chưa hỗ trợ định dạng JPG, PNG hoặc WEBP.');
       setCheckoutImage(null);
       if (checkoutImagePreview) {
         URL.revokeObjectURL(checkoutImagePreview);
@@ -779,7 +829,7 @@ export function CheckOutPage() {
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setComparisonError('Ảnh người nhận xe không �ược vượt quá 5 MB.');
+      setComparisonError('Ảnh người nhận xe không được vượt quá 5 MB.');
       setCheckoutImage(null);
       if (checkoutImagePreview) {
         URL.revokeObjectURL(checkoutImagePreview);
@@ -823,31 +873,31 @@ export function CheckOutPage() {
     try {
       const initialized = await ensureModelInitialized();
       if (!initialized) {
-        throw new Error('Không thỒ tải mô hình ��i chiếu. Nhân viên có thỒ tiếp tục kiỒm tra thủ công.');
+        throw new Error('Không thể tải mô hình đối chiếu. Nhân viên có thể tiếp tục kiểm tra thủ công.');
       }
 
       let referenceImg: HTMLImageElement;
       try {
         referenceImg = await loadImageFromUrl(driverCheckInImageUrl);
       } catch (err) {
-        throw new Error('Không thỒ �ọc ảnh người gửi lúc check-in.');
+        throw new Error('Không thể đọc ảnh người gửi lúc check-in.');
       }
 
       const referenceExtract = await extractSingleFaceEmbedding(referenceImg, true);
       if (referenceExtract.code !== 'OK' || !referenceExtract.embedding) {
-        throw new Error(referenceExtract.message || 'Không thỒ tải mô hình ��i chiếu. Nhân viên vui lòng kiỒm tra thủ công.');
+        throw new Error(referenceExtract.message || 'Không thể tải mô hình đối chiếu. Nhân viên vui lòng kiểm tra thủ công.');
       }
 
       let checkoutImg: HTMLImageElement;
       try {
         checkoutImg = await loadImageFromFile(checkoutImage);
       } catch (err) {
-        throw new Error('Không thỒ �ọc ảnh người nhận xe �ã chọn.');
+        throw new Error('Không thể đọc ảnh người nhận xe đã chọn.');
       }
 
       const checkoutExtract = await extractSingleFaceEmbedding(checkoutImg, false);
       if (checkoutExtract.code !== 'OK' || !checkoutExtract.embedding) {
-        throw new Error(checkoutExtract.message || 'Không thỒ tải mô hình ��i chiếu. Nhân viên vui lòng kiỒm tra thủ công.');
+        throw new Error(checkoutExtract.message || 'Không thể tải mô hình đối chiếu. Nhân viên vui lòng kiểm tra thủ công.');
       }
 
       const durationMs = Math.round(performance.now() - startTime);
@@ -862,7 +912,7 @@ export function CheckOutPage() {
       if (foundRecord.id !== recordIdAtStart || checkoutImage !== checkoutImageAtStart) {
         return;
       }
-      setComparisonError(err.message || 'Không thỒ thực hi�!n ��i chiếu khuôn mặt. Nhân viên vui lòng kiỒm tra thủ công.');
+      setComparisonError(err.message || 'Không thể thực hiện đối chiếu khuôn mặt. Nhân viên vui lòng kiểm tra thủ công.');
     } finally {
       if (foundRecord.id === recordIdAtStart && checkoutImage === checkoutImageAtStart) {
         setIsComparing(false);
@@ -870,7 +920,7 @@ export function CheckOutPage() {
     }
   };
 
-  // ���� Load all active records (sidebar table) ����������������������
+  // — —— — Load all active records (sidebar table) — —— —— —— —— —— —— —— —— —— —
   const [loadError, setLoadError] = useState('');
 
   const loadAllRecords = async () => {
@@ -905,7 +955,7 @@ export function CheckOutPage() {
       setAllRecords([]);
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? 'Không thỒ tải danh sách xe. Bạn có thỒ cần �Ēng nhập lại.';
+        ?? 'Không thể tải danh sách xe. Bạn có thể cần đăng nhập lại.';
       setLoadError(msg);
     } finally {
       setLoadingAll(false);
@@ -916,7 +966,7 @@ export function CheckOutPage() {
 
   useRefreshOnFocus({ enabled: true, onRefresh: loadAllRecords });
 
-  // ���� Stripe success polling / cancel state restoration ����
+  // — —— — Stripe success polling / cancel state restoration — —— —
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const stripeParam = params.get('stripe');
@@ -967,7 +1017,7 @@ export function CheckOutPage() {
             clearInterval(interval);
             setStripeStatus('FAILED');
             setCheckoutLoading(false);
-            setCheckoutError('Xác nhận thanh toán từ Stripe quá lâu. Vui lòng kiỒm tra lại trạng thái.');
+            setCheckoutError('Xác nhận thanh toán từ Stripe quá lâu. Vui lòng kiểm tra lại trạng thái.');
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } catch (err: unknown) {
@@ -985,7 +1035,7 @@ export function CheckOutPage() {
       return () => clearInterval(interval);
     } else if (stripeParam === 'cancelled') {
       setStripeStatus('CANCELLED');
-      setCheckoutError('Thanh toán �ã �ược hủy. Xe chưa �ược check-out.');
+      setCheckoutError('Thanh toán đã được hủy. Xe chưa được check-out.');
       window.history.replaceState({}, document.title, window.location.pathname);
 
       const saved = localStorage.getItem('checkout_cancelled_record');
@@ -1010,7 +1060,7 @@ export function CheckOutPage() {
     }
   }, []);
 
-  // ���� Fetch fee preview from backend ��������������������������������������
+  // — —— — Fetch fee preview from backend — —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —
   const fetchFeePreview = async (recordId: string): Promise<FeePreview | null> => {
     try {
       const res = await api.get<{ success: boolean; data: FeePreview }>(`/checkin-out/preview/${recordId}`);
@@ -1020,7 +1070,7 @@ export function CheckOutPage() {
     }
   };
 
-  // ���� Auto-search if plate was passed via ?plate= ������������
+  // — —— — Auto-search if plate was passed via ?plate= — —— —— —— —
   useEffect(() => {
     if (autoSearchRan.current) return;
     const incoming = searchParams.get('plate');
@@ -1032,7 +1082,7 @@ export function CheckOutPage() {
     setTimeout(() => performSearch(raw), 50);
   }, []);
 
-  // ���� Search ������������������������������������������������������������������������������������������
+  // — —— — Search — —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —
   const performSearch = async (plate: string) => {
     stopCamera();
     if (!plate) return;
@@ -1049,6 +1099,8 @@ export function CheckOutPage() {
     setPreviewImage(null);
     setIsLegacy(false);
     resetFaceVerification();
+    setMonthlyAccessPin('');
+    setMonthlyQrToken('');
 
     try {
       const res = await api.get<{ success: boolean; data: CheckInRecord[] }>('/checkin-out/active');
@@ -1061,7 +1113,7 @@ export function CheckOutPage() {
       });
 
       if (!matched) {
-        setSearchError('Không tìm thấy xe �ang �x trong bãi.');
+        setSearchError('Không tìm thấy xe đang ở trong bãi.');
         setSearching(false);
         return;
       }
@@ -1136,7 +1188,7 @@ export function CheckOutPage() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? (err instanceof Error ? err.message : 'Không thỒ tra cứu. Vui lòng thử lại.');
+        ?? (err instanceof Error ? err.message : 'Không thể tra cứu. Vui lòng thử lại.');
       setSearchError(msg);
     } finally {
       setSearching(false);
@@ -1151,7 +1203,7 @@ export function CheckOutPage() {
 
 
 
-  // ���� Submit check-out (for zero amount due or monthly packages) ����
+  // — —— — Submit check-out (for zero amount due or monthly packages) — —— —
   const handleConfirm = async () => {
     if (!foundRecord) return;
     setCheckoutError('');
@@ -1161,6 +1213,7 @@ export function CheckOutPage() {
         checkInRecordId: foundRecord.id,
         paymentMethod: 'CASH',
         pin: monthlyAccessPin || undefined,
+        monthlyQrToken: monthlyQrToken || undefined,
       });
       const resultData = res.data.data ?? res.data;
       const checkoutRes: CheckOutResponse = {
@@ -1206,6 +1259,7 @@ export function CheckOutPage() {
           checkInRecordId: foundRecord.id,
           paymentMethod: 'CASH',
           pin: monthlyAccessPin || undefined,
+          monthlyQrToken: monthlyQrToken || undefined,
         });
         const resultData = res.data.data ?? res.data;
         const checkoutRes: CheckOutResponse = {
@@ -1253,7 +1307,7 @@ export function CheckOutPage() {
           setIsFeeBreakdownOpen(false);
           window.location.href = res.checkoutUrl;
         } else {
-          throw new Error('Không nhận �ược URL thanh toán từ Stripe.');
+          throw new Error('Không nhận được URL thanh toán từ Stripe.');
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Tạo phiên thanh toán Stripe thất bại.';
@@ -1265,7 +1319,7 @@ export function CheckOutPage() {
     }
   };
 
-  // ���� Reset after success ��������������������������������������������������������������
+  // — —— — Reset after success — —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —
   const handleDismissResult = () => {
     setCheckoutResult(null);
     setIsFeeBreakdownOpen(false);
@@ -1273,7 +1327,7 @@ export function CheckOutPage() {
   };
 
 
-  // ���� Dismiss found record ��������������������������������������������������������������
+  // — —— — Dismiss found record — —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —— —
   const handleDismissFound = () => {
     setFoundRecord(null);
     setFeePreview(null);
@@ -1458,7 +1512,6 @@ export function CheckOutPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.25rem' }}>
           <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: C.navy }}>2. Nhập mã PIN</p>
           <p style={{ margin: 0, fontSize: '0.82rem', color: C.gray500 }}>Nhập mã PIN 6 số được cấp khi check-in hoặc mã PIN dự phòng của vé tháng để tra cứu nhanh.</p>
-
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input
               type="text"
@@ -1648,7 +1701,18 @@ export function CheckOutPage() {
                 Thông tin xe ra
               </h4>
               {[
-                { label: 'Biển số', value: checkoutResult.plate, isMono: true },
+                {
+                  label: 'Biển số',
+                  value: formatPlateNumber(
+                    checkoutResult.plate || '',
+                    '',
+                    checkoutResult.vehicleType === 'CAR' ||
+                    checkoutResult.vehicleType === 'MOTORBIKE'
+                      ? checkoutResult.vehicleType
+                      : undefined
+                  ),
+                  isMono: true
+                },
                 { label: 'Loại khách', value: checkoutResult.isMonthly ? 'Khách tháng' : checkoutResult.bookingId ? 'Khách đặt trước' : 'Khách vãng lai' },
                 {
                   label: 'Tầng/Khu vực',
@@ -1756,7 +1820,7 @@ export function CheckOutPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {[
-                { label: 'Biển số', value: foundRecord.vehicle?.plateNumber, isMono: true },
+                { label: 'Biển số', value: formatPlateNumber(foundRecord.vehicle?.plateNumber || '', '', foundRecord.vehicle?.type), isMono: true },
                 { label: 'Loại xe', value: foundRecord.vehicle?.type === 'MOTORBIKE' ? 'Xe máy' : 'Ô tô' },
                 { label: 'Loại khách', value: foundRecord.isMonthly ? 'Khách tháng' : foundRecord.bookingId ? 'Khách đặt trước' : 'Khách vãng lai' },
                 {
@@ -2614,7 +2678,7 @@ export function CheckOutPage() {
                   return (
                     <tr key={r.id} style={{ borderBottom: `1px solid ${C.gray100}` }}>
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'Consolas, monospace', fontWeight: 700, color: C.navy, letterSpacing: '0.02em' }}>
-                        {r.vehicle.plateNumber}
+                        {formatPlateNumber(r.vehicle.plateNumber, '', r.vehicle.type)}
                       </td>
                       <td style={{ padding: '0.65rem 0.75rem', fontSize: '0.82rem', color: C.gray800 }}>
                         {locationText}

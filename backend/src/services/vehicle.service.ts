@@ -2,6 +2,23 @@ import prisma from '../config/db';
 import { AppError } from '../utils/helpers';
 import { normalizeLicensePlate } from '../utils/plate';
 
+function formatVehiclePackage(vehicle: any) {
+  if (!vehicle) return vehicle;
+  if (vehicle.monthlyPackage) {
+    const pkg = vehicle.monthlyPackage;
+    const now = new Date();
+    const isExpiredActive = pkg.status === 'ACTIVE' && pkg.expiryDate <= now;
+    const effectiveStatus = isExpiredActive ? 'EXPIRED' : pkg.status;
+    const isEffectivelyActive = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
+    vehicle.monthlyPackage = {
+      ...pkg,
+      effectiveStatus,
+      isEffectivelyActive,
+    };
+  }
+  return vehicle;
+}
+
 export interface CreateVehicleInput {
   plateNumber: string;
   type: string;
@@ -16,11 +33,25 @@ export interface CreateVehicleInput {
   ownerEmail?: string | null;
   ownerPhone?: string | null;
 }
+
+/**
+ * Allow-listed fields that a vehicle owner may update through the API.
+ * ownerId, isMonthly, and owner-contact snapshot fields are intentionally excluded
+ * to prevent ownership mutation and data-integrity issues.
+ */
+export interface UpdateVehicleInput {
+  plateNumber?: string;
+  type?: string;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
+  seats?: number | null;
+}
     
 async function loadOwnedVehicleOrThrow(vehicleId: string, userId: string) {
-
   const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-  if (!vehicle) {
+  if (!vehicle || vehicle.isArchived) {
     throw new AppError(404, 'Không tìm thấy xe');
   }
   if (vehicle.ownerId !== userId) {
@@ -42,7 +73,8 @@ function validateLicensePlate(normalizedPlate: string, vehicleType: string) {
 
 export const vehicleService = {
   async create(input: CreateVehicleInput) {
-    const normalizedPlate = normalizeLicensePlate(input.plateNumber);
+    const cleanedPlate = input.plateNumber.trim().toUpperCase();
+    const normalizedPlate = normalizeLicensePlate(cleanedPlate);
     if (!normalizedPlate) {
       throw new AppError(400, 'Biển số xe không hợp lệ.');
     }
@@ -55,11 +87,53 @@ export const vehicleService = {
       select: {
         id: true,
         plateNumber: true,
+        ownerId: true,
+        isArchived: true,
       },
     });
 
-    const isDuplicate = candidates.some(v => normalizeLicensePlate(v.plateNumber) === normalizedPlate);
-    if (isDuplicate) {
+    const matchingCandidate = candidates.find(v => normalizeLicensePlate(v.plateNumber) === normalizedPlate);
+    if (matchingCandidate) {
+      const owner = await prisma.user.findUnique({
+        where: { id: input.ownerId },
+      });
+      if (!owner) {
+        throw new AppError(404, 'Không tìm thấy thông tin chủ xe');
+      }
+
+      if (matchingCandidate.ownerId === input.ownerId && matchingCandidate.isArchived) {
+        // Before restoring, check if there is an active guest parking session on this vehicle
+        const activeCheckIn = await prisma.checkInRecord.findFirst({
+          where: {
+            vehicleId: matchingCandidate.id,
+            checkOutTime: null,
+            status: 'PARKING',
+          },
+          select: { id: true },
+        });
+        if (activeCheckIn) {
+          throw new AppError(409, 'Xe hiện đang có phiên gửi trong bãi. Vui lòng hoàn tất phiên gửi trước khi khôi phục xe.');
+        }
+
+        // SAME OWNER RESTORE: Restore vehicle, reset isMonthly = false, and update editable fields
+        return prisma.vehicle.update({
+          where: { id: matchingCandidate.id },
+          data: {
+            isArchived: false,
+            isMonthly: false,
+            brand: input.brand ?? null,
+            model: input.model ?? null,
+            color: input.color ?? null,
+            year: input.year ?? null,
+            seats: input.seats ?? null,
+            ownerFullName: owner.fullName,
+            ownerEmail: owner.email.toLowerCase(),
+            ownerPhone: owner.phoneNumber ?? null,
+          },
+        });
+      }
+
+      // Already active under same owner OR owned by a different user -> return 409
       throw new AppError(409, 'Biển số xe này đã được đăng ký.');
     }
 
@@ -71,7 +145,7 @@ export const vehicleService = {
     }
 
     const data = {
-      plateNumber: normalizedPlate,
+      plateNumber: cleanedPlate,
       type: input.type,
       ownerId: input.ownerId,
       isMonthly: input.isMonthly ?? false,
@@ -87,9 +161,10 @@ export const vehicleService = {
     return prisma.vehicle.create({ data });
   },
 
-  async getByPlate(plateNumber: string) {
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { plateNumber },
+  async getByPlate(plateNumber: string, includeArchived = false) {
+    const normalizedInput = normalizeLicensePlate(plateNumber);
+    const allVehicles = await prisma.vehicle.findMany({
+      where: includeArchived ? undefined : { isArchived: false },
       include: {
         owner: {
           select: {
@@ -119,6 +194,16 @@ export const vehicleService = {
       },
     });
 
+    const matching = allVehicles.filter(
+      (v) => normalizeLicensePlate(v.plateNumber) === normalizedInput
+    );
+
+    if (matching.length > 1) {
+      throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
+    }
+
+    const vehicle = matching[0] || null;
+
     if (!vehicle) {
       throw new AppError(404, 'Không tìm thấy xe');
     }
@@ -141,7 +226,18 @@ export const vehicleService = {
         return new Date(pkg.expiryDate).getTime() > Date.now();
       })(),
 
-      monthlyPackage: vehicle.monthlyPackage,
+      monthlyPackage: vehicle.monthlyPackage ? (() => {
+        const pkg = vehicle.monthlyPackage;
+        const now = new Date();
+        const isExpiredActive = pkg.status === 'ACTIVE' && pkg.expiryDate <= now;
+        const effectiveStatus = isExpiredActive ? 'EXPIRED' : pkg.status;
+        const isEffectivelyActive = pkg.status === 'ACTIVE' && pkg.expiryDate > now;
+        return {
+          ...pkg,
+          effectiveStatus,
+          isEffectivelyActive,
+        };
+      })() : null,
 
       lastParking:
         vehicle.checkInRecords.length > 0 ? vehicle.checkInRecords[0].checkInTime : null,
@@ -155,12 +251,12 @@ export const vehicleService = {
       include: { owner: true },
     });
     if (!vehicle) throw new AppError(404, 'Vehicle not found');
-    return vehicle;
+    return formatVehiclePackage(vehicle);
   },
 
   async getByOwner(ownerId: string) {
-    return prisma.vehicle.findMany({
-      where: { ownerId },
+    const vehicles = await prisma.vehicle.findMany({
+      where: { ownerId, isArchived: false },
       include: {
         monthlyPackage: {
           include: {
@@ -177,6 +273,7 @@ export const vehicleService = {
         }
       },
     });
+    return vehicles.map((v) => formatVehiclePackage(v));
   },
 
   async getDetail(vehicleId: string, userId: string) {
@@ -205,21 +302,39 @@ export const vehicleService = {
         },
       },
     });
-    if (!vehicle) throw new AppError(404, 'Không tìm thấy xe');
+    if (!vehicle || vehicle.isArchived) throw new AppError(404, 'Không tìm thấy xe');
     if (vehicle.ownerId !== userId) throw new AppError(403, 'Bạn không có quyền xem xe này');
-    return vehicle;
+    return formatVehiclePackage(vehicle);
   },
 
-  async update(id: string, userId: string, data: Partial<CreateVehicleInput>) {
+  async update(id: string, userId: string, input: UpdateVehicleInput) {
     const vehicle = await loadOwnedVehicleOrThrow(id, userId);
 
-    if (data.plateNumber !== undefined) {
-      const normalizedPlate = normalizeLicensePlate(data.plateNumber);
+    // Build an explicit allow-listed payload — ownerId and isMonthly are never included.
+    const data: {
+      plateNumber?: string;
+      type?: string;
+      brand?: string | null;
+      model?: string | null;
+      color?: string | null;
+      year?: number | null;
+      seats?: number | null;
+    } = {};
+
+    if (input.brand !== undefined)  data.brand  = input.brand;
+    if (input.model !== undefined)  data.model  = input.model;
+    if (input.color !== undefined)  data.color  = input.color;
+    if (input.year  !== undefined)  data.year   = input.year;
+    if (input.seats !== undefined)  data.seats  = input.seats;
+    if (input.type  !== undefined)  data.type   = input.type;
+
+    if (input.plateNumber !== undefined) {
+      const normalizedPlate = normalizeLicensePlate(input.plateNumber);
       if (!normalizedPlate) {
         throw new AppError(400, 'Biển số xe không hợp lệ.');
       }
 
-      const resolvedType = data.type || vehicle.type;
+      const resolvedType = input.type || vehicle.type;
       validateLicensePlate(normalizedPlate, resolvedType);
 
       if (normalizedPlate !== normalizeLicensePlate(vehicle.plateNumber)) {
@@ -246,23 +361,39 @@ export const vehicleService = {
   async remove(id: string, userId: string) {
     return prisma.$transaction(async (tx) => {
       const vehicle = await tx.vehicle.findUnique({ where: { id } });
-      if (!vehicle) {
+      if (!vehicle || vehicle.isArchived) {
         throw new AppError(404, 'Không tìm thấy xe');
       }
       if (vehicle.ownerId !== userId) {
         throw new AppError(403, 'Bạn không có quyền với xe này');
       }
 
-      const [activePackage, activeBooking, checkInCount, assignedSlot] = await Promise.all([
+      const [activePackage, activeBooking, activeCheckIn, assignedSlot] = await Promise.all([
         tx.monthlyPackage.findFirst({
-          where: { vehicleId: id, status: 'ACTIVE' },
+          where: {
+            vehicleId: id,
+            OR: [
+              { status: 'ACTIVE', expiryDate: { gt: new Date() } },
+              { status: 'PENDING_PAYMENT' }
+            ]
+          },
           select: { id: true },
         }),
         tx.booking.findFirst({
-          where: { vehicleId: id, status: 'ACTIVE' },
+          where: {
+            vehicleId: id,
+            status: { in: ['ACTIVE', 'PENDING_PAYMENT'] }
+          },
           select: { id: true },
         }),
-        tx.checkInRecord.count({ where: { vehicleId: id } }),
+        tx.checkInRecord.findFirst({
+          where: {
+            vehicleId: id,
+            checkOutTime: null,
+            status: 'PARKING',
+          },
+          select: { id: true },
+        }),
         tx.parkingSlot.findFirst({
           where: { assignedVehicleId: id },
           select: { id: true },
@@ -270,26 +401,25 @@ export const vehicleService = {
       ]);
 
       if (activePackage) {
-        throw new AppError(409, 'Không thể xoá xe đang có gói tháng. Vui lòng đợi gói hết hạn.');
+        throw new AppError(409, 'Không thể gỡ xe đang có gói tháng hoặc đang chờ thanh toán gói tháng. Vui lòng đợi gói hết hạn.');
       }
       if (activeBooking) {
-        throw new AppError(409, 'Không thể xoá xe đang có lượt đặt chỗ.');
+        throw new AppError(409, 'Không thể gỡ xe đang có lượt đặt chỗ hoặc đang chờ thanh toán đặt chỗ.');
       }
-      if (checkInCount > 0) {
-        throw new AppError(409, 'Không thể xoá xe đã có lịch sử gửi xe.');
+      if (activeCheckIn) {
+        throw new AppError(409, 'Không thể gỡ xe đang đỗ trong bãi.');
       }
       if (assignedSlot) {
-        throw new AppError(409, 'Không thể xoá xe đang được gán chỗ đỗ.');
+        throw new AppError(409, 'Không thể gỡ xe đang được gán chỗ đỗ cố định.');
       }
 
-      try {
-        await tx.vehicle.delete({ where: { id } });
-      } catch (err) {
-        if (err && typeof err === 'object' && 'code' in err && (err as { code: unknown }).code === 'P2003') {
-          throw new AppError(409, 'Không thể xoá xe này vì đang có dữ liệu liên quan.');
-        }
-        throw err;
-      }
+      await tx.vehicle.update({
+        where: { id },
+        data: {
+          isArchived: true,
+          isMonthly: false,
+        },
+      });
     });
   },
 };

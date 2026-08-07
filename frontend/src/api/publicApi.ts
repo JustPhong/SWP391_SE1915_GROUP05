@@ -27,3 +27,28 @@ export async function getPublicAvailability(): Promise<AvailabilityData> {
   const res = await api.get<ApiEnvelope<AvailabilityData>>('/public/availability');
   return res.data.data;
 }
+
+export interface PublicFeeRule {
+  id: number;
+  vehicleType: string;
+  ruleType: string;
+  label: string;
+  startHour: number;
+  endHour: number;
+  blockMinutes: number | null;
+  amount: number;
+}
+
+export async function getPublicFeeRules(): Promise<PublicFeeRule[]> {
+  const res = await api.get<ApiEnvelope<PublicFeeRule[]>>('/public/fee-rules');
+  return res.data.data;
+}
+
+export interface PublicBookingConfig {
+  depositAmount: number;
+}
+
+export async function getPublicBookingConfig(): Promise<PublicBookingConfig> {
+  const res = await api.get<ApiEnvelope<PublicBookingConfig>>('/public/booking-config');
+  return res.data.data;
+}

@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import { Prisma } from '@prisma/client';
 import { AppError } from './helpers';
+import { normalizeLicensePlate } from './plate';
 
 export async function acquireLock(tx: Prisma.TransactionClient, resource: string, timeoutMs = 5000): Promise<void> {
   const result: any[] = await tx.$queryRawUnsafe(`
@@ -62,15 +63,17 @@ export async function getVehicleOperationalState(
       include: { monthlyPackage: { include: { floor: true } } },
     });
   } else if (plateNumber) {
-    vehicle = await tx.vehicle.findFirst({
-      where: {
-        OR: [
-          { plateNumber: cleaned },
-          { plateNumber: stripped },
-        ],
-      },
+    const allVehicles = await tx.vehicle.findMany({
       include: { monthlyPackage: { include: { floor: true } } },
     });
+    const matchingVehicles = allVehicles.filter(
+      (v) => normalizeLicensePlate(v.plateNumber) === stripped
+    );
+    if (matchingVehicles.length > 1) {
+      throw new AppError(409, 'Phát hiện xung đột dữ liệu: có nhiều xe trùng biển số trên hệ thống.');
+    } else if (matchingVehicles.length === 1) {
+      vehicle = matchingVehicles[0];
+    }
   }
 
   const effectiveVehicleId = vehicle?.id || null;

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { vehicleService as _vehicleService } from '../services/vehicle.service';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
 import type { MonthlyPackage } from '../types/index';
+import { formatPlateNumber } from '../utils/plate';
 import { type PackagePlan, getTierAreaLabel } from '../constants/packages';
 import { PackagePurchaseModal } from '../components/PackagePurchaseModal';
 import { useMonthlyPaymentReturn } from '../hooks/useMonthlyPaymentReturn';
@@ -516,6 +517,8 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
   // Detail Modal
   const [selectedDetailPkg, setSelectedDetailPkg] = useState<MonthlyPackage | null>(null);
   const [detailQrUrl, setDetailQrUrl] = useState<string>('');
+  const [fetchingQrToken, setFetchingQrToken] = useState(false);
+  const [qrTokenError, setQrTokenError] = useState('');
 
   const [pinLoading, setPinLoading] = useState(false);
   const [pinError, setPinError] = useState(false);
@@ -708,20 +711,53 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
 
   // Detail Modal QR Code generation
   useEffect(() => {
-    if (selectedDetailPkg) {
-      const qrPayload = JSON.stringify({
-        ticketType: 'MONTHLY_PASS',
-        packageId: selectedDetailPkg.id,
-        vehicleId: selectedDetailPkg.vehicleId,
-        plateNumber: selectedDetailPkg.vehicle?.plateNumber || selectedDetailPkg.vehicleId,
-        expiryDate: selectedDetailPkg.expiryDate,
-      });
-      QRCode.toDataURL(qrPayload, { width: 180, margin: 1 })
-        .then(url => setDetailQrUrl(url))
-        .catch(() => setDetailQrUrl(''));
-    } else {
+    if (!selectedDetailPkg) {
       setDetailQrUrl('');
+      setQrTokenError('');
+      return;
     }
+
+    const isExpired = selectedDetailPkg.status === 'EXPIRED' || getRemainingDays(selectedDetailPkg.expiryDate) <= 0;
+    if (isExpired) {
+      setDetailQrUrl('');
+      return;
+    }
+
+    let active = true;
+    const fetchQrToken = async () => {
+      setDetailQrUrl('');
+      setFetchingQrToken(true);
+      setQrTokenError('');
+      try {
+        const res = await monthlyPackageService.getQrToken(selectedDetailPkg.id, selectedDetailPkg.vehicleId);
+        if (active && res && res.qrToken) {
+          const qrPayload = JSON.stringify({
+            ticketType: 'MONTHLY_PASS',
+            qrToken: res.qrToken,
+          });
+          const url = await QRCode.toDataURL(qrPayload, { width: 180, margin: 1 });
+          if (active) {
+            setDetailQrUrl(url);
+          }
+        } else if (active) {
+          setQrTokenError('Không thể tạo mã QR bảo mật từ máy chủ.');
+        }
+      } catch (err) {
+        if (active) {
+          setQrTokenError('Không thể tạo mã QR bảo mật từ máy chủ.');
+          setDetailQrUrl('');
+        }
+      } finally {
+        if (active) {
+          setFetchingQrToken(false);
+        }
+      }
+    };
+
+    fetchQrToken();
+    return () => {
+      active = false;
+    };
   }, [selectedDetailPkg]);
 
   const isLegacyPackage = useCallback((pkg: MonthlyPackage) => {
@@ -805,7 +841,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
   }
 
   const isEffectivelyActive = (pkg: MonthlyPackage) =>
-    pkg.status === 'ACTIVE' && getRemainingDays(pkg.expiryDate) > 0;
+    pkg.isEffectivelyActive ?? (pkg.status === 'ACTIVE' && getRemainingDays(pkg.expiryDate) > 0);
 
   // Derived counts for Summary Cards
   const activePackagesCount = myPackages.filter(isEffectivelyActive).length;
@@ -992,7 +1028,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 const totalDays = getTotalDays(pkg.startDate, pkg.expiryDate);
                 
                 // Status mapping
-                const isExpired = pkg.status === 'EXPIRED' || remainingDays <= 0;
+                const isExpired = pkg.effectiveStatus === 'EXPIRED' || pkg.isEffectivelyActive === false || pkg.status === 'EXPIRED' || remainingDays <= 0;
                 const isExpiring = !isExpired && remainingDays <= 7;
                 
                 // Ratio calculation
@@ -1012,7 +1048,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                             {getPlanDisplayName(pkg.planName)}
                           </h4>
                           <p className={newStyles.cardSubtitle}>
-                            Xe: {pkg.vehicle?.plateNumber || pkg.vehicleId || '-'}
+                            Xe: {pkg.vehicle?.plateNumber ? formatPlateNumber(pkg.vehicle.plateNumber, '', pkg.vehicle.type) : pkg.vehicleId || '-'}
                           </p>
                         </div>
                       </div>
@@ -1188,7 +1224,11 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
               </div>
               <div className={newStyles.ticketRow}>
                 <span className={newStyles.ticketLabel}>Biển số xe</span>
-                <span className={newStyles.ticketValueHighlight}>{selectedDetailPkg.vehicle?.plateNumber || selectedDetailPkg.vehicleId}</span>
+                <span className={newStyles.ticketValueHighlight}>
+                  {selectedDetailPkg.vehicle?.plateNumber
+                    ? formatPlateNumber(selectedDetailPkg.vehicle.plateNumber, '', selectedDetailPkg.vehicle.type)
+                    : selectedDetailPkg.vehicleId}
+                </span>
               </div>
               <div className={newStyles.ticketRow}>
                 <span className={newStyles.ticketLabel}>Loại xe</span>
@@ -1217,14 +1257,29 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
 
               <div className={newStyles.ticketRow}>
                 <span className={newStyles.ticketLabel}>Trạng thái</span>
-                <span style={{ fontWeight: 800, color: selectedDetailPkg.status === 'ACTIVE' ? '#10B981' : '#EF4444' }}>
-                  {selectedDetailPkg.status === 'ACTIVE' ? 'ĐANG HOẠT ĐỘNG' : 'HẾT HẠN'}
-                </span>
+                {(() => {
+                  const isExpired = selectedDetailPkg.effectiveStatus === 'EXPIRED' || selectedDetailPkg.isEffectivelyActive === false || selectedDetailPkg.status === 'EXPIRED' || getRemainingDays(selectedDetailPkg.expiryDate) <= 0;
+                  return (
+                    <span style={{ fontWeight: 800, color: !isExpired ? '#10B981' : '#EF4444' }}>
+                      {!isExpired ? 'ĐANG HOẠT ĐỘNG' : 'HẾT HẠN'}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
             {/* Check-in QR code */}
-            {detailQrUrl && (
+            {fetchingQrToken && (
+              <div style={{ textAlign: 'center', padding: '1rem', color: C.gray600, fontSize: '0.85rem' }}>
+                Đang tạo mã QR bảo mật...
+              </div>
+            )}
+            {qrTokenError && (
+              <div style={{ textAlign: 'center', padding: '1rem', color: C.red, fontSize: '0.85rem', fontWeight: 600 }}>
+                {qrTokenError}
+              </div>
+            )}
+            {!fetchingQrToken && !qrTokenError && detailQrUrl && (
               <div className={newStyles.qrContainer}>
                 <img src={detailQrUrl} alt="Check-in QR" width={180} height={180} className={newStyles.qrImage} />
                 <p style={{ margin: 0, fontSize: '0.8rem', color: C.gray600, textAlign: 'center', lineHeight: 1.5 }}>
@@ -1248,7 +1303,7 @@ export function MonthlyPackagePage({ onAddVehicle: _onAddVehicle }: { onAddVehic
                 </span>
 
                 {(() => {
-                  const isExpired = selectedDetailPkg.status === 'EXPIRED' || getRemainingDays(selectedDetailPkg.expiryDate) <= 0;
+                  const isExpired = selectedDetailPkg.effectiveStatus === 'EXPIRED' || selectedDetailPkg.isEffectivelyActive === false || selectedDetailPkg.status === 'EXPIRED' || getRemainingDays(selectedDetailPkg.expiryDate) <= 0;
                   if (isExpired) {
                     return (
                       <span style={{ fontSize: '0.9rem', color: C.red, fontWeight: 700 }}>

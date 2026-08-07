@@ -145,4 +145,14 @@ export const monthlyPackageController = {
     const result = await monthlyPackageService.ensureAccessPin(packageId, req.user!.id);
     return res.status(200).json({ success: true, data: result });
   }),
+
+  getQrToken: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { packageId } = req.params;
+    const { vehicleId } = req.body;
+    if (!vehicleId) {
+      throw new AppError(400, 'vehicleId là bắt buộc.');
+    }
+    const result = await monthlyPackageService.getQrToken(packageId, vehicleId, req.user!.id);
+    return res.status(200).json({ success: true, data: result });
+  }),
 };

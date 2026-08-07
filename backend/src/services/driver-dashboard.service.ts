@@ -23,9 +23,7 @@ export const driverDashboardService = {
     const records = await prisma.checkInRecord.findMany({
       where: {
         checkOutTime: null,
-        vehicle: {
-          ownerId: userId,
-        },
+        driverId: userId,
       },
       orderBy: { checkInTime: 'desc' },
       include: {
@@ -125,6 +123,7 @@ export const driverDashboardService = {
       where: {
         userId,
         status: 'ACTIVE',
+        expiryDate: { gt: new Date() },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -136,15 +135,15 @@ export const driverDashboardService = {
       planName: pkg.planName ?? 'Gói tháng',
       expiryDate: formatISODate(pkg.expiryDate),
       status: pkg.status,
+      effectiveStatus: 'ACTIVE' as const,
+      isEffectivelyActive: true,
     };
   },
 
   async getHistory(userId: string) {
     const records = await prisma.checkInRecord.findMany({
       where: {
-        vehicle: {
-          ownerId: userId,
-        },
+        driverId: userId,
       },
       orderBy: { checkInTime: 'desc' },
       include: {

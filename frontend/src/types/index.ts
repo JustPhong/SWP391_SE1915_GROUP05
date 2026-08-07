@@ -45,6 +45,7 @@ export interface Vehicle {
   bookings?: any[];
   isCurrentlyParked?: boolean;
   hasActiveMonthlyPackage?: boolean;
+  isArchived?: boolean;
 }
 
 export interface ParkingSlot {
@@ -97,6 +98,8 @@ export interface MonthlyPackage {
   monthlyAccessPin?: string | null;
   monthlyAccessPinIssuedAt?: string | null;
   createdAt: string;
+  effectiveStatus?: 'PENDING_PAYMENT' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  isEffectivelyActive?: boolean;
 }
 
 export interface Booking {

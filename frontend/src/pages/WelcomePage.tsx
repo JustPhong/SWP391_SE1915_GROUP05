@@ -13,7 +13,7 @@ import {
 } from '../components/ui/Icons';
 import { getCurrentSession, CurrentSession } from '../api/driverDashboardApi';
 import { addVehicle } from '../api/vehicleApi';
-import { getPublicAvailability, type AvailabilityData } from '../api/publicApi';
+import { getPublicAvailability, getPublicFeeRules, getPublicBookingConfig, type AvailabilityData, type PublicFeeRule, type PublicBookingConfig } from '../api/publicApi';
 import {
   lookupGuestVehicle,
   createGuestStripeSession,
@@ -27,7 +27,7 @@ import { BookingPage } from './Booking';
 import { FloorMapPage } from './FloorMap';
 import { BookingModal, BookingSuccess } from '../components/BookingModal';
 import type { Floor } from '../types/index';
-import { CASUAL_PRICING, type VType } from '../constants/packages';
+import { type VType } from '../constants/packages';
 import styles from '../styles/welcome.module.css';
 import motorbikeWatermark from '../assets/motorbike-watermark.png';
 import carWatermark from '../assets/car-watermark.png';
@@ -1559,12 +1559,61 @@ function PricingSection({
   plansError,
 }: {
   navigate: (path: string) => void;
-  onSelectPackage?: (planId: string, vtype: VType) => void;
+  onSelectPackage?: (planId: string, planVtype: VType) => void;
   plans: PackagePlan[];
   loadingPlans: boolean;
   plansError: string;
 }) {
   const [vtype, setVtype] = useState<VType>('MOTORBIKE');
+  const [feeRules, setFeeRules] = useState<PublicFeeRule[]>([]);
+  const [loadingRules, setLoadingRules] = useState(true);
+  const [rulesError, setRulesError] = useState('');
+
+  const [bookingConfig, setBookingConfig] = useState<PublicBookingConfig | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [configError, setConfigError] = useState('');
+
+  const fetchRules = async () => {
+    try {
+      const data = await getPublicFeeRules();
+      setFeeRules(data);
+      setRulesError('');
+    } catch (err) {
+      console.error('Failed to load public fee rules:', err);
+      setRulesError('Không thể tải bảng giá hiện tại.');
+    } finally {
+      setLoadingRules(false);
+    }
+  };
+
+  const fetchBookingConfig = async () => {
+    try {
+      const data = await getPublicBookingConfig();
+      setBookingConfig(data);
+      setConfigError('');
+    } catch (err) {
+      console.error('Failed to load public booking config:', err);
+      setConfigError('Không thể tải phí đặt chỗ hiện tại.');
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRules();
+    fetchBookingConfig();
+
+    const handleFocus = () => {
+      fetchRules();
+      fetchBookingConfig();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
   const handleSelect = (planId: string, planVtype: VType) => {
     if (onSelectPackage) {
       onSelectPackage(planId, planVtype);
@@ -1572,6 +1621,47 @@ function PricingSection({
       navigate('/monthly-package');
     }
   };
+
+  const formatVND = (val: number) => {
+    return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
+  };
+
+  const formatHours = (start: number, end: number) => {
+    if (start === 0 && end === 6) {
+      return '00:00 – 05:59';
+    }
+    if (start === 6 && end === 18) {
+      return '06:00 – 17:59';
+    }
+    if (start === 18 && end === 24) {
+      return '18:00 – 23:59';
+    }
+    if (start === 18 && end === 6) {
+      return '18:00 – 05:59';
+    }
+    return `${String(start).padStart(2, '0')}:00 – ${String(end === 0 ? 23 : end - 1).padStart(2, '0')}:59`;
+  };
+
+  const cleanLabel = (label: string): string => {
+    return label.replace(/\s*\(.*?\)\s*/g, '').trim();
+  };
+
+  const motorbikeRules = [...feeRules]
+    .filter(r => r.vehicleType === 'MOTORBIKE')
+    .sort((a, b) => {
+      const aHour = a.startHour === 0 ? 24 : a.startHour;
+      const bHour = b.startHour === 0 ? 24 : b.startHour;
+      return aHour - bHour;
+    });
+
+  const carRules = [...feeRules]
+    .filter(r => r.vehicleType === 'CAR')
+    .sort((a, b) => {
+      const aHour = a.startHour === 0 ? 24 : a.startHour;
+      const bHour = b.startHour === 0 ? 24 : b.startHour;
+      return aHour - bHour;
+    });
+
   return (
     <section id="pricing" className={styles.section}>
       <div className={styles.sectionInner}>
@@ -1584,59 +1674,208 @@ function PricingSection({
         </div>
 
         {/* ── Unified Casual Pricing Table: Xe máy | Ô tô ── */}
-        <div className={styles.casualTableGrid}>
-          {/* Xe máy column */}
-          <div
-            className={`${styles.casualTableCol} ${vtype === 'MOTORBIKE' ? styles.casualTableColActive : styles.casualTableColInactive}`}
-            onClick={() => setVtype('MOTORBIKE')}
-          >
-            <div className={styles.casualTableColHead}>
-              <span className={styles.casualTableEmoji} aria-hidden="true">🛵</span>
-              <span>Xe máy</span>
+        {loadingRules ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ border: '3px solid #E2E8F0', borderTop: '3px solid #2563EB', borderRadius: '50%', width: 28, height: 28, animation: 'spin 1s linear infinite' }} />
+            <span style={{ color: '#64748B', fontSize: '0.9rem', fontWeight: 600 }}>Đang tải bảng giá...</span>
+          </div>
+        ) : rulesError ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: '#EF4444', fontWeight: 600, fontSize: '0.9rem', background: '#FEF2F2', borderRadius: 16, border: '1.5px solid #FCA5A5', maxWidth: 500, margin: '2rem auto' }}>
+            <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.5rem' }}>⚠️</span>
+            {rulesError}
+            <button
+              onClick={fetchRules}
+              style={{
+                display: 'block',
+                margin: '1rem auto 0',
+                background: '#DC2626',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '0.5rem 1.25rem',
+                borderRadius: 10,
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : (
+          <div className={styles.casualTableGrid}>
+            {/* Xe máy column */}
+            <div
+              className={`${styles.casualTableCol} ${vtype === 'MOTORBIKE' ? styles.casualTableColActive : styles.casualTableColInactive}`}
+              onClick={() => setVtype('MOTORBIKE')}
+            >
+              <div className={styles.casualTableColHead}>
+                <span className={styles.casualTableEmoji} aria-hidden="true">🛵</span>
+                <span>Xe máy</span>
+              </div>
+              <div className={styles.casualTableRows}>
+                {motorbikeRules.map((b) => {
+                  const hoursText = formatHours(b.startHour, b.endHour);
+                  const unitText = b.ruleType === 'FLAT_OVERNIGHT' || b.blockMinutes === null
+                    ? 'trọn đêm'
+                    : `/ ${b.blockMinutes / 60} giờ`;
+                  return (
+                    <div key={b.id} className={styles.casualTableRow}>
+                      <div className={styles.casualTableRowLeft}>
+                        <div className={styles.casualTableLabel}>{cleanLabel(b.label)}</div>
+                        <div className={styles.casualTableHours}>{hoursText}</div>
+                      </div>
+                      <div className={styles.casualTableRowRight}>
+                        <span className={styles.casualTablePriceVal}>{formatVND(b.amount)}</span>
+                        <span className={styles.casualTablePriceUnit}>{unitText}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className={styles.casualTableRows}>
-              {CASUAL_PRICING.MOTORBIKE.blocks.map((b) => (
-                <div key={b.label} className={styles.casualTableRow}>
-                  <div className={styles.casualTableRowLeft}>
-                    <div className={styles.casualTableLabel}>{b.label}</div>
-                    <div className={styles.casualTableHours}>{b.hours}</div>
-                  </div>
-                  <div className={styles.casualTableRowRight}>
-                    <span className={styles.casualTablePriceVal}>{b.price}</span>
-                    <span className={styles.casualTablePriceUnit}>{b.unit}</span>
-                  </div>
-                </div>
-              ))}
+
+            {/* Ô tô column */}
+            <div
+              className={`${styles.casualTableCol} ${vtype === 'CAR' ? styles.casualTableColActive : styles.casualTableColInactive}`}
+              onClick={() => setVtype('CAR')}
+            >
+              <div className={styles.casualTableColHead}>
+                <span className={styles.casualTableEmoji} aria-hidden="true">🚗</span>
+                <span>Ô tô</span>
+              </div>
+              <div className={styles.casualTableRows}>
+                {carRules.map((b) => {
+                  const hoursText = formatHours(b.startHour, b.endHour);
+                  const unitText = b.ruleType === 'FLAT_OVERNIGHT' || b.blockMinutes === null
+                    ? 'trọn đêm'
+                    : `/ ${b.blockMinutes / 60} giờ`;
+                  const isNight = b.ruleType === 'FLAT_OVERNIGHT';
+                  return (
+                    <div key={b.id} className={`${styles.casualTableRow} ${isNight ? styles.casualTableRowNight : ''}`}>
+                      <div className={styles.casualTableRowLeft}>
+                        <div className={styles.casualTableLabel}>{cleanLabel(b.label)}</div>
+                        <div className={styles.casualTableHours}>{hoursText}</div>
+                      </div>
+                      <div className={styles.casualTableRowRight}>
+                        <span className={styles.casualTablePriceVal}>{formatVND(b.amount)}</span>
+                        <span className={styles.casualTablePriceUnit}>{unitText}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Ô tô column */}
-          <div
-            className={`${styles.casualTableCol} ${vtype === 'CAR' ? styles.casualTableColActive : styles.casualTableColInactive}`}
-            onClick={() => setVtype('CAR')}
-          >
-            <div className={styles.casualTableColHead}>
-              <span className={styles.casualTableEmoji} aria-hidden="true">🚗</span>
-              <span>Ô tô</span>
-            </div>
-            <div className={styles.casualTableRows}>
-              {CASUAL_PRICING.CAR.blocks.map((b) => (
-                <div key={b.label} className={`${styles.casualTableRow} ${b.isNight ? styles.casualTableRowNight : ''}`}>
-                  <div className={styles.casualTableRowLeft}>
-                    <div className={styles.casualTableLabel}>{b.label}</div>
-                    <div className={styles.casualTableHours}>{b.hours}</div>
-                  </div>
-                  <div className={styles.casualTableRowRight}>
-                    <span className={styles.casualTablePriceVal}>{b.price}</span>
-                    <span className={styles.casualTablePriceUnit}>{b.unit}</span>
-                  </div>
+        {/* COMBINED SECONDARY INFO CARD */}
+        {loadingConfig ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            borderRadius: '12px',
+            padding: '1rem',
+            maxWidth: '680px',
+            margin: '1.5rem auto 0',
+            gap: '0.75rem',
+          }}>
+            <div style={{ border: '2px solid #E2E8F0', borderTop: '2px solid #2563EB', borderRadius: '50%', width: 16, height: 16, animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontSize: '13px', color: '#64748B', fontWeight: 600 }}>Đang tải phí đặt cọc...</span>
+          </div>
+        ) : configError ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#FEF2F2',
+            border: '1px solid #FCA5A5',
+            borderRadius: '12px',
+            padding: '1rem',
+            maxWidth: '680px',
+            margin: '1.5rem auto 0',
+            gap: '0.75rem',
+          }}>
+            <span style={{ fontSize: '13px', color: '#DC2626', fontWeight: 600 }}>{configError}</span>
+            <button
+              onClick={fetchBookingConfig}
+              style={{
+                background: '#DC2626',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '0.3rem 0.75rem',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : bookingConfig ? (
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            padding: '1rem 1.5rem',
+            maxWidth: '800px',
+            margin: '1.25rem auto 0.75rem',
+            boxShadow: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.65rem',
+          }}>
+            {/* First Row: Main Booking Info */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1 }}>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0 }}
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <polyline points="8 14 10 16 16 11" />
+                </svg>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
+                    Đặt chỗ trước cho ô tô
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#4b5563', marginTop: '1px' }}>
+                    Phí đặt cọc áp dụng cho lượt đặt chỗ mới.
+                  </span>
                 </div>
-              ))}
+              </div>
+              <strong style={{ fontSize: '17px', color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {formatVND(bookingConfig.depositAmount)} <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ lượt</span>
+              </strong>
+            </div>
+
+            {/* Separator line */}
+            <div style={{ height: '1px', background: '#f1f5f9' }} />
+
+            {/* Second Row: Holiday Notice */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.35rem' }}>
+              <span style={{ fontSize: '13px', color: '#334155', fontWeight: 600 }}>Lưu ý:</span>
+              <span style={{ fontSize: '13px', color: '#334155', lineHeight: 1.4 }}>
+                Mức phí có thể được điều chỉnh vào các ngày lễ, Tết hoặc dịp đặc biệt theo thông báo của bãi xe.
+              </span>
             </div>
           </div>
-        </div>
+        ) : null}
 
-        <p className={styles.casualFooterNote}>
+        <p className={styles.casualFootnote} style={{ fontStyle: 'normal', color: '#4b5563' }}>
           Vé bị mất: xe máy 80.000đ · ô tô 200.000đ
         </p>
 

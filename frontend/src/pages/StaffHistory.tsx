@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { HistoryIcon, SearchIcon, CalendarIcon } from '../components/ui/Icons';
 import styles from '../styles/staffHistory.module.css';
+import { formatPlateNumber } from '../utils/plate';
 
 interface CheckInRecord {
   id: string;
@@ -62,11 +63,6 @@ const InfoIcon = ({ size = 16, className }: { size?: number; className?: string 
   </svg>
 );
 
-// ── License Plate Formatter ──
-function formatPlateNumber(plate: string | null | undefined): string {
-  if (!plate) return '—';
-  return plate.trim().toUpperCase();
-}
 
 // ── Currency Formatter ──
 function formatCurrency(amount: number | string): string {
@@ -716,7 +712,7 @@ export function StaffHistoryPage() {
                         {/* 2. BIỂN SỐ */}
                         <td className={`${styles.td} ${styles.colPlate}`}>
                           <span className={styles.plateBadge}>
-                            {formatPlateNumber(r.plateNumber)}
+                            {r.plateNumber ? formatPlateNumber(r.plateNumber, '', r.vehicleType as 'CAR' | 'MOTORBIKE') : '—'}
                           </span>
                         </td>
 

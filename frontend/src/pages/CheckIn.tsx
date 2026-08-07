@@ -5,8 +5,12 @@ import {
   lookupPlate,
   submitCheckIn,
   runOcrApi,
+  precheckVehicle,
+  verifyMonthlyPinApi,
   type LookupResult,
   type CheckinSubmitResult,
+  type PrecheckResult,
+  type MonthlyVerifyResult,
 } from '../api/checkinApi';
 import { normalizePlateForLookup, validatePlate, formatPlateNumber } from '../utils/plate';
 import QRCode from 'qrcode';
@@ -504,15 +508,17 @@ function CustomerBadge({ type }: { type: 'booking' | 'monthly' | 'casual' | 'unk
   );
 }
 
-interface GuestReceiptData {
+interface SuccessReceiptData {
+  checkInType: 'BOOKING' | 'MONTHLY' | 'CASUAL';
   plate: string;
   vehicleType: 'CAR' | 'MOTORBIKE';
-  guestPin: string;
-  guestQrToken: string;
+  guestPin?: string;
+  guestQrToken?: string;
   checkInTime: string;
   floorCode?: string;
   zoneName?: string;
   slotCode?: string;
+  bookingId?: string;
 }
 
 // ═════════════════════════════════════════════════════
@@ -613,7 +619,7 @@ export function CheckInPage() {
   // ── Submit ──────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<CheckinSubmitResult | null>(null);
-  const [guestReceiptData, setGuestReceiptData] = useState<GuestReceiptData | null>(null);
+  const [guestReceiptData, setGuestReceiptData] = useState<SuccessReceiptData | null>(null);
 
   // ── Guest Success Modal & QR ───────────────────────────────────────────
   const [showGuestSuccessModal, setShowGuestSuccessModal] = useState(false);
@@ -639,6 +645,15 @@ export function CheckInPage() {
       vehicleType: guestReceiptData?.vehicleType,
     });
   }, [showGuestSuccessModal, guestReceiptData]);
+
+  // ── Precheck state ──
+  const [precheckResult, setPrecheckResult] = useState<PrecheckResult | null>(null);
+
+  // ── Monthly PIN Inline Verification state ──
+  const [monthlyPinInput, setMonthlyPinInput] = useState('');
+  const [monthlyVerifyLoading, setMonthlyVerifyLoading] = useState(false);
+  const [monthlyVerifyError, setMonthlyVerifyError] = useState('');
+  const [monthlyVerifiedData, setMonthlyVerifiedData] = useState<MonthlyVerifyResult | null>(null);
 
   // ── Monthly PIN Fallback Modal ──
   const [showMonthlyPinModal, setShowMonthlyPinModal] = useState(false);
@@ -707,6 +722,17 @@ export function CheckInPage() {
       console.log(`[CHECKIN] verificationReset reason=${reason}`);
     }
     setLookupData(null);
+    setPrecheckResult(null);
+    setMonthlyVerifiedData(null);
+    setMonthlyPinInput('');
+    setMonthlyVerifyLoading(false);
+    setMonthlyVerifyError('');
+    setMonthlyAccessPin('');
+    setShowMonthlyPinModal(false);
+    setMonthlyPinPlateInput('');
+    setMonthlyPinCodeInput('');
+    setMonthlyPinError('');
+    setMonthlyPinLoading(false);
     setVehicleTypeMismatch(false);
     setApiError('');
     if (reason === 'NEW_OCR') {
@@ -716,7 +742,6 @@ export function CheckInPage() {
       setPlateInput('');
       setPlateInputSource(null);
       setPlateSource('manual');
-      setMonthlyAccessPin('');
     } else if (reason === 'PLATE_EDITED') {
       setOcrStatus('manually_edited');
     }
@@ -922,48 +947,61 @@ export function CheckInPage() {
 
     setApiError('');
     setLookupData(null);
+    setPrecheckResult(null);
+    setMonthlyVerifiedData(null);
+    setMonthlyPinInput('');
+    setMonthlyVerifyError('');
     setVehicleTypeMismatch(false);
     setSearching(true);
 
     try {
-      const result = await lookupPlate(normalized, vehicleType);
+      // 1. Call precheck
+      const precheck = await precheckVehicle(normalized, vehicleType);
+      setPrecheckResult(precheck);
 
-      // Ignore stale response if input changed
-      if (normalizePlateForLookup(plateInputRef.current) !== normalized) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[CHECKIN] Ignoring stale lookup response');
+      // 2. If BOOKING or CASUAL, fetch lookup data immediately
+      if (precheck.checkInType !== 'MONTHLY_CANDIDATE') {
+        const result = await lookupPlate(normalized, vehicleType);
+
+        // Ignore stale response if input changed
+        if (normalizePlateForLookup(plateInputRef.current) !== normalized) {
+          return;
         }
-        return;
-      }
 
-      setLookupData(result);
+        setLookupData(result);
 
-      if (result.alreadyParked) {
-        setApiError(`Xe đang trong bãi — không thể check-in lần nữa.`);
-        return;
-      }
+        if (result.alreadyParked) {
+          setApiError(`Xe đang trong bãi — không thể check-in lần nữa.`);
+          return;
+        }
 
-      // Vehicle type mismatch check
-      if (result.found && result.vehicleType && result.vehicleType !== vehicleType) {
-        setVehicleTypeMismatch(true);
-        return;
-      }
+        // Vehicle type mismatch check
+        if (result.found && result.vehicleType && result.vehicleType !== vehicleType) {
+          setVehicleTypeMismatch(true);
+          return;
+        }
 
-      const currentNormalized = normalizePlateForLookup(plateInput);
-      const isExactMatchGreen =
-        result.found === true &&
-        currentNormalized === result.requestedPlateNormalized &&
-        result.matchedPlateNormalized === result.requestedPlateNormalized;
+        const currentNormalized = normalizePlateForLookup(plateInput);
+        const isExactMatchGreen =
+          result.found === true &&
+          currentNormalized === result.requestedPlateNormalized &&
+          result.matchedPlateNormalized === result.requestedPlateNormalized;
 
-      const isGuestMatch =
-        result.isGuest === true &&
-        currentNormalized === result.requestedPlateNormalized;
+        const isGuestMatch =
+          result.isGuest === true &&
+          currentNormalized === result.requestedPlateNormalized;
 
-      if (isExactMatchGreen) {
-        setOcrStatus('success');
-      } else if (isGuestMatch) {
-        setOcrStatus('guest_resolved');
+        if (isExactMatchGreen) {
+          setOcrStatus('success');
+        } else if (isGuestMatch) {
+          setOcrStatus('guest_resolved');
+        } else {
+          if (ocrStatus !== 'manually_edited') {
+            setOcrStatus('low_confidence');
+          }
+        }
       } else {
+        // For monthly candidate, we wait for PIN verification.
         if (ocrStatus !== 'manually_edited') {
           setOcrStatus('low_confidence');
         }
@@ -980,6 +1018,33 @@ export function CheckInPage() {
     }
   };
 
+  const handleVerifyMonthlyPinInline = async () => {
+    setMonthlyVerifyError('');
+    const raw = plateInput.trim();
+    if (!raw || !vehicleType) return;
+    const pin = monthlyPinInput.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      setMonthlyVerifyError('Mã PIN phải gồm đúng 6 chữ số.');
+      return;
+    }
+
+    setMonthlyVerifyLoading(true);
+    try {
+      const data = await verifyMonthlyPinApi(raw, vehicleType, pin);
+      setMonthlyVerifiedData(data);
+      setMonthlyVerifyError('');
+
+      // Now query lookupPlate with the pin to load lookupData
+      const result = await lookupPlate(raw, vehicleType, pin);
+      setLookupData(result);
+      setMonthlyAccessPin(pin);
+    } catch (err: any) {
+      setMonthlyVerifyError(err.message || 'Mã PIN hoặc thông tin vé tháng không hợp lệ.');
+    } finally {
+      setMonthlyVerifyLoading(false);
+    }
+  };
+
   const handlePlateKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleLookup();
   };
@@ -988,18 +1053,25 @@ export function CheckInPage() {
   //  HANDLERS — submit check-in
   // ═════════════════════════════════════════════════════
   const handleSubmit = async () => {
-    if (!vehicleType || !plateInput.trim() || !lookupData) return;
+    if (!vehicleType || !plateInput.trim() || (!lookupData && !monthlyVerifiedData)) return;
 
     if (!driverCheckInImage) {
       setApiError('Vui lòng chọn ảnh người gửi xe trước khi xác nhận check-in.');
       return;
     }
 
-    const floorId = lookupData.floorId;
+    const floorId = lookupData?.floorId;
     if (!floorId) return;
 
     const plate = plateInput.trim().toUpperCase();
-    const isMonthly = lookupData.customerType === 'monthly';
+    const isMonthly = precheckResult?.checkInType === 'MONTHLY_CANDIDATE' || lookupData?.customerType === 'monthly';
+
+    if (isMonthly) {
+      if (!monthlyVerifiedData || !monthlyAccessPin || !/^\d{6}$/.test(monthlyAccessPin)) {
+        setApiError('Gói tháng chưa được xác thực hoặc mã PIN không hợp lệ.');
+        return;
+      }
+    }
 
     setApiError('');
     setSubmitting(true);
@@ -1010,55 +1082,44 @@ export function CheckInPage() {
         vehicleType,
         floorId,
         isMonthly,
-        slotCode: lookupData.slotCode || null,
+        slotCode: lookupData?.slotCode || null,
         frontImageUrl: frontImageUrl ?? undefined,
         rearImageUrl: rearImageUrl ?? undefined,
-        monthlyAccessPin: monthlyAccessPin || undefined,
+        monthlyAccessPin: isMonthly ? monthlyAccessPin : undefined,
       }, frontImage, rearImage, driverCheckInImage);
-
-      console.log('[GuestReceipt] response shape', {
-        isGuest: result?.isGuest,
-        hasPin: typeof result?.guestPin === 'string' && result.guestPin.length > 0,
-        pinLength: typeof result?.guestPin === 'string' ? result.guestPin.length : 0,
-        hasQrToken: typeof result?.guestQrToken === 'string' && result.guestQrToken.length > 0,
-        plate: result?.plate,
-        checkInTime: result?.checkInTime,
-      });
 
       // Store the successful result first
       setSuccessData(result);
 
-      const wasGuestInLookup = lookupData.isGuest === true;
-      const isGuestInResponse = result.isGuest === true;
       const hasCredentials = !!(result.guestPin && result.guestQrToken);
+      const isBooking = result.checkInType === 'BOOKING';
+      const isMonthlyRes = result.checkInType === 'MONTHLY';
+      const isCasual = result.checkInType === 'CASUAL';
 
-      if (wasGuestInLookup && (!isGuestInResponse || !hasCredentials)) {
-        // Set critical partial success state
-        console.error('Guest credentials missing from response (lookup guest):', result);
+      if ((isBooking || isCasual) && !hasCredentials) {
         setGuestCredentialIssueFailed(true);
         setApiError('Check-in thành công nhưng không thể hiển thị phiếu mã PIN. Vui lòng liên hệ quản lý.');
-      } else if (isGuestInResponse) {
-        if (!hasCredentials) {
-          console.error('Guest credentials missing from response (response guest):', result);
-          setGuestCredentialIssueFailed(true);
-          setApiError('Check-in thành công nhưng không thể hiển thị phiếu mã PIN. Vui lòng liên hệ quản lý.');
-        } else {
-          console.log('[GuestReceipt] opening modal');
-          const receipt: GuestReceiptData = {
-            plate: result.plate,
-            vehicleType: vehicleType,
-            guestPin: result.guestPin!,
-            guestQrToken: result.guestQrToken!,
-            checkInTime: result.checkInTime,
-            floorCode: result.floorCode,
-            zoneName: result.zoneName ?? undefined,
-            slotCode: result.slotCode,
-          };
-          setGuestReceiptData(receipt);
-          setShowGuestSuccessModal(true);
-          handleReset();
-        }
       } else {
+        const receipt: SuccessReceiptData = {
+          checkInType: result.checkInType || (isMonthlyRes ? 'MONTHLY' : (isBooking ? 'BOOKING' : 'CASUAL')),
+          plate: result.plate,
+          vehicleType: vehicleType,
+          guestPin: result.guestPin || undefined,
+          guestQrToken: result.guestQrToken || undefined,
+          checkInTime: result.checkInTime,
+          floorCode: result.floorCode,
+          zoneName: (isMonthlyRes && monthlyVerifiedData)
+            ? (() => {
+                const tier = monthlyVerifiedData.allowedTier;
+                const areaLabel = tier === 'VIP' ? 'Khu VIP' : tier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
+                return `${monthlyVerifiedData.floorName} · ${areaLabel}`;
+              })()
+            : result.zoneName ?? undefined,
+          slotCode: result.slotCode,
+          bookingId: result.bookingId || undefined,
+        };
+        setGuestReceiptData(receipt);
+        setShowGuestSuccessModal(true);
         handleReset();
       }
     } catch (error: unknown) {
@@ -1109,6 +1170,17 @@ export function CheckInPage() {
     setPlateInputSource(null);
     setPlateSource('manual');
     setLookupData(null);
+    setPrecheckResult(null);
+    setMonthlyPinInput('');
+    setMonthlyVerifyLoading(false);
+    setMonthlyVerifyError('');
+    setMonthlyVerifiedData(null);
+    setShowMonthlyPinModal(false);
+    setMonthlyPinPlateInput('');
+    setMonthlyPinCodeInput('');
+    setMonthlyPinError('');
+    setMonthlyPinLoading(false);
+    setMonthlyAccessPin('');
     setVehicleTypeMismatch(false);
     setApiError('');
   };
@@ -1118,6 +1190,13 @@ export function CheckInPage() {
   // ═════════════════════════════════════════════════════
   const canLookup = ocrAttempted && !!vehicleType && !!plateInput.trim() && !searching;
 
+  // ── Precheck/Classification flags ──
+  const isBookingFlow = precheckResult?.checkInType === 'BOOKING';
+  const isMonthlyFlow = precheckResult?.checkInType === 'MONTHLY_CANDIDATE';
+  const isCasualFlow = precheckResult?.checkInType === 'CASUAL';
+
+  const isPrecheckOk = !!precheckResult;
+
   const totalCapacity = lookupData?.totalCapacity ?? 0;
   const activeParkingCount = lookupData?.activeParkingCount ?? 0;
   const receivableCapacity = lookupData?.receivableCapacity ?? 0;
@@ -1125,51 +1204,22 @@ export function CheckInPage() {
   const physicalAvailableCapacity = totalCapacity - activeParkingCount;
 
   const hasCapacity =
-    lookupData?.customerType === 'booking'
+    isBookingFlow
       ? activeParkingCount < totalCapacity
-      : lookupData?.customerType === 'monthly'
+      : isMonthlyFlow
         ? physicalAvailableCapacity > 0
         : receivableCapacity > 0;
-
-  const lookupCompleted = !!lookupData;
-  const lookupResult = lookupData;
-
-  const exactNormalizedPlateMatch =
-    lookupResult?.found === true &&
-    lookupResult?.matchedPlateNormalized === lookupResult?.requestedPlateNormalized;
-
-  const currentInputStillMatchesRequest =
-    !!lookupResult &&
-    normalizePlateForLookup(plateInput) === lookupResult.requestedPlateNormalized;
-
-  const isRegisteredVerified =
-    lookupCompleted &&
-    lookupResult?.found === true &&
-    lookupResult?.isGuest !== true &&
-    exactNormalizedPlateMatch &&
-    currentInputStillMatchesRequest;
-
-  const isGuestResolved =
-    lookupCompleted &&
-    lookupResult?.isGuest === true &&
-    !!vehicleType &&
-    validatePlate(plateInput, vehicleType).valid &&
-    !!frontImage &&
-    !!rearImage &&
-    !!lookupResult?.floorId &&
-    hasCapacity &&
-    currentInputStillMatchesRequest;
 
   const canConfirm =
     !submitting &&
     !!vehicleType &&
+    !!plateInput.trim() &&
+    validatePlate(plateInput, vehicleType).valid &&
     !!frontImage &&
     !!rearImage &&
     !!driverCheckInImage &&
-    !!plateInput.trim() &&
-    validatePlate(plateInput, vehicleType).valid &&
-    (isRegisteredVerified || isGuestResolved) &&
-    !!lookupData?.floorId &&
+    isPrecheckOk &&
+    (isMonthlyFlow ? !!monthlyVerifiedData : !!lookupData) &&
     hasCapacity &&
     !lookupData?.alreadyParked &&
     !vehicleTypeMismatch &&
@@ -1177,34 +1227,39 @@ export function CheckInPage() {
 
   const workflowStep: number =
     !vehicleType ? 1
-      : (!frontImage || !rearImage || !driverCheckInImage || !ocrAttempted) ? 2
-        : canConfirm ? 4
-          : lookupData ? (lookupData.alreadyParked ? 2 : 3)
-            : 2;
+      : (!frontImage || !rearImage || !ocrAttempted || !isPrecheckOk) ? 2
+        : !canConfirm ? 3
+          : 4;
 
   // Customer type display
   const customerTypeDisplay: 'booking' | 'monthly' | 'casual' | 'unknown' =
-    !lookupData ? 'unknown'
-      : lookupData.customerType === 'booking' ? 'booking'
-        : lookupData.customerType === 'monthly' ? 'monthly'
+    !precheckResult ? 'unknown'
+      : isBookingFlow ? 'booking'
+        : isMonthlyFlow ? 'monthly'
           : 'casual';
 
   // Summary rows for right panel
   const expiryLabel = lookupData?.packageExpiry
     ? new Date(lookupData.packageExpiry).toLocaleDateString('vi-VN')
-    : '—';
+    : monthlyVerifiedData?.endDate
+      ? new Date(monthlyVerifiedData.endDate).toLocaleDateString('vi-VN')
+      : '—';
 
   const getFloorDisplay = () => {
+    if (isMonthlyFlow && monthlyVerifiedData) {
+      const tier = monthlyVerifiedData.allowedTier;
+      const areaLabel = tier === 'VIP' ? 'Khu VIP' : tier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
+      return `${monthlyVerifiedData.floorName} · ${areaLabel}`;
+    }
     if (!lookupData || !lookupData.floorName) return '—';
     const fName = lookupData.floorName;
-    if (lookupData.customerType === 'booking') {
+    if (isBookingFlow) {
       return `${fName} · Ô tô đặt chỗ`;
     }
-    if (lookupData.customerType === 'monthly') {
-      const tierLabel = lookupData.allowedTier
-        ? ` (${lookupData.allowedTier === 'VIP' ? 'VIP' : lookupData.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'})`
-        : '';
-      return `${fName} · Khách tháng${tierLabel}`;
+    if (isMonthlyFlow) {
+      const tier = lookupData.allowedTier;
+      const areaLabel = tier === 'VIP' ? 'Khu VIP' : tier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản';
+      return `${fName} · ${areaLabel}`;
     }
     // casual
     const vLabel = vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy';
@@ -1213,15 +1268,22 @@ export function CheckInPage() {
 
   const floorDisplay = getFloorDisplay();
 
-  const isCasual = lookupData?.isGuest === true && !lookupData?.alreadyParked;
+  const isCasual = isCasualFlow && !lookupData?.alreadyParked;
 
   const summaryRows = [
     { label: 'Biển số', value: plateInput.trim() || '—', valueColor: plateInput.trim() ? C.navy : C.gray400 },
     { label: 'Loại xe', value: vehicleType ? (vehicleType === 'CAR' ? 'Ô tô' : 'Xe máy') : 'Chưa chọn', valueColor: vehicleType ? C.gray800 : C.gray400 },
-    { label: 'Loại khách', value: !lookupData ? '—' : lookupData.customerType === 'booking' ? 'Có đặt chỗ trước' : lookupData.customerType === 'monthly' ? 'Khách tháng' : 'Khách vãng lai' },
+    {
+      label: 'Loại khách',
+      value: !precheckResult ? '—'
+        : isBookingFlow ? 'Có đặt chỗ trước'
+        : isMonthlyFlow
+          ? (monthlyVerifiedData ? 'Khách tháng' : 'Có gói tháng · Chờ xác thực PIN')
+          : 'Khách vãng lai',
+      valueColor: isMonthlyFlow && !monthlyVerifiedData ? C.orange : undefined
+    },
     { label: 'Ảnh người gửi', value: driverCheckInImage ? '✓ Đã chọn' : 'Chưa chọn', valueColor: driverCheckInImage ? C.green : C.gray400 },
-    { label: 'Tầng / Khu vực', value: lookupData ? floorDisplay : '—' },
-    { label: 'Hình thức đỗ', value: lookupData ? 'Tự chọn vị trí trống' : '—' },
+    { label: 'Tầng / Khu vực', value: (lookupData || monthlyVerifiedData) ? floorDisplay : '—' },
     ...(lookupData?.alreadyParked ? [
       { label: 'Trạng thái', value: 'Đang đỗ trong bãi', valueColor: C.red },
       { label: 'Lưu ý', value: 'Vui lòng thực hiện check-out lượt hiện tại trước khi check-in lại.', valueColor: C.red }
@@ -1604,29 +1666,77 @@ export function CheckInPage() {
                     )}
                   </div>
                 )}
-                {vehicleType && (
-                  <div style={{ marginTop: 8, textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMonthlyPinPlateInput(plateInput);
-                        setMonthlyPinCodeInput('');
-                        setMonthlyPinError('');
-                        setShowMonthlyPinModal(true);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: C.activeBlue,
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                    >
-                      Nhập PIN vé tháng
-                    </button>
+
+                {isMonthlyFlow && (
+                  <div style={{ animation: 'fadeIn 0.2s ease', marginTop: 16, borderTop: `1px solid ${C.gray200}`, paddingTop: 16 }}>
+                    <p style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Xác thực gói tháng
+                    </p>
+                    <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: C.gray500, lineHeight: 1.4 }}>
+                      Hệ thống phát hiện xe có gói tháng đăng ký tại bãi xe. Vui lòng nhập mã PIN 6 chữ số để xác thực quyền vào bãi.
+                    </p>
+                    {monthlyVerifyError && (
+                      <div style={{ marginBottom: 10 }}>
+                        <AlertBanner type="error">{monthlyVerifyError}</AlertBanner>
+                      </div>
+                    )}
+                    {monthlyVerifiedData ? (
+                      <div style={{
+                        background: C.greenBg, border: `1.5px solid ${C.greenBorder}`,
+                        borderRadius: 12, padding: '0.85rem 1.05rem',
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                      }}>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#166534', fontWeight: 800 }}>
+                          ✓ Xác thực gói tháng thành công
+                        </p>
+                        <div style={{ fontSize: '0.78rem', color: '#166534', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div>Biển số: <strong>{formatPlateNumber(monthlyVerifiedData.plate, '', vehicleType || undefined)}</strong></div>
+                          <div>Phân khu: <strong>{monthlyVerifiedData.floorName} · {monthlyVerifiedData.areaName}</strong></div>
+                          <div>Hạn gói tháng: <strong>{new Date(monthlyVerifiedData.endDate).toLocaleDateString('vi-VN')}</strong></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                          type="password"
+                          maxLength={6}
+                          value={monthlyPinInput}
+                          onChange={(e) => {
+                            const cleaned = e.target.value.replace(/\D/g, '');
+                            setMonthlyPinInput(cleaned);
+                            setMonthlyVerifyError('');
+                          }}
+                          placeholder="Nhập mã PIN 6 chữ số"
+                          style={{
+                            flex: 1,
+                            padding: '0.65rem 0.85rem',
+                            border: `1.5px solid ${C.border}`,
+                            borderRadius: 10,
+                            fontSize: '1rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.2em',
+                            textAlign: 'center',
+                            outline: 'none',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyMonthlyPinInline}
+                          disabled={monthlyPinInput.length !== 6 || monthlyVerifyLoading}
+                          style={{
+                            padding: '0.65rem 1.25rem',
+                            background: monthlyPinInput.length === 6 && !monthlyVerifyLoading ? C.navy : '#E5E7EB',
+                            color: monthlyPinInput.length === 6 && !monthlyVerifyLoading ? C.white : '#9CA3AF',
+                            border: 'none', borderRadius: 10,
+                            fontSize: '0.82rem', fontWeight: 700,
+                            cursor: monthlyPinInput.length === 6 && !monthlyVerifyLoading ? 'pointer' : 'not-allowed',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {monthlyVerifyLoading ? 'Đang xác thực...' : 'Xác thực'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1840,10 +1950,10 @@ export function CheckInPage() {
                           Gói tháng
                         </span>
                         <InfoRow label="Hết hạn" value={expiryLabel} valueColor={lookupData.isExpired ? C.red : C.green} />
-                        {lookupData.allowedTier && <InfoRow label="Khu vực" value={`Khu ${lookupData.allowedTier === 'VIP' ? 'VIP' : lookupData.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`} valueColor={C.navy} />}
+                        {lookupData.allowedTier && <InfoRow label="Khu vực" value={lookupData.allowedTier === 'VIP' ? 'Khu VIP' : lookupData.allowedTier === 'POPULAR' ? 'Khu Phổ biến' : 'Khu Cơ bản'} valueColor={C.navy} />}
                         {lookupData.isExpired
                           ? <AlertBanner type="error">Gói tháng đã hết hạn. Vui lòng gia hạn hoặc thanh toán vãng lai.</AlertBanner>
-                          : <AlertBanner type="success">Khách tháng — không thu phí vào.</AlertBanner>
+                          : <AlertBanner type="success">Gói tháng đã được xác thực.</AlertBanner>
                         }
                       </div>
                     )}
@@ -1940,14 +2050,15 @@ export function CheckInPage() {
                 </div>
               )}
 
-              {/* Instruction */}
-              {lookupData && !lookupData.alreadyParked && !vehicleTypeMismatch && (
+              {/* Instruction — shown for Booking/Casual only, not Monthly */}
+              {lookupData && !lookupData.alreadyParked && !vehicleTypeMismatch && !isMonthlyFlow && (
                 <div style={{ marginTop: 12 }}>
                   <AlertBanner type="info">
                     Khách tự chọn vị trí trống trong khu vực được phân bổ sau khi vào bãi.
                   </AlertBanner>
                 </div>
               )}
+
             </Card>
 
             {/* Confirm button */}
@@ -2178,9 +2289,12 @@ export function CheckInPage() {
   function renderGuestSuccessModal() {
     if (!showGuestSuccessModal || !guestReceiptData) return null;
 
+    const { checkInType, plate, vehicleType, guestPin, checkInTime, zoneName, bookingId } = guestReceiptData;
+
     const handleCopyPin = async () => {
+      if (!guestPin) return;
       try {
-        await navigator.clipboard.writeText(guestReceiptData.guestPin);
+        await navigator.clipboard.writeText(guestPin);
         alert('Đã sao chép mã PIN vào bộ nhớ tạm!');
       } catch (err) {
         console.error('Không thể sao chép PIN:', err);
@@ -2193,7 +2307,41 @@ export function CheckInPage() {
         alert('Vui lòng cho phép trình duyệt mở popup để in phiếu.');
         return;
       }
-      const checkInTimeFormatted = formatDateTime(guestReceiptData.checkInTime);
+      const checkInTimeFormatted = formatDateTime(checkInTime);
+
+      let subtitle = 'PHIEU GUI XE VANG LAI';
+      let specialRow = '';
+      let credentialSections = '';
+      let footerText = `
+        Vui lòng giữ mã PIN để xác nhận khi lấy xe.<br/>
+        Quet ma QR hoac nhap ma PIN tai cong de tra cuu va thanh toan phi truoc khi ra.
+        Kinh chuc quy khach thuong lo binh an!
+      `;
+
+      if (checkInType === 'BOOKING') {
+        subtitle = 'PHIEU GUI XE DAT CHO';
+        specialRow = `<div class="info-item"><span>MA DAT CHO:</span> <strong>${bookingId}</strong></div>`;
+        footerText = `
+          Vui lòng sử dụng mã QR hoặc PIN vé gửi xe khi Check-out.<br/>
+          Kinh chuc quy khach thuong lo binh an!
+        `;
+      } else if (checkInType === 'MONTHLY') {
+        subtitle = 'PHIEU XAC NHAN KHACH THANG';
+        footerText = `
+          Gói tháng có hiệu lực.<br/>
+          Kinh chuc quy khach thuong lo binh an!
+        `;
+      }
+
+      if (checkInType !== 'MONTHLY' && guestPin) {
+        credentialSections = `
+          <div class="pin-title">MA PIN TRA CUU VE:</div>
+          <div class="pin-container">${guestPin}</div>
+
+          <div style="font-size: 10px; font-weight: bold; margin-bottom: 4px;">MA QR THANH TOAN:</div>
+          <img class="qr-code" src="${qrCodeDataUrl}" alt="QR code" />
+        `;
+      }
 
       printWindow.document.write(`
         <html>
@@ -2253,23 +2401,18 @@ export function CheckInPage() {
           </head>
           <body>
             <div class="title">PARKSMART</div>
-            <div class="subtitle">PHIEU GUI XE VANG LAI</div>
-            <div class="info-item"><span>BIEN SO:</span> <strong>${guestReceiptData.plate}</strong></div>
-            <div class="info-item"><span>LOAI XE:</span> <span>${guestReceiptData.vehicleType === 'CAR' ? 'O TO' : 'XE MAY'}</span></div>
+            <div class="subtitle">${subtitle}</div>
+            <div class="info-item"><span>BIEN SO:</span> <strong>${formatPlateNumber(plate, '', vehicleType)}</strong></div>
+            <div class="info-item"><span>LOAI XE:</span> <span>${vehicleType === 'CAR' ? 'O TO' : 'XE MAY'}</span></div>
+            ${specialRow}
             <div class="info-item"><span>ANH NGUOI GUI:</span> <span>DA GHI NHAN</span></div>
-            <div class="info-item"><span>KHU VUC:</span> <span>${guestReceiptData.zoneName ?? 'Khu vuc tu chon'}</span></div>
+            <div class="info-item"><span>KHU VUC:</span> <span>${zoneName ?? 'Khu vuc tu chon'}</span></div>
             <div class="info-item"><span>GIO VAO:</span> <span>${checkInTimeFormatted}</span></div>
             
-            <div class="pin-title">MA PIN TRA CUU VE:</div>
-            <div class="pin-container">${guestReceiptData.guestPin}</div>
-            
-            <div style="font-size: 10px; font-weight: bold; margin-bottom: 4px;">MA QR THANH TOAN:</div>
-            <img class="qr-code" src="${qrCodeDataUrl}" alt="QR code" />
+            ${credentialSections}
             
             <div class="footer">
-              Vui lòng giữ mã PIN để xác nhận khi lấy xe.<br/>
-              Quet ma QR hoac nhap ma PIN tai cong de tra cuu va thanh toan phi truoc khi ra.
-              Kinh chuc quy khach thuong lo binh an!
+              ${footerText}
             </div>
             <script>
               window.onload = function() {
@@ -2282,6 +2425,21 @@ export function CheckInPage() {
       `);
       printWindow.document.close();
     };
+
+    const isBooking = checkInType === 'BOOKING';
+    const isMonthly = checkInType === 'MONTHLY';
+
+    const headerTitle = isBooking
+      ? 'Phiếu đặt chỗ ô tô'
+      : isMonthly
+        ? 'Xác nhận check-in khách tháng'
+        : 'Phiếu gửi xe khách vãng lai';
+
+    const typeLabel = isBooking
+      ? 'Đặt chỗ trước'
+      : isMonthly
+        ? 'Khách tháng'
+        : 'Khách vãng lai';
 
     return (
       <div style={{
@@ -2326,11 +2484,13 @@ export function CheckInPage() {
             <IconCheck size={28} color="#15803D" />
           </div>
 
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: C.navy, margin: '0 0 0.5rem' }}>
-            Phiếu gửi xe khách vãng lai
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: C.navy, margin: '0 0 0.5rem' }}>
+            {headerTitle}
           </h2>
           <p style={{ fontSize: '0.85rem', color: C.gray500, margin: '0 0 1.5rem', lineHeight: 1.5 }}>
-            Thẻ thông tin đỗ xe đã được khởi tạo thành công trên hệ thống.
+            {isMonthly
+              ? 'Thông tin Check-in cho khách tháng đã được ghi nhận.'
+              : 'Thẻ thông tin đỗ xe đã được khởi tạo thành công trên hệ thống.'}
           </p>
 
           {/* Ticket detail box */}
@@ -2348,15 +2508,25 @@ export function CheckInPage() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Biển số xe:</span>
-              <strong style={{ color: C.navy, fontSize: '0.95rem' }}>{guestReceiptData.plate}</strong>
+              <strong style={{ color: C.navy, fontSize: '0.95rem' }}>{formatPlateNumber(plate, '', vehicleType)}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Loại xe:</span>
-              <span style={{ fontWeight: 600, color: C.gray800 }}>{guestReceiptData.vehicleType === 'CAR' ? '🚗 Ô tô' : '🛵 Xe máy'}</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{vehicleType === 'CAR' ? '🚗 Ô tô' : '🛵 Xe máy'}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+              <span style={{ color: C.gray500 }}>Loại lượt vào:</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{typeLabel}</span>
+            </div>
+            {isBooking && bookingId && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: C.gray500 }}>Mã đặt chỗ:</span>
+                <span style={{ fontWeight: 700, color: C.navy }}>{bookingId}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Khu vực đỗ xe:</span>
-              <span style={{ fontWeight: 600, color: '#0F766E' }}>{guestReceiptData.zoneName ?? 'Khu vực tự do'}</span>
+              <span style={{ fontWeight: 600, color: '#0F766E' }}>{zoneName ?? 'Khu vực tự do'}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Ảnh người gửi:</span>
@@ -2364,68 +2534,70 @@ export function CheckInPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: C.gray500 }}>Giờ vào:</span>
-              <span style={{ fontWeight: 600, color: C.gray800 }}>{formatDateTime(guestReceiptData.checkInTime)}</span>
+              <span style={{ fontWeight: 600, color: C.gray800 }}>{formatDateTime(checkInTime)}</span>
             </div>
           </div>
 
           {/* Guest lookup PIN & QR */}
-          <div style={{
-            width: '100%',
-            background: '#EFF6FF',
-            border: '1.5px solid #BFDBFE',
-            borderRadius: 18,
-            padding: '1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 16,
-            marginBottom: '2rem'
-          }}>
-            <div style={{ width: '100%' }}>
-              <span style={{ fontSize: '0.72rem', color: '#1E40AF', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Mã PIN Tra Cứu (6 chữ số)
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4 }}>
-                <span style={{
-                  fontSize: '2.5rem', fontWeight: 900, color: '#1E3A8A',
-                  fontFamily: 'monospace', letterSpacing: '0.08em'
-                }}>
-                  {guestReceiptData.guestPin}
+          {!isMonthly && guestPin && (
+            <div style={{
+              width: '100%',
+              background: '#EFF6FF',
+              border: '1.5px solid #BFDBFE',
+              borderRadius: 18,
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16,
+              marginBottom: '2rem'
+            }}>
+              <div style={{ width: '100%' }}>
+                <span style={{ fontSize: '0.72rem', color: '#1E40AF', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Mã PIN Tra Cứu Vé gửi xe (6 chữ số)
                 </span>
-                <button
-                  onClick={handleCopyPin}
-                  style={{
-                    background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8,
-                    padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600,
-                    color: '#2563EB', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                  }}
-                >
-                  📋 Sao chép
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4 }}>
+                  <span style={{
+                    fontSize: '2.5rem', fontWeight: 900, color: '#1E3A8A',
+                    fontFamily: 'monospace', letterSpacing: '0.08em'
+                  }}>
+                    {guestPin}
+                  </span>
+                  <button
+                    onClick={handleCopyPin}
+                    style={{
+                      background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8,
+                      padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600,
+                      color: '#2563EB', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    📋 Sao chép
+                  </button>
+                </div>
               </div>
+
+              {/* QR Code Container */}
+              {qrCodeDataUrl && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <img
+                    src={qrCodeDataUrl}
+                    alt="Mã QR"
+                    style={{
+                      width: 140, height: 140,
+                      border: '1px solid #D1D5DB', borderRadius: 12,
+                      padding: 8, background: '#fff'
+                    }}
+                  />
+                  <span style={{ fontSize: '0.68rem', color: '#1E40AF', fontWeight: 800 }}>QUÉT MÃ VÀO CỔNG TỰ PHỤC VỤ</span>
+                </div>
+              )}
+
+              <p style={{ margin: 0, fontSize: '0.75rem', color: C.red, fontWeight: 700, lineHeight: 1.5, textAlign: 'center' }}>
+                Vui lòng sử dụng mã QR hoặc PIN vé gửi xe khi Check-out.
+              </p>
             </div>
-
-            {/* QR Code Container */}
-            {qrCodeDataUrl && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <img
-                  src={qrCodeDataUrl}
-                  alt="Mã QR"
-                  style={{
-                    width: 140, height: 140,
-                    border: '1px solid #D1D5DB', borderRadius: 12,
-                    padding: 8, background: '#fff'
-                  }}
-                />
-                <span style={{ fontSize: '0.68rem', color: '#1E40AF', fontWeight: 800 }}>QUÉT MÃ VÀO CỔNG TỰ PHỤC VỤ</span>
-              </div>
-            )}
-
-            <p style={{ margin: 0, fontSize: '0.75rem', color: C.red, fontWeight: 700, lineHeight: 1.5, textAlign: 'center' }}>
-              Vui lòng giữ mã PIN để xác nhận khi lấy xe.
-            </p>
-          </div>
+          )}
 
           {/* Modal Actions */}
           <div style={{ display: 'flex', gap: 12, width: '100%' }}>

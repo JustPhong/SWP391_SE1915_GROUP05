@@ -93,6 +93,8 @@ export interface CheckinSubmitResult {
   isGuest?: boolean;
   driverCheckInImageUrl?: string | null;
   driverFaceCapturedAt?: string | null;
+  checkInType?: 'BOOKING' | 'MONTHLY' | 'CASUAL';
+  bookingId?: string | null;
 }
 
 // ─── OCR ─────────────────────────────────────────────────────────────────
@@ -310,6 +312,59 @@ export async function submitCheckIn(
         msg = 'Không thể check-in. Vui lòng thử lại.';
       }
     }
+    throw new Error(msg);
+  }
+}
+
+export interface PrecheckResult {
+  checkInType: 'BOOKING' | 'MONTHLY_CANDIDATE' | 'CASUAL';
+  requiresMonthlyPin: boolean;
+  message: string;
+}
+
+export interface MonthlyVerifyResult {
+  verified: boolean;
+  plate: string;
+  vehicleType: string;
+  floorName: string;
+  areaName: string;
+  allowedTier: string;
+  endDate: string;
+}
+
+export async function precheckVehicle(
+  plate: string,
+  vehicleType: 'CAR' | 'MOTORBIKE'
+): Promise<PrecheckResult> {
+  try {
+    const response = await api.post<{ success: boolean; data: PrecheckResult }>('/checkin/precheck', {
+      plate,
+      vehicleType,
+    });
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Không thể kiểm tra thông tin biển số.';
+    throw new Error(msg);
+  }
+}
+
+export async function verifyMonthlyPinApi(
+  plate: string,
+  vehicleType: 'CAR' | 'MOTORBIKE',
+  pin: string
+): Promise<MonthlyVerifyResult> {
+  try {
+    const response = await api.post<{ success: boolean; data: MonthlyVerifyResult }>(
+      '/checkin/monthly/verify-pin',
+      { plate, vehicleType, pin }
+    );
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Mã PIN hoặc thông tin vé tháng không hợp lệ.';
     throw new Error(msg);
   }
 }
