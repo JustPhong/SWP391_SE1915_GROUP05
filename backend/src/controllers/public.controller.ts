@@ -5,6 +5,7 @@ import { calcFee } from '../utils/fee';
 import { feeRuleService } from '../services/feeRule.service';
 import { stripe } from '../config/stripe';
 import { AppError } from '../utils/helpers';
+import { bookingConfigService } from '../services/booking-config.service';
 
 interface RateLimitBucket {
   attempts: number;
@@ -392,6 +393,44 @@ export const publicController = {
       data: {
         status: payment.status,
         checkInRecordStatus: payment.checkInRecord?.status ?? 'UNKNOWN',
+      },
+    });
+  }),
+
+  getFeeRules: asyncHandler(async (_req, res: Response) => {
+    const rules = await prisma.feeRule.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        vehicleType: true,
+        ruleType: true,
+        label: true,
+        startHour: true,
+        endHour: true,
+        blockMinutes: true,
+        amount: true,
+      },
+      orderBy: [
+        { vehicleType: 'asc' },
+        { startHour: 'asc' }
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: rules.map(r => ({
+        ...r,
+        amount: Number(r.amount)
+      })),
+    });
+  }),
+
+  getBookingConfig: asyncHandler(async (_req, res: Response) => {
+    const config = await bookingConfigService.getBookingConfig();
+    return res.status(200).json({
+      success: true,
+      data: {
+        depositAmount: Number(config.depositAmount),
       },
     });
   }),

@@ -51,6 +51,9 @@ router.get('/lookup/:plate', checkinController.lookup);
  */
 router.get('/stats', checkinController.stats);
 
+router.post('/precheck', checkinController.precheck);
+router.post('/monthly/verify-pin', checkinController.verifyMonthlyPin);
+
 /**
  * @swagger
  * /checkin:

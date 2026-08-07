@@ -34,9 +34,9 @@ async function upsertRule(data: (typeof RULES)[number]) {
   if (existing) {
     await prisma.feeRule.update({
       where: { id: existing.id },
-      data: { label: data.label, endHour: data.endHour, blockMinutes: data.blockMinutes, amount: data.amount, isActive: true },
+      data: { label: data.label, endHour: data.endHour, blockMinutes: data.blockMinutes, isActive: true },
     });
-    console.log(`  Updated: ${data.vehicleType} / ${data.ruleType} / ${data.startHour}h`);
+    console.log(`  Updated (preserved price): ${data.vehicleType} / ${data.ruleType} / ${data.startHour}h`);
   } else {
     await prisma.feeRule.create({ data: { ...data, isActive: true } });
     console.log(`  Created: ${data.vehicleType} / ${data.ruleType} / ${data.startHour}h`);
@@ -48,6 +48,18 @@ async function main() {
   for (const rule of RULES) {
     await upsertRule(rule);
   }
+
+  console.log('Seeding BookingConfig singleton...');
+  await prisma.bookingConfig.upsert({
+    where: { id: 1 },
+    create: {
+      id: 1,
+      depositAmount: 15000,
+    },
+    update: {},
+  });
+  console.log('  BookingConfig seeded safely (upserted).');
+
   console.log('Done.');
 }
 

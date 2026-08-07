@@ -292,3 +292,9 @@ model AuditLog {
   @@index([action])
   @@index([actorId])
 }
+
+model BookingConfig {
+  id            Int      @id @default(1)
+  depositAmount Decimal  @db.Decimal(10, 2)
+  updatedAt     DateTime @updatedAt
+}

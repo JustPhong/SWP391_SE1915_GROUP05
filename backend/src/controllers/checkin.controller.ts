@@ -7,6 +7,7 @@ import { uploadBufferToCloudinary, deleteFromCloudinary } from '../utils/cloudin
 import path from 'path';
 import fs from 'fs';
 import { monthlyPackageService } from '../services/monthlyPackage.service';
+import prisma from '../config/db';
 
 const checkinDir = path.join(__dirname, '../../uploads/checkin');
 
@@ -70,6 +71,70 @@ export const checkinController = {
   stats: asyncHandler(async (_req: AuthRequest, res: Response) => {
     const result = await checkinService.getStats();
     return res.status(200).json({ success: true, data: result });
+  }),
+
+  // POST /api/checkin/precheck
+  precheck: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { plate, vehicleType } = req.body;
+    if (!plate || !vehicleType) {
+      return res.status(400).json({ success: false, message: 'Biển số và loại xe là bắt buộc.' });
+    }
+    if (vehicleType !== 'CAR' && vehicleType !== 'MOTORBIKE') {
+      return res.status(400).json({ success: false, message: 'Loại xe không hợp lệ.' });
+    }
+    const result = await checkinService.precheck(plate, vehicleType);
+    return res.status(200).json({ success: true, data: result });
+  }),
+
+  // POST /api/checkin/monthly/verify-pin
+  verifyMonthlyPin: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { plate, vehicleType, pin } = req.body;
+    if (!plate || !vehicleType || !pin) {
+      return res.status(400).json({ success: false, message: 'Biển số, loại xe và mã PIN là bắt buộc.' });
+    }
+    if (vehicleType !== 'CAR' && vehicleType !== 'MOTORBIKE') {
+      return res.status(400).json({ success: false, message: 'Loại xe không hợp lệ.' });
+    }
+    if (!/^\d{6}$/.test(pin)) {
+      return res.status(400).json({ success: false, message: 'Mã PIN phải gồm đúng 6 chữ số.' });
+    }
+
+    const verified = await monthlyPackageService.verifyMonthlyPackageAccessByPin(plate, pin);
+    const { vehicle, monthlyPackage: pkg } = verified;
+
+    if (vehicle.type !== vehicleType) {
+      return res.status(400).json({ success: false, message: 'Loại xe không khớp với gói tháng đăng ký.' });
+    }
+
+    const now = new Date();
+    if (pkg.startDate.getTime() > now.getTime()) {
+      return res.status(400).json({ success: false, message: 'Gói tháng chưa đến thời hạn bắt đầu sử dụng.' });
+    }
+
+    // Check existing active CheckInRecord for this vehicle
+    const activeCheckIn = await prisma.checkInRecord.findFirst({
+      where: {
+        vehicleId: vehicle.id,
+        checkOutTime: null,
+        status: 'PARKING'
+      }
+    });
+    if (activeCheckIn) {
+      return res.status(400).json({ success: false, message: `Biển số ${vehicle.plateNumber} hiện đang có lượt gửi xe trong bãi.` });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        verified: true,
+        plate: vehicle.plateNumber,
+        vehicleType: vehicle.type,
+        floorName: pkg.floor.name,
+        areaName: `Khu ${pkg.allowedTier === 'VIP' ? 'VIP' : pkg.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}`,
+        allowedTier: pkg.allowedTier,
+        endDate: pkg.expiryDate.toISOString()
+      }
+    });
   }),
 
   // POST /api/checkin
@@ -171,6 +236,8 @@ export const checkinController = {
         rearImageUrl: rearUrl || req.body.rearImageUrl,
         driverCheckInImageUrl: driverUrl,
         driverCheckInImagePublicId: driverPublicId,
+        checkedInById: req.user?.id || null,
+        monthlyAccessPin: monthlyAccessPin || null,
       });
 
       return res.status(201).json({ success: true, data: result });

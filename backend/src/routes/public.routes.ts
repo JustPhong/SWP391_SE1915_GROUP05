@@ -10,6 +10,8 @@ const router = Router();
  * zone (CASUAL / MONTHLY) and vehicle type (CAR / MOTORBIKE).
  */
 router.get('/availability', publicController.getAvailability);
+router.get('/fee-rules', publicController.getFeeRules);
+router.get('/booking-config', publicController.getBookingConfig);
 
 // Public guest vehicle tracking & prepayment routes
 router.post('/guest/lookup', publicController.lookupGuestVehicle);

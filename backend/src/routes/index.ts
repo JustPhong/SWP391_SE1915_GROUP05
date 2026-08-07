@@ -19,6 +19,8 @@ import feeRuleRoutes from './fee-rule.routes';
 import auditLogRoutes from './audit-log.routes';
 import publicRoutes from './public.routes';
 import checkinImageRoutes from './checkin-image.routes';
+import bookingConfigRoutes from './booking-config.routes';
+import adminBookingConfigRoutes from './admin-booking-config.routes';
 
 const router = Router();
    
@@ -36,11 +38,13 @@ router.use('/checkin', checkinRoutes);
 router.use('/checkout', checkoutRoutes);
 router.use('/checkin-media', checkinImageRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/booking-config', bookingConfigRoutes);
 router.use('/admin/users', adminUserRoutes);
 router.use('/admin/permissions', permissionRoutes);
 router.use('/admin/parking', parkingOverviewRoutes);
 router.use('/admin/fee-rules', feeRuleRoutes);
 router.use('/admin/audit-logs', auditLogRoutes);
+router.use('/admin/booking-config', adminBookingConfigRoutes);
 router.use('/public', publicRoutes);
 
 export default router;
