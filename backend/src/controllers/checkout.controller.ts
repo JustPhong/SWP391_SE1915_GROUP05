@@ -113,12 +113,51 @@ export const checkoutController = {
     });
   }),
 
+  verifyExit: asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { checkInRecordId } = req.params;
+    if (!checkInRecordId) {
+      return res.status(400).json({ success: false, message: 'checkInRecordId là bắt buộc.' });
+    }
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const frontCheckOutFile = files?.frontCheckOutImage?.[0];
+    const rearCheckOutFile = files?.rearCheckOutImage?.[0];
+    const driverCheckOutFile = files?.driverCheckOutImage?.[0];
+
+    const result = await checkoutService.verifyExit(
+      checkInRecordId,
+      {
+        frontCheckOutFile,
+        rearCheckOutFile,
+        driverCheckOutFile,
+      },
+      req.body.manualCheckoutPlate
+    );
+    return res.status(200).json({ success: true, data: result });
+  }),
+
   createStripeSession: asyncHandler(async (req: AuthRequest, res: Response) => {
     const { checkInRecordId } = req.params;
     if (!checkInRecordId) {
       return res.status(400).json({ success: false, message: 'checkInRecordId là bắt buộc.' });
     }
-    const result = await checkoutService.createStripeSession(checkInRecordId, req.user!.id);
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const frontCheckOutFile = files?.frontCheckOutImage?.[0];
+    const rearCheckOutFile = files?.rearCheckOutImage?.[0];
+    const driverCheckOutFile = files?.driverCheckOutImage?.[0];
+
+    const result = await checkoutService.createStripeSession(
+      checkInRecordId,
+      req.user!.id,
+      {
+        frontCheckOutFile,
+        rearCheckOutFile,
+        driverCheckOutFile,
+      },
+      req.body.manualCheckoutPlate,
+      req.body.verificationId
+    );
     return res.status(200).json({ success: true, data: result });
   }),
 
