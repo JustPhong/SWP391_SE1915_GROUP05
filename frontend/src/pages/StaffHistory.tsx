@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { HistoryIcon, SearchIcon, CalendarIcon } from '../components/ui/Icons';
+import { HistoryIcon, SearchIcon, CalendarIcon, EyeIcon } from '../components/ui/Icons';
 import styles from '../styles/staffHistory.module.css';
 import { formatPlateNumber } from '../utils/plate';
+import { ParkingHistoryDetailDrawer } from '../components/history/ParkingHistoryDetailDrawer';
 
 interface CheckInRecord {
   id: string;
@@ -129,6 +130,9 @@ export function StaffHistoryPage() {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Drawer Detail State
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
 
   const fetchHistory = useCallback(async (plateVal?: string) => {
     setLoading(true);
@@ -528,7 +532,7 @@ export function StaffHistoryPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    {['Loại bản ghi', 'Biển số', 'Loại khách', 'Tài xế', 'Loại xe', 'Vị trí', 'Thời gian vào / Hẹn', 'Thời gian ra', 'Thời lượng', 'Số tiền', 'Trạng thái'].map((h, i) => (
+                    {['Loại bản ghi', 'Biển số', 'Loại khách', 'Tài xế', 'Loại xe', 'Vị trí', 'Thời gian vào / Hẹn', 'Thời gian ra', 'Thời lượng', 'Số tiền', 'Trạng thái', 'Thao tác'].map((h, i) => (
                       <th key={i} className={styles.th}>
                         {h}
                       </th>
@@ -538,7 +542,7 @@ export function StaffHistoryPage() {
                 <tbody>
                   {Array.from({ length: 6 }).map((_, rIdx) => (
                     <tr key={rIdx} className={styles.tr}>
-                      {Array.from({ length: 11 }).map((_, cIdx) => (
+                      {Array.from({ length: 12 }).map((_, cIdx) => (
                         <td key={cIdx} className={styles.td}>
                           <div className={styles.skeletonLine} style={{ width: cIdx === 3 ? '120px' : '60px', height: '14px' }} />
                         </td>
@@ -615,6 +619,7 @@ export function StaffHistoryPage() {
                     <th className={styles.th}>THỜI LƯỢNG</th>
                     <th className={styles.th}>SỐ TIỀN</th>
                     <th className={styles.th}>TRẠNG THÁI</th>
+                    <th className={`${styles.th} ${styles.colAction}`}>THAO TÁC</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -808,6 +813,23 @@ export function StaffHistoryPage() {
 
                         {/* 11. TRẠNG THÁI */}
                         <td className={`${styles.td} ${styles.colStatus}`}>{statusElement}</td>
+
+                        {/* 12. THAO TÁC */}
+                        <td className={`${styles.td} ${styles.colAction}`}>
+                          {!isBooking ? (
+                            <button
+                              type="button"
+                              className={styles.btnActionDetail}
+                              onClick={() => setSelectedRecordId(r.id)}
+                              title="Xem chi tiết và hình ảnh lượt gửi xe"
+                            >
+                              <EyeIcon size={13} />
+                              Chi tiết
+                            </button>
+                          ) : (
+                            <span style={{ color: '#94A3B8' }}>—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -900,6 +922,12 @@ export function StaffHistoryPage() {
           </>
         )}
       </div>
+
+      {/* ── Parking History Detail & Evidence Drawer ── */}
+      <ParkingHistoryDetailDrawer
+        recordId={selectedRecordId}
+        onClose={() => setSelectedRecordId(null)}
+      />
     </div>
   );
 }

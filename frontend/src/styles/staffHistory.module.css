@@ -730,3 +730,32 @@
     justify-content: flex-end;
   }
 }
+
+.colAction {
+  white-space: nowrap;
+  text-align: center;
+  width: 100px;
+}
+
+.btnActionDetail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background-color: #F1F5F9;
+  border: 1px solid #CBD5E1;
+  color: #1E3A5F;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btnActionDetail:hover {
+  background-color: #1E3A5F;
+  border-color: #1E3A5F;
+  color: #FFFFFF;
+}

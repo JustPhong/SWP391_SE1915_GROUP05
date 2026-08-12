@@ -8,7 +8,8 @@ import {
   createCheckoutStripeSession,
   getCheckoutStripeStatusBySession,
   lookupCheckoutByPin,
-  lookupCheckoutByMonthlyQr
+  lookupCheckoutByMonthlyQr,
+  verifyExitCheckout
 } from '../api/checkoutApi';
 import type { CheckoutLookupResult, CheckoutLookupByPinResult } from '../api/checkoutApi';
 import { lookupGuestVehicle } from '../api/guestApi';
@@ -185,7 +186,7 @@ function formatFloorLocation(
   allowedTier?: string | null
 ): string {
   let label = '';
-  if (floor) {
+  if (floor && (floor.name || floor.floorCode)) {
     const name = floor.name ? floor.name.trim() : '';
     const code = floor.floorCode ? floor.floorCode.trim() : '';
     if (name && code) {
@@ -199,7 +200,7 @@ function formatFloorLocation(
     } else if (code) {
       label = `Tầng ${code}`;
     }
-  } else if (slot?.floor != null) {
+  } else if (slot?.floor != null && slot.floor > 0) {
     label = `Tầng ${slot.floor}`;
   } else {
     label = 'Không cố định';
@@ -289,6 +290,67 @@ export function CheckOutPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; label: string } | null>(null);
   const [isLegacy, setIsLegacy] = useState(false);
 
+  // ── Vehicle Verification at Checkout State ──
+  const [frontCheckOutImage, setFrontCheckOutImage] = useState<File | null>(null);
+  const [frontCheckOutPreview, setFrontCheckOutPreview] = useState<string | null>(null);
+  const [rearCheckOutImage, setRearCheckOutImage] = useState<File | null>(null);
+  const [rearCheckOutPreview, setRearCheckOutPreview] = useState<string | null>(null);
+
+  const [recognizedCheckoutPlate, setRecognizedCheckoutPlate] = useState<string | null>(null);
+  const [plateVerificationStatus, setPlateVerificationStatus] = useState<'IDLE' | 'VERIFYING' | 'VERIFIED' | 'MISMATCH' | 'UNREADABLE'>('IDLE');
+  const [plateVerificationPassed, setPlateVerificationPassed] = useState(false);
+  const [plateVerificationError, setPlateVerificationError] = useState<string | null>(null);
+  const [vehicleVerificationLoading, setVehicleVerificationLoading] = useState(false);
+  const [manualCheckoutPlate, setManualCheckoutPlate] = useState('');
+  const [manualPlateError, setManualPlateError] = useState<string | null>(null);
+  const [plateVerificationMethod, setPlateVerificationMethod] = useState<'OCR' | 'MANUAL' | null>(null);
+
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [verificationExpiresAt, setVerificationExpiresAt] = useState<string | null>(null);
+  const ttlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const verificationRequestInFlightRef = useRef(false);
+
+  const clearVerificationId = useCallback(() => {
+    setVerificationId(null);
+    setVerificationExpiresAt(null);
+    setPlateVerificationPassed(false);
+    setPlateVerificationStatus('IDLE');
+    setPlateVerificationMethod(null);
+    if (ttlTimeoutRef.current) {
+      clearTimeout(ttlTimeoutRef.current);
+      ttlTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleTtlExpiry = useCallback((expiresAtStr: string) => {
+    if (ttlTimeoutRef.current) {
+      clearTimeout(ttlTimeoutRef.current);
+    }
+    const delay = new Date(expiresAtStr).getTime() - Date.now();
+    if (delay > 0) {
+      ttlTimeoutRef.current = setTimeout(() => {
+        clearVerificationId();
+        setCheckoutError('Xác minh xe lúc ra đã hết hạn. Vui lòng thực hiện xác minh lại.');
+      }, delay);
+    } else {
+      clearVerificationId();
+      setCheckoutError('Xác minh xe lúc ra đã hết hạn. Vui lòng thực hiện xác minh lại.');
+    }
+  }, [clearVerificationId]);
+
+  useEffect(() => {
+    return () => {
+      if (ttlTimeoutRef.current) {
+        clearTimeout(ttlTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const frontCameraInputRef = useRef<HTMLInputElement>(null);
+  const frontLibraryInputRef = useRef<HTMLInputElement>(null);
+  const rearCameraInputRef = useRef<HTMLInputElement>(null);
+  const rearLibraryInputRef = useRef<HTMLInputElement>(null);
+
   // ���� Lookup Panel State ����
   // Plate fallback (collapsed by default)
   const [plateFallbackOpen, setPlateFallbackOpen] = useState(false);
@@ -337,7 +399,7 @@ export function CheckOutPage() {
     return () => { stopCamera(); };
   }, [stopCamera]);
 
-  // ���� Shared success handler ����
+  // Shared success handler
   interface ValidatedLookupResult {
     recordId: string;
     vehicleId: string;
@@ -346,6 +408,11 @@ export function CheckOutPage() {
     checkInTime: string;
     isMonthly: boolean;
     slotCode?: string;
+    floorId?: number | null;
+    floorName?: string | null;
+    floorCode?: string | null;
+    allowedTier?: string | null;
+    bookingId?: string | null;
     now?: string;
     durationMinutes?: number;
     fee?: number;
@@ -384,7 +451,7 @@ export function CheckOutPage() {
       (res.vehicleType !== 'CAR' && res.vehicleType !== 'MOTORBIKE') ||
       typeof res.checkInTime !== 'string' || !res.checkInTime
     ) {
-      throw new Error('Dữ li�!u phiên gửi xe không �ầy �ủ. Vui lòng thử lại.');
+      throw new Error('Dữ liệu phiên gửi xe không đầy đủ. Vui lòng thử lại.');
     }
     return {
       ...res,
@@ -419,6 +486,12 @@ export function CheckOutPage() {
     setMonthlyQrToken(resolvedMonthlyQrToken ?? '');
     setPlateInput(validated.plate);
 
+    const mappedFloor = (validated.floorName || validated.floorCode || validated.floorId) ? {
+      id: validated.floorId ?? 0,
+      name: validated.floorName ?? '',
+      floorCode: validated.floorCode ?? '',
+    } : null;
+
     const mapped: ActiveRecord = {
       id: validated.recordId,
       vehicleId: validated.vehicleId,
@@ -435,8 +508,10 @@ export function CheckOutPage() {
         year: validated.year ?? null,
         seats: validated.seats ?? null,
       },
-      slot: validated.slotCode ? { code: validated.slotCode, floor: 0 } : null,
-      floor: null,
+      slot: validated.slotCode ? { code: validated.slotCode, floor: validated.floorId ?? 0 } : null,
+      floor: mappedFloor,
+      allowedTier: validated.allowedTier ?? null,
+      bookingId: validated.bookingId ?? null,
     };
 
     setFoundRecord(mapped);
@@ -516,6 +591,7 @@ export function CheckOutPage() {
       setPreviewImage(null);
       setIsLegacy(false);
       resetFaceVerification();
+      resetVehicleVerification();
       setMonthlyAccessPin('');
       setMonthlyQrToken('');
 
@@ -554,6 +630,7 @@ export function CheckOutPage() {
     setPreviewImage(null);
     setIsLegacy(false);
     resetFaceVerification();
+    resetVehicleVerification();
     setMonthlyAccessPin('');
 
     try {
@@ -707,6 +784,7 @@ export function CheckOutPage() {
     setPreviewImage(null);
     setIsLegacy(false);
     resetFaceVerification();
+    resetVehicleVerification();
     setMonthlyAccessPin('');
     setMonthlyQrToken('');
 
@@ -754,6 +832,260 @@ export function CheckOutPage() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  // — —— — Vehicle Verification Cleanup and Helpers — —— —
+  const resetVehicleVerification = useCallback(() => {
+    setFrontCheckOutImage(null);
+    if (frontCheckOutPreview) {
+      URL.revokeObjectURL(frontCheckOutPreview);
+      setFrontCheckOutPreview(null);
+    }
+    setRearCheckOutImage(null);
+    if (rearCheckOutPreview) {
+      URL.revokeObjectURL(rearCheckOutPreview);
+      setRearCheckOutPreview(null);
+    }
+    setRecognizedCheckoutPlate(null);
+    setPlateVerificationStatus('IDLE');
+    setPlateVerificationPassed(false);
+    setPlateVerificationError(null);
+    setVehicleVerificationLoading(false);
+    setManualCheckoutPlate('');
+    setManualPlateError(null);
+    setPlateVerificationMethod(null);
+    if (frontCameraInputRef.current) frontCameraInputRef.current.value = '';
+    if (frontLibraryInputRef.current) frontLibraryInputRef.current.value = '';
+    if (rearCameraInputRef.current) rearCameraInputRef.current.value = '';
+    if (rearLibraryInputRef.current) rearLibraryInputRef.current.value = '';
+    clearVerificationId();
+  }, [frontCheckOutPreview, rearCheckOutPreview, clearVerificationId]);
+
+  useEffect(() => {
+    return () => {
+      if (frontCheckOutPreview) URL.revokeObjectURL(frontCheckOutPreview);
+      if (rearCheckOutPreview) URL.revokeObjectURL(rearCheckOutPreview);
+    };
+  }, [frontCheckOutPreview, rearCheckOutPreview]);
+
+  const handleFrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (frontCheckOutPreview) {
+      URL.revokeObjectURL(frontCheckOutPreview);
+    }
+    if (!file) {
+      setFrontCheckOutImage(null);
+      setFrontCheckOutPreview(null);
+    } else {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setPlateVerificationError('Ảnh phía trước chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP.');
+        setFrontCheckOutImage(null);
+        setFrontCheckOutPreview(null);
+        e.target.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setPlateVerificationError('Ảnh phía trước không được vượt quá 5 MB.');
+        setFrontCheckOutImage(null);
+        setFrontCheckOutPreview(null);
+        e.target.value = '';
+        return;
+      }
+      setFrontCheckOutImage(file);
+      setFrontCheckOutPreview(URL.createObjectURL(file));
+      e.target.value = '';
+    }
+    // Stale verification invalidation
+    clearVerificationId();
+    setManualCheckoutPlate('');
+    setManualPlateError(null);
+  };
+
+  const handleRemoveFrontImage = () => {
+    if (frontCheckOutPreview) URL.revokeObjectURL(frontCheckOutPreview);
+    setFrontCheckOutImage(null);
+    setFrontCheckOutPreview(null);
+    clearVerificationId();
+    setManualCheckoutPlate('');
+    setManualPlateError(null);
+    if (frontCameraInputRef.current) frontCameraInputRef.current.value = '';
+    if (frontLibraryInputRef.current) frontLibraryInputRef.current.value = '';
+  };
+
+  const handleRearImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (rearCheckOutPreview) {
+      URL.revokeObjectURL(rearCheckOutPreview);
+    }
+    if (!file) {
+      setRearCheckOutImage(null);
+      setRearCheckOutPreview(null);
+    } else {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setPlateVerificationError('Ảnh phía sau chỉ hỗ trợ định dạng JPG, PNG hoặc WEBP.');
+        setRearCheckOutImage(null);
+        setRearCheckOutPreview(null);
+        e.target.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setPlateVerificationError('Ảnh phía sau không được vượt quá 5 MB.');
+        setRearCheckOutImage(null);
+        setRearCheckOutPreview(null);
+        e.target.value = '';
+        return;
+      }
+      setRearCheckOutImage(file);
+      setRearCheckOutPreview(URL.createObjectURL(file));
+      e.target.value = '';
+    }
+    // Stale verification invalidation (invalidates plate & vehicle verification)
+    setRecognizedCheckoutPlate(null);
+    clearVerificationId();
+    setManualCheckoutPlate('');
+    setManualPlateError(null);
+  };
+
+  const handleRemoveRearImage = () => {
+    if (rearCheckOutPreview) URL.revokeObjectURL(rearCheckOutPreview);
+    setRearCheckOutImage(null);
+    setRearCheckOutPreview(null);
+    setRecognizedCheckoutPlate(null);
+    clearVerificationId();
+    setManualCheckoutPlate('');
+    setManualPlateError(null);
+    if (rearCameraInputRef.current) rearCameraInputRef.current.value = '';
+    if (rearLibraryInputRef.current) rearLibraryInputRef.current.value = '';
+  };
+
+  const handleVerifyVehicle = async () => {
+    if (!foundRecord) return;
+    if (!frontCheckOutImage) {
+      setPlateVerificationError('Vui lòng chụp ảnh phía trước xe lúc ra.');
+      return;
+    }
+    if (!rearCheckOutImage) {
+      setPlateVerificationError('Vui lòng chụp ảnh phía sau xe lúc ra.');
+      return;
+    }
+    if (!checkoutImage) {
+      setPlateVerificationError('Vui lòng chụp ảnh người nhận xe.');
+      return;
+    }
+
+    if (verificationRequestInFlightRef.current) {
+      return;
+    }
+    verificationRequestInFlightRef.current = true;
+    setVehicleVerificationLoading(true);
+    setPlateVerificationStatus('VERIFYING');
+    setPlateVerificationError(null);
+    setVerificationId(null);
+    setVerificationExpiresAt(null);
+
+    try {
+      const res = await verifyExitCheckout(
+        foundRecord.id,
+        frontCheckOutImage,
+        rearCheckOutImage,
+        checkoutImage
+      );
+
+      setVerificationId(res.verificationId);
+      setVerificationExpiresAt(res.expiresAt);
+      scheduleTtlExpiry(res.expiresAt);
+
+      setRecognizedCheckoutPlate(res.verifiedPlate);
+      setPlateVerificationStatus('VERIFIED');
+      setPlateVerificationPassed(true);
+      setPlateVerificationMethod(res.verificationMethod as 'OCR' | 'MANUAL');
+      setPlateVerificationError(null);
+      setManualCheckoutPlate('');
+      setManualPlateError(null);
+    } catch (err: any) {
+      const errMsg = err.message || 'Không thể kết nối đến máy chủ để xác minh biển số xe.';
+      if (errMsg.includes('Không thể xác minh') || errMsg.includes('chụp lại ảnh phía sau')) {
+        setPlateVerificationStatus('UNREADABLE');
+        setPlateVerificationPassed(false);
+        setPlateVerificationMethod(null);
+        setPlateVerificationError(null);
+        setRecognizedCheckoutPlate('');
+        setManualCheckoutPlate('');
+        setManualPlateError(null);
+      } else if (errMsg.includes('không khớp')) {
+        setPlateVerificationStatus('MISMATCH');
+        setPlateVerificationPassed(false);
+        setPlateVerificationMethod(null);
+        setPlateVerificationError(errMsg);
+        setRecognizedCheckoutPlate('');
+        setManualCheckoutPlate('');
+        setManualPlateError(null);
+      } else {
+        setPlateVerificationStatus('IDLE');
+        setPlateVerificationPassed(false);
+        setPlateVerificationMethod(null);
+        setPlateVerificationError(errMsg);
+        setRecognizedCheckoutPlate('');
+        setManualCheckoutPlate('');
+        setManualPlateError(null);
+      }
+    } finally {
+      verificationRequestInFlightRef.current = false;
+      setVehicleVerificationLoading(false);
+    }
+  };
+
+  const handleVerifyManualPlate = async () => {
+    if (!foundRecord) return;
+    const input = manualCheckoutPlate.trim();
+    if (!input) {
+      setManualPlateError('Vui lòng nhập biển số xe.');
+      setPlateVerificationPassed(false);
+      setPlateVerificationMethod(null);
+      return;
+    }
+
+    if (!frontCheckOutImage || !rearCheckOutImage || !checkoutImage) {
+      setManualPlateError('Vui lòng chụp đầy đủ 3 ảnh trước khi xác minh.');
+      return;
+    }
+
+    if (verificationRequestInFlightRef.current) {
+      return;
+    }
+    verificationRequestInFlightRef.current = true;
+    setVehicleVerificationLoading(true);
+    setManualPlateError(null);
+    setVerificationId(null);
+    setVerificationExpiresAt(null);
+
+    try {
+      const res = await verifyExitCheckout(
+        foundRecord.id,
+        frontCheckOutImage,
+        rearCheckOutImage,
+        checkoutImage,
+        input
+      );
+
+      setVerificationId(res.verificationId);
+      setVerificationExpiresAt(res.expiresAt);
+      scheduleTtlExpiry(res.expiresAt);
+
+      setPlateVerificationPassed(true);
+      setPlateVerificationMethod(res.verificationMethod as 'OCR' | 'MANUAL');
+      setManualPlateError(null);
+    } catch (err: any) {
+      const errMsg = err.message || 'Biển số nhập thủ công không khớp hoặc không hợp lệ.';
+      setPlateVerificationPassed(false);
+      setPlateVerificationMethod(null);
+      setManualPlateError(errMsg);
+    } finally {
+      verificationRequestInFlightRef.current = false;
+      setVehicleVerificationLoading(false);
+    }
+  };
 
   // — —— — Face Verification Cleanup and Helpers — —— —
   const resetFaceVerification = () => {
@@ -843,6 +1175,7 @@ export function CheckOutPage() {
     }
     setCheckoutImage(file);
     setCheckoutImagePreview(URL.createObjectURL(file));
+    clearVerificationId();
   };
 
   const handleRemoveCheckoutImage = () => {
@@ -853,6 +1186,7 @@ export function CheckOutPage() {
     }
     setComparisonResult(null);
     setComparisonError(null);
+    clearVerificationId();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1099,6 +1433,7 @@ export function CheckOutPage() {
     setPreviewImage(null);
     setIsLegacy(false);
     resetFaceVerification();
+    resetVehicleVerification();
     setMonthlyAccessPin('');
     setMonthlyQrToken('');
 
@@ -1206,15 +1541,59 @@ export function CheckOutPage() {
   // — —— — Submit check-out (for zero amount due or monthly packages) — —— —
   const handleConfirm = async () => {
     if (!foundRecord) return;
+    if (!verificationId) {
+      if (!frontCheckOutImage) {
+        setCheckoutError('Vui lòng chụp ảnh phía trước xe lúc ra.');
+        return;
+      }
+      if (!rearCheckOutImage) {
+        setCheckoutError('Vui lòng chụp ảnh phía sau xe lúc ra.');
+        return;
+      }
+      if (!plateVerificationPassed) {
+        setCheckoutError('Vui lòng bấm "Xác minh xe" và đảm bảo biển số khớp trước khi check-out.');
+        return;
+      }
+      if (!checkoutImage) {
+        setCheckoutError('Vui lòng chụp ảnh người nhận xe.');
+        return;
+      }
+    }
+
     setCheckoutError('');
     setCheckoutLoading(true);
     try {
-      const res = await api.post('/checkin-out/out', {
-        checkInRecordId: foundRecord.id,
-        paymentMethod: 'CASH',
-        pin: monthlyAccessPin || undefined,
-        monthlyQrToken: monthlyQrToken || undefined,
-      });
+      let res;
+      if (verificationId) {
+        res = await api.post('/checkin-out/out', {
+          checkInRecordId: foundRecord.id,
+          paymentMethod: 'CASH',
+          pin: monthlyAccessPin || undefined,
+          monthlyQrToken: monthlyQrToken || undefined,
+          verificationId,
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 60000,
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('checkInRecordId', foundRecord.id);
+        formData.append('paymentMethod', 'CASH');
+        if (monthlyAccessPin) formData.append('pin', monthlyAccessPin);
+        if (monthlyQrToken) formData.append('monthlyQrToken', monthlyQrToken);
+        if (frontCheckOutImage) formData.append('frontCheckOutImage', frontCheckOutImage);
+        if (rearCheckOutImage) formData.append('rearCheckOutImage', rearCheckOutImage);
+        if (checkoutImage) formData.append('driverCheckOutImage', checkoutImage);
+        if (plateVerificationMethod === 'MANUAL' && manualCheckoutPlate.trim()) {
+          formData.append('manualCheckoutPlate', manualCheckoutPlate.trim());
+        }
+
+        res = await api.post('/checkin-out/out', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 60000,
+        });
+      }
+
       const resultData = res.data.data ?? res.data;
       const checkoutRes: CheckOutResponse = {
         ...resultData,
@@ -1234,6 +1613,8 @@ export function CheckOutPage() {
       setPreviewImage(null);
       setIsLegacy(false);
       resetFaceVerification();
+      resetVehicleVerification();
+      clearVerificationId();
       resetLookupPanel();
       setIsFeeBreakdownOpen(false);
       loadAllRecords();
@@ -1243,6 +1624,9 @@ export function CheckOutPage() {
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message
         ?? 'Check-out thất bại. Vui lòng thử lại.';
       setCheckoutError(msg);
+      if (msg.includes('hết hạn') || msg.includes('expired') || msg.includes('thay thế') || msg.includes('replaced')) {
+        clearVerificationId();
+      }
     } finally {
       setCheckoutLoading(false);
     }
@@ -1252,15 +1636,59 @@ export function CheckOutPage() {
     if (!foundRecord || !feePreview) return;
 
     if (selectedPaymentOption === 'CASH') {
+      if (!verificationId) {
+        if (!frontCheckOutImage) {
+          setCheckoutError('Vui lòng chụp ảnh phía trước xe lúc ra.');
+          return;
+        }
+        if (!rearCheckOutImage) {
+          setCheckoutError('Vui lòng chụp ảnh phía sau xe lúc ra.');
+          return;
+        }
+        if (!plateVerificationPassed) {
+          setCheckoutError('Vui lòng bấm "Xác minh xe" và đảm bảo biển số khớp trước khi check-out.');
+          return;
+        }
+        if (!checkoutImage) {
+          setCheckoutError('Vui lòng chụp ảnh người nhận xe.');
+          return;
+        }
+      }
+
       setCheckoutError('');
       setCheckoutLoading(true);
       try {
-        const res = await api.post('/checkin-out/out', {
-          checkInRecordId: foundRecord.id,
-          paymentMethod: 'CASH',
-          pin: monthlyAccessPin || undefined,
-          monthlyQrToken: monthlyQrToken || undefined,
-        });
+        let res;
+        if (verificationId) {
+          res = await api.post('/checkin-out/out', {
+            checkInRecordId: foundRecord.id,
+            paymentMethod: 'CASH',
+            pin: monthlyAccessPin || undefined,
+            monthlyQrToken: monthlyQrToken || undefined,
+            verificationId,
+          }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 60000,
+          });
+        } else {
+          const formData = new FormData();
+          formData.append('checkInRecordId', foundRecord.id);
+          formData.append('paymentMethod', 'CASH');
+          if (monthlyAccessPin) formData.append('pin', monthlyAccessPin);
+          if (monthlyQrToken) formData.append('monthlyQrToken', monthlyQrToken);
+          if (frontCheckOutImage) formData.append('frontCheckOutImage', frontCheckOutImage);
+          if (rearCheckOutImage) formData.append('rearCheckOutImage', rearCheckOutImage);
+          if (checkoutImage) formData.append('driverCheckOutImage', checkoutImage);
+          if (plateVerificationMethod === 'MANUAL' && manualCheckoutPlate.trim()) {
+            formData.append('manualCheckoutPlate', manualCheckoutPlate.trim());
+          }
+
+          res = await api.post('/checkin-out/out', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 60000,
+          });
+        }
+
         const resultData = res.data.data ?? res.data;
         const checkoutRes: CheckOutResponse = {
           ...resultData,
@@ -1280,6 +1708,8 @@ export function CheckOutPage() {
         setPreviewImage(null);
         setIsLegacy(false);
         resetFaceVerification();
+        resetVehicleVerification();
+        clearVerificationId();
         setIsPaymentModalOpen(false);
         setIsFeeBreakdownOpen(false);
         resetLookupPanel();
@@ -1290,14 +1720,43 @@ export function CheckOutPage() {
           (err as { response?: { data?: { message?: string } } })?.response?.data?.message
           ?? 'Check-out thất bại. Vui lòng thử lại.';
         setCheckoutError(msg);
+        if (msg.includes('hết hạn') || msg.includes('expired') || msg.includes('thay thế') || msg.includes('replaced')) {
+          clearVerificationId();
+        }
       } finally {
         setCheckoutLoading(false);
       }
     } else {
+      if (!verificationId) {
+        if (!frontCheckOutImage) {
+          setCheckoutError('Vui lòng chụp ảnh phía trước xe lúc ra.');
+          return;
+        }
+        if (!rearCheckOutImage) {
+          setCheckoutError('Vui lòng chụp ảnh phía sau xe lúc ra.');
+          return;
+        }
+        if (!plateVerificationPassed) {
+          setCheckoutError('Vui lòng bấm "Xác minh xe" và đảm bảo biển số khớp trước khi check-out.');
+          return;
+        }
+        if (!checkoutImage) {
+          setCheckoutError('Vui lòng chụp ảnh người nhận xe.');
+          return;
+        }
+      }
+
       setCheckoutError('');
       setCheckoutLoading(true);
       try {
-        const res = await createCheckoutStripeSession(foundRecord.id);
+        const res = await createCheckoutStripeSession(
+          foundRecord.id,
+          frontCheckOutImage || undefined,
+          rearCheckOutImage || undefined,
+          checkoutImage || undefined,
+          plateVerificationMethod === 'MANUAL' ? manualCheckoutPlate.trim() : undefined,
+          verificationId || undefined
+        );
         if (res.checkoutUrl) {
           localStorage.setItem('checkout_cancelled_record', JSON.stringify({
             record: foundRecord,
@@ -1313,6 +1772,9 @@ export function CheckOutPage() {
         const msg = err instanceof Error ? err.message : 'Tạo phiên thanh toán Stripe thất bại.';
         setCheckoutError(msg);
         setIsPaymentModalOpen(false);
+        if (msg.includes('hết hạn') || msg.includes('expired') || msg.includes('thay thế') || msg.includes('replaced')) {
+          clearVerificationId();
+        }
       } finally {
         setCheckoutLoading(false);
       }
@@ -1339,6 +1801,7 @@ export function CheckOutPage() {
     setPreviewImage(null);
     setIsLegacy(false);
     resetFaceVerification();
+    resetVehicleVerification();
     setIsFeeBreakdownOpen(false);
     resetLookupPanel();
   };
@@ -1751,7 +2214,7 @@ export function CheckOutPage() {
                     : '0 đ',
                   color: checkoutResult.bookingDepositPaid && checkoutResult.bookingDepositPaid > 0 ? C.green : undefined
                 },
-                { label: 'Tổng đã thanh toán', value: formatCurrency(checkoutResult.amountDue ?? checkoutResult.fee ?? 0), isTotal: true },
+                { label: 'Tổng đã thanh toán', value: formatCurrency(checkoutResult.fee ?? checkoutResult.amountDue ?? 0), isTotal: true },
                 {
                   label: 'Phương thức thanh toán',
                   value: (() => {
@@ -1999,6 +2462,492 @@ export function CheckOutPage() {
                 </div>
               </div>
             </div>
+
+            {/* XÁC MINH XE LÚC RA */}
+            <div style={{ marginTop: '1.25rem', borderTop: `1px solid ${C.gray200}`, paddingTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Xác minh xe lúc ra
+                </h4>
+                {plateVerificationStatus === 'VERIFIED' && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16A34A', background: '#DCFCE7', padding: '0.15rem 0.5rem', borderRadius: 6 }}>
+                    ✓ Đã xác minh
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: C.gray500 }}>
+                Chụp ảnh xe phía trước và phía sau lúc ra. Xác minh biển số xe qua ảnh phía sau trước khi tiến hành thanh toán.
+              </p>
+
+              {/* Hidden file inputs for front and rear capture */}
+              <input
+                type="file"
+                ref={frontCameraInputRef}
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                onChange={handleFrontImageChange}
+                style={{ display: 'none' }}
+              />
+              <input
+                type="file"
+                ref={frontLibraryInputRef}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFrontImageChange}
+                style={{ display: 'none' }}
+              />
+              <input
+                type="file"
+                ref={rearCameraInputRef}
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                onChange={handleRearImageChange}
+                style={{ display: 'none' }}
+              />
+              <input
+                type="file"
+                ref={rearLibraryInputRef}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleRearImageChange}
+                style={{ display: 'none' }}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                {/* Card 1: Front Checkout Image */}
+                <div style={{
+                  background: '#F8FAFC',
+                  border: `1.5px solid ${frontCheckOutImage ? '#93C5FD' : '#E2E8F0'}`,
+                  borderRadius: 12,
+                  padding: '0.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  minHeight: 180,
+                  justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: C.navy }}>Ảnh xe phía trước lúc ra</span>
+                  {frontCheckOutPreview ? (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <img
+                        src={frontCheckOutPreview}
+                        alt="Ảnh xe phía trước lúc ra"
+                        onClick={() => setPreviewImage({ url: frontCheckOutPreview, label: 'Ảnh xe phía trước lúc ra' })}
+                        style={{
+                          width: '100%',
+                          height: 120,
+                          objectFit: 'contain',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          background: '#CBD5E1',
+                          transition: 'transform 0.15s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                      />
+                      <span style={{ fontSize: '0.68rem', color: C.gray500, marginTop: 4, textAlign: 'center', wordBreak: 'break-all' }}>
+                        {frontCheckOutImage?.name} ({(frontCheckOutImage ? frontCheckOutImage.size / 1024 / 1024 : 0).toFixed(2)} MB)
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.78rem', color: C.gray400, flex: 1, display: 'flex', alignItems: 'center', textAlign: 'center' }}>
+                      Chưa có ảnh phía trước
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '0.35rem', width: '100%', marginTop: '0.25rem' }}>
+                    {!frontCheckOutImage ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => frontCameraInputRef.current?.click()}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: C.navy,
+                            color: C.white,
+                            border: 'none',
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Chụp ảnh
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => frontLibraryInputRef.current?.click()}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: '#EFF6FF',
+                            color: C.navy,
+                            border: `1px solid ${C.navy}`,
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Thư viện
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => frontLibraryInputRef.current?.click()}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: '#EFF6FF',
+                            color: C.navy,
+                            border: `1px solid ${C.navy}`,
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Chọn lại
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFrontImage}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: C.redBg,
+                            color: C.red,
+                            border: `1px solid ${C.redBorder}`,
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card 2: Rear Checkout Image */}
+                <div style={{
+                  background: '#F8FAFC',
+                  border: `1.5px solid ${rearCheckOutImage ? '#93C5FD' : '#E2E8F0'}`,
+                  borderRadius: 12,
+                  padding: '0.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  minHeight: 180,
+                  justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: C.navy }}>Ảnh xe phía sau lúc ra</span>
+                  {rearCheckOutPreview ? (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <img
+                        src={rearCheckOutPreview}
+                        alt="Ảnh xe phía sau lúc ra"
+                        onClick={() => setPreviewImage({ url: rearCheckOutPreview, label: 'Ảnh xe phía sau lúc ra' })}
+                        style={{
+                          width: '100%',
+                          height: 120,
+                          objectFit: 'contain',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          background: '#CBD5E1',
+                          transition: 'transform 0.15s',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                      />
+                      <span style={{ fontSize: '0.68rem', color: C.gray500, marginTop: 4, textAlign: 'center', wordBreak: 'break-all' }}>
+                        {rearCheckOutImage?.name} ({(rearCheckOutImage ? rearCheckOutImage.size / 1024 / 1024 : 0).toFixed(2)} MB)
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.78rem', color: C.gray400, flex: 1, display: 'flex', alignItems: 'center', textAlign: 'center' }}>
+                      Chưa có ảnh phía sau
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '0.35rem', width: '100%', marginTop: '0.25rem' }}>
+                    {!rearCheckOutImage ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => rearCameraInputRef.current?.click()}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: C.navy,
+                            color: C.white,
+                            border: 'none',
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Chụp ảnh
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rearLibraryInputRef.current?.click()}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: '#EFF6FF',
+                            color: C.navy,
+                            border: `1px solid ${C.navy}`,
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Thư viện
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => rearLibraryInputRef.current?.click()}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: '#EFF6FF',
+                            color: C.navy,
+                            border: `1px solid ${C.navy}`,
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Chọn lại
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveRearImage}
+                          style={{
+                            flex: 1,
+                            padding: '0.4rem 0.2rem',
+                            background: C.redBg,
+                            color: C.red,
+                            border: `1px solid ${C.redBorder}`,
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Plate Comparison Details */}
+              <div style={{
+                background: '#F1F5F9',
+                borderRadius: 10,
+                padding: '0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                border: '1px solid #E2E8F0',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
+                  <span style={{ color: C.gray500 }}>Biển số phiên gửi:</span>
+                  <span style={{ fontFamily: 'Consolas, monospace', fontWeight: 700, color: C.navy, fontSize: '0.9rem' }}>
+                    {formatPlateNumber(foundRecord.vehicle?.plateNumber || '', '', foundRecord.vehicle?.type)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
+                  <span style={{ color: C.gray500 }}>Biển số nhận diện lúc ra:</span>
+                  <span style={{
+                    fontFamily: 'Consolas, monospace',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    color: plateVerificationStatus === 'VERIFIED' ? '#16A34A' : plateVerificationStatus === 'MISMATCH' ? C.red : C.gray600
+                  }}>
+                    {recognizedCheckoutPlate ? formatPlateNumber(recognizedCheckoutPlate, '', foundRecord.vehicle?.type) : '---'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleVerifyVehicle}
+                  disabled={!frontCheckOutImage || !rearCheckOutImage || vehicleVerificationLoading}
+                  style={{
+                    marginTop: '0.25rem',
+                    padding: '0.55rem',
+                    background: (!frontCheckOutImage || !rearCheckOutImage || vehicleVerificationLoading) ? C.gray200 : C.navy,
+                    color: (!frontCheckOutImage || !rearCheckOutImage || vehicleVerificationLoading) ? C.gray400 : C.white,
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: (!frontCheckOutImage || !rearCheckOutImage || vehicleVerificationLoading) ? 'not-allowed' : 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {vehicleVerificationLoading ? 'Đang nhận diện biển số xe...' : 'Xác minh xe'}
+                </button>
+
+                {/* Verification result messages */}
+                {plateVerificationStatus === 'VERIFIED' && (
+                  <div style={{
+                    background: '#F0FDF4',
+                    border: '1.5px solid #BBF7D0',
+                    borderRadius: 8,
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.8rem',
+                    color: '#166534',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}>
+                    <IconCheck size={16} color="#16A34A" />
+                    <span>Biển số xe lúc ra khớp với phiên gửi xe. Đã xác minh thành công.</span>
+                  </div>
+                )}
+
+                {(plateVerificationStatus === 'UNREADABLE' || plateVerificationStatus === 'MISMATCH') && (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    marginTop: '0.25rem',
+                    padding: '0.75rem',
+                    background: '#FFFBEB',
+                    border: '1.5px solid #FDE68A',
+                    borderRadius: 8,
+                  }}>
+                    <div style={{
+                      fontSize: '0.8rem',
+                      color: '#92400E',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}>
+                      <IconAlert size={16} color="#D97706" />
+                      <span>
+                        {plateVerificationStatus === 'UNREADABLE'
+                          ? 'Không thể tự động nhận diện biển số. Vui lòng nhập biển số nhìn thấy trên ảnh phía sau.'
+                          : 'Biển số OCR không khớp với phiên gửi xe. Vui lòng kiểm tra ảnh phía sau và nhập lại biển số nếu OCR nhận diện sai.'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: C.gray600 }}>
+                        Biển số nhập thủ công:
+                      </label>
+                      <input
+                        type="text"
+                        value={manualCheckoutPlate}
+                        onChange={(e) => {
+                          setManualCheckoutPlate(e.target.value.toUpperCase());
+                          setManualPlateError(null);
+                          if (plateVerificationMethod === 'MANUAL') {
+                            setPlateVerificationPassed(false);
+                            setPlateVerificationMethod(null);
+                          }
+                        }}
+                        placeholder={foundRecord.vehicle?.type === 'MOTORBIKE' ? 'VD: 67-A2 129.87' : 'VD: 59A-223.34'}
+                        style={{
+                          padding: '0.5rem 0.65rem',
+                          border: `1.5px solid ${manualPlateError ? C.red : '#CBD5E1'}`,
+                          borderRadius: 6,
+                          fontSize: '0.88rem',
+                          fontFamily: 'Consolas, monospace',
+                          fontWeight: 700,
+                          color: C.navy,
+                          outline: 'none',
+                          background: C.white,
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleVerifyManualPlate}
+                      disabled={vehicleVerificationLoading || !manualCheckoutPlate.trim()}
+                      style={{
+                        padding: '0.5rem',
+                        background: (vehicleVerificationLoading || !manualCheckoutPlate.trim()) ? C.gray200 : C.navy,
+                        color: (vehicleVerificationLoading || !manualCheckoutPlate.trim()) ? C.gray400 : C.white,
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: (vehicleVerificationLoading || !manualCheckoutPlate.trim()) ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      Xác minh biển số thủ công
+                    </button>
+
+                    {manualPlateError && (
+                      <div style={{
+                        fontSize: '0.78rem',
+                        color: C.red,
+                        fontWeight: 600,
+                      }}>
+                        {manualPlateError}
+                      </div>
+                    )}
+
+                    {plateVerificationMethod === 'MANUAL' && plateVerificationPassed && (
+                      <div style={{
+                        background: '#F0FDF4',
+                        border: '1px solid #BBF7D0',
+                        borderRadius: 6,
+                        padding: '0.4rem 0.6rem',
+                        fontSize: '0.78rem',
+                        color: '#166534',
+                        fontWeight: 600,
+                      }}>
+                        <div>✓ Biển số nhập thủ công khớp với phiên gửi xe.</div>
+                        <div style={{ fontSize: '0.72rem', color: '#15803D', marginTop: '0.15rem' }}>
+                          Phương thức xác minh: Nhân viên nhập thủ công.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {plateVerificationError && plateVerificationStatus === 'IDLE' && (
+                  <div style={{
+                    background: C.redBg,
+                    border: `1.5px solid ${C.redBorder}`,
+                    borderRadius: 8,
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.8rem',
+                    color: C.red,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}>
+                    <IconAlert size={16} color={C.red} />
+                    <span>{plateVerificationError}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* RIGHT COLUMN: Tóm tắt thanh toán */}
@@ -2196,68 +3145,121 @@ export function CheckOutPage() {
                   </div>
                 )}
 
+                {/* Exit verification status badge */}
+                {verificationId && verificationExpiresAt && (
+                  <div style={{
+                    background: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    borderRadius: 10,
+                    padding: '0.65rem 0.85rem',
+                    color: '#1E40AF',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    marginTop: '0.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.2rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#3B82F6' }}></span>
+                      <span>Đã xác minh xe lúc ra thành công</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#1D4ED8', paddingLeft: '0.9rem' }}>
+                      Thời hạn mã xác minh: <span style={{ fontWeight: 800 }}>{new Date(verificationExpiresAt).toLocaleTimeString('vi-VN')}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action buttons */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                  {!foundRecord.isMonthly && (feePreview.amountDue ?? feePreview.fee) > 0 ? (
-                    <button
-                      onClick={() => {
-                        setCheckoutError('');
-                        setIsPaymentModalOpen(true);
-                      }}
-                      disabled={checkoutLoading}
-                      style={{
-                        flex: 2,
-                        padding: '0.75rem',
-                        background: checkoutLoading ? C.gray400 : C.navy,
-                        color: C.white,
-                        border: 'none',
-                        borderRadius: 10,
-                        fontSize: '0.9rem',
-                        fontWeight: 700,
-                        cursor: checkoutLoading ? 'not-allowed' : 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      Tiếp tục thanh toán
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleConfirm}
-                      disabled={checkoutLoading}
-                      style={{
-                        flex: 2,
-                        padding: '0.75rem',
-                        background: checkoutLoading ? C.gray400 : C.navy,
-                        color: C.white,
-                        border: 'none',
-                        borderRadius: 10,
-                        fontSize: '0.9rem',
-                        fontWeight: 700,
-                        cursor: checkoutLoading ? 'not-allowed' : 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {checkoutLoading ? 'Đang xử lý...' : 'Xác nhận Check-out'}
-                    </button>
-                  )}
-                  <button
-                    onClick={handleDismissFound}
-                    style={{
-                      flex: 1,
-                      padding: '0.75rem',
-                      background: C.white,
-                      color: C.gray600,
-                      border: `1px solid ${C.gray400}`,
-                      borderRadius: 10,
-                      fontSize: '0.9rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                    }}
-                  >
-                    Hủy bỏ
-                  </button>
-                </div>
+                {(() => {
+                  const vehicleExitVerified = Boolean(frontCheckOutImage && rearCheckOutImage && plateVerificationPassed);
+                  const canProceed = Boolean(vehicleExitVerified && checkoutImage && !checkoutLoading);
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {!foundRecord.isMonthly && (feePreview.amountDue ?? feePreview.fee) > 0 ? (
+                          <button
+                            onClick={() => {
+                              if (!canProceed) return;
+                              setCheckoutError('');
+                              setIsPaymentModalOpen(true);
+                            }}
+                            disabled={!canProceed}
+                            style={{
+                              flex: 2,
+                              padding: '0.75rem',
+                              background: !canProceed ? C.gray400 : C.navy,
+                              color: C.white,
+                              border: 'none',
+                              borderRadius: 10,
+                              fontSize: '0.9rem',
+                              fontWeight: 700,
+                              cursor: !canProceed ? 'not-allowed' : 'pointer',
+                              textAlign: 'center',
+                            }}
+                          >
+                            Tiếp tục thanh toán
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleConfirm}
+                            disabled={!canProceed}
+                            style={{
+                              flex: 2,
+                              padding: '0.75rem',
+                              background: !canProceed ? C.gray400 : C.navy,
+                              color: C.white,
+                              border: 'none',
+                              borderRadius: 10,
+                              fontSize: '0.9rem',
+                              fontWeight: 700,
+                              cursor: !canProceed ? 'not-allowed' : 'pointer',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {checkoutLoading ? 'Đang xử lý...' : 'Xác nhận Check-out'}
+                          </button>
+                        )}
+                        <button
+                          onClick={handleDismissFound}
+                          style={{
+                            flex: 1,
+                            padding: '0.75rem',
+                            background: C.white,
+                            color: C.gray600,
+                            border: `1px solid ${C.gray400}`,
+                            borderRadius: 10,
+                            fontSize: '0.9rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                          }}
+                        >
+                          Hủy bỏ
+                        </button>
+                      </div>
+
+                      {/* Security Gating Helper Note */}
+                      {!canProceed && (
+                        <div style={{
+                          fontSize: '0.75rem',
+                          color: '#B45309',
+                          background: '#FFFBEB',
+                          border: '1px solid #FDE68A',
+                          borderRadius: 8,
+                          padding: '0.4rem 0.6rem',
+                          lineHeight: 1.4,
+                        }}>
+                          {!frontCheckOutImage ? '⚠️ Vui lòng chụp ảnh phía trước xe lúc ra.' :
+                           !rearCheckOutImage ? '⚠️ Vui lòng chụp ảnh phía sau xe lúc ra.' :
+                           !plateVerificationPassed ? '⚠️ Vui lòng nhấn "Xác minh xe" và đảm bảo biển số xe lúc ra khớp với phiên gửi.' :
+                           !checkoutImage ? '⚠️ Vui lòng chụp ảnh người nhận xe ở phần bên dưới trước khi hoàn tất check-out.' : ''}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <p style={{ fontSize: '0.85rem', color: C.gray400, fontStyle: 'italic' }}>Đang tính toán chi tiết phí gửi xe...</p>
@@ -2731,6 +3733,7 @@ export function CheckOutPage() {
                               setPreviewImage(null);
                               setIsLegacy(false);
                               resetFaceVerification();
+                              resetVehicleVerification();
                               try {
                                 const lookup = await checkoutLookupPlate(v.plateNumber);
                                 if (lookup.found) {

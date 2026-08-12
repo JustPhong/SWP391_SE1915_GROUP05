@@ -88,6 +88,25 @@ export function formatPlateNumber(val: string, prevVal: string = '', vehicleType
     return `${province}${letter}-${firstThree}.${lastTwo}`;
   }
 
+  if (vehicleType === 'MOTORBIKE') {
+    // Progressive formatting for MOTORBIKE: NN-SS XXX.XX
+    const province = clean.slice(0, 2);
+    if (clean.length <= 2) {
+      return province;
+    }
+    if (clean.length <= 4) {
+      return `${province}-${clean.slice(2)}`;
+    }
+    const series = clean.slice(2, 4);
+    const remaining = clean.slice(4);
+    if (remaining.length <= 3) {
+      return `${province}-${series} ${remaining}`;
+    }
+    const firstThree = remaining.slice(0, 3);
+    const rest = remaining.slice(3); // Keep all extra characters to prevent silent truncation
+    return `${province}-${series} ${firstThree}.${rest}`;
+  }
+
   // Detect backspace/deletion (keep it minimal to avoid interfering with the common XXA-12345 rule)
   // If the previous value ended with a hyphen and the user deleted it, just continue formatting from the new raw value.
   if (prevVal.endsWith('-') && val === prevVal.slice(0, -1)) {
