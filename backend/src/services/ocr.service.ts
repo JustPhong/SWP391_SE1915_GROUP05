@@ -315,6 +315,37 @@ export function formatMotorbikePlate(p: string): string {
   return p;
 }
 
+export function extractNoisyMotorbikePlate(rawText: string): string | null {
+  const upperRaw = rawText.toUpperCase();
+
+  // Find the top token: 2 digits, optional separator, 1 letter, then 1 letter or digit
+  const topMatch = upperRaw.match(/\b\d{2}[-. \s]?[A-Z][A-Z0-9]/);
+  if (!topMatch) return null;
+
+  const topClean = topMatch[0].replace(/[^A-Z0-9]/gi, ''); // e.g. "67A2"
+
+  const startIndex = topMatch.index !== undefined ? topMatch.index + topMatch[0].length : 0;
+  const remainingText = upperRaw.slice(startIndex);
+
+  // Find the bottom token in the remaining text
+  const bottomMatchWithSep = remainingText.match(/\d{3}[-. \s]\d{2}/);
+  let bottomClean: string | null = null;
+
+  if (bottomMatchWithSep) {
+    bottomClean = bottomMatchWithSep[0].replace(/[^0-9]/gi, '');
+  } else {
+    const bottomMatchDigits = remainingText.match(/\d{5}/);
+    if (bottomMatchDigits) {
+      bottomClean = bottomMatchDigits[0];
+    }
+  }
+
+  if (!bottomClean) return null;
+
+  return topClean + bottomClean;
+}
+
+
 function getCropPriority(cropName: string): number {
   const priorities: Record<string, number> = {
     'CAR_PLATE_CENTER_TIGHT': 10,
@@ -853,6 +884,32 @@ async function performOcr(imageBuffer: Buffer, vehicleType: 'CAR' | 'MOTORBIKE' 
 
               if (process.env.NODE_ENV !== 'production') {
                 console.log(`[OCR][MOTORBIKE][RUN]\nstage=WHOLE_BLOCK\nregion=${regionName}\nvariant=${variant.name}\nrotation=${rotation}\nraw=${rawText.replace(/[\n\r]+/g, ' ')}\nnormalized=${combined}\nvalid=true\nused=${runBudget.used}/${runBudget.max}\nelapsedMs=${Date.now() - cropStart}`);
+              }
+            }
+          }
+
+          if (!foundAny) {
+            const noisyCombined = extractNoisyMotorbikePlate(rawText);
+            if (noisyCombined) {
+              const potentialPlates = generateConfusionVariants(noisyCombined);
+              for (const combined of potentialPlates) {
+                if (isValidMotorbikePlate(combined)) {
+                  motorbikeCandidates.push({
+                    normalizedPlate: combined,
+                    formattedPlate: formatMotorbikePlate(combined),
+                    rawText: rawText,
+                    confidence: data.confidence,
+                    variantName: variant.name + '-noisy-fallback',
+                    strategy: 'WHOLE_BLOCK',
+                    topLineValid: true,
+                    bottomLineValid: true,
+                  });
+                  foundAny = true;
+
+                  if (process.env.NODE_ENV !== 'production') {
+                    console.log(`[OCR][MOTORBIKE][RUN]\nstage=WHOLE_BLOCK_NOISY_FALLBACK\nregion=${regionName}\nvariant=${variant.name}\nrotation=${rotation}\nraw=${rawText.replace(/[\n\r]+/g, ' ')}\nnormalized=${combined}\nvalid=true\nused=${runBudget.used}/${runBudget.max}\nelapsedMs=${Date.now() - cropStart}`);
+                  }
+                }
               }
             }
           }

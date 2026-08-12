@@ -13,6 +13,9 @@ import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 import { config as appConfig } from '../config';
+import { uploadBufferToCloudinary, deleteFromCloudinary } from '../utils/cloudinary';
+import { recognizeLicensePlate } from './ocr.service';
+import { normalizeLicensePlate } from '../utils/plate';
 
 function resolveCheckInImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -37,6 +40,11 @@ export interface CheckoutLookupResult {
   plate?: string;
   vehicleType?: 'CAR' | 'MOTORBIKE';
   slotCode?: string | null;
+  floorId?: number | null;
+  floorName?: string | null;
+  floorCode?: string | null;
+  allowedTier?: string | null;
+  bookingId?: string | null;
   isMonthly?: boolean;
   checkInTime?: string;
   now?: string;
@@ -222,6 +230,11 @@ async function mapRecordToLookupResult(
     plate: vehicle.plateNumber,
     vehicleType: vehicle.type as 'CAR' | 'MOTORBIKE',
     slotCode: record.slot?.code ?? (record.allowedTier ? `Khu ${record.allowedTier === 'VIP' ? 'VIP' : record.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+    floorId: record.floor?.id ?? record.slot?.floor?.id ?? record.floorId ?? null,
+    floorName: record.floor?.name ?? record.slot?.floor?.name ?? null,
+    floorCode: record.floor?.floorCode ?? record.slot?.floor?.floorCode ?? null,
+    allowedTier: record.allowedTier ?? null,
+    bookingId: record.bookingId ?? null,
     isMonthly: isMonthlyOverride,
     checkInTime: record.checkInTime.toISOString(),
     now: now.toISOString(),
@@ -248,6 +261,105 @@ async function mapRecordToLookupResult(
     prepaidAt: record.prepaidAt ? record.prepaidAt.toISOString() : null,
     graceExpiresAt: graceExpiresAt ? graceExpiresAt.toISOString() : null,
   };
+}
+
+async function verifyExitVehiclePlate(
+  rearBuffer: Buffer,
+  vehicleType: 'CAR' | 'MOTORBIKE',
+  activePlateNumber: string,
+  manualPlate?: string
+): Promise<{ method: 'OCR' | 'MANUAL'; verifiedPlate: string }> {
+  let ocrResult: any = null;
+  try {
+    ocrResult = await recognizeLicensePlate(rearBuffer, vehicleType);
+  } catch {
+    ocrResult = null;
+  }
+
+  const detectedNormalizedPlate = normalizeLicensePlate(
+    ocrResult?.normalizedPlate || ocrResult?.bestPlate || ''
+  );
+  const activeRecordPlateNormalized = normalizeLicensePlate(activePlateNumber);
+
+  if (detectedNormalizedPlate) {
+    // Case A: OCR MATCH
+    if (detectedNormalizedPlate === activeRecordPlateNormalized) {
+      return { method: 'OCR', verifiedPlate: detectedNormalizedPlate };
+    }
+    // Case C: OCR READS A DIFFERENT VALID PLATE
+    if (!manualPlate || !manualPlate.trim()) {
+      throw new AppError(
+        400,
+        'Biển số xe lúc ra không khớp với phiên gửi xe hiện tại. Không thể cho xe ra bãi.'
+      );
+    }
+  } else {
+    // Case B: OCR UNREADABLE -> controlled manual fallback
+    if (!manualPlate || !manualPlate.trim()) {
+      throw new AppError(
+        422,
+        'Không thể xác minh biển số xe lúc ra. Vui lòng chụp lại ảnh phía sau rõ biển số.'
+      );
+    }
+  }
+
+  const normalizedManualPlate = normalizeLicensePlate(manualPlate);
+  if (!normalizedManualPlate) {
+    throw new AppError(400, 'Biển số nhập thủ công không hợp lệ.');
+  }
+
+  if (normalizedManualPlate !== activeRecordPlateNormalized) {
+    throw new AppError(400, 'Biển số nhập thủ công không khớp với phiên gửi xe hiện tại.');
+  }
+
+  return { method: 'MANUAL', verifiedPlate: normalizedManualPlate };
+}
+
+async function validateVerification(verificationId: string, record: any) {
+  const verification = await prisma.checkoutVerification.findUnique({
+    where: { id: verificationId }
+  });
+
+  if (!verification) {
+    throw new AppError(400, 'Mã xác minh không tồn tại. Vui lòng xác minh xe lại.');
+  }
+
+  if (verification.checkInRecordId !== record.id) {
+    throw new AppError(400, 'Mã xác minh không khớp với lượt gửi xe hiện tại.');
+  }
+
+  if (new Date(verification.expiresAt).getTime() <= Date.now()) {
+    throw new AppError(400, 'Xác minh xe lúc ra đã hết hạn. Vui lòng thực hiện xác minh lại.');
+  }
+
+  if (record.status !== 'PARKING') {
+    throw new AppError(400, 'Lượt gửi xe đã hoàn thành hoặc không còn hoạt động.');
+  }
+
+  const activePlateNorm = normalizeLicensePlate(record.vehicle.plateNumber);
+  const verifiedPlateNorm = normalizeLicensePlate(verification.normalizedPlate);
+  if (verifiedPlateNorm !== activePlateNorm) {
+    throw new AppError(400, 'Biển số xe hiện tại không khớp với biển số đã xác minh.');
+  }
+
+  if (verification.vehicleType !== record.vehicle.type) {
+    throw new AppError(400, 'Loại xe hiện tại không khớp với loại xe đã xác minh.');
+  }
+
+  // Stale/replay protection: determine the newest successful CheckoutVerification for this record
+  const newestVerification = await prisma.checkoutVerification.findFirst({
+    where: { checkInRecordId: record.id },
+    orderBy: [
+      { createdAt: 'desc' },
+      { id: 'desc' } // deterministic secondary ordering
+    ]
+  });
+
+  if (!newestVerification || newestVerification.id !== verificationId) {
+    throw new AppError(400, 'Mã xác minh đã hết hạn hoặc bị thay thế bởi lượt xác minh mới hơn. Vui lòng xác minh xe lại.');
+  }
+
+  return verification;
 }
 
 // ── Service ──────────────────────────────────────────────
@@ -592,11 +704,40 @@ export const checkoutService = {
     staffId?: string;
     pin?: string;
     monthlyQrToken?: string;
+    manualCheckoutPlate?: string;
+    frontCheckOutFile?: Express.Multer.File;
+    rearCheckOutFile?: Express.Multer.File;
+    driverCheckOutFile?: Express.Multer.File;
+    verificationId?: string;
   }): Promise<CheckoutSubmitResult> {
-    const { checkInRecordId, plate, method = 'CASH', staffId, pin, monthlyQrToken } = params;
+    const {
+      checkInRecordId,
+      plate,
+      method = 'CASH',
+      staffId,
+      pin,
+      monthlyQrToken,
+      manualCheckoutPlate,
+      frontCheckOutFile,
+      rearCheckOutFile,
+      driverCheckOutFile,
+      verificationId,
+    } = params;
 
     if (!['CASH', 'CARD', 'EWALLET'].includes(method)) {
       throw new AppError(400, 'Phương thức thanh toán không hợp lệ.');
+    }
+
+    if (!verificationId) {
+      if (!frontCheckOutFile) {
+        throw new AppError(400, 'Vui lòng chụp ảnh phía trước xe lúc ra.');
+      }
+      if (!rearCheckOutFile) {
+        throw new AppError(400, 'Vui lòng chụp ảnh phía sau xe lúc ra.');
+      }
+      if (!driverCheckOutFile) {
+        throw new AppError(400, 'Vui lòng chụp ảnh người nhận xe.');
+      }
     }
 
     let record: any = null;
@@ -661,265 +802,330 @@ export const checkoutService = {
       throw new AppError(409, 'Xe đã được Check-out trước đó.');
     }
 
+    let frontUrl: string | undefined;
+    let frontPublicId: string | undefined;
+    let rearUrl: string | undefined;
+    let rearPublicId: string | undefined;
+    let driverUrl: string | undefined;
+    let driverPublicId: string | undefined;
+    let verificationMethod: string = 'OCR';
+
+    if (verificationId) {
+      const verification = await validateVerification(verificationId, record);
+      frontUrl = verification.frontCheckOutImageUrl;
+      frontPublicId = verification.frontCheckOutImagePublicId;
+      rearUrl = verification.rearCheckOutImageUrl;
+      rearPublicId = verification.rearCheckOutImagePublicId;
+      driverUrl = verification.driverCheckOutImageUrl;
+      driverPublicId = verification.driverCheckOutImagePublicId;
+      verificationMethod = verification.verificationMethod;
+    } else {
+      // ── Rear License Plate OCR / Controlled Manual Verification (Hard Security Gate) ──
+      const vehicleType = (record.vehicle?.type === 'MOTORBIKE' ? 'MOTORBIKE' : 'CAR') as 'CAR' | 'MOTORBIKE';
+      const { method: vMethod } = await verifyExitVehiclePlate(
+        rearCheckOutFile!.buffer,
+        vehicleType,
+        record.vehicle.plateNumber,
+        manualCheckoutPlate
+      );
+      verificationMethod = vMethod;
+
+      // ── Upload Checkout Images to Cloudinary ──
+      try {
+        const frontUpload = await uploadBufferToCloudinary(frontCheckOutFile!.buffer);
+        frontUrl = frontUpload.secureUrl;
+        frontPublicId = frontUpload.publicId;
+
+        const rearUpload = await uploadBufferToCloudinary(rearCheckOutFile!.buffer);
+        rearUrl = rearUpload.secureUrl;
+        rearPublicId = rearUpload.publicId;
+
+        const driverUpload = await uploadBufferToCloudinary(driverCheckOutFile!.buffer);
+        driverUrl = driverUpload.secureUrl;
+        driverPublicId = driverUpload.publicId;
+      } catch (uploadError) {
+        if (frontPublicId) await deleteFromCloudinary(frontPublicId).catch(() => {});
+        if (rearPublicId) await deleteFromCloudinary(rearPublicId).catch(() => {});
+        if (driverPublicId) await deleteFromCloudinary(driverPublicId).catch(() => {});
+        throw uploadError;
+      }
+    }
+
     const config = await feeRuleService.getFeeConfig();
 
-    // ── Use a structured transaction result (Option B) so all authoritative
-    //    financial variables and record properties are returned from inside the transaction,
-    //    guaranteeing no reliance on any potentially stale record state loaded before lock.
-    const txResult = await prisma.$transaction(async (tx) => {
-      // Concurrency lock — blocks a concurrent duplicate Checkout for the same vehicle
-      await acquireVehicleOrPlateLock(tx, record.vehicleId, record.vehicle.plateNumber);
+    let txResult: any;
+    try {
+      // ── Use a structured transaction result (Option B) so all authoritative
+      //    financial variables and record properties are returned from inside the transaction,
+      //    guaranteeing no reliance on any potentially stale record state loaded before lock.
+      txResult = await prisma.$transaction(async (tx) => {
+        // Concurrency lock — blocks a concurrent duplicate Checkout for the same vehicle
+        await acquireVehicleOrPlateLock(tx, record.vehicleId, record.vehicle.plateNumber);
 
-      // Reload the visit, its payments, slot, and floor from the authoritative DB state inside the tx
-      const activeRecord = await tx.checkInRecord.findUnique({
-        where: { id: record.id },
-        include: {
-          vehicle: true,
-          payments: true,
-          slot: {
-            include: {
-              floor: true,
+        // Reload the visit, its payments, slot, and floor from the authoritative DB state inside the tx
+        const activeRecord = await tx.checkInRecord.findUnique({
+          where: { id: record.id },
+          include: {
+            vehicle: true,
+            payments: true,
+            slot: {
+              include: {
+                floor: true,
+              },
             },
+            floor: true,
           },
-          floor: true,
-        },
-      });
+        });
 
-      if (!activeRecord || activeRecord.checkOutTime !== null) {
-        throw new AppError(409, 'Xe đã được Check-out trước đó.');
-      }
-
-      // Authoritative checkout timestamp — used for fee calculation and all mutations
-      const now = new Date();
-      const checkIn = new Date(activeRecord.checkInTime);
-      let isMonthlyOverride = false;
-      const requiresMonthlyCreds = activeRecord.isMonthly || (pin !== undefined && pin !== '') || (monthlyQrToken !== undefined && monthlyQrToken !== '');
-
-      if (requiresMonthlyCreds) {
-        if (!pin && !monthlyQrToken) {
-          throw new AppError(400, 'Checkout xe tháng yêu cầu mã PIN hoặc mã QR gói tháng.');
-        }
-        if (pin && monthlyQrToken) {
-          throw new AppError(400, 'Vui lòng chỉ cung cấp một phương thức xác thực: mã PIN hoặc mã QR.');
+        if (!activeRecord || activeRecord.checkOutTime !== null) {
+          throw new AppError(409, 'Xe đã được Check-out trước đó.');
         }
 
-        if (pin) {
-          await monthlyPackageService.verifyMonthlyPackageAccessByPin(activeRecord.vehicle.plateNumber, pin, tx);
-          isMonthlyOverride = true;
-        } else if (monthlyQrToken) {
-          let decoded: any;
-          try {
-            decoded = jwt.verify(monthlyQrToken, appConfig.jwtSecret, {
-              issuer: 'smart-parking-backend',
-              audience: 'smart-parking-checkout',
-              algorithms: ['HS256'],
-            });
-          } catch (err) {
-            throw new AppError(400, 'Mã QR gói tháng không hợp lệ hoặc đã hết hạn.');
+        // Authoritative checkout timestamp — used for fee calculation and all mutations
+        const now = new Date();
+        const checkIn = new Date(activeRecord.checkInTime);
+        let isMonthlyOverride = false;
+        const requiresMonthlyCreds = activeRecord.isMonthly || (pin !== undefined && pin !== '') || (monthlyQrToken !== undefined && monthlyQrToken !== '');
+
+        if (requiresMonthlyCreds) {
+          if (!pin && !monthlyQrToken) {
+            throw new AppError(400, 'Checkout xe tháng yêu cầu mã PIN hoặc mã QR gói tháng.');
+          }
+          if (pin && monthlyQrToken) {
+            throw new AppError(400, 'Vui lòng chỉ cung cấp một phương thức xác thực: mã PIN hoặc mã QR.');
           }
 
-          if (!decoded || decoded.purpose !== 'MONTHLY_CHECKOUT_QR' || !decoded.packageId || !decoded.vehicleId) {
-            throw new AppError(400, 'Mã QR gói tháng không hợp lệ.');
-          }
-
-          const pkg = await tx.monthlyPackage.findUnique({
-            where: { id: decoded.packageId },
-            include: { vehicle: true },
-          });
-
-          if (!pkg) {
-            throw new AppError(404, 'Gói tháng của mã QR không tồn tại.');
-          }
-
-          if (pkg.status !== 'ACTIVE' || pkg.expiryDate.getTime() <= now.getTime() || pkg.startDate.getTime() > now.getTime()) {
-            throw new AppError(400, 'Gói tháng đã hết hạn hoặc không còn hiệu lực.');
-          }
-
-          if (pkg.vehicleId !== decoded.vehicleId || !pkg.vehicle) {
-            throw new AppError(400, 'Thông tin xe trong mã QR không khớp.');
-          }
-
-          if (activeRecord.vehicleId !== pkg.vehicleId) {
-            throw new AppError(400, 'Mã QR không trùng khớp với xe đang thực hiện Checkout.');
-          }
-
-          isMonthlyOverride = true;
-        }
-      } else {
-        if (pin || monthlyQrToken) {
-          throw new AppError(400, 'Mã PIN hoặc QR gói tháng không hợp lệ cho lượt gửi xe vãng lai hoặc đặt trước.');
-        }
-      }
-
-      const isMonthlyEffective = activeRecord.isMonthly || isMonthlyOverride;
-
-      const { total, breakdown } = calcFee(
-        checkIn,
-        now,
-        activeRecord.vehicle.type as 'CAR' | 'MOTORBIKE',
-        config
-      );
-
-      let depositCredit = 0;
-      let bookingToUse = null;
-      if (!isMonthlyEffective) {
-        if (activeRecord.bookingId) {
-          bookingToUse = await tx.booking.findUnique({
-            where: { id: activeRecord.bookingId },
-          });
-          if (bookingToUse && bookingToUse.status === 'FULFILLED' && bookingToUse.depositStatus === 'PAID' && bookingToUse.bookingDepositAppliedAt === null) {
-            const paidPayment = await tx.payment.findFirst({
-              where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
-            });
-            if (paidPayment) {
-              depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+          if (pin) {
+            await monthlyPackageService.verifyMonthlyPackageAccessByPin(activeRecord.vehicle.plateNumber, pin, tx);
+            isMonthlyOverride = true;
+          } else if (monthlyQrToken) {
+            let decoded: any;
+            try {
+              decoded = jwt.verify(monthlyQrToken, appConfig.jwtSecret, {
+                issuer: 'smart-parking-backend',
+                audience: 'smart-parking-checkout',
+                algorithms: ['HS256'],
+              });
+            } catch (err) {
+              throw new AppError(400, 'Mã QR gói tháng không hợp lệ hoặc đã hết hạn.');
             }
+
+            if (!decoded || decoded.purpose !== 'MONTHLY_CHECKOUT_QR' || !decoded.packageId || !decoded.vehicleId) {
+              throw new AppError(400, 'Mã QR gói tháng không hợp lệ.');
+            }
+
+            const pkg = await tx.monthlyPackage.findUnique({
+              where: { id: decoded.packageId },
+              include: { vehicle: true },
+            });
+
+            if (!pkg) {
+              throw new AppError(404, 'Gói tháng của mã QR không tồn tại.');
+            }
+
+            if (pkg.status !== 'ACTIVE' || pkg.expiryDate.getTime() <= now.getTime() || pkg.startDate.getTime() > now.getTime()) {
+              throw new AppError(400, 'Gói tháng đã hết hạn hoặc không còn hiệu lực.');
+            }
+
+            if (pkg.vehicleId !== decoded.vehicleId || !pkg.vehicle) {
+              throw new AppError(400, 'Thông tin xe trong mã QR không khớp.');
+            }
+
+            if (activeRecord.vehicleId !== pkg.vehicleId) {
+              throw new AppError(400, 'Mã QR không trùng khớp với xe đang thực hiện Checkout.');
+            }
+
+            isMonthlyOverride = true;
           }
         } else {
-          bookingToUse = await tx.booking.findFirst({
-            where: {
-              vehicleId: activeRecord.vehicleId,
-              status: 'FULFILLED',
-              depositStatus: 'PAID',
-              bookingDepositAppliedAt: null,
-            },
-            orderBy: { bookingTime: 'desc' },
-          });
-          if (bookingToUse) {
-            const paidPayment = await tx.payment.findFirst({
-              where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+          if (pin || monthlyQrToken) {
+            throw new AppError(400, 'Mã PIN hoặc QR gói tháng không hợp lệ cho lượt gửi xe vãng lai hoặc đặt trước.');
+          }
+        }
+
+        const isMonthlyEffective = activeRecord.isMonthly || isMonthlyOverride;
+
+        const { total, breakdown } = calcFee(
+          checkIn,
+          now,
+          activeRecord.vehicle.type as 'CAR' | 'MOTORBIKE',
+          config
+        );
+
+        let depositCredit = 0;
+        let bookingToUse = null;
+        if (!isMonthlyEffective) {
+          if (activeRecord.bookingId) {
+            bookingToUse = await tx.booking.findUnique({
+              where: { id: activeRecord.bookingId },
             });
-            if (paidPayment) {
-              depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+            if (bookingToUse && bookingToUse.status === 'FULFILLED' && bookingToUse.depositStatus === 'PAID' && bookingToUse.bookingDepositAppliedAt === null) {
+              const paidPayment = await tx.payment.findFirst({
+                where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+              });
+              if (paidPayment) {
+                depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+              }
+            }
+          } else {
+            bookingToUse = await tx.booking.findFirst({
+              where: {
+                vehicleId: activeRecord.vehicleId,
+                status: 'FULFILLED',
+                depositStatus: 'PAID',
+                bookingDepositAppliedAt: null,
+              },
+              orderBy: { bookingTime: 'desc' },
+            });
+            if (bookingToUse) {
+              const paidPayment = await tx.payment.findFirst({
+                where: { bookingId: bookingToUse.id, status: 'SUCCESS', type: { in: ['BOOKING_FEE', 'BOOKING_DEPOSIT'] } },
+              });
+              if (paidPayment) {
+                depositCredit = parseFloat(String(bookingToUse.depositAmount)) || 0;
+              }
             }
           }
         }
-      }
 
-      // Authoritative sum of all successful PARKING_FEE payments for this visit so far
-      const totalSuccessfullyPaidBefore = activeRecord.payments?.reduce(
-        (sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0
-      ) ?? 0;
+        // Authoritative sum of all successful PARKING_FEE payments for this visit so far
+        const totalSuccessfullyPaidBefore = activeRecord.payments?.reduce(
+          (sum, p) => sum + (p.status === 'SUCCESS' && p.type === 'PARKING_FEE' ? parseFloat(String(p.amount)) : 0), 0
+        ) ?? 0;
 
-      // Outstanding balance after crediting all prior payments and booking deposit
-      let finalAmountDue = isMonthlyEffective ? 0 : Math.max(0, total - depositCredit - totalSuccessfullyPaidBefore);
+        // Outstanding balance after crediting all prior payments and booking deposit
+        let finalAmountDue = isMonthlyEffective ? 0 : Math.max(0, total - depositCredit - totalSuccessfullyPaidBefore);
 
-      // Five-minute grace period: no additional collection if prepayment is still active
-      if (activeRecord.prepaidAt) {
-        const graceExpiresAt = new Date(new Date(activeRecord.prepaidAt).getTime() + 300 * 1000);
-        if (now <= graceExpiresAt) {
-          finalAmountDue = 0;
+        // Five-minute grace period: no additional collection if prepayment is still active
+        if (activeRecord.prepaidAt) {
+          const graceExpiresAt = new Date(new Date(activeRecord.prepaidAt).getTime() + 300 * 1000);
+          if (now <= graceExpiresAt) {
+            finalAmountDue = 0;
+          }
         }
-      }
 
-      const updated = await tx.checkInRecord.updateMany({
-        where: {
-          id: activeRecord.id,
-          checkOutTime: null,
-        },
-        data: {
-          checkOutTime: now,
-          checkedOutById: staffId,
-          status: 'COMPLETED',
-          isMonthly: isMonthlyEffective ? true : undefined,
-        },
-      });
-
-      await tx.guestAccessCredential.updateMany({
-        where: {
-          checkInRecordId: activeRecord.id,
-          active: true,
-        },
-        data: {
-          active: false,
-          revokedAt: now,
-        },
-      });
-
-      if (updated.count === 0) {
-        // The concurrent duplicate path: lock was released, other tx already committed
-        throw new AppError(409, 'Xe đã được check-out trước đó.');
-      }
-
-      // Create a manual payment only when there is a genuinely outstanding balance.
-      // A concurrent duplicate Checkout would have been caught above (checkOutTime already set).
-      // An already-paid balance produces finalAmountDue = 0 → no Payment created.
-      if (!activeRecord.isMonthly && finalAmountDue > 0) {
-        await tx.payment.create({
+        const updated = await tx.checkInRecord.updateMany({
+          where: {
+            id: activeRecord.id,
+            checkOutTime: null,
+          },
           data: {
+            checkOutTime: now,
+            checkedOutById: staffId,
+            status: 'COMPLETED',
+            isMonthly: isMonthlyEffective ? true : undefined,
+            frontCheckOutImageUrl: frontUrl,
+            frontCheckOutImagePublicId: frontPublicId,
+            rearCheckOutImageUrl: rearUrl,
+            rearCheckOutImagePublicId: rearPublicId,
+            driverCheckOutImageUrl: driverUrl,
+            driverCheckOutImagePublicId: driverPublicId,
+          },
+        });
+
+        await tx.guestAccessCredential.updateMany({
+          where: {
             checkInRecordId: activeRecord.id,
-            bookingId: null,
-            monthlyPackageId: null,
-            amount: finalAmountDue,
-            method,
+            active: true,
+          },
+          data: {
+            active: false,
+            revokedAt: now,
+          },
+        });
+
+        if (updated.count === 0) {
+          // The concurrent duplicate path: lock was released, other tx already committed
+          throw new AppError(409, 'Xe đã được check-out trước đó.');
+        }
+
+        // Create a manual payment only when there is a genuinely outstanding balance.
+        // A concurrent duplicate Checkout would have been caught above (checkOutTime already set).
+        // An already-paid balance produces finalAmountDue = 0 → no Payment created.
+        if (!activeRecord.isMonthly && finalAmountDue > 0) {
+          await tx.payment.create({
+            data: {
+              checkInRecordId: activeRecord.id,
+              bookingId: null,
+              monthlyPackageId: null,
+              amount: finalAmountDue,
+              method,
+              type: 'PARKING_FEE',
+              status: 'SUCCESS',
+              paidAt: now,
+              collectedById: staffId,
+            },
+          });
+        }
+
+        if (bookingToUse) {
+          const updateResult = await tx.booking.updateMany({
+            where: {
+              id: bookingToUse.id,
+              bookingDepositAppliedAt: null,
+            },
+            data: {
+              bookingDepositAppliedAt: now,
+              bookingDepositAppliedToSessionId: activeRecord.id,
+            },
+          });
+          if (updateResult.count !== 1) {
+            throw new AppError(409, 'Đặt cọc của booking này đã được áp dụng ở phiên khác hoặc không thể cập nhật.');
+          }
+        }
+
+        if (activeRecord.slotId) {
+          const updateData: { status: string; assignedVehicleId?: string | null } = {
+            status: 'AVAILABLE',
+          };
+          if (activeRecord.isMonthly && activeRecord.slot?.assignedVehicleId) {
+            updateData.status = 'RESERVED';
+          } else if (!activeRecord.isMonthly && !activeRecord.slot?.isFixed) {
+            updateData.assignedVehicleId = null;
+          }
+          await tx.parkingSlot.update({
+            where: { id: activeRecord.slotId },
+            data: updateData,
+          });
+        }
+
+        // Authoritative sum of all successful PARKING_FEE payments for this visit after mutations
+        const totalPaidDb = await tx.payment.aggregate({
+          _sum: { amount: true },
+          where: {
+            checkInRecordId: activeRecord.id,
             type: 'PARKING_FEE',
             status: 'SUCCESS',
-            paidAt: now,
-            collectedById: staffId,
           },
         });
-      }
+        const postTotalSuccessfullyPaid = Number(totalPaidDb._sum.amount ?? 0);
 
-      if (bookingToUse) {
-        const updateResult = await tx.booking.updateMany({
-          where: {
-            id: bookingToUse.id,
-            bookingDepositAppliedAt: null,
-          },
-          data: {
-            bookingDepositAppliedAt: now,
-            bookingDepositAppliedToSessionId: activeRecord.id,
-          },
-        });
-        if (updateResult.count !== 1) {
-          throw new AppError(409, 'Đặt cọc của booking này đã được áp dụng ở phiên khác hoặc không thể cập nhật.');
-        }
-      }
-
-      if (activeRecord.slotId) {
-        const updateData: { status: string; assignedVehicleId?: string | null } = {
-          status: 'AVAILABLE',
+        // Return all authoritative values so the caller can build the response
+        // without referencing variables that were computed inside the transaction callback
+        // or using any stale data loaded before the transaction.
+        return {
+          now,
+          breakdown,
+          total,
+          depositCredit,
+          totalSuccessfullyPaid: postTotalSuccessfullyPaid,
+          finalAmountDue,
+          isMonthly: activeRecord.isMonthly,
+          checkInTime: activeRecord.checkInTime,
+          plateNumber: activeRecord.vehicle.plateNumber,
+          slotCode: activeRecord.slot?.code ?? (activeRecord.allowedTier ? `Khu ${activeRecord.allowedTier === 'VIP' ? 'VIP' : activeRecord.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
+          floorName: activeRecord.floor?.name ?? activeRecord.slot?.floor?.name ?? 'Không xác định',
+          floorCode: activeRecord.floor?.floorCode ?? activeRecord.slot?.floor?.floorCode ?? '',
         };
-        if (activeRecord.isMonthly && activeRecord.slot?.assignedVehicleId) {
-          updateData.status = 'RESERVED';
-        } else if (!activeRecord.isMonthly && !activeRecord.slot?.isFixed) {
-          updateData.assignedVehicleId = null;
-        }
-        await tx.parkingSlot.update({
-          where: { id: activeRecord.slotId },
-          data: updateData,
-        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (txError) {
+      if (!verificationId) {
+        if (frontPublicId) await deleteFromCloudinary(frontPublicId).catch(() => {});
+        if (rearPublicId) await deleteFromCloudinary(rearPublicId).catch(() => {});
+        if (driverPublicId) await deleteFromCloudinary(driverPublicId).catch(() => {});
       }
-
-      // Authoritative sum of all successful PARKING_FEE payments for this visit after mutations
-      const totalPaidDb = await tx.payment.aggregate({
-        _sum: { amount: true },
-        where: {
-          checkInRecordId: activeRecord.id,
-          type: 'PARKING_FEE',
-          status: 'SUCCESS',
-        },
-      });
-      const postTotalSuccessfullyPaid = Number(totalPaidDb._sum.amount ?? 0);
-
-      // Return all authoritative values so the caller can build the response
-      // without referencing variables that were computed inside the transaction callback
-      // or using any stale data loaded before the transaction.
-      return {
-        now,
-        breakdown,
-        total,
-        depositCredit,
-        totalSuccessfullyPaid: postTotalSuccessfullyPaid,
-        finalAmountDue,
-        isMonthly: activeRecord.isMonthly,
-        checkInTime: activeRecord.checkInTime,
-        plateNumber: activeRecord.vehicle.plateNumber,
-        slotCode: activeRecord.slot?.code ?? (activeRecord.allowedTier ? `Khu ${activeRecord.allowedTier === 'VIP' ? 'VIP' : activeRecord.allowedTier === 'POPULAR' ? 'Phổ biến' : 'Cơ bản'}` : 'Không cố định'),
-        floorName: activeRecord.floor?.name ?? activeRecord.slot?.floor?.name ?? 'Không xác định',
-        floorCode: activeRecord.floor?.floorCode ?? activeRecord.slot?.floor?.floorCode ?? '',
-      };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      throw txError;
+    }
 
     const {
       now,
@@ -956,8 +1162,147 @@ export const checkoutService = {
     };
   },
 
+  // ── POST /api/checkout/:checkInRecordId/verify-exit ──────────────────────────────
+  async verifyExit(
+    checkInRecordId: string,
+    files?: {
+      frontCheckOutFile?: Express.Multer.File;
+      rearCheckOutFile?: Express.Multer.File;
+      driverCheckOutFile?: Express.Multer.File;
+    },
+    manualCheckoutPlate?: string
+  ): Promise<{ verificationId: string; expiresAt: string; verifiedPlate: string; verificationMethod: string }> {
+    const startTime = Date.now();
+
+    if (!files?.frontCheckOutFile) {
+      throw new AppError(400, 'Vui lòng chụp ảnh phía trước xe lúc ra.');
+    }
+    if (!files?.rearCheckOutFile) {
+      throw new AppError(400, 'Vui lòng chụp ảnh phía sau xe lúc ra.');
+    }
+    if (!files?.driverCheckOutFile) {
+      throw new AppError(400, 'Vui lòng chụp ảnh người nhận xe.');
+    }
+
+    const record = await prisma.checkInRecord.findUnique({
+      where: { id: checkInRecordId },
+      include: {
+        vehicle: true,
+      },
+    });
+
+    if (!record) {
+      throw new AppError(404, 'Không tìm thấy lượt gửi xe.');
+    }
+
+    if (record.status !== 'PARKING' || record.checkOutTime !== null) {
+      throw new AppError(400, 'Lượt gửi xe đã hoàn thành hoặc không còn hoạt động.');
+    }
+
+    // 1. Existing plate verification
+    const ocrStart = Date.now();
+    const vehicleType = (record.vehicle?.type === 'MOTORBIKE' ? 'MOTORBIKE' : 'CAR') as 'CAR' | 'MOTORBIKE';
+    const verificationResult = await verifyExitVehiclePlate(
+      files.rearCheckOutFile.buffer,
+      vehicleType,
+      record.vehicle.plateNumber,
+      manualCheckoutPlate
+    );
+    const ocrEnd = Date.now();
+    const plateVerificationMs = ocrEnd - ocrStart;
+
+    // 2. Parallel Cloudinary Upload with settled safety
+    const uploadStart = Date.now();
+    const uploadPromises = [
+      uploadBufferToCloudinary(files.frontCheckOutFile.buffer),
+      uploadBufferToCloudinary(files.rearCheckOutFile.buffer),
+      uploadBufferToCloudinary(files.driverCheckOutFile.buffer),
+    ];
+
+    const uploadResults = await Promise.allSettled(uploadPromises);
+
+    const uploadedImages: { publicId: string }[] = [];
+    let uploadError: any = null;
+
+    const settledUploads = uploadResults.map((res) => {
+      if (res.status === 'fulfilled') {
+        uploadedImages.push({ publicId: res.value.publicId });
+        return res.value;
+      } else {
+        uploadError = res.reason;
+        return null;
+      }
+    });
+
+    if (uploadError) {
+      if (uploadedImages.length > 0) {
+        await Promise.allSettled(
+          uploadedImages.map(img => deleteFromCloudinary(img.publicId))
+        );
+      }
+      throw new AppError(500, `Lỗi tải lên hình ảnh minh chứng: ${uploadError?.message || uploadError}`);
+    }
+
+    const [frontUpload, rearUpload, driverUpload] = settledUploads as any[];
+    const uploadEnd = Date.now();
+    const evidenceUploadMs = uploadEnd - uploadStart;
+
+    // 3. Persist verification record
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const checkoutVerification = await prisma.checkoutVerification.create({
+      data: {
+        checkInRecordId,
+        normalizedPlate: verificationResult.verifiedPlate,
+        vehicleType: record.vehicle.type,
+        verificationMethod: verificationResult.method,
+        frontCheckOutImageUrl: frontUpload.secureUrl,
+        frontCheckOutImagePublicId: frontUpload.publicId,
+        rearCheckOutImageUrl: rearUpload.secureUrl,
+        rearCheckOutImagePublicId: rearUpload.publicId,
+        driverCheckOutImageUrl: driverUpload.secureUrl,
+        driverCheckOutImagePublicId: driverUpload.publicId,
+        expiresAt,
+      },
+    });
+
+    const totalMs = Date.now() - startTime;
+
+    console.log(`[CheckoutVerification] plateVerificationMs=${plateVerificationMs}`);
+    console.log(`[CheckoutVerification] evidenceUploadMs=${evidenceUploadMs}`);
+    console.log(`[CheckoutVerification] totalMs=${totalMs}`);
+
+    return {
+      verificationId: checkoutVerification.id,
+      expiresAt: expiresAt.toISOString(),
+      verifiedPlate: verificationResult.verifiedPlate,
+      verificationMethod: verificationResult.method,
+    };
+  },
+
   // ── POST /api/checkout/:checkInRecordId/stripe-session ───────────────────────────
-  async createStripeSession(checkInRecordId: string, staffId: string): Promise<{ sessionId: string; checkoutUrl: string }> {
+  async createStripeSession(
+    checkInRecordId: string,
+    staffId: string,
+    files?: {
+      frontCheckOutFile?: Express.Multer.File;
+      rearCheckOutFile?: Express.Multer.File;
+      driverCheckOutFile?: Express.Multer.File;
+    },
+    manualCheckoutPlate?: string,
+    verificationId?: string
+  ): Promise<{ sessionId: string; checkoutUrl: string }> {
+    if (!verificationId) {
+      if (!files?.frontCheckOutFile) {
+        throw new AppError(400, 'Vui lòng chụp ảnh phía trước xe lúc ra.');
+      }
+      if (!files?.rearCheckOutFile) {
+        throw new AppError(400, 'Vui lòng chụp ảnh phía sau xe lúc ra.');
+      }
+      if (!files?.driverCheckOutFile) {
+        throw new AppError(400, 'Vui lòng chụp ảnh người nhận xe.');
+      }
+    }
+
     const record = await prisma.checkInRecord.findUnique({
       where: { id: checkInRecordId },
       include: {
@@ -989,6 +1334,55 @@ export const checkoutService = {
 
     if (record.isMonthly) {
       throw new AppError(400, 'Xe sử dụng gói tháng không phát sinh phí cần thanh toán qua Stripe.');
+    }
+
+    let frontUrl: string | undefined;
+    let frontPublicId: string | undefined;
+    let rearUrl: string | undefined;
+    let rearPublicId: string | undefined;
+    let driverUrl: string | undefined;
+    let driverPublicId: string | undefined;
+    let verificationMethod: string = 'OCR';
+
+    if (verificationId) {
+      const verification = await validateVerification(verificationId, record);
+      frontUrl = verification.frontCheckOutImageUrl;
+      frontPublicId = verification.frontCheckOutImagePublicId;
+      rearUrl = verification.rearCheckOutImageUrl;
+      rearPublicId = verification.rearCheckOutImagePublicId;
+      driverUrl = verification.driverCheckOutImageUrl;
+      driverPublicId = verification.driverCheckOutImagePublicId;
+      verificationMethod = verification.verificationMethod;
+    } else {
+      // ── Rear License Plate OCR / Controlled Manual Verification (Hard Security Gate) ──
+      const vehicleType = (record.vehicle?.type === 'MOTORBIKE' ? 'MOTORBIKE' : 'CAR') as 'CAR' | 'MOTORBIKE';
+      const { method: vMethod } = await verifyExitVehiclePlate(
+        files!.rearCheckOutFile!.buffer,
+        vehicleType,
+        record.vehicle.plateNumber,
+        manualCheckoutPlate
+      );
+      verificationMethod = vMethod;
+
+      // ── Upload Checkout Images to Cloudinary ──
+      try {
+        const frontUpload = await uploadBufferToCloudinary(files!.frontCheckOutFile!.buffer);
+        frontUrl = frontUpload.secureUrl;
+        frontPublicId = frontUpload.publicId;
+
+        const rearUpload = await uploadBufferToCloudinary(files!.rearCheckOutFile!.buffer);
+        rearUrl = rearUpload.secureUrl;
+        rearPublicId = rearUpload.publicId;
+
+        const driverUpload = await uploadBufferToCloudinary(files!.driverCheckOutFile!.buffer);
+        driverUrl = driverUpload.secureUrl;
+        driverPublicId = driverUpload.publicId;
+      } catch (uploadError) {
+        if (frontPublicId) await deleteFromCloudinary(frontPublicId).catch(() => {});
+        if (rearPublicId) await deleteFromCloudinary(rearPublicId).catch(() => {});
+        if (driverPublicId) await deleteFromCloudinary(driverPublicId).catch(() => {});
+        throw uploadError;
+      }
     }
 
     const now = new Date();
@@ -1037,90 +1431,117 @@ export const checkoutService = {
     const finalAmountDue = Math.max(0, total - depositCredit);
 
     if (finalAmountDue <= 0) {
+      if (!verificationId) {
+        if (frontPublicId) await deleteFromCloudinary(frontPublicId).catch(() => {});
+        if (rearPublicId) await deleteFromCloudinary(rearPublicId).catch(() => {});
+        if (driverPublicId) await deleteFromCloudinary(driverPublicId).catch(() => {});
+      }
       throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0.');
     }
 
-    // Check for existing pending CARD payments for this CheckInRecord atomically
-    const payment = await prisma.$transaction(async (tx) => {
-      // Concurrency lock
-      await acquireVehicleOrPlateLock(tx, record.vehicleId, record.vehicle.plateNumber);
+    let payment: any;
+    let session: any;
 
-      const activeRec = await tx.checkInRecord.findUnique({ where: { id: checkInRecordId } });
-      if (!activeRec || activeRec.checkOutTime !== null) {
-        throw new AppError(409, 'Xe đã được Check-out trước đó.');
-      }
+    try {
+      // Check for existing pending CARD payments for this CheckInRecord atomically
+      payment = await prisma.$transaction(async (tx) => {
+        // Concurrency lock
+        await acquireVehicleOrPlateLock(tx, record.vehicleId, record.vehicle.plateNumber);
 
-      let existingPayment = await tx.payment.findFirst({
-        where: {
-          checkInRecordId: record.id,
-          type: 'PARKING_FEE',
-          method: 'CARD',
-          status: 'PENDING',
-        },
+        const activeRec = await tx.checkInRecord.findUnique({ where: { id: checkInRecordId } });
+        if (!activeRec || activeRec.checkOutTime !== null) {
+          throw new AppError(409, 'Xe đã được Check-out trước đó.');
+        }
+
+        let existingPayment = await tx.payment.findFirst({
+          where: {
+            checkInRecordId: record.id,
+            type: 'PARKING_FEE',
+            method: 'CARD',
+            status: 'PENDING',
+          },
+        });
+
+        if (existingPayment) {
+          existingPayment = await tx.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              amount: finalAmountDue,
+              collectedById: staffId,
+            },
+          });
+        } else {
+          existingPayment = await tx.payment.create({
+            data: {
+              checkInRecordId: record.id,
+              bookingId: null,
+              monthlyPackageId: null,
+              amount: finalAmountDue,
+              method: 'CARD',
+              type: 'PARKING_FEE',
+              status: 'PENDING',
+              collectedById: staffId,
+            },
+          });
+        }
+        return existingPayment;
       });
 
-      if (existingPayment) {
-        existingPayment = await tx.payment.update({
-          where: { id: existingPayment.id },
-          data: {
-            amount: finalAmountDue,
-            collectedById: staffId,
-          },
-        });
-      } else {
-        existingPayment = await tx.payment.create({
-          data: {
-            checkInRecordId: record.id,
-            bookingId: null,
-            monthlyPackageId: null,
-            amount: finalAmountDue,
-            method: 'CARD',
-            type: 'PARKING_FEE',
-            status: 'PENDING',
-            collectedById: staffId,
-          },
-        });
+      const frontendUrl = process.env.FRONTEND_URL;
+      if (!frontendUrl) {
+        throw new AppError(500, 'FRONTEND_URL environment variable is not configured.');
       }
-      return existingPayment;
-    });
 
-    const frontendUrl = process.env.FRONTEND_URL;
-    if (!frontendUrl) {
-      throw new AppError(500, 'FRONTEND_URL environment variable is not configured.');
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      success_url: `${frontendUrl}/staff/checkout?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${frontendUrl}/staff/checkout?stripe=cancelled`,
-      mode: 'payment',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'vnd',
-            product_data: {
-              name: `Phí gửi xe ParkSmart - ${record.vehicle.plateNumber}`,
-              description: `Phí gửi xe tại tầng ${record.floor?.name ?? record.slot?.floor?.name ?? 'Không xác định'}`,
+      const stripeStart = Date.now();
+      session = await stripe.checkout.sessions.create({
+        success_url: `${frontendUrl}/staff/checkout?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${frontendUrl}/staff/checkout?stripe=cancelled`,
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'vnd',
+              product_data: {
+                name: `Phí gửi xe ParkSmart - ${record.vehicle.plateNumber}`,
+                description: `Phí gửi xe tại tầng ${record.floor?.name ?? record.slot?.floor?.name ?? 'Không xác định'}`,
+              },
+              unit_amount: finalAmountDue,
             },
-            unit_amount: finalAmountDue,
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        metadata: {
+          paymentPurpose: 'PARKING_FEE',
+          paymentType: 'PARKING_FEE',
+          paymentId: payment.id,
+          checkInRecordId: record.id,
+          plateVerificationMethod: verificationMethod,
+          frontCheckOutImageUrl: frontUrl ?? '',
+          frontCheckOutImagePublicId: frontPublicId ?? '',
+          rearCheckOutImageUrl: rearUrl ?? '',
+          rearCheckOutImagePublicId: rearPublicId ?? '',
+          driverCheckOutImageUrl: driverUrl ?? '',
+          driverCheckOutImagePublicId: driverPublicId ?? '',
         },
-      ],
-      metadata: {
-        paymentPurpose: 'PARKING_FEE',
-        paymentType: 'PARKING_FEE',
-        paymentId: payment.id,
-        checkInRecordId: record.id,
-      },
-    });
+      });
+      const stripeEnd = Date.now();
+      console.log(`[CheckoutStripe] sessionCreationMs=${stripeEnd - stripeStart}`);
 
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        transactionCode: session.id,
-      },
-    });
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          transactionCode: session.id,
+        },
+      });
+    } catch (stripeError) {
+      if (!verificationId) {
+        if (frontPublicId) await deleteFromCloudinary(frontPublicId).catch(() => {});
+        if (rearPublicId) await deleteFromCloudinary(rearPublicId).catch(() => {});
+        if (driverPublicId) await deleteFromCloudinary(driverPublicId).catch(() => {});
+      }
+      throw stripeError;
+    }
 
     return {
       sessionId: session.id,
@@ -1495,6 +1916,10 @@ export const checkoutService = {
             return { success: true, alreadyProcessed: false };
           }
 
+          if (!metadata.frontCheckOutImageUrl || !metadata.rearCheckOutImageUrl || !metadata.driverCheckOutImageUrl) {
+            throw new AppError(400, 'Thiếu dữ liệu ảnh xác minh xe lúc ra được liên kết với phiên thanh toán Stripe.');
+          }
+
           const checkInRecordUpdateResult = await tx.checkInRecord.updateMany({
             where: {
               id: record.id,
@@ -1504,6 +1929,12 @@ export const checkoutService = {
               checkOutTime: now,
               checkedOutById: payment.collectedById,
               status: 'COMPLETED',
+              frontCheckOutImageUrl: metadata.frontCheckOutImageUrl || null,
+              frontCheckOutImagePublicId: metadata.frontCheckOutImagePublicId || null,
+              rearCheckOutImageUrl: metadata.rearCheckOutImageUrl || null,
+              rearCheckOutImagePublicId: metadata.rearCheckOutImagePublicId || null,
+              driverCheckOutImageUrl: metadata.driverCheckOutImageUrl || null,
+              driverCheckOutImagePublicId: metadata.driverCheckOutImagePublicId || null,
             },
           });
 

@@ -333,5 +333,197 @@ export const checkInService = {
 
     return combined.slice(0, limit);
   },
-};
 
+  async getHistoryDetail(recordId: string) {
+    const record = await prisma.checkInRecord.findUnique({
+      where: { id: recordId },
+      include: {
+        vehicle: {
+          include: {
+            owner: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phoneNumber: true,
+              },
+            },
+          },
+        },
+        slot: {
+          include: {
+            floor: true,
+          },
+        },
+        floor: true,
+        payments: {
+          include: {
+            collectedBy: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        checkedInBy: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        checkedOutBy: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        booking: {
+          include: {
+            floor: true,
+          },
+        },
+        guestCredential: true,
+      },
+    });
+
+    if (!record) {
+      throw new AppError(404, 'Không tìm thấy hồ sơ lượt gửi xe');
+    }
+
+    const floorObj = record.floor ?? record.slot?.floor ?? null;
+    const durationMinutes = Math.max(
+      0,
+      Math.round(
+        ((record.checkOutTime ? new Date(record.checkOutTime).getTime() : Date.now()) -
+          new Date(record.checkInTime).getTime()) /
+          60000
+      )
+    );
+
+    const totalAmount =
+      record.payments?.reduce(
+        (sum, p) => (p.status === 'SUCCESS' ? sum + parseFloat(String(p.amount)) : sum),
+        0
+      ) ?? 0;
+
+    let customerType: 'monthly' | 'booking' | 'casual' = 'casual';
+    if (record.isMonthly || record.vehicle.isMonthly) {
+      customerType = 'monthly';
+    } else if (record.bookingId) {
+      customerType = 'booking';
+    }
+
+    const driverObj = record.driver ?? record.vehicle.owner ?? null;
+
+    return {
+      id: record.id,
+      recordType: 'CHECKIN' as const,
+      status: record.checkOutTime ? ('COMPLETED' as const) : ('PARKING' as const),
+      isMonthly: record.isMonthly || record.vehicle.isMonthly,
+      isLostTicket: record.isLostTicket,
+      lostTicketReason: record.lostTicketReason,
+      lostTicketFullName: record.lostTicketFullName,
+      lostTicketPhone: record.lostTicketPhone,
+      allowedTier: record.allowedTier ?? null,
+      checkInTime: record.checkInTime.toISOString(),
+      checkOutTime: record.checkOutTime ? record.checkOutTime.toISOString() : null,
+      durationMinutes,
+
+      vehicle: {
+        id: record.vehicle.id,
+        plateNumber: record.vehicle.plateNumber,
+        type: record.vehicle.type as 'CAR' | 'MOTORBIKE',
+        brand: record.vehicle.brand ?? null,
+        model: record.vehicle.model ?? null,
+        color: record.vehicle.color ?? null,
+        year: record.vehicle.year ?? null,
+        seats: record.vehicle.seats ?? null,
+      },
+
+      customerType,
+
+      driver: driverObj
+        ? {
+            id: driverObj.id,
+            fullName: driverObj.fullName,
+            email: driverObj.email,
+            phoneNumber: driverObj.phoneNumber ?? null,
+          }
+        : null,
+
+      location: {
+        floorId: floorObj?.id ?? record.floorId ?? null,
+        floorName: floorObj?.name ?? null,
+        floorCode: floorObj?.floorCode ?? null,
+        slotCode: record.slot?.code ?? null,
+        parkingArea: floorObj?.name ?? null,
+      },
+
+      checkInEvidence: {
+        frontImageUrl: record.frontImageUrl ?? null,
+        rearImageUrl: record.rearImageUrl ?? null,
+        driverImageUrl: record.driverCheckInImageUrl ?? null,
+        driverFaceCapturedAt: record.driverFaceCapturedAt ? record.driverFaceCapturedAt.toISOString() : null,
+      },
+
+      checkOutEvidence: {
+        frontImageUrl: record.frontCheckOutImageUrl ?? null,
+        rearImageUrl: record.rearCheckOutImageUrl ?? null,
+        driverImageUrl: record.driverCheckOutImageUrl ?? null,
+      },
+
+      payment: {
+        totalAmount,
+        payments: record.payments.map((p) => ({
+          id: p.id,
+          amount: parseFloat(String(p.amount)),
+          method: p.method,
+          type: p.type,
+          status: p.status,
+          paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+          transactionCode: p.transactionCode ?? null,
+          collectedBy: p.collectedBy ? p.collectedBy.fullName : null,
+        })),
+      },
+
+      checkedInBy: record.checkedInBy
+        ? {
+            id: record.checkedInBy.id,
+            fullName: record.checkedInBy.fullName,
+            email: record.checkedInBy.email,
+          }
+        : null,
+
+      checkedOutBy: record.checkedOutBy
+        ? {
+            id: record.checkedOutBy.id,
+            fullName: record.checkedOutBy.fullName,
+            email: record.checkedOutBy.email,
+          }
+        : null,
+
+      booking: record.booking
+        ? {
+            id: record.booking.id,
+            depositAmount: parseFloat(String(record.booking.depositAmount)),
+            depositStatus: record.booking.depositStatus,
+            bookingTime: record.booking.bookingTime.toISOString(),
+            expectedArrival: record.booking.expectedArrival.toISOString(),
+          }
+        : null,
+    };
+  },
+};

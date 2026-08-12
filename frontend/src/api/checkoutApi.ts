@@ -7,6 +7,11 @@ export interface CheckoutLookupResult {
   plate?: string;
   vehicleType?: 'CAR' | 'MOTORBIKE';
   slotCode?: string;
+  floorId?: number | null;
+  floorName?: string | null;
+  floorCode?: string | null;
+  allowedTier?: string | null;
+  bookingId?: string | null;
   isMonthly?: boolean;
   checkInTime?: string;
   now?: string;
@@ -107,10 +112,82 @@ export interface CheckoutCompletedResponse {
   }>;
 }
 
-export async function createCheckoutStripeSession(checkInRecordId: string): Promise<{ sessionId: string; checkoutUrl: string }> {
+export interface CheckoutVerificationResult {
+  verificationId: string;
+  expiresAt: string;
+  verifiedPlate: string;
+  verificationMethod: string;
+}
+
+export async function verifyExitCheckout(
+  checkInRecordId: string,
+  frontFile: File,
+  rearFile: File,
+  driverFile: File,
+  manualCheckoutPlate?: string
+): Promise<CheckoutVerificationResult> {
   try {
+    const formData = new FormData();
+    formData.append('frontCheckOutImage', frontFile);
+    formData.append('rearCheckOutImage', rearFile);
+    formData.append('driverCheckOutImage', driverFile);
+    if (manualCheckoutPlate) {
+      formData.append('manualCheckoutPlate', manualCheckoutPlate);
+    }
+
+    const response = await api.post<{ success: boolean; data: CheckoutVerificationResult }>(
+      `/checkout/${checkInRecordId}/verify-exit`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      }
+    );
+    return unwrap(response);
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Xác minh xe thất bại. Vui lòng thử lại.';
+    throw new Error(msg);
+  }
+}
+
+export async function createCheckoutStripeSession(
+  checkInRecordId: string,
+  frontFile?: File,
+  rearFile?: File,
+  driverFile?: File,
+  manualCheckoutPlate?: string,
+  verificationId?: string
+): Promise<{ sessionId: string; checkoutUrl: string }> {
+  try {
+    if (verificationId) {
+      const response = await api.post<{ success: boolean; data: { sessionId: string; checkoutUrl: string } }>(
+        `/checkout/${checkInRecordId}/stripe-session`,
+        { verificationId },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 60000,
+        }
+      );
+      return unwrap(response);
+    }
+
+    const formData = new FormData();
+    if (frontFile) formData.append('frontCheckOutImage', frontFile);
+    if (rearFile) formData.append('rearCheckOutImage', rearFile);
+    if (driverFile) formData.append('driverCheckOutImage', driverFile);
+    if (manualCheckoutPlate) {
+      formData.append('manualCheckoutPlate', manualCheckoutPlate);
+    }
+
     const response = await api.post<{ success: boolean; data: { sessionId: string; checkoutUrl: string } }>(
-      `/checkout/${checkInRecordId}/stripe-session`
+      `/checkout/${checkInRecordId}/stripe-session`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      }
     );
     return unwrap(response);
   } catch (err: unknown) {

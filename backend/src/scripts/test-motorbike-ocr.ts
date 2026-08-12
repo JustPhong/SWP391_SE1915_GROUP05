@@ -1,4 +1,4 @@
-import { isValidMotorbikePlate, formatMotorbikePlate } from '../services/ocr.service';
+import { isValidMotorbikePlate, formatMotorbikePlate, extractNoisyMotorbikePlate } from '../services/ocr.service';
 
 function testMotorbikeOcr() {
   console.log('Running focused Motorbike OCR validation & formatting tests...');
@@ -42,10 +42,56 @@ function testMotorbikeOcr() {
   const plate4 = '29C14390';
   const valid4 = isValidMotorbikePlate(plate4);
   console.log(`Input: ${plate4} | Valid (as standalone legacy/custom candidate): ${valid4}`);
-  // (We expect isValidMotorbikePlate standalone to return true because of the legacy fallback length-8 format check,
-  // but it is strictly rejected inside the split-line OCR recombine logic to prevent partial modern format reads)
 
-  console.log('All motorbike validation and formatting assertions passed successfully!');
+  // Test Case 6: Noisy whole-block extraction - 67-A2 4 129.87F FL
+  const raw1 = '67-A2 4 129.87F FL';
+  const extracted1 = extractNoisyMotorbikePlate(raw1);
+  console.log(`Raw: "${raw1}" | Extracted: ${extracted1}`);
+  if (!extracted1 || !isValidMotorbikePlate(extracted1) || formatMotorbikePlate(extracted1) !== '67-A2 129.87') {
+    throw new Error(`Test failed for raw text: "${raw1}". Got extracted: ${extracted1}`);
+  }
+
+  // Test Case 7: Noisy whole-block extraction - 67-A2 1129.87 J
+  const raw2 = '67-A2 1129.87 J';
+  const extracted2 = extractNoisyMotorbikePlate(raw2);
+  console.log(`Raw: "${raw2}" | Extracted: ${extracted2}`);
+  if (!extracted2 || !isValidMotorbikePlate(extracted2) || formatMotorbikePlate(extracted2) !== '67-A2 129.87') {
+    throw new Error(`Test failed for raw text: "${raw2}". Got extracted: ${extracted2}`);
+  }
+
+  // Test Case 8: Noisy whole-block extraction - 67-A2B 8129.87 8 7
+  const raw3 = '67-A2B 8129.87 8 7';
+  const extracted3 = extractNoisyMotorbikePlate(raw3);
+  console.log(`Raw: "${raw3}" | Extracted: ${extracted3}`);
+  if (!extracted3 || !isValidMotorbikePlate(extracted3) || formatMotorbikePlate(extracted3) !== '67-A2 129.87') {
+    throw new Error(`Test failed for raw text: "${raw3}". Got extracted: ${extracted3}`);
+  }
+
+  // Test Case 9: Clean input extraction - 67-A2 129.87
+  const raw4 = '67-A2 129.87';
+  const extracted4 = extractNoisyMotorbikePlate(raw4);
+  console.log(`Raw: "${raw4}" | Extracted: ${extracted4}`);
+  if (!extracted4 || !isValidMotorbikePlate(extracted4) || formatMotorbikePlate(extracted4) !== '67-A2 129.87') {
+    throw new Error(`Test failed for raw text: "${raw4}". Got extracted: ${extracted4}`);
+  }
+
+  // Test Case 10: Clean single line extraction - 67A212987
+  const raw5 = '67A212987';
+  const extracted5 = extractNoisyMotorbikePlate(raw5);
+  console.log(`Raw: "${raw5}" | Extracted: ${extracted5}`);
+  if (!extracted5 || !isValidMotorbikePlate(extracted5) || formatMotorbikePlate(extracted5) !== '67-A2 129.87') {
+    throw new Error(`Test failed for raw text: "${raw5}". Got extracted: ${extracted5}`);
+  }
+
+  // Test Case 11: Negative Test (Random text with numbers)
+  const raw6 = 'Lorem ipsum 12 dolor sit 345 amet';
+  const extracted6 = extractNoisyMotorbikePlate(raw6);
+  console.log(`Raw: "${raw6}" | Extracted: ${extracted6}`);
+  if (extracted6 && isValidMotorbikePlate(extracted6)) {
+    throw new Error(`Negative test failed: raw text "${raw6}" was incorrectly accepted as valid plate: ${extracted6}`);
+  }
+
+  console.log('All motorbike validation, formatting, and noisy OCR extraction assertions passed successfully!');
 }
 
 try {
@@ -54,4 +100,3 @@ try {
   console.error('Assertion Failure:', e.message);
   process.exit(1);
 }
-
